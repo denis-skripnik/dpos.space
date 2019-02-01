@@ -16,12 +16,15 @@
 <li id = "tab4" class = "tab" onclick = "funcTab(4);">Кураторские награды</li>
 <?php } else { ?>
   <li id = "tab3" class = "tab" onclick = "funcTab(3);">Полученные награды</li>
+  <li id = "tab4" class = "tab" onclick = "funcTab(4);" style="display: none;">Кураторские награды</li>
 <?php } ?>
 <li id = "tab5" class = "tab" onclick = "funcTab(5);">Бенефициарские вознаграждения</li>
         <li id = "tab6" class = "tab" onclick = "funcTab(6);">Подписчики с информацией о каждом</li>
     <li id = "tab7" class = "tab" onclick = "funcTab(7);">Делегатство</li>
     <?php if ($chain != 'viz') { ?>
     <li id = "tab8" class = "tab" onclick = "funcTab(8);">Комментарии</li>
+    <?php } else { ?>
+      <li id = "tab8" class = "tab" onclick = "funcTab(8);" style="display: none;">Комментарии</li>
     <?php }
                         if ($chain == 'golos') { ?>
         <li id = "tab9" class = "tab" onclick = "funcTab(9);">Уведомления от @robot</li>
