@@ -21,7 +21,11 @@ if ($chain != 'viz') {
   
   $steem_per_vests = 1000000 * $tvfs / $tvsh;
 
-$sp_result = round($sptec / 1000000 * $steem_per_vests, 3);
+if ($chain != 'viz') {
+  $sp_result = round($sptec / 1000000 * $steem_per_vests, 3);
+} else {
+  $sp_result = round($sptec / 1000000 * $steem_per_vests, 6);
+}
 
 echo "<p>Результат конвертации: $sp_result $amount2</p>";
 }
