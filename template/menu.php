@@ -1,7 +1,14 @@
 <nav id="menu">
 <ul>
 <?php
-if ($chain != 'viz') {
+if (($chain ?? $chain ?? "") == 'viz') {
+    $menu_services = array(
+        'profiles' => 'Смотреть профили',
+        'tags' => 'Транслит и подбор тегов',
+        'calc' => 'Блокчейн-Калькулятор',
+        'post' => 'Публиковать посты'
+        );
+} else {
     $menu_services = array(
         'profiles' => 'Смотреть профили',
         'tags' => 'Транслит и подбор тегов',
@@ -10,14 +17,8 @@ if ($chain != 'viz') {
         'feed' => 'Читать подписчиков',
         'post' => 'Публиковать посты'
     );
-} else {
-    $menu_services = array(
-        'profiles' => 'Смотреть профили',
-        'tags' => 'Транслит и подбор тегов',
-        'calc' => 'Блокчейн-Калькулятор',
-        'post' => 'Публиковать посты'
-        );
 }
+
 foreach ($menu_services as $services_urls => $services_ankors) {
 if (!isset($array_url[1]) ){
 $end_url = "";
