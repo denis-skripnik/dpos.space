@@ -23,7 +23,7 @@ $chain_post = 'steem';
 $ChainBrowserFiles = '<script src="https://dpos.space/post/static/steem.min.js"></script>';
 } else if (($chain ?? $chain ?? "") == 'viz') {
         $chain_post = 'viz';
-        $ChainBrowserFiles = '<script src="https://cdn.jsdelivr.net/npm/viz-world-js@latest/dist/viz.min.js"></script>';
+        $ChainBrowserFiles = '<script src="https://cdn.jsdelivr.net/npm/viz-js-lib@latest/dist/viz.min.js"></script>';
 } else if (($chain ?? $chain ?? "") == 'WLS') {
         $chain_post = 'WLS';
         $ChainBrowserFiles = '<script src="https://cdn.jsdelivr.net/npm/wlsjs-staging@latest/dist/wlsjs.min.js"></script>';
