@@ -22,7 +22,7 @@ abstract class HttpJsonRpcConnectorAbstract implements ConnectorInterface
 
 
     /**
-     * current node url, for example 'https://api.golos.io'
+     * current node url, for example 'https://api.golos.id'
      *
      * if you set several nodes urls, if with first node will be trouble
      * it will connect after $maxNumberOfTriesToCallApi tries to next node

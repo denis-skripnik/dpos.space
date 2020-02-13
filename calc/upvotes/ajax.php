@@ -11,6 +11,7 @@ require $_SERVER['DOCUMENT_ROOT'].'/params.php';
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_dynamic_global_properties.php';
 if ($chain != 'WLS' && $chain != 'viz') {
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_feed_history.php';
+require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_ticker.php';
 }
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_config.php';
 if ($chain == 'WLS' or $chain == 'steem') {
@@ -25,7 +26,10 @@ if( isset($array_url[1]) ){ // проверяем существование э�
  if ($chain != 'WLS' && $chain != 'viz') {
  $feed_res = $feed_command->execute($feed_commandQuery); 
  $feed_mass = $feed_res['result'];
- }
+ $ticker_res = $ticker_command->execute($ticker_commandQuery); 
+ $ticker_mass = $ticker_res['result'];
+ $ticker_price = $ticker_mass['latest'];
+}
 
  $config_res = $config_command->execute($config_commandQuery); 
 
@@ -90,11 +94,13 @@ $account["rshares"] = round($rshares);
 $fixxrshares = (($vest_shares * $fixx_used_power) / 10000);
 $account["fixx_rshares"] = round($fixxrshares);
 $value_golos = round($account["rshares"] * $total_reward_fund_steem / $total_reward_shares2, 3);
-$value_gbg = round($value_golos * $median_price, 3);
+$value_median_gbg = round($value_golos * $median_price, 3);
+$value_market_gbg = round($value_golos * $ticker_price, 3);
 
 $dasdas_golos = $value_golos*($vote_weight/100);
-$dasdas_gbg = $value_gbg*($vote_weight/100);
-echo "<p>Стоимость апвота: $dasdas_golos $amount1, $dasdas_gbg $amount3</p>";
+$dasdas_median_gbg = $value_median_gbg*($vote_weight/100);
+$dasdas_market_gbg = $value_market_gbg*($vote_weight/100);
+echo "<p>Стоимость апвота: $dasdas_golos $amount1, $dasdas_market_gbg $amount3 по курсу продажи, $dasdas_median_gbg $amount3 по медиане.</p>";
 } else if ($chain == 'steem') {
   $steem_a = $tvfs / $tvsh;
   $steem_n = 100; // vote_vait;

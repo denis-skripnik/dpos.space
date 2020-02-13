@@ -97,6 +97,14 @@ class WhalesharesApiMethods
                 '*:start_permlink' => ['nullOrString'] //'start_permlink' for pagination,
             ]
         ],
+        'get_discussions_by_comments'               => [
+            'apiName' => 'database_api',
+            'fields'  => [
+                '*:limit'          => ['integer'], //'limit'
+                '*:start_author'   => ['nullOrString'], //'start_author' for pagination,
+                '*:start_permlink' => ['nullOrString'] //'start_permlink' for pagination,
+            ]
+        ],
         'get_discussions_by_created'            => [
             'apiName' => 'database_api',
             'fields'  => [
@@ -127,6 +135,12 @@ class WhalesharesApiMethods
         'get_dynamic_global_properties'         => [
             'apiName' => 'database_api',
             'fields'  => [
+            ]
+        ],
+        'get_follow_count'                         => [
+            'apiName' => 'follow_api',
+            'fields'  => [
+                '0' => ['string'], //author
             ]
         ],
         'get_ops_in_block'                      => [
@@ -172,12 +186,6 @@ class WhalesharesApiMethods
                 '3' => ['integer'], //limit
             ]
         ],
-        'get_follow_count'                         => [
-            'apiName' => 'follow_api',
-            'fields'  => [
-                '0' => ['string'], //author
-            ]
-        ],
         'login'                                 => [
             'apiName' => 'login_api',
             'fields'  => [
@@ -210,6 +218,18 @@ class WhalesharesApiMethods
         ],
         'broadcast_transaction_synchronous'     => [
             'apiName' => 'network_broadcast_api',
+            'fields'  => [
+                '0:ref_block_num'    => ['integer'],
+                '0:ref_block_prefix' => ['integer'],
+                '0:expiration'       => ['string'],
+                '0:operations:*:0'   => ['string'],
+                '0:operations:*:1'   => ['array'],
+                '0:extensions'       => ['array'],
+                '0:signatures'       => ['array']
+            ]
+        ],
+        'get_transaction_hex'                 => [
+            'apiName' => 'database_api',
             'fields'  => [
                 '0:ref_block_num'    => ['integer'],
                 '0:ref_block_prefix' => ['integer'],

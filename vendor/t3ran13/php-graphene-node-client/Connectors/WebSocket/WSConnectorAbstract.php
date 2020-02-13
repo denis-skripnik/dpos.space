@@ -22,7 +22,7 @@ abstract class WSConnectorAbstract implements ConnectorInterface
     protected static $nodeURL;
 
     /**
-     * current node url, for example 'wss://ws.golos.io'
+     * current node url, for example 'wss://ws.golos.id'
      *
      * @var string
      */
@@ -30,7 +30,7 @@ abstract class WSConnectorAbstract implements ConnectorInterface
 
 
     /**
-     * current node url, for example 'wss://ws.golos.io'
+     * current node url, for example 'wss://ws.golos.id'
      *
      * if you set several nodes urls, if with first node will be trouble
      * it will connect after $maxNumberOfTriesToCallApi tries to next node

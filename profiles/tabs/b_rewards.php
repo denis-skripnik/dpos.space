@@ -37,7 +37,9 @@ $result['content'] = "<h2>Последние бенефециарские наг
     <p align='center'><strong>бенефициатом является текущий пользователь.</strong></p>
     <table><tr>
     <th>Дата и время получения</th>
-    <th>Получатель</th>
+    <th>Инициатор</th>
+    <th>Получатель награды</th>
+    <th>Бенефактор</th>
     <th>Заметка (memo)</th>
     <th>Бенефициарская награда (в $amount2)</th>
     <th>Номер Custom операции (custom_sequence)</th></tr>";
@@ -78,11 +80,11 @@ while ($startWith !== -1 && $rowCount !== B_REWARDS_LIMIT) {
  $timestamp2 = strtotime($timestamp1);
 $month2 = date('m', $timestamp2);
 $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
-			$result['content'] .= "<tr><td>$timestamp</td>
-			<td><a href='https://dpos.space/profiles/$b_author/$array_url[2]' target='_blank'>$b_author</a></td>
-<td><a href='https://$client/@$b_author/$b_permlink' target='_blank'>$b_permlink</a>
-<td>" . round($b_SP, 3) . "</td>
-</tr>";
+			$result['content'] .= '<tr><td>'.$timestamp.'</td>
+            <td><a href="https://dpos.space/profiles/'.$b_author.'/'.$array_url[2].'" target="_blank">'.$b_author.'</a></td>
+<td><a href="https://'.$client.'/@'.$b_author.'/'.$b_permlink.'" target="_blank">'.$b_permlink.'</a>
+<td>' . round($b_SP, 3) . '</td>
+</tr>';
 $summ_b_SP += $b_SP;
             
 if ($rowCount === B_REWARDS_LIMIT) {
@@ -93,7 +95,9 @@ if ($rowCount === B_REWARDS_LIMIT) {
             $rowCount++;
 
             $receiver = ($op[1]['receiver'] ?? "");
+            $benefactor = ($op[1]['benefactor'] ?? "");
             $memo = ($op[1]['memo'] ?? "");
+            $b_initiator = ($op[1]['initiator'] ?? "");
             $b_custom_sequence = (float)($op[1]['custom_sequence'] ?? "");
             $b_shares = (float)($op[1]['shares'] ?? "");
 
@@ -103,7 +107,9 @@ if ($rowCount === B_REWARDS_LIMIT) {
 $month2 = date('m', $timestamp2);
 $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 			$result['content'] .= "<tr><td>$timestamp</td>
-			<td><a href='https://dpos.space/profiles/$receiver/$array_url[2]' target='_blank'>$receiver</a></td>
+<td><a href='https://dpos.space/profiles/$b_initiator/viz' target='_blank'>".$b_initiator."</a></td>
+            <td><a href='https://dpos.space/profiles/$receiver/$array_url[2]' target='_blank'>$receiver</a></td>
+            <td><a href='https://dpos.space/profiles/$benefactor/$array_url[2]' target='_blank'>$benefactor</a></td>
             <td>$memo</td>
             <td>$b_shares</td>
             <td>$b_custom_sequence</td>

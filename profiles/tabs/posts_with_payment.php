@@ -19,8 +19,11 @@ $result['content'] = "<h2>Посты, получившие выплаты</h2>
 <table><tr><th>Название</th>
 <th>Время после выплаты</th>
 <th>Список бенефициаров и их проценты</th>
-<th>Пост оштрафован из-за частой публикации большого количества постов на</th>
-</tr>";
+<th>Пост оштрафован из-за частой публикации большого количества постов на</th>";
+if ($chain == 'golos') {
+    $result['content'] .= "<th>Сумма продвижения</th>";
+}
+$result['content'] .= "</tr>";
 
 $isNotFirstPage = isset($_REQUEST['start']);
 if ($isNotFirstPage) {
@@ -126,7 +129,10 @@ foreach ($posts as $post) {
     $shtraf_procent = 100 - $reward_weight_procent;
     $result['content'] .= '<td>' . round($shtraf_procent, 2) . '%</td>';
     $arr_shtraf_procent[] = $shtraf_procent;
-
+    if ($chain == 'golos') {
+        $result['content'] .= "<td>".$post['promoted']."</td>";
+    }
+    
     $result['content'] .= '</tr>';
 }
 

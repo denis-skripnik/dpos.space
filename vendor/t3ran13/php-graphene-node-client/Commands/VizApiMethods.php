@@ -106,16 +106,6 @@ class VizApiMethods
                 '*:parent_permlink'  => ['nullOrString'] //the permlink of parent discussion
             ]
         ],
-        'get_discussions_by_contents'               => [
-            'apiName' => 'tags',
-            'fields'  => [
-                '*:limit'            => ['integer'], //the discussions return amount top limit
-                '*:truncate_body'    => ['nullOrInteger'], //the amount of bytes of the post body to return, 0 for all
-                '*:start_author'     => ['nullOrString'], //the author of discussion to start searching from
-                '*:start_permlink'   => ['nullOrString'], //the permlink of discussion to start searching from
-                '*:voteLimit' => ['nullOrInteger'] //voteLimit by default 10 000
-            ]
-        ],
         'get_discussions_by_created'            => [
             'apiName' => 'tags',
             'fields'  => [
@@ -210,6 +200,18 @@ class VizApiMethods
         ],
         'broadcast_transaction_synchronous'     => [
             'apiName' => 'network_broadcast_api',
+            'fields'  => [
+                '0:ref_block_num'    => ['integer'],
+                '0:ref_block_prefix' => ['integer'],
+                '0:expiration'       => ['string'],
+                '0:operations:*:0'   => ['string'],
+                '0:operations:*:1'   => ['array'],
+                '0:extensions'       => ['array'],
+                '0:signatures'       => ['array']
+            ]
+        ],
+        'get_transaction_hex'                 => [
+            'apiName' => 'database_api',
             'fields'  => [
                 '0:ref_block_num'    => ['integer'],
                 '0:ref_block_prefix' => ['integer'],

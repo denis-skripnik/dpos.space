@@ -15,5 +15,5 @@ class VizWSConnector extends WSConnectorAbstract
      *
      * @var string
      */
-    protected static $nodeURL = ['wss://ws.viz.ropox.tools', 'wss://viz.lexai.host'];
+    protected static $nodeURL = ['wss://viz.lexa.host/ws', 'wss://solox.world/ws'];
 }

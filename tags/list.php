@@ -25,7 +25,7 @@ foreach ($data as $dating) {
 $taging = transliteration_ru($dating['name'], 'torus');
 $tagiru = transliteration_eng($dating['name'], 'torus');
 echo '<tr>
-        <td><a href="https://golos.io/created/'.$dating['name'].'" target="_blank">'.$taging.'</a></td>';
+        <td><a href="https://golos.id/created/'.$dating['name'].'" target="_blank">'.$taging.'</a></td>';
 if ($dating['posts'] ==100) {
 		echo '<td>>100</td>';
 } else {
@@ -58,7 +58,7 @@ foreach ($data as $dating) {
 $taging = transliteration_ru($dating['name'], 'torus');
 $tagiru = transliteration_eng($dating['name'], 'torus');
 echo '<tr>
-        <td><a href="https://golos.io/created/'.$dating['name'].'" target="_blank">'.$taging.'</a></td>';
+        <td><a href="https://golos.id/created/'.$dating['name'].'" target="_blank">'.$taging.'</a></td>';
 if ($dating['posts'] ==100) {
 		echo '<td>>100</td>';
 } else {

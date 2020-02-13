@@ -1,0 +1,18 @@
+#php_flag display_startup_errors off
+#php_flag display_errors off
+#php_flag html_errors off
+#php_value max_execution_time 120000
+
+Options +FollowSymLinks
+Options -Indexes
+DirectoryIndex index.html index.php
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^.*$ https://viz.dpos.space/$0 [QSA,L,R=permanent]
+RewriteBase /viz/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<base href="/">
+	<title>JSON generator</title>
+	<meta name="description" content="">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script> -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" integrity="sha256-VazP97ZCwtekAsvgPBSUwPFKdrwD3unUfSGVYrahUqU=" crossorigin="anonymous"></script>
+	<!-- <link rel="stylesheet" href="css/main.min.css"> -->
+	<style>
+		html,body {
+			height: 100%;
+			font-family: 'Segoe UI', sans-serif;
+		}
+		*:before,*:after,*{
+			box-sizing: border-box;
+		}
+		.container, .buttons {
+			max-width: 1000px;
+			margin: 50px auto;
+		}
+		.textarea {
+			width: 100%;
+		}
+		.modal {
+			position: fixed;
+			top: 0;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			visibility: hidden;
+			overflow-y: auto;
+			overflow-y: scroll;
+		}
+		.modal.modal-visible {
+			overflow-y: auto;
+			visibility: visible;
+		}
+		.modal-overlay {
+			position: fixed;
+			background: rgba(0,0,0,.3);
+			top: 0;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			opacity: 0;
+			transition: opacity .3s;
+		}
+		.modal-visible .modal-overlay {
+			opacity: 1;
+		}
+		.modal-content-inner {
+			max-width: 600px;
+			margin: -300px auto 100px;
+			background: #fff;
+			box-shadow: 0 0 100px #000;
+			padding: 50px 20px;
+			transition: margin-top .3s;
+			position: relative;
+		}
+		.modal-visible .modal-content-inner {
+			margin-top: 100px;
+		}
+		.modal textarea {
+			width: 100%;
+			resize: vertical;
+		}
+	</style>
+</head>
+
+<body>
+	<script>
+		var generatedObject = {};
+		!function($){
+			$(document).ready(function(){
+				var html = getForm(getExampleObj2());
+				$('.container').empty().html(html);
+				$('form, fieldset').sortable();
+				setEvents();
+				function setEvents(){
+					$(".container").on('click', '.gen-delete', function(){
+						$(this).closest('p').remove();
+					});
+					$(".container").on('click', '.gen-level-delete', function(){
+						$(this).closest('fieldset').next('p').andSelf().remove();
+						// $(this).closest('fieldset').remove();
+					});
+					$(".modal-wrapper").on('click', '.modal-overlay, .modal-cancel', function(e){
+						e.preventDefault();
+						$(this).closest('.modal-visible').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+					});
+					// кнопки создания и удаления полей и уровней
+					var $parent = null;
+					$(document).on('click', '.gen-edit', function(e){
+						e.preventDefault();
+						$('.modal-field').addClass('modal-visible').find('input:first').focus();
+						$('body').css('overflow', 'hidden')
+						$parent = $(this).closest('p');
+						info = readNodes([$parent[0]])[0];
+						modalSetDefaults('.modal-field', info, 'edit');
+					});
+					$(document).on('click', '.gen-newfield', function(e){
+						e.preventDefault();
+						$('.modal-field').addClass('modal-visible').find('input:first').focus();
+						$('body').css('overflow', 'hidden');
+						var $this = $(this);
+
+						if ($this.is('.newfield-outer')) {
+							$parent = $this.closest('fieldset');
+						} else {
+							$parent = $this.closest('p');
+						}
+
+						modalSetDefaults('.modal-field');
+					});
+					$(document).on('click', '.gen-level-edit', function(e){
+						e.preventDefault();
+						$('.modal-level').addClass('modal-visible').find('input:first').focus();
+						$('body').css('overflow', 'hidden');
+						$parent = $(this).closest('fieldset');
+						info = readNodes([$parent[0]])[0];
+						modalSetDefaults('.modal-level', info, 'edit');
+					});
+					$(document).on('click', '.gen-newlevel', function(e){
+						e.preventDefault();
+						$('.modal-level').addClass('modal-visible').find('input:first').focus();
+						$('body').css('overflow', 'hidden')
+						if ($(this).is('.newlevel-outer')){
+							$parent = $(this).closest('fieldset');
+						} else {
+							$parent = $(this).closest('p');
+						}
+						modalSetDefaults('.modal-level');
+					});
+					$(".modal-wrapper").on('submit', 'form', function(e){
+						e.preventDefault();
+					});
+					$(".modal-wrapper").on('click', '.level.edit', function(e){
+						var $this = $(this);
+						var $form = $(this).closest('form');
+						var form = $form[0];
+
+						var oldName = $parent.attr('data-name');
+						var newName = form.name.value;
+
+						$parent.find('.gen-controls').remove();
+
+
+						// замена имен в цепочке вложенности
+						var level = $parent.parents('fieldset').length;
+						$($parent.find('[name*="'+oldName+'"]').get().reverse()).each(function(){
+							var $this = $(this);
+							console.log($this);
+							if (level === 0) {
+								$this.attr( 'name', $this.attr('name').replace(oldName, newName) )
+							} else {
+								$this.attr(  'name', $this.attr('name').replace('['+oldName+']', '['+newName+']')  )
+							}
+						});
+
+						$parent.replaceWith(
+							getFormParts([
+								{
+									type: 'level',
+									label: form.label.value,
+									name: newName,
+									values: readNodes($parent.find('>p,>fieldset').toArray())
+								}
+							])
+						);
+						$('.modal-visible').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+					});
+					$(".modal-wrapper").on('click', '.level.add', function(e){
+						var $this = $(this);
+						var $form = $(this).closest('form');
+						var form = $form[0];
+
+						var oldName = $parent.attr('data-name');
+						$parent.after(
+							getFieldsetStart({
+								type: 'level',
+								label: form.label.value,
+								name: form.name.value,
+							}) + getFieldsetEnd()
+						);
+						$('.modal-visible').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+					});
+					$(".modal-wrapper").on('click', '.field.edit', function(e){
+						var $this = $(this);
+						var $form = $(this).closest('form');
+						var form = $form[0];
+
+						$parent.replaceWith(
+							getField({
+								type: 'field',
+								label: form.label.value,
+								isTextarea: form.istextarea.value === "1" ? true : false,
+								name: form.name.value,
+								defaultValue: form.defaultvalue.value,
+							})
+						);
+						$('.modal-visible').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+					});
+					$(".modal-wrapper").on('click', '.field.add', function(e){
+						var $this = $(this);
+						var $form = $(this).closest('form');
+						var form = $form[0];
+
+						var namechain = $parent.parents('fieldset').toArray().reverse().map(function(val){
+							return val.dataset.name;
+						});
+						namechain.push(form.name.value);
+						namechain = namechain.map(function(val, ind){
+							console.log(ind);
+							if (ind) {
+								return '[' + val + ']';
+							}
+							return val;
+						}).join('');
+
+						$parent.after(
+							getField({
+								type: 'field',
+								label: form.label.value,
+								isTextarea: form.istextarea.value === "1" ? true : false,
+								name: namechain,
+								defaultValue: form.defaultvalue.value,
+							})
+						);
+						$('.modal-visible').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+					});
+					// получить итоговую форму
+					$('.get-resultForm').click(function(){
+						var $clearNewCloneOfForm = $('#js-form').clone().find('.gen-controls').remove().end();
+						var object = readForm($clearNewCloneOfForm);
+						var result = generateResultForm(object);
+						$('.modal-getResultHTML').addClass('modal-visible')
+						$('body').css('overflow', 'hidden')
+						$("[name='ta-get-form']").val('').val(result).focus();
+					});
+					$('.get-JSON').click(function(){
+						var $clearNewCloneOfForm = $('#js-form').clone().find('.gen-controls').remove().end();
+						var json = JSON.stringify(readForm($clearNewCloneOfForm));
+						$('.modal-getJSON').addClass('modal-visible')
+						$('body').css('overflow', 'hidden')
+						$("[name='ta-get-json']").val('').val(json).focus();
+					});
+					$('.set-JSON').click(function(){
+						$('.modal-setJSON').addClass('modal-visible')
+						$('body').css('overflow', 'hidden')
+						$('[name="ta-set-json"]').focus();
+					});
+					$('.get-demo').click(function(){
+						$('.modal-getDemo').addClass('modal-visible')
+						$('body').css('overflow', 'hidden')
+						var $clearNewCloneOfForm = $('#js-form').clone().find('.gen-controls').remove().end();
+						var object = readForm($clearNewCloneOfForm);
+						var result = generateResultForm(object);
+						var formId = $('.result-demo').empty().html(result).find('form').attr('id');
+						function checkWorkingNode() {
+						    const NODES = [
+						        "wss://ws.viz.ropox.tools",
+						        "wss://viz.lexai.host",
+						        "wss://solox.world/ws"
+						    ];
+						    let node = localStorage.getItem("node") || NODES[0];
+						    const idx = Math.max(NODES.indexOf(node), 0);
+						    let checked = 0;
+						    const find = (idx) => {
+						        if (idx >= NODES.length) {
+						            idx = 0;
+						        }
+						        if (checked >= NODES.length) {
+						            alert("no working nodes found");
+						            return;
+						        }
+						        node = NODES[idx];
+						        viz.config.set("websocket", node);
+						        viz.api.getDynamicGlobalPropertiesAsync()
+						            .then(props => {
+						                console.log("found working node", node);
+						                localStorage.setItem("node", node);
+						            })
+						            .catch(e => {
+						                console.log("connection error", node, e);
+						                find(idx + 1);
+						            });
+						    }
+						    find(idx);
+						}
+						// на случай, если вд
+						var timeoutR = setTimeout(function checkViz(){
+							if (window.hasOwnProperty('viz')) {
+								console.log('if');
+								checkWorkingNode();
+								checkLogin(formId);
+							} else {
+								console.log('else');
+								timeoutR = setTimeout(checkViz, 30);
+							}
+						}, 0);
+					});
+					$('.ta-set-json-ready').click(function(e){
+						e.preventDefault();
+						try {
+							var json = JSON.parse($("[name='ta-set-json']").val());
+						} catch (e) {
+							alert('Невалидный JSON');
+							return;
+						}
+						$('.modal-setJSON').removeClass('modal-visible');
+						$('body').css('overflow', 'initial')
+						var html = getForm(json);
+						$('.container').empty().html(html);
+					});
+					$(document).on('submit', ".generated-form", function(e){
+						e.preventDefault();
+						var $this = $(this);
+						$.ajax({
+							type: 'post',
+							url: 'json_encode.php',
+							data: $this.serialize(),
+							dataType: 'json',
+							success: function(json){
+								viz.broadcast.custom(wif, '5JK93itdNcq45USqDbqPrxfpJscFQZa6Eoz9ApY7qojTS2QPnDu', [], ['devtest'], 'id', json, function(err, result) {
+									if (!err) {
+										console.log('сообщение об успехе');
+									} else {
+										console.log('сообщение об ошибке');
+									}
+								});
+							}
+						});
+					});
+				}
+				function modalSetDefaults(modal, info, edit){
+					info = info || {};
+					var $form = $(modal).find('form');
+					var form = $form[0];
+					form.label && (form.label.value = info.label || '');
+					form.name && (form.name.value = info.name || '');
+					form.defaultvalue && (form.defaultvalue.value = info.defaultValue || '');
+					form.istextarea && (form.istextarea.value = info.isTextarea ? 1 : 0);
+					var $button = $form.find('.modal-ready');
+					if (edit) {
+						$button.addClass('edit').removeClass('add')
+					} else {
+						$button.addClass('add').removeClass('edit')
+					}
+					if (~modal.search('field')) {
+						$button.addClass('field').removeClass('level')
+					} else {
+						$button.addClass('level').removeClass('field')
+					}
+				}
+				function postHandle(){
+				}
+				function generateResultForm(arr){
+					var id = 'form-id-'+randomInteger(100000,9999999);
+					var vizScript = document.createElement('script');
+					vizScript.setAttribute("type","text/javascript");
+					vizScript.setAttribute("src", 'https://cdn.jsdelivr.net/npm/viz-world-js@latest/dist/viz.min.js');
+					return ''+
+					vizScript.outerHTML+
+					'<form action="" id="'+id+'" class="generated-form">\n'+
+					generateResultFormParts(arr) + '\n' +
+					'<p><button>Отправить</button></p>' +
+					'</form>';
+				}
+				function generateResultFormParts(arr){
+					return arr.map(function(obj){
+						if (obj.type=='field') {
+							return generateResultFormField(obj)
+						}
+						if (obj.type=='level') {
+							return generateResultFormLevelStart(obj) + generateResultFormParts(obj.values) + generateResultFormLevelEnd();
+						}
+					}).join('\n');
+				}
+				function generateResultFormField(obj){
+					result = '' +
+					'<p>\n' +
+						'<label>\n' +
+							obj.label + '<br>\n';
+							if (obj.isTextarea) {
+								result += '' +
+								'<textarea name="'+obj.name+'" cols="30" rows="3">'+obj.defaultValue+'</textarea> <br>\n';
+							} else {
+								result += '' +
+								'<input type="text" name="'+obj.name+'" value="'+obj.defaultValue+'"> <br>\n';
+							}
+							result += '' +
+						'</label>\n'+
+					'</p>\n';
+					return result;
+				};
+				function generateResultFormLevelStart(obj){
+					return ''+
+					'<fieldset>\n' +
+						'<legend>'+obj.label+'</legend>\n';
+				};
+				function generateResultFormLevelEnd(){
+					return ''+
+					'</fieldset>\n';
+				};
+				function readNodes(nodes){
+					return nodes.map(function(current){
+						var $this = $(current);
+						if ($this.is('p')) {
+							return {
+								type: 'field',
+								label: $this.find('span').text().trim(),
+								name: $this.find('[name]').attr('name'),
+								isTextarea: $this.find('[name]').is('textarea'),
+								defaultValue: $this.find('[name]').val(),
+							};
+						} else {
+							return {
+								type: 'level',
+								name: $this.attr('data-name'),
+								label: $this.find('legend:first').find('span').text().trim(),
+								values: readNodes($this.find('>p,>fieldset').toArray())
+							}
+						}
+					})
+				}
+				function readForm($parent){
+					return readNodes($parent.find('>p,>fieldset').toArray());
+				}
+				function getForm(arr){
+					var html = '';
+					html += '<form id="js-form" class="ui-sortable">';
+					html += '<p class="gen-controls"><a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br></p>';
+					html += getFormParts(arr);
+					html += '</form>';
+					return html;
+				}
+				function getFormParts(arr) {
+
+					return arr.map(function(item) {
+						if (item.type == 'field') {
+							return getField(item);
+						} else {
+							return getFieldsetStart(item) + getFormParts(item.values) + getFieldsetEnd();
+						}
+					}).join('\n');
+				}
+				function getField(obj){
+					var result = '' +
+					'<p class="ui-sortable-handle">'+
+						'<label>'+
+							'<span>'+obj.label+'</span>: '+
+							'<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>'+
+							'<br><br>';
+							if (obj.isTextarea) {
+								result += '' +
+								'<textarea name="'+obj.name+'" cols="30" rows="3">'+obj.defaultValue+'</textarea> <br>';
+							} else {
+								result += '' +
+								'<input type="text" name="'+obj.name+'" value="'+obj.defaultValue+'"> <br>';
+							}
+							result += '' +
+							'<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>'+
+						'</label>'+
+					'</p>';
+					return result;
+				}
+				function getFieldsetStart(obj) {
+					return ''+
+					'<fieldset data-name="'+obj.name+'">' +
+						'<legend><span>'+obj.label+'</span> <a href="#" class="gen-level-delete">удалить</a>, <a href="#" class="gen-level-edit">редактировать</a> </legend>'+
+						'<p class="gen-controls"><a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br></p>';
+				}
+				function getFieldsetEnd(){
+					return ''+
+					'<p class="gen-controls"><a href="#" class="gen-newfield newfield-outer">новое поле снаружи</a>, <a href="#" class="gen-newlevel newlevel-outer">новый уровень снаружи</a> <br></p>'+
+					'</fieldset>';
+				}
+				function getExampleObj(){
+					return [
+						{
+							type: 'field',
+							label: 'Имя',
+							name: 'name1',
+							isTextarea: false,
+							defaultValue: '',
+						},
+						{
+							type: 'level',
+							label: 'Подробнее',
+							name: 'moreinfo',
+							values: [
+								{
+									type: 'field',
+									label: 'Коротко о себе',
+									name: 'name2',
+									isTextarea: true,
+									defaultValue: '',
+								},
+								{
+									type: 'field',
+									label: 'Имя',
+									name: 'name3',
+									isTextarea: false,
+									defaultValue: '',
+								},
+								{
+									type: 'level2',
+									label: 'Подробнее',
+									name: 'moreinfo',
+									values: [
+										{
+											type: 'field',
+											label: 'Коротко о себе',
+											name: 'name4',
+											isTextarea: true,
+											defaultValue: '',
+										},
+										{
+											type: 'field',
+											label: 'Имя',
+											name: 'name5',
+											isTextarea: false,
+											defaultValue: '',
+										},
+									]
+								}
+							]
+						}
+					];
+				}
+				function getExampleObj2(){
+					return JSON.parse('[{"type":"field","label":"asdf","name":"field","isTextarea":false,"defaultValue":"value"},{"type":"level","name":"level1","label":"level1","values":[{"type":"field","label":"inner1","name":"level1[inner1]","isTextarea":false,"defaultValue":""},{"type":"level","name":"level2edited","label":"level2edited","values":[{"type":"field","label":"inner2","name":"level1[level2edited][inner2edited]","isTextarea":false,"defaultValue":"inner2"}]}]}]');
+				}
+				function randomInteger(min, max) {
+					return min + Math.floor(Math.random() * (max + 1 - min));
+				}
+				function checkLogin(formId){
+					if (localStorage.getItem('login') && localStorage.getItem('PostingKey')) {
+						viz_login = localStorage.getItem('login');
+						posting_key = sjcl.decrypt(viz_login + '_postingKey', localStorage.getItem('PostingKey'));
+						if ($("#temp_beneficiaries").length > 0) {
+							$("#temp_beneficiaries").val($("#temp_beneficiaries").val().replace('user_login', viz_login));
+						}
+						if ($("#beneficiaries").length > 0) {
+							$("#beneficiaries").val($("#beneficiaries").val().replace('user_login', viz_login));
+						}
+					} else if (sessionStorage.getItem('login') && sessionStorage.getItem('PostingKey')) {
+						viz_login = sessionStorage.getItem('login');
+						posting_key = sjcl.decrypt(viz_login + '_postingKey', sessionStorage.getItem('PostingKey'));send_award(viz_login, posting_key);
+						if ($("#temp_beneficiaries").length > 0) {
+							$("#temp_beneficiaries").val($("#temp_beneficiaries").val().replace('user_login', viz_login));
+						}
+						if ($("#beneficiaries").length > 0) {
+							$("#beneficiaries").val($("#beneficiaries").val().replace('user_login', viz_login));
+						}
+					} else {
+						$("#"+formId).css("display","none");
+						if ($("#sortable").length > 0) {
+						} else {
+							$("#"+formId).after("<form id=\"auth_form\" action=\"index.html\" method=\"GET\"><p class=\"auth_title\"><strong>Пожалуйста авторизируйтесь</strong></p><input type=\"text\" id=\"this_login\" name=\"viz_login\" placeholder=\"Ваш логин\"><br><input type=\"password\" name=\"posting\" id=\"this_posting\" placeholder=\"Приватный постинг ключ\"><br><input type=\"submit\" value=\"Войти\"></form>");
+							$("#auth_form").submit(function(e){
+								e.preventDefault();
+								AuthForm();
+							});
+						}
+					}
+				}
+				async function AuthForm(formId) {
+				    let login = document.getElementById('this_login').value;
+				    let posting = document.getElementById('this_posting').value;
+
+				    if (localStorage.getItem('PostingKey')) {
+				        var isPostingKey = sjcl.decrypt(login + '_postingKey', localStorage.getItem('PostingKey'));
+				    } else if (sessionStorage.getItem('PostingKey')) {
+				        var isPostingKey = sjcl.decrypt(login + '_postingKey', sessionStorage.getItem('PostingKey'));
+				    } else {
+				        var isPostingKey = posting;
+				    }
+
+				    var resultIsPostingWif = viz.auth.isWif(isPostingKey);
+				    if (resultIsPostingWif === true) {
+				        const account_approve = await viz.api.getAccountsAsync([login]);
+				        const public_wif = viz.auth.wifToPublic(isPostingKey);
+				        let posting_public_keys = [];
+				        if (account_approve.length > 0) {
+				            for (key of account_approve[0].posting.key_auths) {
+				                posting_public_keys.push(key[0]);
+				            }
+				        } else {
+				            window.alert('Вероятно, аккаунт не существует. Просьба проверить введённый логин.');
+				        }
+				        if (posting_public_keys.includes(public_wif)) {
+				            localStorage.setItem('login', login);
+				            localStorage.setItem('PostingKey', sjcl.encrypt(login + '_postingKey', posting));
+				            sessionStorage.setItem('login', login);
+				            sessionStorage.setItem('PostingKey', sjcl.encrypt(login + '_postingKey', posting));
+
+				            viz_login = login;
+				            posting_key = isPostingKey;
+				        } else if (account_approve.length === 0) {
+				            window.alert('Аккаунт не существует. Пожалуйста, проверьте его');
+				        } else {
+				            window.alert('Постинг ключ не соответствует пренадлежащему аккаунту.');
+				        }
+				    } else {
+				        window.alert('Постинг ключ имеет неверный формат. Пожалуйста, попробуйте ещё раз.');
+				    }
+				    if (!viz_login && !posting_key) {
+				        alert("Не удалось авторизироваться с текущей парой логин/ключ");
+				    } else {
+				        document.getElementById(formId) && (document.getElementById(formId).style.display = "block");
+				        document.getElementById("auth_form").remove();
+				    }
+				}
+			});
+		}(jQuery);
+	</script>
+	<div class="container">
+		<form id="js-form">
+			<p class="ui-sortable-handle">
+				<label>
+					<span>Ваше имя</span>
+					<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+					<br>
+					<input type="text" name="name" value=""> <br>
+					<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+				</label>
+			</p>
+			<p>
+				<label>
+					<span>О вас</span>
+					<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+					<br>
+					<textarea name="about"  cols="30" rows="5"></textarea> <br>
+					<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+				</label>
+			</p>
+			<fieldset data-name="name">
+				<legend>Типа Уровень 2</legend>
+				<p>
+					<label>
+						<span>Ваше имя</span>
+						<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+						<br>
+						<input type="text" name="level2[name]" value=""> <br>
+						<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+					</label>
+				</p>
+				<p>
+					<label>
+						<span>О вас</span>
+						<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+						<br>
+						<textarea name="level2[about]"  cols="30" rows="5"></textarea> <br>
+						<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+					</label>
+				</p>
+			</fieldset>
+			<br>
+			<fieldset>
+				<legend>Типа  тоже Уровень 2</legend>
+				<p>
+					<label>
+						<span>Ваше имя</span>
+						<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+						<br>
+						<input type="text" name="level2[name]" value=""> <br>
+						<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+					</label>
+				</p>
+				<fieldset>
+					<legend>Типа Уровень 3</legend>
+					<p>
+						<label>
+							<span>Ваше имя</span>
+							<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+							<br>
+							<input type="text" name="level2[name]" value=""> <br>
+							<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+						</label>
+					</p>
+					<p>
+						<label>
+							<span>О вас</span>
+							<a href="#" class="gen-edit">редактировать</a>, <a href="#" class="gen-delete">удалить</a>
+							<br>
+							<textarea name="level2[about]"  cols="30" rows="5"></textarea> <br>
+							<a href="#" class="gen-newfield">новое поле</a>, <a href="#" class="gen-newlevel">новый уровень</a> <br>
+						</label>
+					</p>
+				</fieldset>
+			</fieldset>
+		</form>
+		<p><label for="myOwnTemplate">Вставить свой шаблон<label>
+			<span></p></span>
+		<p><textarea name="myOwnTemplate"  cols="30" rows="10" ></textarea></p>
+	</div>
+	<div class="buttons">
+		<p>
+			<a href="#" class="get-resultForm">Получить код формы на сайт</a>
+		</p>
+		<p>
+			<a href="#" class="get-JSON">Получить JSON текущей формы</a>
+		</p>
+		<p>
+			<a href="#" class="set-JSON">Вставить свой JSON</a>
+		</p>
+		<p>
+			<a href="#" class="get-demo">Открыть получившуюся форму</a>
+		</p>
+	</div>
+	<div class="modal-wrapper">
+		<div class="modal modal-field">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3></h3>
+				<form>
+					<p>
+						<label>Заголовок поля
+							<br><input type="text" name="label" required>
+						</label>
+					</p>
+					<p>
+						<label>Имя поля <small>(только латинские буквы и тире)</small>
+							<br><input type="text" name="name" required>
+						</label>
+					</p>
+					<p>
+						<label>Значение по умолчанию
+							<br><input type="text" name="defaultvalue">
+						</label>
+					</p>
+					<p>
+						<label>
+							<input type="radio" name="istextarea" value="0" checked> Однострочное текстовое поле
+						</label>
+						<label>
+							<input type="radio" name="istextarea" value="1"> Многострочное
+						</label>
+					</p>
+					<p>
+						<button class="modal-ready">Готово</button>
+						<a class="modal-cancel" href="#">Закрыть</a>
+					</p>
+				</form>
+			</div>
+		</div>
+		<div class="modal modal-level">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3></h3>
+				<form>
+					<p>
+						<label>Заголовок уровня
+							<br><input type="text" name="label" required>
+						</label>
+					</p>
+					<p>
+						<label>Имя уровня <small>(только латинские буквы и тире)</small>
+							<br><input type="text" name="name" required>
+						</label>
+					</p>
+					<p>
+						<button class="modal-ready">Готово</button>
+						<a class="modal-cancel" href="#">Закрыть</a>
+					</p>
+				</form>
+			</div>
+		</div>
+		<div class="modal modal-getJSON">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3>Получить код JSON</h3>
+				<form>
+					<p>
+						<textarea name="ta-get-json"  cols="30" rows="10"></textarea>
+					</p>
+					<p>
+						<a class="modal-cancel" href="#">Закрыть</a>
+					</p>
+				</form>
+			</div>
+		</div>
+		<div class="modal modal-setJSON">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3>Свой JSON</h3>
+				<form>
+					<p>
+						<textarea name="ta-set-json"  cols="30" rows="10"></textarea>
+					</p>
+					<p>
+						<button class="ta-set-json-ready">Готово</button>
+						<a class="modal-cancel" href="#">Закрыть</a>
+					</p>
+				</form>
+			</div>
+		</div>
+		<div class="modal modal-getResultHTML">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3>Получить код формы</h3>
+				<form>
+					<p>
+						<textarea name="ta-get-form"  cols="30" rows="10"></textarea>
+					</p>
+					<p>
+						<a class="modal-cancel" href="#">Закрыть</a>
+					</p>
+				</form>
+			</div>
+		</div>
+		<div class="modal modal-getDemo">
+			<div class="modal-overlay"></div>
+			<div class="modal-content-inner">
+				<h3>Открыть получившуюся форму</h3>
+				<div class="result-demo"></div>
+				<p>
+					<a class="modal-cancel" href="#">Закрыть</a>
+				</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

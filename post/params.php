@@ -29,14 +29,7 @@ $ChainBrowserFiles = '<script src="https://dpos.space/post/static/steem.min.js">
         $ChainBrowserFiles = '<script src="https://cdn.jsdelivr.net/npm/wlsjs-staging@latest/dist/wlsjs.min.js"></script>';
 } else if (($chain ?? $chain ?? "") == 'golos') {
 $chain_post = 'golos';
-$ChainBrowserFiles = '<script src="https://dpos.space/post/static/golos.min.js"></script>
-<script>
-setInterval(function(){
-golos.api.getChainProperties(function(err, result) {
-        $("#golos-curation_percent").html(", Текущий кураторский процент: " + result.min_curation_percent/100 + "%");
-});
-},3000);
-</script>';
+$ChainBrowserFiles = '<script src="https://unpkg.com/golos-js@latest/dist/golos.min.js"></script>';
 } else {
         $chain_post = '';
         $ChainBrowserFiles = '';

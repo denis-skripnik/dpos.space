@@ -11,7 +11,7 @@ function getAccountHistoryChunk($author, $chain, $startWith = -1)
 
     if ($chain == 'viz' or $chain == 'golos') {
         static $limitMax = 10000;
-    } else {
+    } else  {
         static $limitMax = 2000;
     }
     

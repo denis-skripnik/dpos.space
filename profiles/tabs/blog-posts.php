@@ -41,7 +41,7 @@ date_default_timezone_set('UTC');
   if ($chain == 'golos' or $chain == 'steem') {
 $now_date = date("Y-m-d", mktime(0, 0, 0, date('m'), date('d') -7, date('Y')))."T".date("H:i:s", mktime(date('H'), date('i'), date('s')));
 } else if ($chain == 'WLS') {
-$now_date = date("Y-m-d", mktime(0, 0, 0, date('m'), date('d') - 2, date('Y')))."T".date("H:i:s", mktime(date('H'), date('i'), date('s')));
+$now_date = date("Y-m-d", mktime(0, 0, 0, date('m'), date('d') - 14, date('Y')))."T".date("H:i:s", mktime(date('H'), date('i'), date('s')));
 } else if ($chain == 'viz') {
   $now_date = date("Y-m-d", mktime(0, 0, 0, date('m'), date('d') -1, date('Y')))."T".date("H:i:s", mktime(date('H'), date('i'), date('s')));
 }
@@ -73,8 +73,12 @@ echo "<h2>Свежие посты аккаунта $array_url[1]</h2>
 <th>Бенефициары</th>
 <th>Прогнозируемые выплаты автору</th>
 <th>Общая авторская выплата</th>
-<th>Штраф</th>
-</tr>";
+<th>Штраф</th>";
+if ($chain == 'golos') {
+echo "<th>Продвинуть в UPRomo</th>
+<th>Сумма продвижения</th>";
+}
+echo "</tr>";
 $post_list = array();
 $summ_beneficiaries_pending = 0;
 $summ_author_golos = 0;
@@ -123,7 +127,11 @@ $sum_reblogs_num += 1;
 echo '<td>'.$date_for_pay1.'</td>';
 $sum_weight = 0;
 foreach ($post['active_votes'] as $vote) {
-$sum_weight += $vote['weight'];
+  if ($chain != 'steem') {
+  $sum_weight += $vote['weight'];
+  } else {
+    $sum_weight += $vote['percent'];
+  }
 }
 if ($chain == 'steem' or $chain == 'WLS') {
 $curators_share = $sum_weight / $post['total_vote_weight'] * 0.25 ?? 0;
@@ -228,7 +236,7 @@ $full_summ_author_WLS = $full_summ_author_WLS + $author_WLS;
 }
 }
 
-if ($chain != 'viz') {
+if ($chain != 'viz' && $chain != 'steem') {
 $reward_weight = $post['reward_weight'];
 $reward_weight_procent = $reward_weight/100;
 $shtraf_procent = 100 - $reward_weight_procent;
@@ -238,6 +246,10 @@ $arr_shtraf_procent[] = $shtraf_procent;
 $summ_shtraf_procent = $summ_shtraf_procent + $shtraf_procent;
 } else {
   echo "<td></td>";
+}
+if ($chain == 'golos') {
+  echo '<td><a href="#" class="popup-open" memo="@'.$post['author'].'/'.$post['permlink'].'">Продвинуть</a> или <a href="#" class="popup-open" memo="-@'.$post['author'].'/'.$post['permlink'].'">задвинуть</a></td>
+<td>'.$post['promoted'].'</td>';
 }
 echo '</tr>';
 }
@@ -276,8 +288,8 @@ echo "<td>$summ_fool_author $amount1</td>
      
   }
 } else if ($chain == 'WLS') {
-echo '<td>С учётом репостов: '.$full_summ_author_WLS.' '.$amount3.' или '.$full_summ_author_WLS.' '.$amount2.'<br />
-Без учёта репостов: '.$summ_author_WLS.' '.$amount3.' или '.$summ_author_WLS.' '.$amount2.'</td>
+echo '<td>С учётом репостов: '.$full_summ_author_WLS.' '.$amount2.'<br />
+Без учёта репостов: '.$summ_author_WLS.' '.$amount2.'</td>
 <td></td>
 <td>'.$full_shtraf_procent.'</td>';
 } else if ($chain == 'viz') {
@@ -287,11 +299,119 @@ $summ_fool_author = $summ_author_golos+$summ_author_sp;
 echo "<td>В $amount1: ".$summ_fool_author."</td>
 <td>В VIZ штрафа нет.</td>";
 }
+if ($chain == 'golos') {
+  echo '<td><a href="https://dpos.space/upromo/" target="_blank">Очередь в UPRomo</a></td>';
+}
 echo "</tr>";
 }
 echo "</table>";
- } else {
+echo '<div class="popup-fade">
+<div class="popup">
+    <a class="popup-close" href="#">Закрыть</a>
+<h2>Продвигаем или задвигаем пост, сжигая GBG</h2>
+<form>
+<p><label for="login">Логин:
+<input type="text" name="login" id="sender" value=""></label></p>
+<p><label for="amount">Сумма (в GBG):
+<input type="text" name="amount" id="burn_amount" value=""></label></p>
+<p><label for="service">
+<select name="service" id="clients">
+    <option value="golos_id">golos.id</option>
+    <option value="golos_io">golos.id</option>
+    <option value="sign" selected>Писарь</option>
+</select>
+</label></p>
+<p><button type="button" id="submit_burn">Сжечь</button></p>
+</form>
+</div>        
+</div>
+
+<style>
+.popup-fade {
+display: none;
+}
+.popup-fade:before {
+content: "";
+background: #000;
+position: fixed; 
+left: 0;
+top: 0;
+width: 100%; 
+height: 100%;
+opacity: 0.7;
+z-index: 9999;
+}
+.popup {
+position: fixed;
+top: 20%;
+left: 50%;
+padding: 20px;
+width: 360px;
+margin-left: -200px;    
+background: #fff;
+border: 1px solid orange;
+border-radius: 4px; 
+z-index: 99999;
+opacity: 1;    
+}
+.popup-close {
+position: absolute;
+top: 10px;
+right: 10px;
+}
+</style>
+<script>
+$(document).ready(function($) {
+$(".popup-open").click(function (e) {
+let memo = $(this).attr("memo");
+$("#submit_burn").click(function() {
+        let sender = $("#sender").val();
+    let amount = $("#burn_amount").val();
+if (amount >= 5) {
+    amount *= 1000;
+    amount = parseInt(amount);
+    amount /= 1000;
+    amount = amount.toFixed(3);
+    let clients = $("#clients").val();
+    let data_url = [];
+    data_url.push(["transfer",{"from":sender,"to":"null","amount":amount + " GBG","memo":memo}]);
+    let str_data_url = JSON.stringify(data_url);
+    if (clients === "sign") {
+        window.location.href = "https://gropox.github.io/sign/?user=" + sender + "&tr=" + str_data_url;
+    } else if (clients === "golos_id") {
+        window.location.href = "https://golos.id/@" + sender + "/transfers?to=null&amount=" + amount + "&token=gbg&memo=" + memo;
+    } else if (clients === "golos_io") {
+        window.location.href = "https://golos.id/@" + sender + "/transfers?to=null&amount=" + amount + "&token=gbg&memo=" + memo;
+    }
+} else {
+window.alert("Ошибка: сумма < 5 GBG.");
+}
+});
+$(".popup-fade").fadeIn();
+return false;
+});
+
+$(".popup-close").click(function() {
+    $(this).parents(".popup-fade").fadeOut();
+    return false;
+});        
+
+$(document).keydown(function(e) {
+    if (e.keyCode === 27) {
+        e.stopPropagation();
+        $(".popup-fade").fadeOut();
+    }
+});
+
+$(".popup-fade").click(function(e) {
+    if ($(e.target).closest(".popup").length == 0) {
+        $(this).fadeOut();                    
+    }
+});
+});
+</script>';
+} else {
 echo '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$array_url[1].'</p>';
- }
+}
 }
 ?>

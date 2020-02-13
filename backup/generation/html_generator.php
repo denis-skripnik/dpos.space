@@ -110,6 +110,7 @@ $markdown_text = generate_html_text($content['body']);
 fwrite($fp, "Заголовок: ".$content['title']."<br>"."Текст:"."<br>".$markdown_text."<br>"."Теги:"."<br>");
 
 $metadata = json_decode($content['json_metadata'], true);
+if (isset($metadata['tags'])) {
 $tegi = $metadata['tags'];
 
 $taging = '';
@@ -121,7 +122,7 @@ $taging .= $teg.' ';
 }
 }
 	fwrite($fp, $taging);
-
+}
 // закрываем
 fclose($fp);
 }
@@ -137,6 +138,7 @@ $markdown_text = generate_html_text($content['body']);
 fwrite($fp, "Заголовок: ".$content['title']."<br>"."Текст:"."<br>".$markdown_text."<br>"."Теги:"."<br>");
 
 $metadata = json_decode($content['json_metadata'], true);
+if (isset($metadata['tags'])) {
 $tegi = $metadata['tags'];
 
 $taging = '';
@@ -148,7 +150,7 @@ $taging .= $teg.' ';
 }
 }
 	fwrite($fp, $taging);
-
+}
 // закрываем
 fclose($fp);
 } else { }

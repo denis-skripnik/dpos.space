@@ -1,0 +1,22 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Тест</title>
+</head>
+<body>
+<script>var target_user = "liveblogs"</script>
+<div id="awards_send_form">
+<form id="send_awards_form"><input type="hidden" name="target" id="target" value="liveblogs">
+Сумма награды:<br><input type="text" name="payout" value="1.000"><br>
+<input type="hidden" name="custom_sequence" value="0">
+<input type="hidden" name="memo" value="Тест конструктора перед публикацией в Github">
+Параметры бенефициарских отчислений<br><input type="hidden" name="beneficiaries" id="beneficiaries" value="denis-skripnik:1">
+<input type="submit" value="Отправить">
+</form>
+</div>
+<div id="main_award_info"></div>
+<script src="js/sjcl.min.js" type="text/javascript"></script>
+<script src="https://cdn.jsdelivr.net/npm/viz-world-js@latest/dist/viz.min.js" type="text/javascript"></script>
+<script src="builder.js"></script>
+</body>
+</html>

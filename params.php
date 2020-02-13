@@ -1,7 +1,4 @@
 <?php
-ini_set('session.gc_maxlifetime', 12000000960);
-ini_set('session.cookie_lifetime', 12000000960);
-@session_start();
 
 $siteurl = 'https://dpos.space/';
 $title_domain = "| DPOS.space";
@@ -29,11 +26,11 @@ if (in_array(($array_url[0] ?? $array_url[0] ?? ""), ['profiles', 'feed'])) {
 $_SESSION['user_name'] = $array_url[1];
 $_SESSION['chain_name'] = $array_url[2];
     }
-} else if (($array_url[0] ?? $array_url[0] ?? "") == 'backup' or ($array_url[0] ?? $array_url[0] ?? "") == 'calc' or ($array_url[0] ?? $array_url[0] ?? "") == 'post') {
+} else if (($array_url[0] ?? $array_url[0] ?? "") == 'backup' or ($array_url[0] ?? $array_url[0] ?? "") == 'calc' or ($array_url[0] ?? $array_url[0] ?? "") == 'post' or ($array_url[0] ?? $array_url[0] ?? "") == 'loser-game') {
     if (!empty($array_url[1])) {
         $chain = $array_url[1];
     }
-} else if (in_array(($array_url[0] ?? $array_url[0] ?? ""), ['tags'])) {
+} else if (in_array(($array_url[0] ?? $array_url[0] ?? ""), ['tags']) or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['upromo'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-top']) or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-polls'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-donates'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['viz-top'])) {
 
 } else if (!isset($array_url[0]) ){
 $chain = 'Golos, Steem, Viz или WLS';
@@ -61,7 +58,7 @@ if ( isset($chain)) {
         $chain_name = "Golos";
         $chain_connector = "Golos";
         $chain_user = "Голосян";
-        $client = "golos.io";
+        $client = "golos.id";
         		$amount1 = "GOLOS";
         $amount2 = "СГ";
         $amount3 = "GBG";
@@ -109,6 +106,12 @@ require_once 'profiles/params.php';
 require_once 'backup/params.php';
 require_once 'feed/params.php';
 require_once 'tags/params.php';
+require_once 'upromo/params.php';
+require_once 'golos-donates/params.php';
+require_once 'golos-top/params.php';
+require_once 'viz-top/params.php';
+require_once 'golos-polls/params.php';
+require_once 'loser-game/params.php';
 require_once 'calc/params.php';
 require_once 'post/params.php';
 

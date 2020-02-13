@@ -165,6 +165,11 @@ class GolosApiMethods
             'fields'  => [
             ]
         ],
+        'get_chain_properties'         => [
+            'apiName' => 'database_api',
+            'fields'  => [
+            ]
+        ],
         'get_feed_history'         => [
             'apiName' => 'witness_api',
             'fields'  => [
@@ -211,6 +216,11 @@ class GolosApiMethods
             'fields'  => [
             ]
         ],
+        'get_ticker'                           => [
+            'apiName' => 'market_history',
+            'fields'  => [
+            ]
+        ],
         'broadcast_transaction'                 => [
             'apiName' => 'network_broadcast_api',
             'fields'  => [
@@ -225,6 +235,18 @@ class GolosApiMethods
         ],
         'broadcast_transaction_synchronous'     => [
             'apiName' => 'network_broadcast_api',
+            'fields'  => [
+                '0:ref_block_num'    => ['integer'],
+                '0:ref_block_prefix' => ['integer'],
+                '0:expiration'       => ['string'],
+                '0:operations:*:0'   => ['string'],
+                '0:operations:*:1'   => ['array'],
+                '0:extensions'       => ['array'],
+                '0:signatures'       => ['array']
+            ]
+        ],
+        'get_transaction_hex'                 => [
+            'apiName' => 'database_api',
             'fields'  => [
                 '0:ref_block_num'    => ['integer'],
                 '0:ref_block_prefix' => ['integer'],

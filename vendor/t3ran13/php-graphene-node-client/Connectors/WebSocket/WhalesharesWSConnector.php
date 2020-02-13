@@ -16,7 +16,7 @@ class WhalesharesWSConnector extends WSConnectorAbstract
      * @var string
      */
     protected static $nodeURL = [
-        'wss://whaleshares.io/ws',
+        'wss://wls.kidw.space/',
         'ws://188.166.99.136:8090',
         'ws://rpc.kennybll.com:8090'
     ];

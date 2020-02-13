@@ -25,13 +25,10 @@
     <li id = "tab8" class = "tab" onclick = "funcTab(8);">Комментарии</li>
     <?php } else { ?>
       <li id = "tab8" class = "tab" onclick = "funcTab(8);" style="display: none;">Комментарии</li>
-    <?php }
-                        if ($chain == 'golos') { ?>
-        <li id = "tab9" class = "tab" onclick = "funcTab(9);">Уведомления от @robot</li>
-      <?php }
-if ($chain != 'viz') { ?>
-    <li id = "tab10" class = "tab" onclick = "funcTab(10);">Свежие посты</li>
-    <li id = "tab11" class = "tab" onclick = "funcTab(11)">Посты, получившие выплаты</li>
+    <?php } ?>
+      <?php if ($chain != 'viz') { ?>
+    <li id = "tab9" class = "tab" onclick = "funcTab(9);">Свежие посты</li>
+    <li id = "tab10" class = "tab" onclick = "funcTab(10)">Посты, получившие выплаты</li>
 <?php } ?>
   </ul>
   <div id = "tabs_content">
@@ -53,8 +50,6 @@ if ($chain != 'viz') { ?>
     <div class = "tab_content" id = "tab_content9">
     </div>
     <div class = "tab_content" id = "tab_content10">
-    </div>
-    <div class = "tab_content" id = "tab_content11">
     </div>
 	</div>
 </div>

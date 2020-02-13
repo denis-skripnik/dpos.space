@@ -1,7 +1,4 @@
 <?php
-ini_set('session.gc_maxlifetime', 12000000960);
-ini_set('session.cookie_lifetime', 12000000960);
-@session_start();
 
 if (!isset($array_url[1]) && !isset($chain)) {
     require_once $_SERVER['DOCUMENT_ROOT'] . '/urls.php';

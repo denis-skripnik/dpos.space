@@ -121,6 +121,7 @@ $fp = fopen($filename.".txt", "w");
 fwrite($fp, "Заголовок: ".$content['title']."\r\n"."Текст:"."\r\n".$content['body']."\r\n"."Теги:"."\r\n");
 
 $metadata = json_decode($content['json_metadata'], true);
+if (isset($metadata['tags'])) {
 $tegi = $metadata['tags'];
 
 $taging = '';
@@ -131,8 +132,8 @@ $taging .= transliteration($teg, 'torus').' ';
 $taging .= $teg.' ';
 }
 }
-	fwrite($fp, $taging);
-
+fwrite($fp, $taging);
+}
 // закрываем
 fclose($fp);
 }

@@ -1,6 +1,6 @@
 <form method="post" action="">
     <input type="hidden" name="service" value="<?= $array_url[0] ?>">
-    <label for="user">Введите логин на Steem, Golos, Viz или Whaleshares без @:</label>
+    <label for="user">Введите логин на Steem, Golos или WLS без @:</label>
     <input type="text" name="user" value="">
     <label for="chain">Выберите блокчейн: </label>
     <select name="chain">

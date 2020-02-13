@@ -115,7 +115,7 @@ if (!isset($op_trx) ){
 echo '<p>Пользователь <a href="https://'.$client.'/@'.$_POST['WLS_login'].'/" target="_blank">@'.$_POST['WLS_login'].'</a> не произвёл платёж<br />
 Перейдите в кошелёк, нажав на свой логин в строке выше.</p>';
 if ($chain == 'golos') {
-echo '<p>Либо оплатите <a href="https://golos.io/@'.$_POST['WLS_login'].'/transfers?to='.$amount_account.'&amount=3.000&token=golos&memo=posts" target="_blank">3 GOLOS через golos.io</a> или <a href="https://golos.io/@'.$_POST['WLS_login'].'/transfers?to='.$amount_account.'&amount=5.000&token=gbg&memo=posts" target="_blank">5 GBG через golos.io</a>, <a href="https://goldvoice.club/sign/transfer/?to='.$amount_account.'&amount=3.000%20GOLOS&memo=posts" target="_blank">3 GOLOS через goldvoice.club</a> или <a href="https://goldvoice.club/sign/transfer/?to='.$amount_account.'&amount=5.000%20GBG&memo=posts" target="_blank">5 GBG через goldvoice.club</a></p>';
+echo '<p>Либо оплатите <a href="https://golos.id/@'.$_POST['WLS_login'].'/transfers?to='.$amount_account.'&amount=3.000&token=golos&memo=posts" target="_blank">3 GOLOS через golos.id</a> или <a href="https://golos.id/@'.$_POST['WLS_login'].'/transfers?to='.$amount_account.'&amount=5.000&token=gbg&memo=posts" target="_blank">5 GBG через golos.id</a>, <a href="https://goldvoice.club/sign/transfer/?to='.$amount_account.'&amount=3.000%20GOLOS&memo=posts" target="_blank">3 GOLOS через goldvoice.club</a> или <a href="https://goldvoice.club/sign/transfer/?to='.$amount_account.'&amount=5.000%20GBG&memo=posts" target="_blank">5 GBG через goldvoice.club</a></p>';
 }
 
 }

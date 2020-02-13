@@ -11,18 +11,35 @@
     blockchain = blockchain[blockchain.length-1];
    
     if (blockchain === 'WLS') {
-           chian[blockchain].api.setOptions({url: 'https://api.wls.services'});
-    chian[blockchain].config.set('address_prefix','WLS');
+        if (!localStorage.getItem('WLS_node')) {
+        chian[blockchain].api.setOptions({url: 'https://api.wls.services'});
+        } else {
+            chian[blockchain].api.setOptions({url: localStorage.getItem('WLS_node')});
+        }
+        chian[blockchain].config.set('address_prefix','WLS');
    chian[blockchain].config.set('chain_id','de999ada2ff7ed3d3d580381f229b40b5a0261aec48eb830e540080817b72866');
    window.amount3 = 'WLS';
     } else if (blockchain === 'viz') {
-    chian[blockchain].config.set('websocket','wss://viz.lexai.host/');   
-window.amount3 = 'VIZ';
+if (!localStorage.getItem('viz_node')) {
+        chian[blockchain].config.set('websocket','wss://viz.lexa.host/ws');   
+} else {
+    chian[blockchain].config.set('websocket',localStorage.getItem('viz_node'));
+}
+        window.amount3 = 'VIZ';
 } else  if (blockchain === 'golos') {
-       chian[blockchain].config.set('websocket','wss://ws.golos.io');   
-       window.amount3 = 'GBG';
+if (!localStorage.getItem('golos_node')) {
+    chian[blockchain].config.set('websocket','wss://golos.lexa.host/ws');   
+} else {
+    chian[blockchain].config.set('websocket',localStorage.getItem('golos_node'));   
+}   
+    window.amount3 = 'GBG';
 } else  if (blockchain === 'steem') {
     window.amount3 = 'SBD';
+    if (!localStorage.getItem('steem_node')) {
+    chian[blockchain].api.setOptions({ url: 'https://steemd.minnowsupportproject.org'});
+    } else {
+        chian[blockchain].api.setOptions({ url: localStorage.getItem('steem_node')});
+    }
 }
 
     window.chain = chian[blockchain];
@@ -95,11 +112,11 @@ window.amount3 = 'VIZ';
    
    var MD = new SimpleMDE({
    
-       autofocus: true,
+       autofocus: false,
        autosave: {
            enabled: true,
-           uniqueId: "MyUniqueID",
-           delay: 1000,
+           uniqueId: "content_text",
+           delay: 3000,
        },
        blockStyles: {
            bold: "**",
@@ -107,7 +124,7 @@ window.amount3 = 'VIZ';
        },
        element: document.getElementById("content_text"),
        forceSync: true,
-       spellChecker: false,
+       spellChecker: true,
        indentWithTabs: true,
        insertTexts: {
            horizontalRule: ["", "\n\n-----\n\n"],
@@ -118,7 +135,7 @@ window.amount3 = 'VIZ';
    
        parsingConfig: {
            allowAtxHeaderWithoutSpace: true,
-           strikethrough: false,
+           strikethrough: true,
            underscoresBreakWords: true,
        },
        placeholder: "Пишите тут...",
@@ -186,39 +203,120 @@ window.amount3 = 'VIZ';
    var authorWeight = 1;
    var maxweightsum = 100 - authorWeight;
    var weightsum = 0;
+
+   function loadStorage() {
+   		benif = localStorage.getItem('array') ? JSON.parse(localStorage.getItem('array')) : [];
+
+   		if (benif.length) {
+   			benif.forEach(a => weightsum += (a.weight/100));
+   		}
+
+   		document.getElementById('per').setAttribute('max', maxweightsum - weightsum);
+   }
+
+   function updateStorage() {
+   		localStorage.clear();
+   		localStorage.setItem('array', JSON.stringify(benif));
+   }
    
    function updateText() {
-       document.getElementById('out').innerHTML = 'Итоговый список: ' + JSON.stringify(benif);
+      	const table = document.getElementById('out');
+		
+		while (table.getElementsByTagName('tr').length > 1) {
+			table.deleteRow(1);
+		}		
+
+      	for (const element of benif) {
+			var row = table.insertRow(1);
+
+			row.insertCell(0).innerHTML = element.account;
+			row.insertCell(1).innerHTML = element.weight;
+			if (element.account !== authorLogin) {
+				row.insertCell(2).innerHTML = `<button type="button" onclick="deleteElement('${element.account}', ${element.weight})">Удалить</button>`;
+			}
+      	}
+
+      	document.getElementById('json').innerHTML = JSON.stringify(benif)
+   }
+
+   function addElement(account, weight) {
+   		if (benif.length && account === authorLogin) {
+   			const current = benif.find(a => a.account === authorLogin);
+
+   			if (!current) {
+   				benif.push({
+		   			account: account,
+		   			weight: weight
+		   		});
+   			}
+
+   			return;
+   		}
+
+   		benif.push({
+   			account: account,
+   			weight: weight
+   		});
+
+   		updateStorage();
+   }
+
+   function deleteElement(account, w) {
+   		benif = benif.filter((element) => (
+   			element.account !== account
+   		));
+
+   		var per = parseFloat(document.getElementById('per').value);
+   		weightsum -= w/100
+   		document.getElementById('per').setAttribute('max', maxweightsum - weightsum);
+
+   		updateText();
+   		updateStorage();
    }
    
    function add() {
        var nick = document.getElementById('nick').value;
        var per = parseFloat(document.getElementById('per').value);
+
+       if (!nick) {
+       		return alert('Вы не введи ник');
+       }
+
+       if (!per) {
+       		return alert('Нельзя добавить с нулевым значением процента');
+       }
+
+       const current = benif.find(a => a.account === nick);
    
        if (weightsum + per > maxweightsum) {
            if (weightsum === 0) {
-               alert("Процент превышает " + maxweightsum + "%.");
+            alert("Процент превышает " + maxweightsum + "%.");
            } else {
-               alert("Сумма процентов превышает " + maxweightsum + "%." +
+            alert("Сумма процентов превышает " + maxweightsum + "%." +
                    " Вы можете ввести максимум " + (maxweightsum - weightsum) + "%.");
            }
        } else {
-           if (nick === authorLogin) {
+        if (nick === authorLogin) {
                benif[0].weight += per * 100;
            } else {
-               benif.push({account: nick, weight: per * 100});
+           		if (current) {
+           			current.weight += per * 100;
+           		} else {
+					addElement(nick, per * 100);
+           		}
            }
    
            weightsum += per;
+           document.getElementById('per').setAttribute('max', maxweightsum - weightsum);
    
            updateText()
        }
    }
-   
-   benif.push({account: authorLogin, weight: authorWeight * 100});
-   updateText();
-   
-   updateText();
+
+loadStorage();
+
+addElement(authorLogin, authorWeight*100);
+updateText();
    
            function handleFileSelectEvent(e)
            {
@@ -331,29 +429,44 @@ $("#delete_active_key_link").click(function() {
     localStorage.removeItem('PostingKey'); $('#posting_key').val(); $('#posting_key_delete').css('display', 'none'); $('#posting_key_form').css('display', 'block');
 });
 
+if (amount3 === 'GBG') {
+golos.api.getChainProperties(function(err, res) {
+if (!err) {
+    $('#curation_rewards_percent').attr("min", res.min_curation_percent/100);
+    $('#curation_rewards_percent').attr("max", res.max_curation_percent/100);
+} else {
+console.log(err);
+}
+});
+}
+
    function post_submit() {
    var title = document.getElementById('content_title').value;
    var body = document.getElementById('content_text').value;
    if (document.getElementById('content_tags').value === '') {
     var content_tags = 'dpos-post';
    } else {
-    var content_tags = document.getElementById('content_tags').value + ' ru--megagalxyan dpos-post';
+    var content_tags = document.getElementById('content_tags').value + ' dpos-post';
    }
     var content_image = document.getElementById('content_image').value.replace(/ /g, '');
    var author = document.getElementById('blockchain_login').value;
    var wif = document.getElementById('posting_key').value;
-   var default_permlink = "published-" + parseInt(new Date().getTime()/1000);
-   var user_permlink = document.getElementById('permlink_filde').value;
-if (amount3 !== 'VIZ') {
+   if (amount3 !== 'VIZ') {
    var percent_steem_dollars = document.getElementById('content_payouts').value;
 }
-
+var default_permlink = transform(title, "-");
+default_permlink=default_permlink.replace(/([^a-zA-Z0-9 \-]*)/g,'');
+default_permlink=default_permlink.replace(/---/g,'-');
+default_permlink=default_permlink.replace(/--/g,'-');
+default_permlink=default_permlink.replace(/--/g,'-');
+default_permlink=default_permlink.replace(/^\-+|\-+$/g, '');
+var user_permlink = document.getElementById('permlink_filde').value.toLowerCase().replace(/\,/g, '-').replace(/\./g, '-');
 if (!user_permlink) {
        var permlink = default_permlink;
    } else {
        var permlink = user_permlink;
    }
-   
+
            tagspace = content_tags.toLowerCase().replace(/,/g, ' ').replace(/  /g, ' '),
            tagsraw = tagspace.split(' '),
            tags = [];
@@ -361,7 +474,7 @@ if (!user_permlink) {
         if (amount3 === 'VIZ') {
             tags.push(tag);
         } else {
-            tags.push(transform(tag, "-"))        
+            tags.push(transform(tag, "-"));
         }
        }
    
@@ -376,6 +489,17 @@ if (!user_permlink) {
    "tags": tags,
    "image": (content_image)?[content_image]:featuredImage
    };
+   if (amount3 === 'GBG') {
+var curator_rewards_percent = document.getElementById('curation_rewards_percent').value;
+curator_rewards_percent = parseInt(curator_rewards_percent)*100;
+var content_datetime = document.getElementById('content_datetime').value;
+var review_period_time;
+if (content_datetime) {
+content_datetime = new Date(content_datetime).toISOString().split('.')[0];
+review_period_time = parseInt(120000 + new Date().getTime());
+review_period_time = new Date(review_period_time).toISOString().split('.')[0];
+}
+}
    var isSavePosting = document.getElementById('isSavePosting');
 			if (isSavePosting.checked) {
 		localStorage.setItem('PostingKey', sjcl.encrypt(author + '_postingKey', wif));
@@ -397,6 +521,8 @@ if (err) {
                 }
                   });
             } else {
+            var q = window.confirm('Пост с таким permlink уже есть. его отправка повлечёт не создание нового, а изменение старого поста. Вы действительно хотите это сделать?')
+            if (q === true) {
             const operations = [
                 ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}]];
 
@@ -412,7 +538,10 @@ if (err) {
                         } else {
                       alert('Пост отредактирован успешно! \n URL поста: \n@' + author + '/' + permlink);
                     }
-                })
+                });
+            } else {
+window.alert('Вы отказались отправлять изменения. Проверьте пермлинк в расширенных настройках.');
+            }
             }
    } else {
     if (amount3 === 'VIZ') {
@@ -430,8 +559,46 @@ if(err == 'AssertionError: private_key required') {
             }
         });
 } else {
-    const operations = [
-        ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':author,'permlink':permlink,'max_accepted_payout':'1000000.000 '+amount3,'percent_steem_dollars':+percent_steem_dollars,'allow_votes':true,'allow_curation_rewards':true,'extensions':[[0,{'beneficiaries':benif}]]}]];
+    const extensions = [];
+extensions.push([0,{beneficiaries:benif}]);
+if (amount3 === 'GBG') {
+    extensions.push([2,{percent:+curator_rewards_percent}]);
+}
+let operations;
+if (content_datetime && amount3 === 'GBG') {
+    var resultWifToPublic = golos.auth.wifToPublic(wif);
+    operations = [
+        ["proposal_create",
+        {
+          "author": author,
+          "title": permlink,
+          "memo": author + '-' + permlink,
+          "expiration_time": content_datetime,
+          "proposed_operations": [
+{"op":['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}]},{"op":['comment_options',{'author':author,'permlink':permlink,'max_accepted_payout':'1000000.000 '+amount3,'percent_steem_dollars':+percent_steem_dollars,'allow_votes':true,'allow_curation_rewards':true,extensions}]}],
+          "review_period_time": review_period_time,
+          "extensions": []
+}]
+,["proposal_update",
+{
+  "author": author,
+  "title": permlink,
+  "active_approvals_to_add": [],
+  "active_approvals_to_remove": [],
+  "owner_approvals_to_add": [],
+  "owner_approvals_to_remove": [],
+  "posting_approvals_to_add": [],
+  "posting_approvals_to_remove": [],
+  "key_approvals_to_add": [resultWifToPublic],
+  "key_approvals_to_remove": [],
+  "extensions": []
+}
+]];
+} else {
+operations = [
+    ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':author,'permlink':permlink,'max_accepted_payout':'1000000.000 '+amount3,'percent_steem_dollars':+percent_steem_dollars,'allow_votes':true,'allow_curation_rewards':true,extensions}]];
+}
+console.log(JSON.stringify(operations));
         chainBroadcast.send({extensions: [], operations}, [wif], function(err, res) {
             if(err) {
                 if(err == 'RPCError: Assert Exception:( now - auth.last_root_post ) > STEEM_MIN_ROOT_COMMENT_INTERVAL: You may only post once every 5 minutes.') {
@@ -439,7 +606,8 @@ if(err == 'AssertionError: private_key required') {
        } else if(err == 'AssertionError: private_key required') {
                 alert('Ошибка: Приватный постинг ключ обязателен к вводу!');
                               } else {
-                alert(err);
+                console.log(JSON.stringify(err));
+                                alert(err);
                 }
                 } else {
               alert('Пост опубликован успешно! \n URL поста: \n@' + author + '/' + permlink);

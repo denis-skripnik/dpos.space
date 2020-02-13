@@ -6,14 +6,19 @@ if (($chain ?? $chain ?? "") == 'viz') {
         'profiles' => 'Смотреть профили',
         'tags' => 'Транслит и подбор тегов',
         'calc' => 'Блокчейн-Калькулятор',
+        'viz-top' => 'Посмотреть топ пользователей Viz',
+        'loser-game' => 'Играть в Лузера',
         'post' => 'Публиковать посты'
         );
-} else {
+    } else {
     $menu_services = array(
         'profiles' => 'Смотреть профили',
+        'golos-top' => 'Посмотреть топ пользователей Голоса',
+        'golos-polls' => 'Участвовать в опросах на Голосе',
+        'golos-donates' => 'Топ донатов и донатящих',
         'tags' => 'Транслит и подбор тегов',
         'calc' => 'Блокчейн-Калькулятор',
-        'backup' => 'Бекап постов',
+        'loser-game' => 'Играть в Лузера',
         'feed' => 'Читать подписчиков',
         'post' => 'Публиковать посты'
     );
@@ -27,15 +32,15 @@ $end_url = "";
 } else if ( isset($array_url[2]) ){
 if ($services_urls == 'profiles' or $services_urls == 'feed') {
 $end_url = "$array_url[1]/$array_url[2]";
-} else if ($services_urls == 'backup' or $services_urls == 'calc' or $services_urls == 'post') {
+} else if ($services_urls == 'calc' or $services_urls == 'post'  or $services_urls == 'loser-game') {
 $end_url = "$array_url[2]";
-} else if ($services_urls == 'tags') {
+} else if ($services_urls == 'tags' or $services_urls == 'golos-top'  or $services_urls == 'golos-polls'  or $services_urls == 'golos-donates' or $services_urls == 'viz-top') {
 $end_url = "";
 } // end if services_urls.
 } else if (!isset($array_url[2]) ){
-if ($services_urls == 'profiles' or $services_urls == 'feed' or $services_urls == 'tags' or $services_urls == 'post') {
+if ($services_urls == 'profiles' or $services_urls == 'feed' or $services_urls == 'tags' or $services_urls == 'post' or $services_urls == 'golos-top' or $services_urls == 'golos-polls' or $services_urls == 'golos-donates' or $services_urls == 'viz-top') {
 $end_url = "";
-} else if($services_urls == 'backup' or $services_urls == 'calc') {
+} else if($services_urls == 'calc'  or $services_urls == 'loser-game') {
 $end_url = $array_url[1];
 } // end if services_urls.
 } // end if array_url[2].

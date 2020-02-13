@@ -1,17 +1,14 @@
 <?php
-@session_start();
-
 use GrapheneNodeClient\Tools\Reputation;
-
-require $_SERVER['DOCUMENT_ROOT'].'/helpers.php';
 
 require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_account.php';
 require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_dynamic_global_properties.php';
 if ($chain != 'viz' && $chain != 'WLS') {
-require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_feed_history.php';
+    require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_chain_properties.php';
+    require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_ticker.php';
+require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_follow_count.php';
 }
 require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_config.php';
-require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/get_follow_count.php';
 if ($chain == 'WLS' or $chain == 'steem') {
 require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/getRewardFund.php';
 }
@@ -19,7 +16,6 @@ require $_SERVER['DOCUMENT_ROOT'].'/profiles/snippets/getRewardFund.php';
 if( isset($array_url[1]) ){ // проверяем существование элемента
 
  $res = $command->execute($commandQuery); 
-
  $mass = $res['result'];
 
  if($mass == true){
@@ -27,25 +23,27 @@ if( isset($array_url[1]) ){ // проверяем существование э�
  $res3 = $command3->execute($commandQuery3); 
 
  $mass3 = $res3['result'];
-
  if ($chain != 'viz' && $chain != 'WLS') {
- $feed_res = $feed_command->execute($feed_commandQuery); 
- $feed_mass = $feed_res['result'];
+ $ticker_res = $ticker_command->execute($ticker_commandQuery); 
+ $ticker_mass = $ticker_res['result'];
+ $ticker_price = $ticker_mass['latest'];
+ $followcount_res = $followcount_command->execute($followcount_commandQuery); 
+ $followcount_mass = $followcount_res['result'];
  }  
  $config_res = $config_command->execute($config_commandQuery); 
 
  $config_mass = $config_res['result'];
-
- $followcount_res = $followcount_command->execute($followcount_commandQuery); 
-
-$followcount_mass = $followcount_res['result'];
 
   if ($chain == 'WLS' or $chain == 'steem') {
 $RewardFund_res = $RewardFund_command->execute($RewardFund_commandQuery);
  $RewardFund_mass = $RewardFund_res['result'];
  }
  
- 
+if ($chain == 'golos') {
+    $chain_res = $chain_command->execute($chain_commandQuery); 
+
+    $chain_mass = $chain_res['result'];
+}
  
   // Расчет steem_per_vests
 if ($chain != 'viz') {
@@ -58,13 +56,13 @@ if ($chain != 'viz') {
   $steem_per_vests = 1000000 * $tvfs / $tvsh;
 
 // Конвертация VESTS в STEEM POWER
-$sp = $mass[0]['vesting_shares'] / 1000000 * $steem_per_vests;
+$sp = (float)$mass[0]['vesting_shares'] / 1000000 * $steem_per_vests;
 if ($chain != 'WLS') {
-$delegated_sp = $mass[0]['received_vesting_shares'] / 1000000 * $steem_per_vests;
-$un_delegating_sp = $mass[0]['delegated_vesting_shares'] / 1000000 * $steem_per_vests;
+$delegated_sp = (float)$mass[0]['received_vesting_shares'] / 1000000 * $steem_per_vests;
+$un_delegating_sp = (float)$mass[0]['delegated_vesting_shares'] / 1000000 * $steem_per_vests;
 $delegating_sp = round($un_delegating_sp, 3);
 }
-$vesting_withdraw_rate = $mass[0]['vesting_withdraw_rate'] / 1000000 * $steem_per_vests;
+$vesting_withdraw_rate = (float)$mass[0]['vesting_withdraw_rate'] / 1000000 * $steem_per_vests;
 
 date_default_timezone_set('UTC');
 $server_time = time();
@@ -132,13 +130,9 @@ $last_post1 = $datas['last_post'];
 $last_post2 = strtotime($last_post1);
 $month4 = date('m', $last_post2);
 $last_post = date('d', $last_post2).' '.$month[$month4].' '.date('Y г. H:i:s', $last_post2);
-
-$last_root_post1 = $datas['last_root_post'];
-$last_root_post2 = strtotime($last_root_post1);
-$month5 = date('m', $last_root_post2);
-$last_root_post = date('d', $last_root_post2).' '.$month[$month5].' '.date('Y г. H:i:s', $last_root_post2);
-$post_full_date = $server_time - strtotime($datas['last_root_post']);
-
+if ($chain == 'golos') {
+$post_full_date = $server_time - strtotime($datas['last_post']);
+}
 $next_vesting_withdrawal1 = $datas['next_vesting_withdrawal'];
 $next_vesting_withdrawal2 = strtotime($next_vesting_withdrawal1);
 $month6 = date('m', $next_vesting_withdrawal2);
@@ -249,8 +243,8 @@ $second_word = getWord($n_second, $array_seconds);
 }
 }
 if ($chain != 'WLS') {
-$minus_shares = $mass[0]['received_vesting_shares'] - $mass[0]['delegated_vesting_shares'];
-$all_shares = $minus_shares + $mass[0]['vesting_shares'];
+$minus_shares = (float)$mass[0]['received_vesting_shares'] - (float)$mass[0]['delegated_vesting_shares'];
+$all_shares = $minus_shares + (float)$mass[0]['vesting_shares'];
 }
 if ($chain == 'WLS') {
 $recent = $RewardFund_mass['recent_claims'];
@@ -261,9 +255,6 @@ $wqaaa = ($brimerr /100) * ($charge);
 $dasdas = round($wqaaa, 3)/5;
 $fixx = round($brimerr, 3)/5;
 } else if ($chain == 'golos') {
-$base = (float)$feed_mass["current_median_history"]["base"];
-    $quote = (float)$feed_mass["current_median_history"]["quote"];
-   $median_price = round($base/$quote, 3);
     $total_vesting_fund_steem = (float)$mass3["total_vesting_fund_steem"];
     $total_vesting_shares = (float)$mass3["total_vesting_shares"];
     $total_reward_fund_steem = (float)$mass3["total_reward_fund_steem"];
@@ -271,8 +262,6 @@ $base = (float)$feed_mass["current_median_history"]["base"];
     $golos_per_vests = $total_vesting_fund_steem / $total_vesting_shares;
 
 $NOW = strptime("%Y-%m-%dT%H:%M:%S", $mass3["time"]);
-   $account["GOLOS"] = (float)$datas["balance"];
-    $account["GBG"] = $datas["sbd_balance"];
 $VP = (float)$volume*100;
 $account["last_vote_time"] = strptime("%Y-%m-%dT%H:%M:%S", $last_vote_time);
 $age = ($NOW - $account["last_vote_time"]) / 1;
@@ -284,9 +273,8 @@ if ($actualVP > 10000) {
 }
 $account["golos_power"] = round($all_shares * $golos_per_vests, 3);
 $vesting_shares = (int)1e6 * $account["golos_power"] / $golos_per_vests;
-
 if ($chain == 'golos' or $chain == 'viz') {
-$max_vote_denom = $mass3["vote_regeneration_per_day"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
+$max_vote_denom = $chain_mass["vote_regeneration_per_day"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
 } else {
 $max_vote_denom = $mass3["vote_power_reserve_rate"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
 }
@@ -297,12 +285,11 @@ $account["rshares"] = round($rshares);
 $fixxrshares = (($vesting_shares * $fixx_used_power) / 10000);
 $account["fixx_rshares"] = round($fixxrshares);
 $value_golos = round($account["rshares"] * $total_reward_fund_steem / $total_reward_shares2, 3);
-$value_gbg = round($value_golos * $median_price, 3);
-
+$value_gbg = round($value_golos * $ticker_price, 3);
 $dasdas_golos = $value_golos;
 $dasdas_gbg = $value_gbg;
 $fixx_golos = round($account["fixx_rshares"] * $total_reward_fund_steem / $total_reward_shares2, 3);
-$fixx_gbg = round($fixx_golos * $median_price, 3);
+$fixx_gbg = round($fixx_golos * $ticker_price, 3);
 } else if ($chain == 'viz') {
     $total_vesting_fund = (float)$mass3["total_vesting_fund"];
     $total_vesting_shares = (float)$mass3["total_vesting_shares"];
@@ -326,13 +313,10 @@ $fixx_steem_m = ($fixx_steem_m2 + 49) / 50;
 $rewa = $RewardFund_mass['reward_balance'];
 $recent = $RewardFund_mass['recent_claims'];
 $steem_i = $rewa / $recent;
-$base = (float)$feed_mass["current_median_history"]["base"];
-    $quote = (float)$feed_mass["current_median_history"]["quote"];
-$median_price = round($base/$quote, 2);
 $dasdas_golos = round($steem_r * $steem_m * 100 * $steem_i, 3);
-$dasdas_gbg = round($steem_r * $steem_m * 100 * $steem_i * $median_price, 3);
+$dasdas_gbg = round($steem_r * $steem_m * 100 * $steem_i * $ticker_price, 3);
 $fixx_golos = round($steem_r * $fixx_steem_m * 100 * $steem_i, 3);
-$fixx_gbg = round($steem_r * $fixx_steem_m * 100 * $steem_i * $median_price, 3);
+$fixx_gbg = round($steem_r * $fixx_steem_m * 100 * $steem_i * $ticker_price, 3);
 }
 
 $all_shares = ($sp ?? $sp ?? "")-($delegating_sp ?? $delegating_sp ?? "")+($delegated_sp ?? $delegated_sp ?? "");
@@ -363,8 +347,13 @@ echo "</tr>
 <tr><td>Личная $amount2</td>
 <td>".round($sp, 3)."</td>
 </tr>";
-if ($chain != 'WLS' && $chain != 'viz') {
-echo "<tr><td>Полученно в пользование $amount2</td>
+if ($chain == 'golos') {
+$vesting_reward = (round($sp, 3) / 10000) * 7;
+echo '<tr><td>Примерная сумма награды с личной СГ (за сутки)</td>
+<td>'.round($vesting_reward, 3).'</td></tr>';
+}
+if ($chain != 'WLS') {
+echo "<tr><td>Получено в пользование $amount2</td>
 <td>".round($delegated_sp, 3)."</td>
 </tr>";
 }
@@ -391,25 +380,30 @@ if ($chain == 'WLS') {
 echo "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
 <td>$dasdas ($fixx)</td></tr>";
 } else if ($chain == 'golos' or $chain == 'steem') {
-echo "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
+if ($dasdas_gbg == 0) {
+    echo "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
+<td>$dasdas_golos $amount1 ($fixx_golos $amount1)</td></tr>";
+} else {
+    echo "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), $amount3 по курсу продажи $amount1</td>
 <td>$dasdas_golos $amount1, $dasdas_gbg $amount3 ($fixx_golos $amount1, $fixx_gbg $amount3)</td></tr>";
+}
 } else if ($chain == 'viz') {
     echo "<tr><td>Стоимость награды при затрате 20% энергии (при 100%)</td>
     <td>$payout20 ($payout100)</td></tr>";
 }
-if ($chain != 'WLS') {
-$account_shares_progress = ($all_shares/$tvsh)*100;
-} else {
-    $account_shares_progress = ($sp/$tvsh)*100;
-}
 $full_sp = $tvsh / 1000000 * $steem_per_vests;
+if ($chain != 'WLS') {
+$account_shares_progress = ($all_shares/$full_sp)*100;
+} else {
+    $account_shares_progress = ($all_shares/$full_sp)*100;
+}
 
-if ($account_shares_progress < 0.00001) {
+if ($account_shares_progress < 0.0001) {
 echo "<tr><td> Доля аккаунта от общей $amount2</td>
 <td>< 0.00001% из ".round($full_sp, 3)." общей $amount2</td></tr>";
 } else {
 echo "<tr><td> Доля аккаунта от общей $amount2</td>
-<td>".round($account_shares_progress, 6)."% из ".round($full_sp, 3)." общей $amount2</td></tr>";
+<td>".round($account_shares_progress, 5)."% из ".round($full_sp, 3)." общей $amount2</td></tr>";
  }
 echo "<tr><td>Баланс $amount1</td>
 <td>$chain_balance</td>
@@ -479,11 +473,13 @@ echo "<td>Изображение профиля</td>
 <td><img src='$profile_image' width='130px' height='auto' alt='Изображение профиля' /></td>
 </tr>";
 }
+if ($chain != 'viz') {
 echo "<tr><td>Количество подписчиков</td>
 <td>".($followcount_mass['follower_count'] ?? $followcount_mass['follower_count'] ?? "")."</td></tr>
 <tr><td>Подписался на блогов</td>
-<td>".($followcount_mass['following_count'] ?? $followcount_mass['following_count'] ?? "")."</td></tr>
-<tr>
+<td>".($followcount_mass['following_count'] ?? $followcount_mass['following_count'] ?? "")."</td></tr>";
+}
+echo "<tr>
 <td>Сайт</td>";
 if (isset($profile_website)) {
 echo "<td><a href='$profile_website' target='_blank'>$profile_website</a></td>";
@@ -513,11 +509,9 @@ echo "</tr>
 <td>$last_vote_time1</td>
 </tr>
 <tr>
-<td>Последний комментарий</td>
+<td>Последний пост</td>
 <td>$last_post</td>
-</tr>
-<tr><td>Последний опубликованный в блоге пост</td>
-<td>$last_root_post</td></tr>";
+</tr>";
 if ($array_url[2] == 'golos') {
     echo "<tr><td>Количество постов, которое можно опубликовать без штрафа</td>";
     if ($post_full_date > 86400) {
@@ -527,11 +521,32 @@ if ($array_url[2] == 'golos') {
     $minutes_per_day = 24 * 60 * 60;
     $New_post_bandwidth = (($minutes_per_day - $delta_time) / $minutes_per_day * $datas['post_bandwidth']) + 10000;
     if ($New_post_bandwidth <=20000) {
-    echo "<td>3</td>";
+        $shtraf_time = $minutes_per_day - ((0 + 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
+    $post_bandwidth_ours = date("G", $shtraf_time);
+    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
+    $post_bandwidth_minute = date("i", $shtraf_time);
+    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
+    $post_bandwidth_seconds = date("s", $shtraf_time);
+    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
+        echo "<td>3. 4 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
     } else if ($New_post_bandwidth > 20000 and $New_post_bandwidth <=30000) {
-    echo "<td>2</td>";
+        $shtraf_time = $minutes_per_day - ((20000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
+    $post_bandwidth_ours = date("G", $shtraf_time);
+    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
+    $post_bandwidth_minute = date("i", $shtraf_time);
+    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
+    $post_bandwidth_seconds = date("s", $shtraf_time);
+    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
+        echo "<td>2. 3 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
     } else if ($New_post_bandwidth > 30000 and $New_post_bandwidth <=40000) {
-    echo "<td>1</td>";
+        $shtraf_time = $minutes_per_day - ((30000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
+    $post_bandwidth_ours = date("G", $shtraf_time);
+    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
+    $post_bandwidth_minute = date("i", $shtraf_time);
+    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
+    $post_bandwidth_seconds = date("s", $shtraf_time);
+    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
+        echo "<td>1. 2 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
     } else if ($New_post_bandwidth > 40000) {
     $shtraf_time = $minutes_per_day - ((40000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
     $post_bandwidth_ours = date("G", $shtraf_time);
@@ -540,7 +555,7 @@ if ($array_url[2] == 'golos') {
     $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
     $post_bandwidth_seconds = date("s", $shtraf_time);
     $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
-    echo "<td>0. Опубликовать пост без штрафа возможно через: ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
+    echo "<td>0. Опубликовать пост без штрафа возможно через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
     }
     
     }

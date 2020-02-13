@@ -93,6 +93,8 @@ while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
             $result['content'] = '<h2>Полученные награды пользователю '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
+            
+            <th>Инициатор награды</th>
             <th>Сумма выплаты</th>
             <th>Заметка (memo)</th>
 <th>Номер custom операции</th></tr>';
@@ -112,12 +114,14 @@ while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
                 $op1 = $op[1];
                 if ($op[0] == 'receive_award') {
                     $rowCount++;
+                    $award_initiator = $op[1]['initiator'] ?? "";
                     $award_memo = $op[1]['memo'] ?? "";
                     $award_shares = (float)($op[1]['shares'] ?? "");
                     $award_custom_sequence = (float)($op[1]['custom_sequence'] ?? "");
                     $lastSelectedIndex = $datas[0];
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
-    <td>' . $award_shares . ' ' . $amount2 . '</td>
+    <td><a href="https://dpos.space/profiles/'.$award_initiator.'/viz" target="_blank">'.$award_initiator.'</a></td>
+                        <td>' . $award_shares . ' ' . $amount2 . '</td>
     <td>'.$award_memo.'</td>
 <td>'.$award_custom_sequence.'</td></tr>';
                     }

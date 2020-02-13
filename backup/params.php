@@ -4,6 +4,25 @@ if(!isset($array_url[1] ) ){
 $title = "Бекап постов пользователя блокчейнов Steem, Golos и WhaleShares $title_domain";
 $meta_keywords = "steem, golos, WhaleShares, клиент, бекап, резервное копирование";
 $meta_description = "Сайт, где вы можете сделать бекап (Резервную копию) всех ваших постов не старше 11 месяцев.";
+$profiles_script = '<script type="text/javascript">   
+$(document).ready(function(){
+$("#chains1").click(function(){
+      var redirect = "/backup/steem";
+history.pushState("", "", redirect);
+	  $("#service_pages").load(redirect);
+   });
+$("#chains2").click(function(){
+      var redirect = "/backup/golos";
+history.pushState("", "", redirect);
+      $("#service_pages").load(redirect);
+   });
+$("#chains3").click(function(){
+      var redirect = "/backup/WLS";
+history.pushState("", "", redirect);
+      $("#service_pages").load(redirect);
+   });
+});             
+</script>';
 $h1 = "Резервное копирование ваших постов, опубликованных на Стиме, Голосе или WhaleShares";
 $description = "<h2><strong>будет создан архив с постами, который вы сможете скачать.</strong></h2>
 <p>Здравствуйте. Здесь вы сможете выполнить резервное копирование (бекап) ваших постов, опубликованных в блокчейне Steem, Golos или WLS. Архивы хранятся в течение месяца.</p>";
@@ -12,8 +31,26 @@ $title = "Бекап ваших постов на ".$chain_name." $title_domain"
 $meta_keywords = "$chain_name, клиент, бекап, резервное копирование";
 $meta_description = "Сервис бекапов постов из блокчейна $chain_name.";
 $description = "Бекап (Резервное копирование) ваших постов, опубликованных на ".$chain_name;
+$profiles_script = '<script type="text/javascript">   
+$(document).ready(function(){
+$("#chains1").click(function(){
+      var redirect = "/backup/steem";
+history.pushState("", "", redirect);
+      $("#service_pages").load(redirect);
+   });
+$("#chains2").click(function(){
+            var redirect = "/backup/golos";
+history.pushState("", "", redirect);
+	  $("#service_pages").load(redirect);
+   });
+$("#chains3").click(function(){
+      var redirect = "/backup/WLS";
+history.pushState("", "", redirect);
+      $("#service_pages").load(redirect);
+   });
+});             
+</script>';
 $h1 = "Бекап (Резервное копирование) ваших постов, опубликованных на ".$chain_name;
 }
-
 $footer_text = "Делать резервные копии постов вашего аккаунта, если он произвёл платёж или апнул указанный пост.";
 } // Конец условия для данного сервиса
