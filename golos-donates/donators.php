@@ -1,5 +1,5 @@
 <?php
- if (!isset($_GET['month']) && !isset($_GET['year'])) {
+  if (!isset($_GET['month']) && !isset($_GET['year'])) {
 $_GET['month'] = 2;
 $_GET['year'] = 2020;
  } else {
@@ -11,7 +11,7 @@ echo '<main class="content">
 <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
 <p><strong><a href="https://dpos.space/golos-donates/posts">Посты-лидеры по количеству донатов</a></strong></p>
 <h2>Выберите дату</h2>
-<form action="" method="get">
+<form action="/golos-donates/" method="get">
 <p>Месяц:
 <select name="month" placeholder="Месяц">
 <option value="2">Февраль</option>
