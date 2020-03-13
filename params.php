@@ -30,7 +30,7 @@ $_SESSION['chain_name'] = $array_url[2];
     if (!empty($array_url[1])) {
         $chain = $array_url[1];
     }
-} else if (in_array(($array_url[0] ?? $array_url[0] ?? ""), ['tags']) or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['upromo'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-top']) or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-polls'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['golos-donates'])  or in_array(($array_url[0] ?? $array_url[0] ?? ""), ['viz-top'])) {
+} else if (in_array(($array_url[0] ?? $array_url[0] ?? ""), ['tags','golos-top','golos-polls','golos-donates','viz-top'])) {
 
 } else if (!isset($array_url[0]) ){
 $chain = 'Golos, Steem, Viz или WLS';
@@ -106,7 +106,6 @@ require_once 'profiles/params.php';
 require_once 'backup/params.php';
 require_once 'feed/params.php';
 require_once 'tags/params.php';
-require_once 'upromo/params.php';
 require_once 'golos-donates/params.php';
 require_once 'golos-top/params.php';
 require_once 'viz-top/params.php';
