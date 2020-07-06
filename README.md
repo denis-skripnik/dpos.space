@@ -1,5 +1,5 @@
 # dpos.space
-Сервисы для блокчейнов Steem, Golos, Viz и Whaleshares.
+Сервисы для блокчейнов Steem, Golos, Viz и Hive.
 
 ## Характеристики:
 1. Язык программирования - PHP;
