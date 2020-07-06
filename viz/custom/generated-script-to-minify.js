@@ -12,7 +12,7 @@ window.generatedFormScript = function(){
 	}
 	function checkWorkingNode() {
 		const NODES = [
-			"wss://viz.lexa.host/ws",
+			"wss://viz.lexai.host/ws",
 			"wss://solox.world/ws"
 		];
 		let node = localStorage.getItem("node") || NODES[0];

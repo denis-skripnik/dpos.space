@@ -1,80 +1,32 @@
 [
     {
-        "name": "bitwasp/secp256k1-php",
-        "version": "v0.1.3",
-        "version_normalized": "0.1.3.0",
+        "name": "erusev/parsedown",
+        "version": "1.7.4",
+        "version_normalized": "1.7.4.0",
         "source": {
             "type": "git",
-            "url": "https://github.com/Bit-Wasp/secp256k1-php.git",
-            "reference": "0ad10c06f36fa5caea6f7276315c2fae6262708e"
+            "url": "https://github.com/erusev/parsedown.git",
+            "reference": "cb17b6477dfff935958ba01325f2e8a2bfa6dab3"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/Bit-Wasp/secp256k1-php/zipball/0ad10c06f36fa5caea6f7276315c2fae6262708e",
-            "reference": "0ad10c06f36fa5caea6f7276315c2fae6262708e",
-            "shasum": ""
-        },
-        "require-dev": {
-            "phpunit/phpunit": "^6.5",
-            "squizlabs/php_codesniffer": "2.*",
-            "symfony/yaml": "^3.4"
-        },
-        "time": "2018-02-17T14:24:05+00:00",
-        "type": "library",
-        "installation-source": "dist",
-        "notification-url": "https://packagist.org/downloads/",
-        "license": [
-            "Unlicense"
-        ],
-        "authors": [
-            {
-                "name": "Ruben de Vries",
-                "email": "ruben@rubensayshi.com"
-            },
-            {
-                "name": "Thomas Kerin",
-                "email": "afk11@users.noreply.github.com"
-            }
-        ],
-        "description": "PHP Extension with bindings for bitcoin/secp256k1.",
-        "keywords": [
-            "ECDSA",
-            "bitcoin",
-            "bitwasp",
-            "cryptocurrency",
-            "ecc",
-            "extension",
-            "php",
-            "secp256k1"
-        ]
-    },
-    {
-        "name": "fguillot/json-rpc",
-        "version": "v1.2.5",
-        "version_normalized": "1.2.5.0",
-        "source": {
-            "type": "git",
-            "url": "https://github.com/fguillot/JsonRPC.git",
-            "reference": "fa075cc89c1ae5f0c4123d27772e5caeac045946"
-        },
-        "dist": {
-            "type": "zip",
-            "url": "https://api.github.com/repos/fguillot/JsonRPC/zipball/fa075cc89c1ae5f0c4123d27772e5caeac045946",
-            "reference": "fa075cc89c1ae5f0c4123d27772e5caeac045946",
+            "url": "https://api.github.com/repos/erusev/parsedown/zipball/cb17b6477dfff935958ba01325f2e8a2bfa6dab3",
+            "reference": "cb17b6477dfff935958ba01325f2e8a2bfa6dab3",
             "shasum": ""
         },
         "require": {
-            "php": ">=5.3.4"
+            "ext-mbstring": "*",
+            "php": ">=5.3.0"
         },
         "require-dev": {
-            "phpunit/phpunit": "4.8.*"
+            "phpunit/phpunit": "^4.8.35"
         },
-        "time": "2018-02-21T23:58:51+00:00",
+        "time": "2019-12-30T22:54:17+00:00",
         "type": "library",
         "installation-source": "dist",
         "autoload": {
             "psr-0": {
-                "JsonRPC": "src/"
+                "Parsedown": ""
             }
         },
         "notification-url": "https://packagist.org/downloads/",
@@ -83,33 +35,178 @@
         ],
         "authors": [
             {
-                "name": "Frédéric Guillot"
+                "name": "Emanuil Rusev",
+                "email": "hello@erusev.com",
+                "homepage": "http://erusev.com"
             }
         ],
-        "description": "Simple Json-RPC client/server library that just works",
-        "homepage": "https://github.com/fguillot/JsonRPC",
-        "abandoned": true
+        "description": "Parser for Markdown.",
+        "homepage": "http://parsedown.org",
+        "keywords": [
+            "markdown",
+            "parser"
+        ]
     },
     {
-        "name": "stephenhill/base58",
-        "version": "v1.1.4",
-        "version_normalized": "1.1.4.0",
+        "name": "simplito/bigint-wrapper-php",
+        "version": "1.0.0",
+        "version_normalized": "1.0.0.0",
         "source": {
             "type": "git",
-            "url": "https://github.com/stephen-hill/base58php.git",
-            "reference": "75ef7128303def7629d2a4bf9ea9dc378140507c"
+            "url": "https://github.com/simplito/bigint-wrapper-php.git",
+            "reference": "cf21ec76d33f103add487b3eadbd9f5033a25930"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/stephen-hill/base58php/zipball/75ef7128303def7629d2a4bf9ea9dc378140507c",
-            "reference": "75ef7128303def7629d2a4bf9ea9dc378140507c",
+            "url": "https://api.github.com/repos/simplito/bigint-wrapper-php/zipball/cf21ec76d33f103add487b3eadbd9f5033a25930",
+            "reference": "cf21ec76d33f103add487b3eadbd9f5033a25930",
+            "shasum": ""
+        },
+        "time": "2018-02-27T12:38:08+00:00",
+        "type": "library",
+        "installation-source": "dist",
+        "autoload": {
+            "psr-4": {
+                "BI\\": "lib/"
+            }
+        },
+        "notification-url": "https://packagist.org/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Simplito Team",
+                "email": "s.smyczynski@simplito.com",
+                "homepage": "https://simplito.com"
+            }
+        ],
+        "description": "Common interface for php_gmp and php_bcmath modules"
+    },
+    {
+        "name": "simplito/bn-php",
+        "version": "1.1.2",
+        "version_normalized": "1.1.2.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/simplito/bn-php.git",
+            "reference": "e852fcd27e4acbc32459606d7606e45a85e42465"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/simplito/bn-php/zipball/e852fcd27e4acbc32459606d7606e45a85e42465",
+            "reference": "e852fcd27e4acbc32459606d7606e45a85e42465",
+            "shasum": ""
+        },
+        "require": {
+            "simplito/bigint-wrapper-php": "~1.0.0"
+        },
+        "require-dev": {
+            "phpunit/phpunit": "*"
+        },
+        "time": "2018-04-12T11:07:43+00:00",
+        "type": "library",
+        "installation-source": "dist",
+        "autoload": {
+            "psr-4": {
+                "BN\\": "lib/"
+            }
+        },
+        "notification-url": "https://packagist.org/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Simplito Team",
+                "email": "s.smyczynski@simplito.com",
+                "homepage": "https://simplito.com"
+            }
+        ],
+        "description": "Big number implementation compatible with bn.js"
+    },
+    {
+        "name": "simplito/elliptic-php",
+        "version": "1.0.6",
+        "version_normalized": "1.0.6.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/simplito/elliptic-php.git",
+            "reference": "15652609aa55968d56685c2a9120535ccdc00fd9"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/simplito/elliptic-php/zipball/15652609aa55968d56685c2a9120535ccdc00fd9",
+            "reference": "15652609aa55968d56685c2a9120535ccdc00fd9",
+            "shasum": ""
+        },
+        "require": {
+            "ext-gmp": "*",
+            "simplito/bn-php": "~1.1.0"
+        },
+        "require-dev": {
+            "phpbench/phpbench": "@dev",
+            "phpunit/phpunit": "*"
+        },
+        "time": "2019-11-14T13:43:07+00:00",
+        "type": "library",
+        "installation-source": "dist",
+        "autoload": {
+            "psr-4": {
+                "Elliptic\\": "lib/"
+            }
+        },
+        "notification-url": "https://packagist.org/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Simplito Team",
+                "email": "s.smyczynski@simplito.com",
+                "homepage": "https://simplito.com"
+            }
+        ],
+        "description": "Fast elliptic curve cryptography",
+        "homepage": "https://github.com/simplito/elliptic-php",
+        "keywords": [
+            "Curve25519",
+            "ECDSA",
+            "Ed25519",
+            "EdDSA",
+            "cryptography",
+            "curve",
+            "ecc",
+            "ecdh",
+            "elliptic",
+            "nistp192",
+            "nistp224",
+            "nistp256",
+            "nistp384",
+            "nistp521",
+            "secp256k1"
+        ]
+    },
+    {
+        "name": "stephenhill/base58",
+        "version": "v1.1.5",
+        "version_normalized": "1.1.5.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/stephen-hill/base58php.git",
+            "reference": "bd9fc19c788160a2f85ba0a19cd800eaf5ba5e99"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/stephen-hill/base58php/zipball/bd9fc19c788160a2f85ba0a19cd800eaf5ba5e99",
+            "reference": "bd9fc19c788160a2f85ba0a19cd800eaf5ba5e99",
             "shasum": ""
         },
         "require-dev": {
             "athletic/athletic": "~0.1",
             "phpunit/phpunit": "4.*"
         },
-        "time": "2016-07-20T20:34:07+00:00",
+        "time": "2019-08-22T16:51:59+00:00",
         "type": "library",
         "installation-source": "dist",
         "autoload": {
@@ -132,20 +229,20 @@
     },
     {
         "name": "t3ran13/bytebuffer",
-        "version": "v1.0.1",
-        "version_normalized": "1.0.1.0",
+        "version": "v1.0.2",
+        "version_normalized": "1.0.2.0",
         "source": {
             "type": "git",
             "url": "https://github.com/t3ran13/ByteBuffer.git",
-            "reference": "fa66f8766aab6dc24cececfc3f697f16c6d9302c"
+            "reference": "4b7c4905019bb57d6fd9c541ff22bb53ef9f5fd9"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/t3ran13/ByteBuffer/zipball/fa66f8766aab6dc24cececfc3f697f16c6d9302c",
-            "reference": "fa66f8766aab6dc24cececfc3f697f16c6d9302c",
+            "url": "https://api.github.com/repos/t3ran13/ByteBuffer/zipball/4b7c4905019bb57d6fd9c541ff22bb53ef9f5fd9",
+            "reference": "4b7c4905019bb57d6fd9c541ff22bb53ef9f5fd9",
             "shasum": ""
         },
-        "time": "2018-02-18T19:08:51+00:00",
+        "time": "2018-10-13T17:32:22+00:00",
         "type": "library",
         "installation-source": "dist",
         "autoload": {
@@ -181,28 +278,30 @@
     },
     {
         "name": "t3ran13/php-graphene-node-client",
-        "version": "v4.0.0",
-        "version_normalized": "4.0.0.0",
+        "version": "v6.0.0",
+        "version_normalized": "6.0.0.0",
         "source": {
             "type": "git",
             "url": "https://github.com/t3ran13/php-graphene-node-client.git",
-            "reference": "24887eaeb963115416cb84672f63f44cf085b2c9"
+            "reference": "eccfd47c5e0991a7080fafd9cc5e0a1dd158e128"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/t3ran13/php-graphene-node-client/zipball/24887eaeb963115416cb84672f63f44cf085b2c9",
-            "reference": "24887eaeb963115416cb84672f63f44cf085b2c9",
+            "url": "https://api.github.com/repos/t3ran13/php-graphene-node-client/zipball/eccfd47c5e0991a7080fafd9cc5e0a1dd158e128",
+            "reference": "eccfd47c5e0991a7080fafd9cc5e0a1dd158e128",
             "shasum": ""
         },
         "require": {
-            "bitwasp/secp256k1-php": "^0.1.2",
-            "fguillot/json-rpc": "@stable",
-            "php": "^5.4 || ^7.0",
+            "php": "^7.0",
+            "simplito/elliptic-php": "^1.0",
             "stephenhill/base58": "^1.1",
             "t3ran13/bytebuffer": "^1.0",
             "textalk/websocket": "^1.2"
         },
-        "time": "2018-04-03T15:07:45+00:00",
+        "require-dev": {
+            "phpunit/phpunit": "7.0"
+        },
+        "time": "2020-01-26T20:53:40+00:00",
         "type": "library",
         "installation-source": "dist",
         "autoload": {

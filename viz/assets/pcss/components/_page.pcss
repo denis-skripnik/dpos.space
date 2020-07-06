@@ -1,0 +1,44 @@
+/*-------------------------------------------
+  -- Page
+-------------------------------------------*/
+.ts-page-wrapper {
+  height: 100%;
+  transition: 1s cubic-bezier(.77,0,.18,1);
+  > .container {
+    display: table;
+    height: 100%;
+  }
+}
+
+#header, #footer {
+  display: table-row;
+  height: 1px;
+}
+
+#header {
+  vertical-align: top;
+
+  .navbar {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+#main-content {
+  display: table;
+  height: 100%;
+  width: 100%;
+
+  .ts-content-wrapper {
+    display: table-cell;
+    vertical-align: middle;
+
+    > .row {
+      width: 100%;
+    }
+  }
+}
+
+#footer {
+  vertical-align: bottom;
+}

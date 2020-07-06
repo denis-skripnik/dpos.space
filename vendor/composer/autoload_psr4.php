@@ -11,4 +11,7 @@ return array(
     'StephenHill\\Benchmarks\\' => array($vendorDir . '/stephenhill/base58/benchmarks'),
     'StephenHill\\' => array($vendorDir . '/stephenhill/base58/src'),
     'GrapheneNodeClient\\' => array($vendorDir . '/t3ran13/php-graphene-node-client'),
+    'Elliptic\\' => array($vendorDir . '/simplito/elliptic-php/lib'),
+    'BN\\' => array($vendorDir . '/simplito/bn-php/lib'),
+    'BI\\' => array($vendorDir . '/simplito/bigint-wrapper-php/lib'),
 );

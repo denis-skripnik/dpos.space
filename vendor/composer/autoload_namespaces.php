@@ -6,5 +6,5 @@ $vendorDir = dirname(dirname(__FILE__));
 $baseDir = dirname($vendorDir);
 
 return array(
-    'JsonRPC' => array($vendorDir . '/fguillot/json-rpc/src'),
+    'Parsedown' => array($vendorDir . '/erusev/parsedown'),
 );

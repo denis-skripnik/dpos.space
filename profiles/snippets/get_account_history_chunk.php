@@ -23,6 +23,7 @@ function getAccountHistoryChunk($author, $chain, $startWith = -1)
         '0' => $author,
         '1' => $startWith,
         '2' => $limit,
+        '3' => [],
     ];
 
     $commandQuery = new CommandQueryData();

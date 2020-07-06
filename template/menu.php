@@ -7,7 +7,6 @@ if (($chain ?? $chain ?? "") == 'viz') {
         'tags' => 'Транслит и подбор тегов',
         'calc' => 'Блокчейн-Калькулятор',
         'viz-top' => 'Посмотреть топ пользователей Viz',
-        'loser-game' => 'Играть в Лузера',
         'post' => 'Публиковать посты'
         );
     } else {
@@ -18,7 +17,6 @@ if (($chain ?? $chain ?? "") == 'viz') {
         'golos-donates' => 'Топ донатов и донатящих',
         'tags' => 'Транслит и подбор тегов',
         'calc' => 'Блокчейн-Калькулятор',
-        'loser-game' => 'Играть в Лузера',
         'feed' => 'Читать подписчиков',
         'post' => 'Публиковать посты'
     );
@@ -32,7 +30,7 @@ $end_url = "";
 } else if ( isset($array_url[2]) ){
 if ($services_urls == 'profiles' or $services_urls == 'feed') {
 $end_url = "$array_url[1]/$array_url[2]";
-} else if ($services_urls == 'calc' or $services_urls == 'post'  or $services_urls == 'loser-game') {
+} else if ($services_urls == 'calc' or $services_urls == 'post') {
 $end_url = "$array_url[2]";
 } else if ($services_urls == 'tags' or $services_urls == 'golos-top'  or $services_urls == 'golos-polls'  or $services_urls == 'golos-donates' or $services_urls == 'viz-top') {
 $end_url = "";
@@ -40,13 +38,13 @@ $end_url = "";
 } else if (!isset($array_url[2]) ){
 if ($services_urls == 'profiles' or $services_urls == 'feed' or $services_urls == 'tags' or $services_urls == 'post' or $services_urls == 'golos-top' or $services_urls == 'golos-polls' or $services_urls == 'golos-donates' or $services_urls == 'viz-top') {
 $end_url = "";
-} else if($services_urls == 'calc'  or $services_urls == 'loser-game') {
+} else if($services_urls == 'calc') {
 $end_url = $array_url[1];
 } // end if services_urls.
 } // end if array_url[2].
 
 
-echo "<li><a href='https://dpos.space/$services_urls/$end_url' target='_blank'>$services_ankors</a></li>";
+echo "<li><a href='/$services_urls/$end_url'>$services_ankors</a></li>";
 }
 ?>
 </ul>

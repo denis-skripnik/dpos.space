@@ -1,6 +1,6 @@
 <?php
   if (!isset($_GET['month']) && !isset($_GET['year'])) {
-    $_GET['month'] = 2;
+    $_GET['month'] = 5;
     $_GET['year'] = 2020;
      } else {
         $_GET['month'] = (float)$_GET['month'];
@@ -9,12 +9,15 @@
 echo '<main class="content">
 <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
 <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
-<p><strong><a href="https://dpos.space/golos-donates">Посты-лидеры по количеству донатов</a></strong></p>
+<p><span align="left"><a href="https://dpos.space/golos-donates">Топ донатящих</a></span> <span align="right"><a href="https://dpos.space/golos-donates/comments">Комментарии-лидеры по количеству донатов</a></span></p>
 <h2>Выберите дату</h2>
 <form action="/golos-donates/posts/" method="get">
 <p>Месяц:
 <select name="month" placeholder="Месяц">
 <option value="2">Февраль</option>
+<option value="3">Март</option>
+<option value="4">Апрель</option>
+<option value="5">Май</option>
 </select></p>
 <p>Год:
 <select name="year" placeholder="Выберите год">

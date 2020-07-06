@@ -35,7 +35,6 @@ set_error_handler('myHandler', E_ALL);
 require_once 'urls.php';
 require_once 'params.php';
 require_once 'helpers.php';
-
  $main_filename = $_SERVER['DOCUMENT_ROOT']."/users";
 $main_fp = fopen($main_filename.".log", "a");
 
@@ -50,5 +49,5 @@ noCache();
 
  require_once 'template/header.php';
 require_once 'template/menu.php';
- require_once 'template/content.php';
+require_once 'template/content.php';
 require_once 'template/footer.php';

@@ -12,24 +12,14 @@ if (($array_url[0] ?? $array_url[0] ?? "") == 'golos-top') {
         $meta_description = "Страница топа пользователей Голоса";
         $h1 = "Топ пользователей Голоса";
         $description = '<p>Топ по СГ, GBG и GOLOS.</p>';
-    } else if (strtoupper($array_url[1]) == 'GBG') {
-        $title = "Топ пользователей Голоса по GBG | $title_domain";
-        $meta_keywords = "golos, топ, gbg, гбг";
-        $meta_description = "Топ пользователей Голоса по GBG.";
-        $h1 = "Топ по GBG";
-        $description = '<p>Топ 100 пользователей, отсортированных по GBG.</p>';
-    } else if (strtoupper($array_url[1]) == 'GOLOS') {
-        $title = "Топ пользователей Голоса по GOLOS | $title_domain";
-        $meta_keywords = "golos, топ, GOLOS, токен";
-        $meta_description = "Топ пользователей Голоса по токену GOLOS.";
-        $h1 = "Топ по GOLOS";
-        $description = '<p>Топ 100 пользователей, отсортированных по GOLOS.</p>';
-    } else if (strtoupper($array_url[1]) == 'GP') {
-        $title = "Топ пользователей Голоса по СГ | $title_domain";
-        $meta_keywords = "golos, топ, СГ, силаголоса";
-        $meta_description = "Топ пользователей Голоса по СГ.";
-        $h1 = "Топ по СГ";
-        $description = '<p>Топ 100 пользователей, отсортированных по Силе Голоса.</p>';
+    } else if (isset($array_url[1])) {
+        $tokens = ['golos' => 'GOLOS', 'gbg' => 'GBG', 'gp' => 'СГ', 'delegated_gp' => 'делегированной другим СГ', 'received_gp' => 'полученной делегированием СГ', 'effective_gp' => 'эффективной СГ'];
+        $title_text = $tokens[mb_strtolower($array_url[1])];
+        $title = "Топ пользователей Голоса по $title_text | $title_domain";
+        $meta_keywords = "golos, топ, ".$array_url[1].", $title_text";
+        $meta_description = "Топ пользователей Голоса по $title_text.";
+        $h1 = "Топ по $title_text";
+        $description = '<p>Топ 100 пользователей, отсортированных по '.$title_text.'.</p>';
     }
     $footer_text = "просматривать топ Голоса по токенам";
 } // Конец условия для данного сервиса

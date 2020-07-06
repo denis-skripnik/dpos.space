@@ -358,7 +358,7 @@ echo "<tr><td>Получено в пользование $amount2</td>
 </tr>";
 }
 if ($vesting_withdraw_rate > 0) {
-echo "<tr><td>Сумма вывода из СГ</td>
+echo "<tr><td>Сумма вывода из $amount2</td>
 <td>".round($vesting_withdraw_rate, 3)."</td>
 </tr>
 <tr><td>Следующий вывод $amount2</td>
@@ -422,7 +422,7 @@ echo "<tr><td>Баланс в $amount3</td>
 <td>$savings_withdraw_requests</td></tr>";
 }
 if ($chain == 'WLS'or $chain == 'steem') {
-echo "<tr><td>Ожидающая получения награда (перейдите в <a href='https://".$client."/@".$array_url[1]."/transfers' target='blank'>кошелёк</a> и нажмите на кнопку 'Получить вознаграждение')</td>
+echo "<tr><td>Ожидающая получения награда')</td>
 <td>";
 if (isset($reward_vesting_steem) and $reward_vesting_steem > 0) {
 echo "$reward_vesting_steem $amount2";
@@ -443,7 +443,7 @@ echo "<tr><td>Репутация</td>
 }
 echo "<tr>
 <td>Логин</td>
-<td><a href='https://".$client."/@$name' target='_blank'>$name</a></td>
+<td>$name</td>
 </tr>";
 if ($chain == 'viz') {
 echo "<tr>

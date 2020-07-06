@@ -97,7 +97,6 @@ var getLoad = (tabName, columnId, nextButtonText, previousButtonText) => {
       }
       case PREVIOUS_MODE: {
         page--;
-
         if (page !== 1) {
           params.start = paginationParams[tabName][page - 2];
         }
@@ -116,7 +115,6 @@ var getLoad = (tabName, columnId, nextButtonText, previousButtonText) => {
       if (page !== 1) {
         const previousButtonId = `previous_${tabName}`;
         $(`#${columnId}`).append(`<button id="${previousButtonId}">${previousButtonText}</button>`);
-
         $(`#${previousButtonId}`).click(() => {
           getLoad(tabName, columnId, nextButtonText, previousButtonText)(PREVIOUS_MODE);
         });

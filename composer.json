@@ -1,5 +1,6 @@
 {
     "require": {
-        "t3ran13/php-graphene-node-client": "^4.0"
+        "t3ran13/php-graphene-node-client": "^6.0",
+        "erusev/parsedown": "^1.7"
     }
 }

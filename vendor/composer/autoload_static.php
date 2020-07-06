@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInitc908be1cd5238924160c637891428564
+class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
 {
     public static $prefixLengthsPsr4 = array (
         't' => 
@@ -23,6 +23,15 @@ class ComposerStaticInitc908be1cd5238924160c637891428564
         'G' => 
         array (
             'GrapheneNodeClient\\' => 19,
+        ),
+        'E' => 
+        array (
+            'Elliptic\\' => 9,
+        ),
+        'B' => 
+        array (
+            'BN\\' => 3,
+            'BI\\' => 3,
         ),
     );
 
@@ -47,14 +56,26 @@ class ComposerStaticInitc908be1cd5238924160c637891428564
         array (
             0 => __DIR__ . '/..' . '/t3ran13/php-graphene-node-client',
         ),
+        'Elliptic\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/simplito/elliptic-php/lib',
+        ),
+        'BN\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/simplito/bn-php/lib',
+        ),
+        'BI\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/simplito/bigint-wrapper-php/lib',
+        ),
     );
 
     public static $prefixesPsr0 = array (
-        'J' => 
+        'P' => 
         array (
-            'JsonRPC' => 
+            'Parsedown' => 
             array (
-                0 => __DIR__ . '/..' . '/fguillot/json-rpc/src',
+                0 => __DIR__ . '/..' . '/erusev/parsedown',
             ),
         ),
     );
@@ -62,9 +83,9 @@ class ComposerStaticInitc908be1cd5238924160c637891428564
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInitc908be1cd5238924160c637891428564::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInitc908be1cd5238924160c637891428564::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInitc908be1cd5238924160c637891428564::$prefixesPsr0;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixesPsr0;
 
         }, null, ClassLoader::class);
     }

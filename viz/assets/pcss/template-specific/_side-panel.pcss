@@ -1,0 +1,49 @@
+/*-------------------------------------------
+  -- Side Panel
+-------------------------------------------*/
+
+.ts-side-panel {
+  font-size: 90%;
+  height: 100%;
+  position: absolute;
+
+  padding: 20px;
+  padding: 20px ?if media (min-width: 576px) and (max-width: 767px);
+  padding: 24px ?if media (min-width: 768px) and (max-width: 991px);
+  padding: 28px ?if media (min-width: 992px) and (max-width: 1199px);
+  padding: 32px ?if media (min-width: 1200px);
+
+  overflow-y: scroll;
+  right: 0;
+  top: 0;
+
+  width: 100%;
+  width: 80% ?if media (min-width: 576px) and (max-width: 767px);
+  width: 70% ?if media (min-width: 768px) and (max-width: 991px);
+  width: 60% ?if media (min-width: 992px) and (max-width: 1199px);
+  width: 50% ?if media (min-width: 1200px);
+
+
+  transform: translateX(100%);
+  transition: 1s cubic-bezier(.77,0,.18,1);
+  z-index: 999;
+
+  h2 {
+    border-bottom: 1px solid rgba( var(--color-white), .1 );
+    padding-bottom: 20px;
+  }
+
+  section {
+    margin-bottom: 100px;
+  }
+
+  .ts-close-side-panel {
+    position: absolute;
+    font-size: 30px;
+
+    top: 10px;
+    top: 20px ?if media (min-width: 576px);
+    right: 50px;
+    z-index: 1;
+  }
+}

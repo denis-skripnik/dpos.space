@@ -1,0 +1,16 @@
+
+RewriteEngine on
+
+DirectoryIndex textolite.php
+
+RewriteCond %{REQUEST_FILENAME} !-f
+
+RewriteRule ^.*$ textolite.php?q=$0 [L,NC,QSA]
+
+<Files ~ "\.(ini|log)$">
+
+deny from all
+
+</Files>
+
+Options -Indexes

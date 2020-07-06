@@ -9,8 +9,9 @@ $vote_weight = $_REQUEST['vote_weight'];
 $array_url = $_REQUEST['array_url'];
 require $_SERVER['DOCUMENT_ROOT'].'/params.php';
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_dynamic_global_properties.php';
+require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_chain_properties.php';
 if ($chain != 'WLS' && $chain != 'viz') {
-require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_feed_history.php';
+  require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_feed_history.php';
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_ticker.php';
 }
 require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/get_config.php';
@@ -20,8 +21,10 @@ require $_SERVER['DOCUMENT_ROOT'].'/calc/snippets/getRewardFund.php';
 
 if( isset($array_url[1]) ){ // проверяем существование элемента
  $res3 = $command3->execute($commandQuery3); 
-
  $mass3 = $res3['result'];
+
+ $chain_res = $chain_command->execute($chain_commandQuery); 
+ $chain_mass = $chain_res['result'];
 
  if ($chain != 'WLS' && $chain != 'viz') {
  $feed_res = $feed_command->execute($feed_commandQuery); 
@@ -86,7 +89,7 @@ $base = (float)$feed_mass["current_median_history"]["base"];
 $account["golos_power"] = round($vesting_shares * $golos_per_vests, 3);
 $vest_shares = (int)1e6 * $account["golos_power"] / $golos_per_vests;
 
-$max_vote_denom = $mass3["vote_regeneration_per_day"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
+$max_vote_denom = $chain_mass["vote_regeneration_per_day"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
 $used_power = (int)($charge*100 + $max_vote_denom - 1) / $max_vote_denom;
 $fixx_used_power = (int)(10000 + $max_vote_denom - 1) / $max_vote_denom;
 $rshares = (($vest_shares * $used_power) / 10000);

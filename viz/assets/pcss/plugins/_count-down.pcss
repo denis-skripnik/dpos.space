@@ -1,0 +1,59 @@
+/*-------------------------------------------
+  -- Count Down
+-------------------------------------------*/
+.ts-count-down {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: 40px;
+  font-size: 50px ?if media (min-width: 576px) and (max-width: 767px);
+  font-size: 50px ?if media (min-width: 768px) and (max-width: 991px);
+  font-size: 60px ?if media (min-width: 992px) and (max-width: 1199px);
+  font-size: 70px ?if media (min-width: 1200px);
+  font-weight: 400;
+
+  text-shadow: 6px 5px 25px rgba(#000,.5);
+
+  div {
+    display: block;
+    width: 100%;
+    position: relative;
+    &:last-child {
+      .ts-cc-number {
+        &:after {
+          display: none;
+        }
+      }
+    }
+    .ts-cc-number {
+      position: relative;
+      width: 100%;
+      display: block;
+      &:after {
+        bottom: 0;
+        content: "\f111";
+        font-weight: 900;
+        font-family: "Font Awesome\ 5 Free";
+        position: absolute;
+        height: 10px;
+        margin: auto;
+        font-size: 10px;
+        top: 0;
+        opacity: .2;
+        right: -10px;
+        -webkit-font-smoothing: antialiased;
+      }
+    }
+  }
+
+  .ts-cc-description {
+    display: block;
+    font-size: 14px;
+    font-size: 10px ?if media (min-width: 576px) and (max-width: 767px);
+    font-size: 12px ?if media (min-width: 768px) and (max-width: 991px);
+    font-size: 18px ?if media (min-width: 992px) and (max-width: 1199px);
+    font-size: 18px ?if media (min-width: 1200px);
+
+    opacity: .5;
+  }
+}

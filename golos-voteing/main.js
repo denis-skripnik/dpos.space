@@ -107,13 +107,13 @@ async function getVoteResult(author, id) {
 	try {
 		const getContent = await golos.api.getContentAsync(author, id, 0);
 			const get_results = await golos.api.getContentRepliesAsync(author, id, -1);
-let variants = [];
+			let variants = [];
 
 for (let variant of get_results) {
 				if (variant.permlink.indexOf('-variant-') !== -1) {
 					let vote_gp_count = 0;
 let vote_rep_count = 0;
-					for (let vote of variant.active_votes) {
+for (let vote of variant.active_votes) {
 	const user_data = await accountData(vote.voter);
 	const gp = user_data[0];
 	const reputation = user_data[1];
