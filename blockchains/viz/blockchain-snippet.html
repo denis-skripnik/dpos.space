@@ -1,0 +1,17 @@
+<div id="show_accounts_list">
+<div class="tt" onclick="spoiler(`accounts_list`); return false"><strong>Выбрать аккаунт</strong></div>
+<div id="accounts_list" class="terms" style="display: none;">
+<div id="delete_msg"></div>
+<div id="select_msg"></div>
+<form onclick="getRadioValue(`users`);">
+<p id="accounts"></p>
+</form>
+</div></div>
+<script>
+selectAccount()
+</script>
+
+<div style="display: none;" id="ajax_modal_content">
+</div>
+<div id="price_widget"></div>
+<script>sendAjax('https://dpos.space/blockchains/viz/vizprice.php', 'price_widget');</script>

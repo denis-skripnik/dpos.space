@@ -1,7 +1,7 @@
 <?php
+ if (session_status() == PHP_SESSION_NONE) session_start();
 ini_set('session.gc_maxlifetime', 12000000960);
 ini_set('session.cookie_lifetime', 12000000960);
-@session_start();
 
 function myHandler($level, $message, $file, $line, $context) {
     // в зависимости от типа ошибки формируем заголовок сообщения
@@ -32,22 +32,21 @@ function myHandler($level, $message, $file, $line, $context) {
 // регистрируем наш обработчик, он будет срабатывать на для всех типов ошибок
 set_error_handler('myHandler', E_ALL);
 
-require_once 'urls.php';
-require_once 'params.php';
-require_once 'helpers.php';
- $main_filename = $_SERVER['DOCUMENT_ROOT']."/users";
-$main_fp = fopen($main_filename.".log", "a");
-
-if (($array_url[0] ?? $array_url[0] ?? "") != 'favicon.ico') {
-// записываем в файл текст
-fwrite($main_fp, date("d.m.Y H:i:s").":"."\r\n"."Сервис: ".($array_url[0] ?? $array_url[0] ?? "главная")."; Логин: ".($_SESSION['user_name'] ?? $_SESSION['user_name'] ?? "Нет пользователя")."; Блокчейн: ".($_SESSION['chain_name'] ?? $_SESSION['chain_name'] ?? "нет блокчейна")."\r\n"."\r\n");
+require_once 'functions.php';
+$conf = configs("config.json");
+if (!empty($_POST)) {
+$post_queries = implode("/", $_POST);
+    header("Location: " .$conf['siteUrl'] . $post_queries);
 }
-
-fclose($main_fp);
-
-noCache();
-
- require_once 'template/header.php';
-require_once 'template/menu.php';
-require_once 'template/content.php';
-require_once 'template/footer.php';
+$data = generatePage();
+if (isset($data) && $data != '' && count($data) > 0) {
+    $data['menu'] = generateMenu();
+    $data['breadCrumbs'] = generateBreadCrumbs();
+    require_once 'template/main.php';
+} else {
+    header("HTTP/1.0 404 Not Found");
+    $data = [];
+    $data['menu'] = generateMenu();
+    require_once 'template/404.php';
+}
+?>
