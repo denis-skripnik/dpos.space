@@ -1,7 +1,7 @@
 <?php
 $amount_account = 'denis-skripnik';
 return '<h2>Список действий</h2>
-<ol><li>Перейдите на страницу своего аккаунта в <a href="https://hiveit.com" target="_blank">hiveit.com</a>;</li>
+<ol><li>Перейдите на страницу своего аккаунта в <a href="https://hive.blog" target="_blank">hive.blog</a>;</li>
 <li>Отправьте 0.5 HBD или 1 HIVE на аккаунт @'.$amount_account.'. Заметка (memo):<br />
 posts;<br></li>
 <li>Введите логин в форме ниже</li>

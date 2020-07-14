@@ -4,7 +4,11 @@
 <th><a href="'.$conf['siteUrl'].'golos/manage/profile">Профиль</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/witnesses">Делегаты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/witness">Управление делегатом</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/manage/workers">Заявки воркеров</a></th></tr></table>
+<th><a href="'.$conf['siteUrl'].'golos/manage/workers">Заявки воркеров</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/create-account">Создать аккаунт</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/access">Доступы аккаунта</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/reset-keys">Сброс ключей</a></th>
+</tr></table>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
 <div id="posting_page">
 <script src="'.$conf['siteUrl'].'blockchains/golos/apps/manage/pages/subscribes/helper.js"></script>

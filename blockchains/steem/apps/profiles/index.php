@@ -12,7 +12,7 @@ $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'">Основное</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/transfers">Переводы средств</a></th>
-<th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/gp">Steem Power</a></th>
+<th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/sp">Steem Power</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/dao">ДАО</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/author-rewards">Авторские награды</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/curation-rewards">Кураторские награды</a></th>
@@ -41,17 +41,17 @@ $data['content'] .= require_once(__DIR__.'/page/userinfo.php');
 $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/transfers.php');
-} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'gp') {
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'sp') {
     $data['title'] .= ' - SP';
     $data['description'] .= ' - SP';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/gp.php`, `transfers_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/sp.php`, `transfers_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
     </script>';
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
-$data['content'] .= require_once(__DIR__.'/page/gp.php');
+$data['content'] .= require_once(__DIR__.'/page/sp.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'donates') {
     $data['title'] .= ' - Донаты';
     $data['description'] .= ' - Донаты';

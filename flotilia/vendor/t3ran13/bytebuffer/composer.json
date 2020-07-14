@@ -1,0 +1,23 @@
+{
+	"name": "t3ran13/bytebuffer",
+	"type": "library",
+	"description": "Node.js inspired byte stream buffer for PHP.",
+	"keywords": ["Buffer", "Stream", "Socket", "Library", "Bytehandling", "pack", "wrapper", "binary data"],
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Ole 'nesQuick' Michaelis",
+			"email": "ole.michaelis@googlemail.com",
+			"homepage": "http://www.codestars.eu"
+		},
+		{
+			"name": "t3ran13"
+		}
+	],
+	"autoload": {
+		"psr-4": {
+			"t3ran13\\ByteBuffer\\": "src/t3ran13/ByteBuffer/"
+		}
+	},
+	"require": {}
+}

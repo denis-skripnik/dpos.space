@@ -73,9 +73,9 @@ foreach ($posts as $post) {
     $result['content'] .= '<tr>';
 
     if ($post['author'] == $user) {
-        $result['content'] .= '<td><a href="https://golos.id/'.$post['url'] . '" target="_blank">' . $post['title'] . '</a></td>';
+        $result['content'] .= '<td><a href="https://golos.id'.$post['url'] . '" target="_blank">' . $post['title'] . '</a></td>';
     } else {
-        $result['content'] .= '<td><a href="https://golos.id/'.$post['url'] . '" target="_blank">' . $post['title'] . '</a> (Репост от <a href="'.$site_url.'golos/profiles/' . $post['author'] . '" target="_blank">@' . $post['author'] . '</a>)</td>';
+        $result['content'] .= '<td><a href="https://golos.id'.$post['url'] . '" target="_blank">' . $post['title'] . '</a> (Репост от <a href="'.$site_url.'golos/profiles/' . $post['author'] . '" target="_blank">@' . $post['author'] . '</a>)</td>';
     }
 
     $createdTime = strtotime($post['created']);

@@ -48,6 +48,10 @@
 </ul></div>
 <h1><?= $data['title']; ?></h1>
 <?= $data['content']; ?>
+<?php if (isset(pageUrl()[0]) && pageUrl()[0] === 'viz') { ?>
+    <div id="price_widget"></div>
+<script>sendAjax('https://dpos.space/blockchains/viz/vizprice.php', 'price_widget');</script>
+<?php } ?>
 </main>
 <footer class="footer">
     <p class="footer_text">© 2020 Dpos.space - Opensource проект для приложений, работающих с блокчейнами.</p>

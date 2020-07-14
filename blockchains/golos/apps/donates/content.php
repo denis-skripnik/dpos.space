@@ -32,8 +32,8 @@ $content .= '<option '.(isset($selected[$number]) ? $selected[$number] : "").'va
     if ($table) {
     foreach ($table as $donator) {
       $content .= '<tr><td>'.$donator['link'].'</td>
-    <td>'.(int)$donator['golos_amount'].'</td>
-    <td>'.(int)$donator['gbg_amount'].'</td></tr>';
+    <td>'.$donator['golos_amount'].'</td>
+    <td>'.$donator['gbg_amount'].'</td></tr>';
     }
     }
     $content .= '</tbody></table>

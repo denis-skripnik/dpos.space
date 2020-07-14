@@ -26,7 +26,7 @@
 <div class="spoy_load">
 <input type="checkbox" id="spoiler_links3"><label for="spoiler_links3">Редактировать пост (введите ссылку)</label>
  <div class="spoiler_body">
-<input type="text" id="postediturl" name="postedit" placeholder="https://hiveit.com/tag/@user/permlink">
+<input type="text" id="postediturl" name="postedit" placeholder="https://hive.blog/tag/@user/permlink">
     <button id="load4edit">Загрузить в редактор</button>
 </div>
 </div>

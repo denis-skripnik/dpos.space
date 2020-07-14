@@ -12,7 +12,7 @@ if (witness.signing_key === "HIVE1111111111111111111111111111111114T1Anm") {
     status = "активный";
 }
 let url_text = 'url';
-if (witness.url.indexOf('hiveit.com') > -1 || witness.url.indexOf('hive.blog') > -1) {
+if (witness.url.indexOf('hive.blog') > -1 || witness.url.indexOf('hive.blog') > -1) {
     url_text = 'пост';
 } else {
     url_text = 'сайт';
@@ -32,7 +32,7 @@ if (witness.signing_key === "HIVE1111111111111111111111111111111114T1Anm") {
     status = "активный";
 }
 let url_text = 'url';
-if (witness.url.indexOf('hiveit.com') > -1 || witness.url.indexOf('hive.blog') > -1) {
+if (witness.url.indexOf('hive.blog') > -1 || witness.url.indexOf('hive.blog') > -1) {
     url_text = 'пост';
 } else {
     url_text = 'сайт';

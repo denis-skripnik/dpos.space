@@ -1,0 +1,96 @@
+Пользователи: no,semitsvetik,alexfisher,alenywka,arkvoronoff,bonap11,crypto.invest,cryptotaofficial,denis-skripnik,d0z4t0r,esperos,forbon21,frodogrodno,iluxa,ingoda,jahspear,kanareechka,kationa,kewie,kotobormot67,krisha25,kudesnikaltay,lilia,liliyafedotova,macneo,olgaxx,osra111,pzdts,senvi,student61,taisa.gallery,tinochka,tusechka,vadimsen,vadimph,verdon,vovalap,vovalop,zaria,zolotova1703,belisey,icotelegraph,romabel,yaroslaw3,vp-golos-radio,guowang,uberfrau,zlata777,volodtarasov,ekaterinataul,nataliaprofi,get999,mirta,lusia1987,koss87,kolibri,connectedmusic,apnigrich,daos,mgaft1,cnmbekb,orenolga,pkrugloff,scorpio92,chigick,shadenataly,mariya-lorenz,viktorsold,serjo101,felicita
+
+Минималка СГ при определённом проценте:
+
+90%: 3500
+85%: 2500
+80%: 1500
+75%: 1000
+70%: 900
+65%: 800
+60%: 700
+55%: 600
+50%: 500
+45%: 400
+40%: 300
+35%: 250
+30%: 200
+25%: 150
+20%: 100
+15%: 75
+10%: 50
+5%: 5
+
+Рейтинг пользователей на момент создания лога:
+
+1. viktorsold: 9909.494
+2. zaria: 6954.921
+3. mgaft1: 6741.762
+4. denis-skripnik: 6085.499
+5. tinochka: 5628.462
+6. frodogrodno: 4491.157
+7. mirta: 4168.224
+8. kudesnikaltay: 3825.567
+9. student61: 3787.037
+10. ingoda: 3419.413
+11. forbon21: 3284.784
+12. vp-golos-radio: 3279.067
+13. apnigrich: 3074.41
+14. kewie: 2829.295
+15. mariya-lorenz: 2767.566
+16. pkrugloff: 2413.411
+17. shadenataly: 2242.62
+18. d0z4t0r: 1990.992
+19. orenolga: 1983.475
+20. volodtarasov: 1717.48
+21. zlata777: 1692.232
+22. zolotova1703: 1464.617
+23. vadimph: 1326.009
+24. kationa: 1172.273
+25. jahspear: 1046.287
+26. esperos: 1018.628
+27. alexfisher: 991.482
+28. krisha25: 930.479
+29. olgaxx: 887.155
+30. lilia: 876.532
+31. liliyafedotova: 846.049
+32. yaroslaw3: 792.632
+33. koss87: 766.971
+34. romabel: 684.789
+35. pzdts: 675.181
+36. belisey: 670.33
+37. felicita: 640.983
+38. cnmbekb: 636.049
+39. verdon: 585.597
+40. serjo101: 498.068
+41. osra111: 471.492
+42. bonap11: 415.063
+43. guowang: 402.065
+44. kotobormot67: 376.917
+45. kolibri: 330.89
+46. connectedmusic: 327.937
+47. daos: 321.269
+48. icotelegraph: 313.593
+49. alenywka: 286.875
+50. cryptotaofficial: 286.305
+51. chigick: 270.258
+52. tusechka: 263.661
+53. lusia1987: 251.64
+54. scorpio92: 250.141
+55. crypto.invest: 230.576
+56. uberfrau: 185.246
+57. vovalap: 169.134
+58. taisa.gallery: 164.895
+59. nataliaprofi: 164.877
+60. get999: 113.967
+61. vovalop: 60.157
+62. kanareechka: 59.823
+63. iluxa: 59.345
+64. ekaterinataul: 30.794
+65. arkvoronoff: 23.148
+66. senvi: 19.709
+67. vadimsen: 15.858
+68. semitsvetik: 10.393
+69. macneo: 4.964
+
+Общая сумма СГ: 104677.974 СГ

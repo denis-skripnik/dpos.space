@@ -425,7 +425,7 @@ items.forEach(item => {
     var curator = op[1].curator;
     var reward = parseFloat(op[1].reward) / 1000000 * hive_per_vests;
     reward = reward.toFixed(6) + ' HP';
-    var memo = 'Кураторская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Кураторская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_curation_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/hive/profiles/' + curator + '" target="_blank">@' + curator + '</a></td>\
@@ -440,7 +440,7 @@ var sbd_payout = op[1].sbd_payout;
 var hive_payout = op[1].hive_payout;
 var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
 vesting_payout = vesting_payout.toFixed(6) + ' HP';
-    var memo = 'Авторская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Авторская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_author_reward"><td>' + transfer_datetime + '</td>\
 <td>' + from + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
@@ -455,7 +455,7 @@ vesting_payout = vesting_payout.toFixed(6) + ' HP';
     var hive_payout = op[1].hive_payout;
     var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
     vesting_payout = vesting_payout.toFixed(6) + ' HP';
-    var memo = 'Бенефициарская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Бенефициарская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_content_benefactor_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/hive/profiles/' + benefactor + '" target="_blank">@' + benefactor + '</a></td>\

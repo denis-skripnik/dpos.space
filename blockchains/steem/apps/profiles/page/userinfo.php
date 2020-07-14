@@ -272,7 +272,7 @@ if ($datas['proxied_vsf_votes'][0] != 0) {
         $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
     <td>$dasdas_steem STEEM ($fixx_steem STEEM)</td></tr>";
     } else {
-        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), $amount3 по курсу продажи $amount1</td>
+        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), SBD по курсу продажи STEEM</td>
     <td>$dasdas_steem STEEM, $dasdas_sbd SBD ($fixx_steem STEEM, $fixx_sbd SBD)</td></tr>";
     }
     $full_sp = $tvsh / 1000000 * $steem_per_vests;
@@ -348,53 +348,6 @@ $content .= '</table>
 <p align="center"><a href="#contents">К меню</a></p>
 <h2><a name="data3">Статистика аккаунта</a></h2>
 <table><tr><th>Название</th><th>Значение</th></tr>
-<tr><td>Количество постов, которое можно опубликовать без штрафа</td>';
-    if ($post_full_date > 86400) {
-        $content .= "<td>4</td>";
-    } else {
-    $delta_time = $post_full_date;
-    $minutes_per_day = 24 * 60 * 60;
-    $New_post_bandwidth = (($minutes_per_day - $delta_time) / $minutes_per_day * $datas['post_bandwidth']) + 10000;
-    if ($New_post_bandwidth <=20000) {
-        $shtraf_time = $minutes_per_day - ((0 + 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
-    $post_bandwidth_ours = date("G", $shtraf_time);
-    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
-    $post_bandwidth_minute = date("i", $shtraf_time);
-    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
-    $post_bandwidth_seconds = date("s", $shtraf_time);
-    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
-    $content .= "<td>3. 4 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
-    } else if ($New_post_bandwidth > 20000 and $New_post_bandwidth <=30000) {
-        $shtraf_time = $minutes_per_day - ((20000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
-    $post_bandwidth_ours = date("G", $shtraf_time);
-    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
-    $post_bandwidth_minute = date("i", $shtraf_time);
-    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
-    $post_bandwidth_seconds = date("s", $shtraf_time);
-    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
-    $content .= "<td>2. 3 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
-    } else if ($New_post_bandwidth > 30000 and $New_post_bandwidth <=40000) {
-        $shtraf_time = $minutes_per_day - ((30000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
-    $post_bandwidth_ours = date("G", $shtraf_time);
-    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
-    $post_bandwidth_minute = date("i", $shtraf_time);
-    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
-    $post_bandwidth_seconds = date("s", $shtraf_time);
-    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
-    $content .= "<td>1. 2 станет через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
-    } else if ($New_post_bandwidth > 40000) {
-    $shtraf_time = $minutes_per_day - ((40000 - 10000) / ($New_post_bandwidth - 10000)) * $minutes_per_day;
-    $post_bandwidth_ours = date("G", $shtraf_time);
-    $post_bandwidth_chas_word = getWord($post_bandwidth_ours, $array_chas);
-    $post_bandwidth_minute = date("i", $shtraf_time);
-    $post_bandwidth_minute_words = getWord($post_bandwidth_minute, $array_minutes);
-    $post_bandwidth_seconds = date("s", $shtraf_time);
-    $post_bandwidth_second_word = getWord($post_bandwidth_seconds, $array_seconds);
-    $content .= "<td>0. Опубликовать пост без штрафа возможно через ".date("G $post_bandwidth_chas_word, i $post_bandwidth_minute_words, s $post_bandwidth_second_word", $shtraf_time)."</td>";
-    }
-    
-    }
-    $content .= '</tr>
 <tr>
 <td>Создан</td>
 <td>'.$created.'</td>
