@@ -598,7 +598,7 @@ if (isEnd) {
   walletDataSettings.from = lastElement[0];
 }
 
-console.dir(result);
+console.log(JSON.stringify(result));
 
 appendWalletData(result);
 }
@@ -619,18 +619,23 @@ items.forEach(item => {
   var transfer_datetime = date_str(get_time - timezoneOffset, true, false, true);
 
   var op = item[1].op;
-  if (op[0] === 'transfer') {
+  if (op[0] === 'transfer' || op[0] === 'claim' || op[0] === 'transfer_to_tip' || op[0] === 'donate') {
     var from = op[1].from;
     var to = op[1].to;
     var amount = op[1].amount;
-      var memo = prepareContent(op[1].memo);
-    jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
+      var memo = '';
+      if (op[0] === 'transfer') memo = prepareContent(op[1].memo);
+      if (op[0] === 'claim' && op[1]['to_vesting'] === true) memo = 'Получение своих начислений на СГ.';
+      if (op[0] === 'claim' && op[1]['to_vesting'] === false) memo = 'Получение своих начислений в TIP-баланс.';
+      if (op[0] === 'transfer_to_tip') memo = 'Перевод в TIP баланс. ' + op[1]['memo'];
+      if (op[0] === 'donate') memo = 'Донат. Заметка: ' + op[1]['memo']['comment'];
+      jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
 <td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
 <td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
 <td>' + amount + '</td>\
 <td>' + memo + '</td>\
 </tr>');
-  } else if (op[0] === 'transfer_to_vesting') {
+  } else if (op[0] === 'transfer_to_vesting' || op[0] === 'transfer_from_tip') {
   var from = op[1].from;
   var to = op[1].to;
   var amount = op[1].amount;
