@@ -1,5 +1,5 @@
-<?php return '
-<div class="container-before">
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<div class="container-before">
 <p>
     <label>
         <span>ID формы *</span> <br> <br>

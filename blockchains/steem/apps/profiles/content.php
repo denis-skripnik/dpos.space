@@ -1,5 +1,5 @@
-<?php return '
-<h2>Введите в поле ниже логин любого пользователя блокчейна Steem:</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Введите в поле ниже логин любого пользователя блокчейна Steem:</h2>
 <form method = "post" action = "">
   <input type = "hidden" name = "chain" value = "steem">
   <input type = "hidden" name = "service" value = "profiles">

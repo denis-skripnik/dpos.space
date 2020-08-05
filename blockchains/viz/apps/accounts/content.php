@@ -1,5 +1,5 @@
-<?php return '
-<div id="select_account"></div>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<div id="select_account"></div>
 <p>Нет аккаунта в Viz, но есть инвайт-код? <a href="'.$conf['siteUrl'].'viz/accounts/registration" target="_blank">Зарегистрироваться</a></p>
 <h2>Добавить аккаунт</h2>
 <div id="auth_msg"></div>

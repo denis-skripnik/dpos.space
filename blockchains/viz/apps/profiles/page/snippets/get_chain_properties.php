@@ -1,5 +1,4 @@
 <?php
-@session_start();
 require $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/helpers.php';
@@ -9,13 +8,13 @@ use GrapheneNodeClient\Commands\Single\GetChainPropertiesCommand;
 
 $connector_class = CONNECTORS_MAP['viz'];
 
-'viz'_commandQuery = new CommandQueryData();
+$chain_commandQuery = new CommandQueryData();
 
-'viz'_data = [];
+$chain_data = [];
 
-'viz'_commandQuery->setParams('viz'_data);
+$chain_commandQuery->setParams($chain_data);
 
 $connector = new $connector_class();
 
-'viz'_command = new GetChainPropertiesCommand($connector);
+$chain_command = new GetChainPropertiesCommand($connector);
 

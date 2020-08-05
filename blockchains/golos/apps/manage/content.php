@@ -1,5 +1,5 @@
-<?php return '
-<h2>Выберите страницу</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Выберите страницу</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'golos/manage/profile">Профиль</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/witnesses">Делегаты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/witness">Управление делегатом</a></th>

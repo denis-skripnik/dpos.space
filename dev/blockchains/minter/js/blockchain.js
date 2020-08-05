@@ -1,0 +1,1 @@
+axios.defaults.baseURL = 'https://api.minter.one';

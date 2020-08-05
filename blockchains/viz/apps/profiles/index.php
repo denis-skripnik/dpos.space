@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require_once 'functions.php';
 function generateAppPages($blockchain_snippet) {
     global $conf;
@@ -18,7 +18,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/receive-awards">Полученные награды</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/benefactor-awards">Бенефициарские</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/accounts">Аккаунты</a></th>
-<th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/subscriptions">Подписки</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/subscriptions">Платные подписки</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/witness">Делегат</a></th>
 </tr></table>
 <p align="center"><strong><a data-fancybox data-type="ajax" data-src="'.$conf['siteUrl'].'blockchains/viz/apps/profiles/award_modal/ajax.php?target='.$user.'&pageUrl='.$conf['siteUrl'].'viz/profiles/'.$user.'" href="javascript:;">Наградить пользователя</a></strong></p>
@@ -115,8 +115,8 @@ $data['content'] .= require_once(__DIR__.'/page/dao.php');
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/accounts.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'subscriptions') {
-    $data['title'] .= ' - Подписки';
-    $data['description'] .= ' - Подписки';
+    $data['title'] .= ' - Платные подписки';
+    $data['description'] .= ' - Платные подписки';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;

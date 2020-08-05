@@ -1,5 +1,5 @@
-<?php return '
-<h2>Страницы сервиса</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Страницы сервиса</h2>
 <table><tr><th>Управление делегатом</th>
 <th><a href="'.$conf['siteUrl'].'hive/manage/witnesses">Делегаты</a></th>
 <th><a href="'.$conf['siteUrl'].'hive/manage/profile">Профиль</a></th>

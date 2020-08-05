@@ -32,6 +32,8 @@ function myHandler($level, $message, $file, $line, $context) {
 // регистрируем наш обработчик, он будет срабатывать на для всех типов ошибок
 set_error_handler('myHandler', E_ALL);
 
+define('NOTLOAD', 1); // для защиты от прямого запуска php-файлов 
+
 require_once 'functions.php';
 $conf = configs("config.json");
 if (!empty($_POST)) {

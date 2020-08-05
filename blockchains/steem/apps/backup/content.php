@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 $amount_account = 'denis-skripnik';
 return '<h2>Список действий</h2>
 <ol><li>Перейдите на страницу своего аккаунта в <a href="https://steemit.com" target="_blank">steemit.com</a>;</li>

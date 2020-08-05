@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 $target = (isset($_GET['target']) ? $_GET['target'] : '');
 if (isset($_GET['energy'])) {
     $energy = $_GET['energy'];

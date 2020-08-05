@@ -1,4 +1,5 @@
-<?php global $conf;
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+global $conf;
 return '<h2>Балансы</h2>
 <ul id="balances"></ul>
 <h2>Введите в поле ниже адрес любого пользователя блокчейна Minter:</h2>

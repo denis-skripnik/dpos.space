@@ -18,11 +18,11 @@ function blocksData(start_block, end_block) {
     function calculate() {
         var sig1 = document.getElementById("sig1").value,
         sig2 = document.getElementById("sig2").value,
-        participants = 3;
+        participants = parseInt($('#participants').html());
     
         if(sig1) sig1 = sig1.trim();
         if(sig2) sig2 = sig2.trim();
-        
+
 	// собственно вычисления    
 	let h = keccak_256.update(sig1 + sig2).toString();
         //alert(bigInt(h, 16).mod(participants));

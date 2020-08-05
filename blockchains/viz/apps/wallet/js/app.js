@@ -611,3 +611,17 @@ $("#witness_reward").click(function ()
     $("#transfer_history_tbody .filtered_witness_reward").css("display", "table-row");
 });
 });
+function getInviteWithForm() {
+  let code = $('#invite_secret').val();
+let resultWifToPublic = viz.auth.wifToPublic(code);
+viz.api.getInviteByKey(resultWifToPublic, function(err, result) {
+if (!err) {
+if (result.receiver === '') {
+  $('#invite_code_data').html(`Баланс: ${result.balance}, создатель: <a href="https://dpos.space/viz/profiles/${result.creator}" target="_blank">${result.creator}</a>.`)
+} else {
+  $('#invite_code_data').html(`Получил инвайт-код (чек): <a href="https://dpos.space/viz/profiles/${result.receiver}" target="_blank">${result.receiver}</a>.`)
+}
+
+}
+});
+}

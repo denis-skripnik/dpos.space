@@ -15,7 +15,7 @@ function getAccountHistoryChunk($author, $startWith = -1, $query)
 
     $limit = $startWith < $limitMax ? $startWith : $limitMax;
 
-    $query = [
+    $data = [
         '0' => $author,
         '1' => $startWith,
         '2' => $limit,
@@ -23,7 +23,7 @@ function getAccountHistoryChunk($author, $startWith = -1, $query)
     ];
 
     $commandQuery = new CommandQueryData();
-    $commandQuery->setParams($query);
+    $commandQuery->setParams($data);
 
     $connectorClass = CONNECTORS_MAP['golos'];
 

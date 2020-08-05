@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require 'get_transaction.php';
 try {
 $res = $command->execute($commandQuery); 

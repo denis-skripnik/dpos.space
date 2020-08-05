@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require 'get_ops_in_block.php';
 try {
 $res = $command->execute($commandQuery); 

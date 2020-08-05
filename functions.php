@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function pageUrl() {
     $chpu = $_SERVER['REQUEST_URI'];
 
@@ -15,14 +15,7 @@ setlocale(LC_ALL, "ru_RU.UTF-8");
    exit;
  }
 $url = preg_split ("/(\/|\.*$)/", $chpu,-1, PREG_SPLIT_NO_EMPTY);
-// для dev
-$new_url = [];
-foreach ($url as $el) {
-  if ($el != 'dev') {
-  $new_url[] = $el;
-  }
-}
-return $new_url;
+return $url;
     }
 
     function dirScanner($dir) {
@@ -215,7 +208,7 @@ if ($max_key > 0) {
   $str .= '<li><a href="'.$conf['siteUrl'].$url[0].'">'.configs(__DIR__.'/blockchains/'.$url[0].'/config.json')['title'].'</a></li>
 ';
 if ($max_key >= 2) {
-  $str .= '<li><a href="'.$conf['siteUrl'].$url[0].'">'.configs(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/config.json')['title'].'</a></li>
+  $str .= '<li><a href="'.$conf['siteUrl'].$url[0].'/'.$url[1].'">'.configs(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/config.json')['title'].'</a></li>
 ';
 }
 }

@@ -55,7 +55,7 @@ $startWith = $_REQUEST['start'] ?? 300000000;
             $rowCount++;
         $name = 'Создание аккаунта';
         $account = isset($op[1]['new_account_name']) ? $op[1]['new_account_name'] : "";
-$amount = $op[1]['delegation'] !== '0.000000 GESTS' ? (float)$op[1]['delegation'].' VIZ делегированием соц. капитала' : (float)$op[1]['fee'].' VIZ';
+$amount = isset($op[1]['delegation']) && $op[1]['delegation'] !== '0.000000 GESTS' ? (float)$op[1]['delegation'].' GOLOS делегированием СГ' : (float)$op[1]['fee'].' GOLOS';
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);

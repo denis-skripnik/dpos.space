@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require_once 'functions.php';
 function generateAppPages($blockchain_snippet) {
     $type = pageUrl()[2];

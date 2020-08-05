@@ -1,5 +1,5 @@
-<?php return '
-                        <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'steem/accounts" target="_blank">здесь</a></p></div>                        
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'steem/accounts" target="_blank">здесь</a></p></div>                        
                         <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'steem/accounts" target="_blank">здесь</a></p></div>
 <div id="active_page">
                         <div id="main_wallet_info" style="display: none;">

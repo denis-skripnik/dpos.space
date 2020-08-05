@@ -1,5 +1,5 @@
-<?php return '
-<h2>Адрес публичной Ноды</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Адрес публичной Ноды</h2>
 <p>Ниже вы можете указать произвольный адрес публичной Ноды. После сохранения обновите страницу.</p>
 <form>
 <p><label for="node_url">Адрес Ноды: </label>

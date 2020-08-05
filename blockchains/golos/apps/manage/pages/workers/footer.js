@@ -133,7 +133,7 @@ let end_unixtime = (Date.parse(request.created) / 1000) + request.duration;
 let end_time = date_str(end_unixtime*1000 - timezoneOffset, true, false, true);
 $('#committee_requests_' + status).append(`<tr><td><a data-fancybox class="committee_request" data-src="#committee_request" href="javascript:;" data-author="${request.post.author}" data-permlink="${request.post.permlink}">${title}</a></td>
 <td><a href="https://dpos.space/golos/profiles/${request.post.author}" target="_blank">${request.post.author}</a></td>
-<td><a href="https://dpos.space/viz/profiles/${request.worker}" target="_blank">${request.worker}</a></td>
+<td><a href="https://dpos.space/golos/profiles/${request.worker}" target="_blank">${request.worker}</a></td>
 <td>${states[request.state]}</td>
 <td>${end_time}</td>`);
 }

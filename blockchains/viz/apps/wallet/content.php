@@ -1,5 +1,5 @@
-<?php return '
-                        <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>                        
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>                        
                         <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 												<div id="active_page">
                         <div id="main_wallet_info" style="display: none;">
@@ -19,8 +19,9 @@
 <div id="action_vesting_diposit">
 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
 <p><label for="invite_secret">Инвайт-код (Начинается с 5):</label></p>
-<p><input type="text" name="invite_secret" id="invite_secret" placeholder="5K..."></p>
-                                                <p><label for="to_shares">Перевести в соц.  капитал: 
+<p><input type="text" name="invite_secret" id="invite_secret" placeholder="5K..." onchange="getInviteWithForm()"></p>
+<p id="invite_code_data"></p>                                                
+<p><label for="to_shares">Перевести в соц.  капитал: 
                                                       <input type="checkbox" name="to_shares" id="to_shares" placeholder="Перевести в соц. капитал"></label></p>
                                                 <p><input type="button" id="action_vesting_diposit_start" value="Пополнить"></p>
                                                 </form>

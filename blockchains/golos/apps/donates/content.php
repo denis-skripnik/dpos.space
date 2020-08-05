@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
   if (!isset($_GET['month']) && !isset($_GET['year'])) {
     $_GET['month'] = (int)date('m');
@@ -26,12 +26,12 @@ $content .= '<option '.(isset($selected[$number]) ? $selected[$number] : "").'va
     <option value="2020">2020</option>
     </select></p>
     <p><input type="submit" value="Посмотреть"></p></form>';
-    $html = file_get_contents('http://138.201.91.11:3900/donates?type=donators&date='.$_GET['month'].'_'.$_GET['year']);
+    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=donators&date='.$_GET['month'].'_'.$_GET['year']);
     $table = json_decode($html, true);
     $content .= '<table id="table"><thead><tr><th>Логин</th><th>Сумма донатов в GOLOS</th><th>Сумма донатов в GBG</th></tr></thead><tbody id="target">';
     if ($table) {
     foreach ($table as $donator) {
-      $content .= '<tr><td>'.$donator['link'].'</td>
+      $content .= '<tr align="right"><td align="left">'.$donator['link'].'</td>
     <td>'.$donator['golos_amount'].'</td>
     <td>'.$donator['gbg_amount'].'</td></tr>';
     }

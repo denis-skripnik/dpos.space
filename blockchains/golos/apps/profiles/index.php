@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require_once 'functions.php';
 function generateAppPages($blockchain_snippet) {
     global $conf;
@@ -21,7 +21,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/accounts">Аккаунты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/new-posts">Новые посты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/old-posts">Получившие выплаты посты</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/feed">Посты подписчиков</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/feed">Посты подписок</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/comments">Комментарии</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/witness">Делегат</a></th>
 </tr></table>
@@ -47,7 +47,7 @@ $data['content'] .= $blockchain_snippet;
 $data['content'] .= require_once(__DIR__.'/page/transfers.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'gp') {
     $data['title'] .= ' - СГ';
-    $data['description'] .= ' - Соц. капитал';
+    $data['description'] .= ' - Сила Голоса';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
@@ -157,8 +157,8 @@ $data['content'] .= require_once(__DIR__.'/page/posts_with_payment.php');
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/comments.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'feed') {
-    $data['title'] .= ' - Лента постов подписчиков';
-    $data['description'] .= ' - Лента постов подписчиков';
+    $data['title'] .= ' - Лента постов подписок';
+    $data['description'] .= ' - Лента постов подписок';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;

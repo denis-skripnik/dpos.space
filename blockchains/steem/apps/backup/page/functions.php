@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function transliteration($tag_en, $mode = 'torus') {
 	$lang = [
 		'ые' => 'yie',

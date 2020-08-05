@@ -23,7 +23,7 @@ $type_account = 'delegator';
 $type_account = 'delegatee';
 }
 
-$result['content'] .= '<h2>'.$type_str.' соц. капитал пользователя '.$user.'</h2>
+$result['content'] .= '<h2>'.$type_str.' СГ пользователя '.$user.'</h2>
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
 <table><tr>
 <th>Логин</th>

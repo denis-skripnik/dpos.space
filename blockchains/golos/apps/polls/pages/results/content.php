@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 if (isset(pageUrl()[3])) {
 require __DIR__.'/snippets/get_dynamic_global_properties.php';
 require __DIR__.'/snippets/get_config.php';
@@ -13,7 +13,7 @@ $config_mass = $config_res['result'];
     global $conf;
     $page = [];
     $page['content'] = '<p><span align="left">Результаты</span> <span align="center"><a href="'.$conf['siteUrl'].'golos/polls/voteing/'.pageUrl()[3].'">голосование</a></span> <span align="right"><a href="'.$conf['siteUrl'].'golos/polls/list">Список опросов</a></span></p>';
-$html = file_get_contents('http://138.201.91.11:3200/golos-votes?type=vote&permlink='.pageUrl()[3]);
+$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=votes&type=vote&permlink='.pageUrl()[3]);
 if (pageUrl()[3] && $html) {
 $table = json_decode($html, true);
 $d = new DateTime();

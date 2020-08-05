@@ -1,5 +1,5 @@
-<?php return '
-<h2>Рассчитываем стоимость апвота в зависимости от введённой Hive power</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Рассчитываем стоимость апвота в зависимости от введённой Hive power</h2>
 <p><label name="hivepower">Введите Значение HP: </label>
 <input type="text" name="hivepower" id="sp" value=""></p>
 <p><label name="votepower">Введите батарейку (от 1 до 100): </label>

@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function transliteration($tag_en, $mode = 'torus') {
 	$lang = [
 		'ые' => 'yie',
@@ -101,13 +101,13 @@ $resultcount = count($discussions);
 
 for ($postnum = 0; $postnum < $resultcount; $postnum++) {
 $class_content = $discussions[$postnum];
-
+	if ($class_content['title'] != '' && $class_content['body'] != '') continue;
 if (pageUrl()[3] == 'yes2') {
-if ($class_content['author'] == pageUrl()[2]) {
+		if ($class_content['author'] == pageUrl()[2]) {
 
-// открываем файл, если файл не существует,
+			// открываем файл, если файл не существует,
 //делается попытка создать его
-$filename = $put1."/".$postnum."_".$class_content['permlink'];
+$filename = $put1.$postnum."_".$class_content['permlink'];
 $fp = fopen($filename.".txt", "w");
 
 // записываем в файл текст

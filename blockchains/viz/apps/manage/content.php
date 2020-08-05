@@ -1,5 +1,5 @@
-<?php return '
-<h2>Выберите страницу</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Выберите страницу</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'viz/manage/profile">Профиль</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/witnesses">Делегаты</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/witness">Управление делегатом</a></th>

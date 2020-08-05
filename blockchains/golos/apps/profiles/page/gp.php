@@ -25,7 +25,7 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
     $tvsh = (float)$mass3['total_vesting_shares'];
     $steem_per_vests = 1000000 * $tvfs / $tvsh;
     
-    $result['content'] = '<div id="transfers_content"><h2>Соц. капитал пользователя '.$user.'</h2>
+    $result['content'] = '<div id="transfers_content"><h2>Сила Голоса пользователя '.$user.'</h2>
 <table>
 <tr>
 <th>Дата и время</th>
@@ -38,9 +38,7 @@ $rowCount = 0;
 
 $startWith = $_REQUEST['start'] ?? 300000000;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
-
-    $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['delegate_vesting_shares', 'transfer_to_vesting', 'withdraw_vesting', 'return_vesting_delegation']]);
+    $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['delegate_vesting_shares', 'transfer_to_vesting', 'withdraw_vesting', 'return_vesting_delegation', 'transfer_from_tip']]);
 
     $mass = $res['result'];
 
@@ -61,7 +59,7 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
 
         $op = $datas[1]['op'];
 
-		if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares') {
+		if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares' || $op[0] == 'transfer_from_tip') {
         $rowCount++;
 
         $from = isset($op[1]['from']) ? $op[1]['from'] : $op[1]['delegator'];
@@ -70,7 +68,9 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
         $amount = round($float_amount, 3).' GOLOS';
         $memo = '';
         if ($op[0] == 'transfer_to_vesting') $memo = 'Перевод в СГ';
+        if ($op[0] == 'transfer_from_tip') $memo = 'Перевод из TIP баланса в СГ.'.($op[1]['memo'] !== '' ? ' Заметка: '.$op[1]['memo'] : '');
         if ($op[0] == 'delegate_vesting_shares') $memo = 'Делегирование СГ';
+        if ($op[0] == 'claim' && $op[1]['to_vesting'] == true) $memo = 'Получение своих начислений на СГ.';
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);
@@ -93,8 +93,8 @@ $result['content'] .= '<tr>
         $from = $op[1]['account'];
         $float_amount = (float)$op[1]['vesting_shares'] / 1000000 * $steem_per_vests;
         $amount = round($float_amount, 3).' GOLOS';
-        $memo = 'Запуск вывода из социального капитала.';
-        if ($float_amount == 0) $memo = 'Отмена вывода соц. капитала';
+        $memo = 'Запуск вывода из Силы Голоса.';
+        if ($float_amount == 0) $memo = 'Отмена вывода СГ';
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);
@@ -116,7 +116,7 @@ $result['content'] .= '<tr>
         $from = $op[1]['account'];
         $float_amount = (float)$op[1]['vesting_shares'] / 1000000 * $steem_per_vests;
         $amount = round($float_amount, 3).' GOLOS';
-        $memo = 'Возврат делегирования из соц. капитала';
+        $memo = 'Возврат делегирования из СГ';
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);
@@ -132,7 +132,6 @@ $result['content'] .= '<tr>
                 if ($rowCount === TRX_LIMIT) {
             break;
         }
-    }
     }
 }
 

@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require 'get_dynamic_global_properties.php';
 require 'get_chain_properties.php';
 

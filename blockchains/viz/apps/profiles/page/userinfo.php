@@ -2,6 +2,7 @@
 global $conf;
 require 'snippets/get_account.php';
 require 'snippets/get_dynamic_global_properties.php';
+require 'snippets/get_chain_properties.php';
 require 'snippets/get_config.php';
 function calculateBandwidth($ost, $p) {
     $types = ["byte", "Kb", "Mb", "Gb", "Tb"];
@@ -14,6 +15,7 @@ $ost = round($ost, 3);
 $new_p = round($p / (1024 ** ($counter)), 3);
 if ($new_p > 0) {
 $ost_percent = ($ost / $new_p) * 100;
+if ($counter === 0) $counter = 1;
 $return_str = 'Осталось '.$ost.' '.$types[$counter-1].' из '.$new_p.' '.$types[$counter-1].' ('.$ost_percent.'%)';
 } else {
     $ost_percent = 0;
@@ -32,8 +34,12 @@ if( isset(pageUrl()[2]) && isset($mass) && count($mass) > 0){ // проверя�
  $res3 = $command3->execute($commandQuery3); 
  $mass3 = $res3['result'];
  $config_res = $config_command->execute($config_commandQuery); 
-
  $config_mass = $config_res['result'];
+
+ $props_res = $chain_command->execute($chain_commandQuery); 
+ $props_mass = $props_res['result'];
+$vote_accounting_min_viz = $props_mass['vote_accounting_min_rshares'] / 1000000;
+
 
   // Расчет steem_per_vests
     $tvfs = (float)$mass3['total_vesting_fund'];
@@ -214,9 +220,15 @@ $all_shares = ($sp ?? $sp ?? "")-($delegating_sp ?? $delegating_sp ?? "")+($dele
 
 $payout20 = $all_shares * 20 /100 / ($total_reward_shares/1000000) * $total_reward_fund / ($total_vesting_fund / $total_vesting_shares)*1000000;
 $payout20 = (int)$payout20 / 1000000;
+if ($payout20 < 0.000001) {
+    $payout20 = 'Меньше минимальной';
+}
 
 $payout100 = $all_shares * 100 /100 / ($total_reward_shares/1000000) * $total_reward_fund / ($total_vesting_fund / $total_vesting_shares)*1000000;
 $payout100 = (int)$payout100 / 1000000;
+if ($payout100 < 0.000001) {
+    $payout100 = 'Меньше минимальной';
+}
 
 if ($datas['proxied_vsf_votes'][0] != 0) {
 $proxied_vsf_votes = $datas['proxied_vsf_votes'][0]/1000000;
@@ -238,6 +250,18 @@ $bnew = max(0, ($w - $t) * $bold / $w); //+ N
 $p = $s/$total_vesting_mshares*$e;
 $ost= $p-$bnew;
 $bandwidth = calculateBandwidth($ost/1000000, $p/1000000);
+$min_energy = $vote_accounting_min_viz / $all_shares * 100;
+$min_energy = round($min_energy, 2);
+if ($min_energy < 0.01) {
+    $min_energy = 0.01.'%';
+} else if ($min_energy > 100) {
+    $min_energy = 'Аккаунт не может награждать при текущем количестве токенов в соц. капитале.';
+} else {
+    $min_energy_amount = $all_shares * $min_energy /100 / ($total_reward_shares/1000000) * $total_reward_fund / ($total_vesting_fund / $total_vesting_shares)*1000000;
+$min_energy_amount /= 1000000;
+$min_energy_amount = round($min_energy_amount, 3).' VIZ';
+$min_energy .= '% ('.$min_energy_amount.')';
+}
 
 $content .=  "<table><tr>
 <th>Название</th>
@@ -279,11 +303,15 @@ if ($datas['proxied_vsf_votes'][0] != 0) {
     $content .=  "<tr><td>Прокси соц. капитал для голосования за делегатов</td>
     <td>$proxy_shares Ƶ</td></tr>";
 }
-    $content .=  "<tr><td>Итоговое количество соц. капитала, влияющее на силу наград</td>
+$content .=  "<tr><td>Итоговая сумма соцкапитала, влияющая на силу наград</td>
     <td>".round($all_shares, 3)." Ƶ</td></tr>
-<tr><td>Стоимость награды при затрате 20% энергии (при 100%)</td>
+<tr><td>Минимальный процент энергии для награждения</td>
+<td>$min_energy</td> </tr>";
+if ($min_energy != 'Аккаунт не может награждать при текущем количестве токенов в соц. капитале.') {
+    $content .= "<tr><td>Сумма награды при затрате 20% энергии (при 100%)</td>
     <td>$payout20 ($payout100)</td></tr>";
-$full_sp = $tvsh / 1000000 * $steem_per_vests;
+}
+    $full_sp = $tvsh / 1000000 * $steem_per_vests;
 $account_shares_progress = ($all_shares/$full_sp)*100;
 if ($account_shares_progress < 0.0001) {
 $content .=  "<tr><td>Доля аккаунта от всего соц. капитала в блокчейне</td>

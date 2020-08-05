@@ -1,5 +1,5 @@
-<?php return '
-<div id="select_account"></div>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<div id="select_account"></div>
 <h2>Добавить аккаунт</h2>
 <div id="auth_msg"></div>
 <p>Ключи никуда не передаются: сохраняются в зашифрованном виде в вашем браузере.</p>

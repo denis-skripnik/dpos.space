@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 $amount_account = 'golos-backup';
 $content = '<h2>Список действий</h2>
 <ol><li>Перейдите на страницу своего аккаунта в <a href="https://golos.id" target="_blank">golos.id</a>;</li>
@@ -39,10 +39,12 @@ use GrapheneNodeClient\Commands\Single\GetAccountHistoryCommand;
 $connector_class = CONNECTORS_MAP['golos'];
 $commandQuery = new CommandQueryData();
         
+$query = ['select_ops' => ['transfer']];
 $method_data = [
         '0' => ($amount_account ?? $amount_account ?? ""), //authors
-                '1' => 3000000000, //from
-                '2' => 2000, //limit max 2000
+                '1' => -1, //from
+                '2' => 10000, //limit max 2000
+                '3' => $query,
         ];
 
         $commandQuery->setParams($method_data);
@@ -54,14 +56,14 @@ $connector = new $connector_class();
 if(!empty($connector)){
 $command = new GetAccountHistoryCommand($connector);
 }
-
 $res = $command->execute($commandQuery); 
  $mass = $res['result'];
+
  foreach ($mass as $datas) {
 $op = $datas[1]['op'];
 $tokens3 = "5.000 GOLOS";
-if ($op['0'] === 'transfer' && $op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === $tokens3 or ($op['1']['amount'] ?? $op['1']['amount'] ?? "") === "3.000 GBG") && $op['1']['memo'] === "posts") {
-if (isset($op) ){
+if ($op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === $tokens3 or ($op['1']['amount'] ?? $op['1']['amount'] ?? "") === "3.000 GBG") && $op['1']['memo'] === "posts") {
+        if (isset($op) ){
 $contentformat = pageUrl()[4];
 if ($contentformat == 'Markdown') {
         $content .= generator($app_dir);

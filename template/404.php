@@ -1,3 +1,5 @@
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed'); ?>
+
 <!DOCTYPE html>
 <html id="service_pages">
 <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -43,8 +45,6 @@
 <p>Проверьте url или перейдите на главную.</p>
 </main>
 <footer class="footer">
-    <h2>Буду благодарен за донаты</h2>
-    <p><iframe src="https://widget.donatepay.ru/widgets/page/a52d41b637e51e5dcc33ddeb44979dfe231e93a9d90d9c23a87a7a89f38d3455?widget_id=1368700" width="510" height="220" frameBorder="0"></iframe></p>
     <p class="footer_text">© 2020 Dpos.space - Opensource проект для приложений, работающих с блокчейнами.</p>
 <p class="footer_text">Создал данный клиент незрячий программист <a href="/viz/profiles/denis-skripnik" target="_blank"><span id="creator_login">Денис Скрипник</span></a>.</p>
 </footer>

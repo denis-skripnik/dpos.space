@@ -49,10 +49,11 @@ $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['comment_bene
             $result['content'] = '<div id="ajax_content"><h2>Бенефициарские награды пользователя '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
+            <th>Получатель</th>
             <th>Автор</th>
             <th>Ссылка на пост или комментарий</th>
             <th>Награда</th></tr>';
-                    foreach ($mass as $datas) {
+            foreach ($mass as $datas) {
                 if ($rowCount === AUTHOR_REWARDS_LIMIT) {
                     break;
                 }
@@ -73,7 +74,8 @@ $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['comment_bene
                     $reward = (float)$op[1]['reward']  / 1000000 * $steem_per_vests;
                     $reward = round($reward, 6).' СГ';
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
-    <td><a href="'.$site_url.'golos/profiles/'.$author.'" target="_blank">'.$author.'</a></td>
+    <td><a href="'.$conf['siteUrl'].'golos/profiles/'.$op[1]['benefactor'].'" target="_blank">'.$op[1]['benefactor'].'</a></td>
+                        <td><a href="'.$site_url.'golos/profiles/'.$author.'" target="_blank">'.$author.'</a></td>
                         <td><a href="https://golos.id/@'.$author.'/'.$permlink.'" target="_blank">'.$author.'/'.$permlink.'</a></td>                    
 <td>'.$reward.'</td></tr>';
                     }

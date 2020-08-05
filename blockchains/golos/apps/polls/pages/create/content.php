@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
 $page = [];
 $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/golos/apps/polls/pages/create/page.js"></script>

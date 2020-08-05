@@ -1,5 +1,5 @@
-<?php return '
-<h2>Выберите токен</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Выберите токен</h2>
 <ol><li><a href="'.$conf['siteUrl'].'viz/top/shares">Соц. капитал</a></li>
 <li><a href="'.$conf['siteUrl'].'viz/top/VIZ">VIZ</a></li>
 <li><a href="'.$conf['siteUrl'].'viz/top/effective_shares">Эффективный соц. капитал</a></li>

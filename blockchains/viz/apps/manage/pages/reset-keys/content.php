@@ -1,5 +1,5 @@
-<?php return '
-<h2>Страницы сервиса</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Страницы сервиса</h2>
 <table><tr><th>Сброс ключей</th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/access">Доступы аккаунта</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/profile">Профиль</a></th>

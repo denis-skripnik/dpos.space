@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require 'get_dynamic_global_properties.php';
 require 'get_chain_properties.php';
 
@@ -51,11 +51,11 @@ $chf['max_referral_interest_rate'] = "Макс. % от реферала";
 $chf['max_referral_term_sec'] = "Макс. срок получения % от реферала (секунд)";
 $chf['min_referral_break_fee'] = "Мин. сумма выкупа реферала (GOLOS)";
 $chf['max_referral_break_fee'] = "Макс. сумма выкупа реферала (GOLOS)";
-$chf['posts_window'] = "Длительность интервала/окна для постов (минуты)";
+$chf['posts_window'] = "Длительность интервала/окна для постов";
 $chf['posts_per_window'] = "Кол-во постов за интервал";
-$chf['comments_window'] = "Длительность интервала/окна для комментариев (минуты)";
+$chf['comments_window'] = "Длительность интервала/окна для комментариев";
 $chf['comments_per_window'] = "Кол-во комментариев за интервал";
-$chf['votes_window'] = "Длительность интервала/окна для голосования (минуты)";
+$chf['votes_window'] = "Длительность интервала/окна для голосования";
 $chf['votes_per_window'] = "Кол-во голосов за интервал";
 $chf['auction_window_size'] = "Длительность штрафного окна при голосовании (секунды)";
 $chf['max_delegated_vesting_interest_rate'] = "Макс. % дохода при делегировании СГ";

@@ -1,4 +1,4 @@
-<?php
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
 if (!empty($_GET)) {
 $start_block = $_GET['block1'];
@@ -9,7 +9,7 @@ $end_link = '<a href="https://ropox.app/viz/api/database_api/get_block?blockchai
 return '<div >
     <h1>Стартовый блок раунда '.$start_link.', блок последнего участника раунда '.$end_link.'</h1>
 <h2><a href="https://golos.id/ru/@denis-skripnik/ru-generator-sluchaijnykh-chisel-na-baze-dannykh-iz-bch" target="_blank">Принцип генерации случайных чисел в этом посте</a></h2>
-<h3> Участников: '.$participants.'</h3>
+<h3> Участников: <span id="participants">'.$participants.'</span></h3>
 <p><strong>Репозиторий: <a href="https://github.com/gropox/randomblockchain" target="_blank">https://github.com/gropox/randomblockchain</a></strong></p>
         <div>
     <label>Сигнатура первого указанного блока</label><br/>

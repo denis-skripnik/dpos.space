@@ -289,7 +289,7 @@ if ($datas['proxied_vsf_votes'][0] != 0) {
         $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
     <td>$dasdas_golos GOLOS ($fixx_golos GOLOS)</td></tr>";
     } else {
-        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), $amount3 по курсу продажи $amount1</td>
+        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), GBG по курсу продажи GOLOS</td>
     <td>$dasdas_golos GOLOS, $dasdas_gbg GBG ($fixx_golos GOLOS, $fixx_gbg GBG)</td></tr>";
     }
     $full_sp = $tvsh / 1000000 * $steem_per_vests;
@@ -298,7 +298,7 @@ if ($account_shares_progress < 0.0001) {
 $content .=  "<tr><td>Доля аккаунта от всей СГ в блокчейне</td>
 <td>< 0.00001% из ".round($full_sp, 3)."</td></tr>";
 } else {
-$content .=  "<tr><td>Доля аккаунта от всего соц. капитала в блокчейне</td>
+$content .=  "<tr><td>Доля аккаунта от всей Силы Голоса в блокчейне</td>
 <td>".round($account_shares_progress, 5)."% из ".round($full_sp, 3)."</td></tr>";
  }
 if (isset($json_metadata['profile']['select_tags'])) {

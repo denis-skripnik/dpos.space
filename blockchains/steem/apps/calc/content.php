@@ -1,5 +1,5 @@
-<?php return '
-<h2>Рассчитываем стоимость апвота в зависимости от введённой Steem power</h2>
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Рассчитываем стоимость апвота в зависимости от введённой Steem power</h2>
 <p><label name="steempower">Введите Значение SP: </label>
 <input type="text" name="steempower" id="sp" value=""></p>
 <p><label name="votepower">Введите батарейку (от 1 до 100): </label>
