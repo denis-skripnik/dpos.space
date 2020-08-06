@@ -526,82 +526,89 @@ const walletDataSettings = {
   buttonId: 'wallet-data-button',
 };
 
+async function thisAccountHistory(type) {
+    // История переводов:
+    jQuery("#wallet_transfer_history").css("display", "block");
+
+    const result = [];
+    let isCompleted = false;
+    let isEnd = false;
+    let isValidElement;
+  
+    const {limit, limit_max, buttonId} = walletDataSettings;
+
+    while (! isCompleted && ! isEnd) {
+      let {from, isFirstRequest} = walletDataSettings;
+      let limitReal = (isFirstRequest || limit_max <= from) ? limit_max : from;
+ if (type === 'filtr') {
+   from = -1;
+   limitReal = 10000;
+  }
+
+ const data = await golos.api.getAccountHistoryAsync(golos_login, from, limitReal, JSON.parse(localStorage.getItem('wallet_history_filtr')));
+  data.sort(accountHistoryCompareDate);
+      for (const operation of data) {
+        const op = operation[1].op;
+        isValidElement = (op[1].from && op[1].to && op[1].amount) ||
+        op[0] === 'transfer' ||
+        op[0] === 'transfer_to_vesting' ||
+        op[0] === 'transfer_from_tip' ||
+        op[0] === 'transfer_to_tip' ||
+        op[0] === 'donate' ||
+        op[0] === 'claim' ||
+        op[0] === 'delegate_vesting_shares' ||
+        op[0] === 'delegate_vesting_shares_with_interest' ||
+        op[0] === 'delegation_reward' ||
+        op[0] === 'curation_reward' ||
+        op[0] === 'author_reward' ||
+        op[0] === 'comment_benefactor_reward' ||
+        op[0] === 'producer_reward';
+  
+      if (isValidElement) {
+        result.push(operation);
+  
+        if (result.length === limit + 1) {
+          isCompleted = true;
+          break;
+        }
+      }
+    }
+  
+    if (! isCompleted) {
+      if (data.length < limitReal + 1) {
+        isEnd = true;
+      } else {
+        const lastElement = data[data.length - 1];
+  
+        walletDataSettings.from = lastElement[0];
+  
+        if (isValidElement) {
+          result.pop();
+        }
+      }
+    }
+  }
+  
+  if (isEnd) {
+    const button = document.getElementById(buttonId);
+    if (button) {
+      button.remove();
+    }
+  } else {
+    const lastElement = result.pop();
+  
+    walletDataSettings.from = lastElement[0];
+  }
+  
+  appendWalletData(result);
+}
+
 async function walletData() {
   if (active_key) {
   jQuery("#main_wallet_info").css("display", "block");
   load_balance(golos_login, active_key);
-
-  // История переводов:
-  jQuery("#wallet_transfer_history").css("display", "block");
-
-  const result = [];
-  let isCompleted = false;
-  let isEnd = false;
-  let isValidElement;
-
-  const {limit, limit_max, buttonId} = walletDataSettings;
-
-  while (! isCompleted && ! isEnd) {
-    const {from, isFirstRequest} = walletDataSettings;
-
-    const limitReal = (isFirstRequest || limit_max <= from) ? limit_max : from;
-
-  const data = await golos.api.getAccountHistoryAsync(golos_login, from, limitReal, JSON.parse(localStorage.getItem('wallet_history_filtr')));
-data.sort(accountHistoryCompareDate);
-
-    for (const operation of data) {
-      const op = operation[1].op;
-      isValidElement = (op[1].from && op[1].to && op[1].amount) ||
-      op[0] === 'transfer' ||
-      op[0] === 'transfer_to_vesting' ||
-      op[0] === 'delegate_vesting_shares' ||
-      op[0] === 'delegate_vesting_shares_with_interest' ||
-      op[0] === 'delegation_reward' ||
-      op[0] === 'curation_reward' ||
-      op[0] === 'author_reward' ||
-      op[0] === 'comment_benefactor_reward' ||
-      op[0] === 'producer_reward';
-
-    if (isValidElement) {
-      result.push(operation);
-
-      if (result.length === limit + 1) {
-        isCompleted = true;
-        break;
-      }
-    }
+thisAccountHistory();
   }
-
-  if (! isCompleted) {
-    if (data.length < limitReal + 1) {
-      isEnd = true;
-    } else {
-      const lastElement = data[data.length - 1];
-
-      walletDataSettings.from = lastElement[0];
-
-      if (isValidElement) {
-        result.pop();
-      }
-    }
-  }
-}
-
-if (isEnd) {
-  const button = document.getElementById(buttonId);
-  if (button) {
-    button.remove();
-  }
-} else {
-  const lastElement = result.pop();
-
-  walletDataSettings.from = lastElement[0];
-}
-
-console.log(JSON.stringify(result));
-
-appendWalletData(result);
-}
 }
 
 function appendWalletData(items) {
@@ -771,11 +778,24 @@ function createFiltr() {
         } else if (direction === '' && select_ops.length === 0) {
           localStorage.removeItem('wallet_history_filtr')
         }
-walletData();
+        thisAccountHistory('filtr');
 }
 
 $( document ).ready(function() {
   if(0<$('input[type=range]').length){
   bind_range();
 }
+});
+
+$(document).ready(function() {
+let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
+let select_ops = filtr['select_ops'];
+for (let op of select_ops) {
+  $(`input[value=${op}]`).prop("checked", true);
+}
+let direction = filtr['direction'];
+if (direction !== '') {
+  $(`#direction option[value=${direction}]`).attr("selected", "selected");
+}
+
 });

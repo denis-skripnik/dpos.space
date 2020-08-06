@@ -1,7 +1,8 @@
 function checkWorkingNode() {
     const NODES = [
-		"https://api.aleksw.space",
-"https://api-full.golos.id"
+        "https://api-golos.blckchnd.com",
+        "https://api.aleksw.space",
+        "https://api-full.golos.id"
     ];
     let node = localStorage.getItem("golos_node") || NODES[0];
     const idx = Math.max(NODES.indexOf(node), 0);
