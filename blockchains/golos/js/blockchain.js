@@ -1,6 +1,5 @@
 function checkWorkingNode() {
     const NODES = [
-		"https://api-golos.blckchnd.com",
 		"https://api.aleksw.space",
 "https://api-full.golos.id"
     ];
