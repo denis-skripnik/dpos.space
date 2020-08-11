@@ -562,7 +562,8 @@ function appendWalletData(items) {
 }
 
 $( document ).ready(function() {
-$("#all_transfers").click(function ()
+  $('#username').html(viz_login);
+  $("#all_transfers").click(function ()
 {
     $("#transfer_history_tbody tr").css("display", "table-row");
 });
@@ -625,3 +626,4 @@ if (result.receiver === '') {
 }
 });
 }
+

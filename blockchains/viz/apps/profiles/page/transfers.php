@@ -86,7 +86,7 @@ $result['content'] .= '<tr>
 $creator = $op[1]['creator'];
         $balance = $op[1]['balance'] ?? "";
         $invite_key = $op[1]['invite_key'];
-        $memo = 'Создание инвайта. Код: '.$invite_secret;
+        $memo = 'Создание инвайта. Код: '.$invite_key;
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);

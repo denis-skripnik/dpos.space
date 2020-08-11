@@ -389,6 +389,7 @@ console.log(err);
 function post_submit() {
 var title = document.getElementById('content_title').value;
 var body = document.getElementById('content_text').value;
+var category = document.getElementById('content_category').value;
 if (document.getElementById('content_tags').value === '') {
  var content_tags = 'dpos-post';
 } else {
@@ -416,11 +417,7 @@ if (!user_permlink) {
          tags.push(transform(tag, "-"));
          }
 
-    if (document.getElementById('content_tags').value === '') {
-     var parentPermlink = content_tags;
-    } else {
-     var parentPermlink = tags[0];
-    }
+              var parentPermlink = transform(category, "-");
     var jsonMetadata = {
 "app": "dpos.space/post",
 "format": "markdown",

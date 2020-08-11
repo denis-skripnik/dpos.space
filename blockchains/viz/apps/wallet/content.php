@@ -3,7 +3,8 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                         <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 												<div id="active_page">
                         <div id="main_wallet_info" style="display: none;">
-                                                    <p>Баланс: <a class="tt" onclick="spoiler(`balance_actions`); return false"><span class="viz_balance"></span> VIZ</a>, социальный капитал: <a class="tt" onclick="spoiler(`shares_actions`); return false"><span class="viz_vesting_shares"></span> Ƶ</a></p>
+                        <h2>Балансы пользователя <span id="username"></span></h2>
+                        <p>Баланс: <a class="tt" onclick="spoiler(`balance_actions`); return false"><span class="viz_balance"></span> VIZ</a>, социальный капитал: <a class="tt" onclick="spoiler(`shares_actions`); return false"><span class="viz_vesting_shares"></span> Ƶ</a></p>
                                                 <ul id="balance_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#viz_transfer_modal" href="javascript:;">Перевести viz</a></li>
                                                 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">viz в соц. капитал этого аккаунта</a></li>
                                                 <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>

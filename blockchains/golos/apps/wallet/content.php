@@ -2,7 +2,8 @@
 return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>. Если вы авторизованы, удалите аккаунт и добавьте с активным ключом; Если нет, авторизуйтесь с указанием обоих ключей.</p></div>                        
                                                                         <div id="active_page">
                         <div id="main_wallet_info" style="display: none;">
-                                                    <p>Баланс: <a class="tt" onclick="spoiler(`golos_actions`); return false"><span class="golos_balance"></span> GOLOS</a>, <a class="tt" onclick="spoiler(`gbg_actions`); return false"><span class="gbg_balance"></span> GBG</a> и <a class="tt" onclick="spoiler(`gp_actions`); return false"><span class="golos_vesting_shares"></span> СГ</a></p>
+                        <h2>Балансы пользователя <span id="username"></span></h2>
+                        <p>Баланс: <a class="tt" onclick="spoiler(`golos_actions`); return false"><span class="golos_balance"></span> GOLOS</a>, <a class="tt" onclick="spoiler(`gbg_actions`); return false"><span class="gbg_balance"></span> GBG</a> и <a class="tt" onclick="spoiler(`gp_actions`); return false"><span class="golos_vesting_shares"></span> СГ</a></p>
                                                     <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;">Перевести</a></li>
                                                     <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
                                                     <li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>

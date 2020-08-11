@@ -788,7 +788,8 @@ $( document ).ready(function() {
 });
 
 $(document).ready(function() {
-let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
+$('#username').html(golos_login);
+  let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
 let select_ops = filtr['select_ops'];
 for (let op of select_ops) {
   $(`input[value=${op}]`).prop("checked", true);
