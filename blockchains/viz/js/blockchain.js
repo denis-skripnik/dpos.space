@@ -141,7 +141,7 @@ for (let user of users) {
 if (user.login === group[x].value) {
     let acc_data = {login: user.login, regular: user.regular, active: user.active};
     localStorage.setItem("viz_current_user", JSON.stringify(acc_data));
-$('#select_msg').html('Аккаунт ' + user.login + ' выбран. <strong><a onclick="location.reload();">Обновить страницу</a></strong>');
+$('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
 }
 }
 }
