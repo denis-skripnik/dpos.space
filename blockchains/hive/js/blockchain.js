@@ -146,3 +146,96 @@ $('#select_msg').html('Аккаунт ' + user.login + ' выбран.');
     }
     return (false);
 }
+
+function sendAjax(url, id) {
+    const request = new XMLHttpRequest();
+ 
+request.open('GET', url);
+request.setRequestHeader('Content-Type', 'application/x-www-form-url');
+
+request.addEventListener("readystatechange", () => {
+	if (request.readyState === 4 && request.status === 200) {
+document.getElementById(id).innerHTML = request.responseText;
+    }
+});
+ 
+// Выполняем запрос 
+request.send();
+}
+
+var START_MODE = 'start';
+var NEXT_MODE = 'next';
+var PREVIOUS_MODE = 'previous';
+var paginationParams = {
+    'ajax_page': [],
+          };
+var ajax_options = {};
+   var page = 1;
+  
+  var getLoad = (tabName, columnId, nextButtonText, previousButtonText) => {
+      return (mode) => {
+      const params = {options: ajax_options};
+      switch (mode) {
+        case START_MODE: {
+            page = 1;
+          break;
+        }
+        case NEXT_MODE: {
+          page++;
+          params.start = paginationParams['ajax_page'][page - 2];
+          break;
+        }
+        case PREVIOUS_MODE: {
+          page--;
+          if (page !== 1) {
+            params.start = paginationParams['ajax_page'][page - 2];
+          }
+          break;
+        }
+    }
+
+    $.get(tabName, params).done(function(result){
+        let res = JSON.parse(result);
+
+        $(`#${columnId}`).html(res.content);
+
+        // если страница не первая, нужна кнопка шага назад
+        if (page !== 1) {
+          const previousButtonId = `previous_ajax_page`;
+          $(`#${columnId}`).append(`<button id="${previousButtonId}">${previousButtonText}</button>`);
+          $(`#${previousButtonId}`).click(() => {
+            getLoad(tabName, columnId, nextButtonText, previousButtonText)(PREVIOUS_MODE);
+          });
+        }
+  
+        // если есть следующая страница, нужна кнопка шага вперёд
+        if (res.nextIsExists) {
+          paginationParams['ajax_page'][page - 1] = res.next;
+          const nextButtonId = `next_ajax_page`;
+          $(`#${columnId}`).append(`<button id="${nextButtonId}" style="float: right">${nextButtonText}</button>`);
+          
+          $(`#${nextButtonId}`).click(() => {
+            getLoad(tabName, columnId, nextButtonText, previousButtonText)(NEXT_MODE);
+          });
+        }
+
+        // если это первая страница, а данных больше нет - показываем сообщение об этом
+        if (page === 1 && ! res.nextIsExists) {
+          $(`#${columnId}`).append('<span>Последняя страница с данными</span>');
+        }
+  
+        $('table#rewards-ol, table#delegat-ol').attr('start', page * 50 - 49);
+      }, 'json');
+    }
+  };
+
+  $(document).on('click', '.ajax_modal', function(e) {
+    let url = $(this).attr('data-url');
+    let params_str = $(this).attr('data-params');
+    let params_array = params_str.split('&');
+    for (let param of params_array) {
+        let data = param.split('=');
+        ajax_options[data[0]] = data[1];
+    }
+    getLoad(url, 'ajax_modal_content', 'Следующие 10', 'Предыдущие 10')(START_MODE);
+});

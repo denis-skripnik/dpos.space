@@ -112,12 +112,12 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     padding: 6px 12px;
     cursor: pointer;}
 	
-.pclear {border: 1px solid #ccc;
-    display: inline-block;
-    padding: 6px 12px;
-    cursor: pointer;
-	background-color: #D64B1F;
-	margin: 20px 0 10px 0;}
+    .pclear {border: 1px solid #ccc;
+        display: inline-block;
+        padding: 6px 12px;
+        cursor: pointer;
+     background-color: #f36435;
+     margin: 20px 0 10px 0;}
 	
 /*footer*/
 .footer > p {margin: 5px 0;}

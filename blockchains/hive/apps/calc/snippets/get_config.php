@@ -1,4 +1,4 @@
-<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+<?php
 require $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/helpers.php';
 
@@ -6,7 +6,7 @@ use GrapheneNodeClient\Commands\Single;
 use GrapheneNodeClient\Commands\CommandQueryData;
 use GrapheneNodeClient\Commands\Single\GetConfigCommand;
 
-$connector_class = CONNECTORS_MAP['whaleshares'];
+$connector_class = CONNECTORS_MAP['hive'];
 
 $config_commandQuery = new CommandQueryData();
 

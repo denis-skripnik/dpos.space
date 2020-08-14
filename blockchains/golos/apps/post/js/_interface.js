@@ -341,6 +341,7 @@ function fillContent(err, result) {
         var jmeta = JSON.parse(result.json_metadata);
        
         $('#content_title').val(result.title);
+        $(`#content_category option[value=${result.category}]`).attr("selected", "selected");
         $('#content_tags').val(jmeta.tags.join(' '));
         $('#content_image').val(jmeta.image.join(' '));
         $('#permlink_filde').val(result.permlink);
@@ -367,6 +368,9 @@ $("#load4edit").click(function() {
 
         var editUrl = document.getElementById("postediturl").value.toLowerCase();
         if(!editUrl)return alert('Введите ссылку!');
+        if (editUrl.indexOf('?') > -1) {
+            editUrl = editUrl.split('?')[0];
+        }
         var urlPrepare = editUrl.split("@");
          urlPrepare = urlPrepare[1].split("/")
         var Permlink = urlPrepare[1].replace('/','').replace(/ /g,'');
@@ -453,7 +457,8 @@ function postSender(isEdit) {
                      }
                      } else {
                    alert('Пост отредактирован успешно! \n URL поста: \n@' + author + '/' + permlink);
-                 }
+                   reset_button();
+                }
              });
          } else {
 window.alert('Вы отказались отправлять изменения. Проверьте пермлинк в расширенных настройках.');
@@ -513,7 +518,8 @@ golos.broadcast.send({extensions: [], operations}, [wif], function(err, res) {
              }
              } else {
            alert('Пост опубликован успешно! \n URL поста: \n@' + author + '/' + permlink);
-         }
+           reset_button();
+        }
      })    
 }
 }
@@ -523,24 +529,11 @@ hasPost(author, permlink, postSender);
     var reset_q = window.confirm('Вы действительно хотите очистить форму?');
 if (reset_q == true) {
  $('form input[type="text"]:not(#blockchain_login), form textarea').val('');
-    MD.value('');
+ $('#content_category').prop('selectedIndex',0);
+ MD.value('');
  }
 }
 
-$('.popular_tags').click(function() {
- let tags = $('#content_tags').val();
- tags += ' ' + $(this).val();
- $('#content_tags').val(tags);
- });
- 
  if(0<$('input[type=range]').length){
    bind_range();
  }
- 
- $('#submit_node').click(function() {
- let node_url = $('#public_node').val();
- if (!node_url) {
- return alert('Вы не указали адрес публичной Ноды');
- }
- localStorage.setItem('golos_node', node_url);
- });    

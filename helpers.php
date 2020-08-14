@@ -1,11 +1,11 @@
 <?php
 
 use GrapheneNodeClient\Connectors\Http\SteemitHttpJsonRpcConnector as Steemit;
+use GrapheneNodeClient\Connectors\Http\HiveHttpJsonRpcConnector as Hive;
 use GrapheneNodeClient\Connectors\Http\VizHttpJsonRpcConnector as Viz;
-use GrapheneNodeClient\Connectors\Http\WhalesharesHttpJsonRpcConnector as WLS;
 use GrapheneNodeClient\Connectors\Http\GolosHttpJsonRpcConnector as Golos;
 define('CONNECTORS_MAP', [
-    'WLS' => WLS::class,
+    'hive' => Hive::class,
     'golos' => Golos::class,
     'viz' => Viz::class,
     'steem' => Steemit::class,

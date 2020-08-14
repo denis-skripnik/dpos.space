@@ -25,7 +25,7 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
     $tvsh = (float)$mass3['total_vesting_shares'];
     $steem_per_vests = 1000000 * $tvfs / $tvsh;
     
-    $result['content'] = '<div id="transfers_content"><h2>Соц. капитал пользователя '.$user.'</h2>
+    $result['content'] = '<div id="transfers_content"><h2>Steem Power пользователя '.$user.'</h2>
 <table>
 <tr>
 <th>Дата и время</th>
@@ -92,8 +92,8 @@ $result['content'] .= '<tr>
         $from = $op[1]['account'];
         $float_amount = (float)$op[1]['vesting_shares'] / 1000000 * $steem_per_vests;
         $amount = round($float_amount, 3).' STEEM';
-        $memo = 'Запуск вывода из социального капитала.';
-        if ($float_amount == 0) $memo = 'Отмена вывода соц. капитала';
+        $memo = 'Запуск вывода из Steem Power.';
+        if ($float_amount == 0) $memo = 'Отмена вывода SP';
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);
@@ -115,7 +115,7 @@ $result['content'] .= '<tr>
         $from = $op[1]['account'];
         $float_amount = (float)$op[1]['vesting_shares'] / 1000000 * $steem_per_vests;
         $amount = round($float_amount, 3).' STEEM';
-        $memo = 'Возврат делегирования из соц. капитала';
+        $memo = 'Возврат делегирования из SP';
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);

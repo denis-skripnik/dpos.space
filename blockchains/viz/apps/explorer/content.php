@@ -37,7 +37,7 @@ foreach ($head_blocks as $head_block) {
 }
 $content .= '</ul>
 <p align="center"><a href="#contents">К оглавлению</a></p>
-<h2><a name="chain_props">Основные параметры</h2>
+<h2><a name="chain_props">Основные параметры</a></h2>
 <ul>';
 $chf = [];
 $chf['account_creation_fee'] = 'Передаваемая комиссия при создании аккаунта';

@@ -69,7 +69,7 @@ $data['content'] .= require_once(__DIR__.'/page/donates.php');
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/author_rewards.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/author_rewards.php`, `ajax_content`, `Следующие 5`, `Предыдущие 5`)(START_MODE)
     </script>';
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
@@ -80,7 +80,7 @@ $data['content'] .= require_once(__DIR__.'/page/author_rewards.php');
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/curation_rewards.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/curation_rewards.php`, `ajax_content`, `Следующие 5`, `Предыдущие 5`)(START_MODE)
     </script>';
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
@@ -91,7 +91,7 @@ $data['content'] .= require_once(__DIR__.'/page/curation_rewards.php');
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/benefactor_rewards.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/benefactor_rewards.php`, `ajax_content`, `Следующие 5`, `Предыдущие 5`)(START_MODE)
     </script>';
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;

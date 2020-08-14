@@ -1,4 +1,4 @@
-<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+<?php
 require $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/helpers.php';
 

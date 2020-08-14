@@ -1,5 +1,5 @@
 <?php
-define('AUTHOR_REWARDS_LIMIT', 10);
+define('AUTHOR_REWARDS_LIMIT', 5);
 global $conf;
 require 'snippets/get_account_history_chunk.php';
 require 'snippets/get_dynamic_global_properties.php';
