@@ -33,7 +33,7 @@ require __DIR__.'/snippets/get_config.php';
 
 // Конвертация STEEM POWERв VESTS
 // $sp - поле со введённым значением СГ.
-$vesting_shares = $sp * 1000000 / $steem_per_vests;
+$vesting_shares = (float)$sp * 1000000 / $steem_per_vests;
 
 $base = (float)$feed_mass["current_median_history"]["base"];
     $quote = (float)$feed_mass["current_median_history"]["quote"];

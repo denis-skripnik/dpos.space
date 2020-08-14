@@ -223,7 +223,7 @@ $account["voting_power"] = 10000;
 } else {
 $account["voting_power"] = round($actualVP);
 }
-$account["golos_power"] = round($all_shares * $golos_per_vests, 3);
+$account["golos_power"] = $all_shares;
 $vesting_shares = (int)1e6 * $account["golos_power"] / $golos_per_vests;
 $max_vote_denom = $chain_mass["vote_regeneration_per_day"] * (5 * 60 * 60 * 24) / (60 * 60 * 24);
 $used_power = (int)($account["voting_power"] + $max_vote_denom - 1) / $max_vote_denom;
