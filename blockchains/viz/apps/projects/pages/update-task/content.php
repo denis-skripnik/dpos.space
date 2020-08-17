@@ -14,7 +14,8 @@ $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-project
 $tasks = json_decode($html, true);
 if ($tasks && count($tasks) > 0) {
 $task = $tasks[0];
-$content .= '<div id="task_author"><h3>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$task['creator'].'" target="_blank"><span id="task_login">'.$task['creator'].'</span></a></h3>';
+$content .= '<p><a id="moderation_link" href="'.$conf['siteUrl'].'viz/projects/admin?type=task&creator='.$_GET['creator'].'&name='.$_GET['name'].'" target="_blank">Модерировать</a></p>
+<div id="task_author"><h3>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$task['creator'].'" target="_blank"><span id="task_login">'.$task['creator'].'</span></a></h3>';
 $fields = ['name' => 'Название', 'description' => 'Описание', 'mambers' => 'Участники', 'status' => 'Статус'];
 foreach($fields as $name => $description) {
 if ($name === 'status') {
@@ -48,7 +49,12 @@ if ($(`#task_login`).html() === viz_login) {
     } else {
         $(`#task_author`).css(`display`, `none`);
     }
-        </script>';
+    if (viz_login === `viz-projects`) {
+        $(`#moderation_link`).css(`display`, `inline`);
+            } else {
+                $(`#moderation_link`).css(`display`, `none`);
+            }    
+    </script>';
 } else {
     $content .= '<p>Задача не найдена.</p>';
 }

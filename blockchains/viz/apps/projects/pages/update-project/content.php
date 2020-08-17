@@ -14,7 +14,8 @@ $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-project
 $pro = json_decode($html, true);
 if ($pro && count($pro) > 0) {
 $project = $pro[0];
-$content .= '<div id="project_author"><h3>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$project['creator'].'" target="_blank"><span id="project_login">'.$project['creator'].'</span></a></h3>';
+$content .= '<p><a id="moderation_link" href="'.$conf['siteUrl'].'viz/projects/admin?type=project&creator='.$_GET['creator'].'&name='.$_GET['name'].'" target="_blank">Модерировать</a></p>
+<div id="project_author"><h3>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$project['creator'].'" target="_blank"><span id="project_login">'.$project['creator'].'</span></a></h3>';
 $fields = ['name' => 'Название', 'description' => 'Описание', 'image_link' => 'Изображение', 'type' => 'Тип', 'category' => 'Категория', 'dev_status' => 'Статус разработки', 'command' => 'Команда (логины через запятую)', 'site' => 'Сайт', 'github' => 'Github'];
 foreach($fields as $name => $description) {
 if ($name === 'type') {
@@ -82,7 +83,12 @@ if ($(`#project_login`).html() === viz_login) {
     } else {
         $(`#project_author`).css(`display`, `none`);
     }
-        </script>';
+    if (viz_login === `viz-projects`) {
+$(`#moderation_link`).css(`display`, `inline`);
+    } else {
+        $(`#moderation_link`).css(`display`, `none`);
+    }
+    </script>';
 } else {
     $content .= '<p>Проект не найден.</p>';
 }
