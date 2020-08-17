@@ -3,7 +3,7 @@ require_once 'functions.php';
 function generateAppPages() {
     $token = pageUrl()[2];
     $token = mb_strtolower($token);
-    $tokens = ['golos' => 'GOLOS', 'gbg' => 'GBG', 'gp' => 'СГ', 'delegated_gp' => 'делегированной другим СГ', 'received_gp' => 'полученной делегированием СГ', 'effective_gp' => 'эффективной СГ', 'reputation' => 'репутации'];
+    $tokens = ['golos' => 'GOLOS', 'gbg' => 'GBG', 'gp' => 'СГ', 'delegated_gp' => 'делегированной другим СГ', 'received_gp' => 'полученной делегированием СГ', 'effective_gp' => 'эффективной СГ', 'tip_balance' => 'TIP-баланса', 'reputation' => 'репутации'];
     $page_numtext = 'страница 1';
     if (isset(pageUrl()[3])) {
 $page_numtext = 'страница '.pageUrl()[3];
