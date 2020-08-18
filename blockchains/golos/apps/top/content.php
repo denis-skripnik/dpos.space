@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<h2>Выберите токен</h2>
+return '<h2>Выберите вариант сортировки рейтинга</h2>
 <ol><li><a href="'.$conf['siteUrl'].'golos/top/gbg">GBG</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/top/golos">GOLOS</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/top/tip_balance">TIP-баланс</a></li>
