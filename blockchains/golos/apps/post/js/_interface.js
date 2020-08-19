@@ -29,7 +29,7 @@ function bind_range(){
 	});
 }
 
-    var assoc = {
+var assoc = {
     "а": "a",
     "б": "b",
     "в": "v",
@@ -68,7 +68,6 @@ function bind_range(){
     "ю": "yu",
     "я": "ya"
 }
-
 function transform(str, spaceReplacement) {
     if (!str) {
         return "";
@@ -91,7 +90,7 @@ function transform(str, spaceReplacement) {
     return ru + new_str;
 }
 
-var MD = new SimpleMDE({
+ var MD = new SimpleMDE({
 
     autofocus: false,
     autosave: {
@@ -421,7 +420,7 @@ if (!user_permlink) {
          tags.push(transform(tag, "-"));
          }
 
-              var parentPermlink = transform(category, "-");
+              var parentPermlink = category;
     var jsonMetadata = {
 "app": "dpos.space/post",
 "format": "markdown",
@@ -441,11 +440,11 @@ review_period_time = new Date(review_period_time).toISOString().split('.')[0];
 function postSender(isEdit) {
  console.log(isEdit);
  if (isEdit === true) {
-         var q = window.confirm('Пост с таким permlink уже есть. его отправка повлечёт не создание нового, а изменение старого поста. Вы действительно хотите это сделать?')
+    var q = window.confirm('Пост с таким permlink уже есть. его отправка повлечёт не создание нового, а изменение старого поста. Вы действительно хотите это сделать?')
          if (q === true) {
-         const operations = [
+            var wif = posting_key;
+            const operations = [
              ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}]];
-
              golos.broadcast.send({extensions: [], operations}, [wif], function(err, res) {
                  if(err) {
                      if(err == 'RPCError: Assert Exception:( now - auth.last_root_post ) > STEEM_MIN_ROOT_COMMENT_INTERVAL: You may only post once every 5 minutes.') {

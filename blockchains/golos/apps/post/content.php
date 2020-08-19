@@ -1,13 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<h2>Адрес публичной Ноды</h2>
-<p>Ниже вы можете указать произвольный адрес публичной Ноды. После сохранения обновите страницу.</p>
-<form>
-<p><label for="node_url">Адрес Ноды: </label>
-<input type="text" name="node_url" id="public_node" value="">
-<button type="button" id="submit_node">Сохранить</button>
-</form>
-<hr>
-<h2>Публикация поста <br><strong>Бенефициарские 1%</strong></h2>
+return '<h2>Публикация поста <br><strong>Бенефициарские 1%</strong></h2>
 
 <div class="fillfields">
 <div class="spoy_load">
