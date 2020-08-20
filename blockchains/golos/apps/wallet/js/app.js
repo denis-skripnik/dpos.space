@@ -107,6 +107,18 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 	return datetime_str;
 }
 
+function getTransferTemplates() {
+  let transfer_templates = JSON.parse(localStorage.getItem('golos_transfer_templates'));
+ if (transfer_templates && transfer_templates.length > 0) {
+  let template_count = 1;
+  for (let template of transfer_templates) {
+$('#select_transfer_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}" data-in="${template.in}">${template.name}</option>
+`);
+template_count++;
+}
+ }
+}
+
 function load_balance(account, active_key) {
 	golos.api.getAccounts([account], function(err, result){
  if (!err) {
@@ -281,6 +293,35 @@ window.alert('Ошибка: ' + err);
 }
 }); // end subform
 
+$("#action_save_transfer_template").click(function(){
+  try {
+    let name = window.prompt('Введите название шаблона');
+    let action_golos_transfer_to = $('#action_golos_transfer_to').val();
+    let action_golos_transfer_memo = $('#action_golos_transfer_memo').val();
+    let golos_transfer_in = $('#golos_transfer_in').val();
+  
+  let transfer_templates = JSON.parse(localStorage.getItem('golos_transfer_templates'));
+   if (transfer_templates && transfer_templates.length > 0) {
+     for (let template of transfer_templates) {
+       if (name === template.name) {
+        template.to = action_golos_transfer_to;
+        template.memo = action_golos_transfer_memo;
+         template.in = golos_transfer_in;
+       } // end if to.
+     } // end for.
+   } // end if templates.
+   else {
+     transfer_templates = [];
+     transfer_templates.push({name, to: action_golos_transfer_to, memo: action_golos_transfer_memo, in: golos_transfer_in});
+   }
+  localStorage.setItem('golos_transfer_templates', JSON.stringify(transfer_templates));
+  window.alert('Всё Ok: Шаблон создан.');
+  location.reload();
+  } catch(e) {
+    window.alert('Ошибка: '  + JSON.stringify(e))
+  }
+  }); // end subform
+  
 $("#max_vesting_donate").click(function(){
   $('#donate_amount').val(new Number(parseFloat(acc.tip_balance)).toFixed(3));
    });
@@ -339,6 +380,8 @@ $("#max_vesting_donate").click(function(){
  }
    });
  }); // end subform
+ 
+
  
    $("#max_to_shares_transfer").click(function(){
  $('#action_to_shares_transfer_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
@@ -788,7 +831,27 @@ $( document ).ready(function() {
 });
 
 $(document).ready(function() {
-$('#username').html(golos_login);
+  $('#select_transfer_template').change(function() {
+    if ($('#select_transfer_template').val() === '') {
+      $('#action_golos_transfer_to').val('');
+      $('#action_golos_transfer_memo').val('');
+      $('#golos_transfer_in').prop('selectedIndex',0);
+    } else if ($('#select_transfer_template').val() === 'rudex') {
+      $('#action_golos_transfer_to').val('rudex');
+      $('#action_golos_transfer_memo').val('');
+      $('#golos_transfer_in').prop('selectedIndex',0);
+    } else if ($('#select_transfer_template').val() === 'livecoin') {
+      $('#action_golos_transfer_to').val('livecoin');
+      $('#action_golos_transfer_memo').val('');
+      $('#golos_transfer_in').prop('selectedIndex',0);
+    } else {
+      $('#action_golos_transfer_to').val($(':selected', this).data('to'));
+      $('#action_golos_transfer_memo').val($(':selected', this).data('memo'));
+      $(`#golos_transfer_in option[value=${$(':selected', this).data('in')}]`).prop("selected", "selected");
+     }
+    });
+  
+    $('#username').html(golos_login);
   let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
 let select_ops = filtr['select_ops'];
 for (let op of select_ops) {

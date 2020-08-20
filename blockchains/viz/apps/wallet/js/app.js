@@ -88,6 +88,18 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 	return datetime_str;
 }
 
+function getTransferTemplates() {
+  let transfer_templates = JSON.parse(localStorage.getItem('viz_transfer_templates'));
+ if (transfer_templates && transfer_templates.length > 0) {
+  let template_count = 1;
+  for (let template of transfer_templates) {
+$('#select_transfer_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}" data-to_vesting="${template.transfer_to_vesting}">${template.name}</option>
+`);
+template_count++;
+}
+ }
+}
+
 function load_balance(account, active_key) {
 	viz.api.getAccounts([account], function(err, result){
  if (!err) {
@@ -239,6 +251,34 @@ location.reload();
 window.alert('Ошибка: ' + err);
 }
   });
+}
+}); // end subform
+
+$("#action_save_transfer_template").click(function(){
+try {
+  let name = window.prompt('Введите название шаблона');
+  let action_viz_transfer_to = $('#action_viz_transfer_to').val();
+  let action_viz_transfer_memo = $('#action_viz_transfer_memo').val();
+ let transfer_to_vesting = document.getElementById('transfer_to_vesting').checked
+let transfer_templates = JSON.parse(localStorage.getItem('viz_transfer_templates'));
+ if (transfer_templates && transfer_templates.length > 0) {
+   for (let template of transfer_templates) {
+     if (name === template.name) {
+      template.to = action_viz_transfer_to;
+      template.memo = action_viz_transfer_memo;
+       template.transfer_to_vesting = transfer_to_vesting;
+     } // end if to.
+   } // end for.
+ } // end if templates.
+ else {
+   transfer_templates = [];
+   transfer_templates.push({name, to: action_viz_transfer_to, memo: action_viz_transfer_memo, transfer_to_vesting});
+ }
+localStorage.setItem('viz_transfer_templates', JSON.stringify(transfer_templates));
+window.alert('Всё Ok: Шаблон создан.');
+location.reload();
+} catch(e) {
+  window.alert('Ошибка: '  + JSON.stringify(e))
 }
 }); // end subform
 
@@ -562,6 +602,26 @@ function appendWalletData(items) {
 }
 
 $( document ).ready(function() {
+  $('#select_transfer_template').change(function() {
+    if ($('#select_transfer_template').val() === '') {
+      $('#action_viz_transfer_to').val('');
+      $('#action_viz_transfer_memo').val('');
+     document.getElementById('transfer_to_vesting').checked = false;
+    } else if ($('#select_transfer_template').val() === 'xchng_market') {
+      $('#action_viz_transfer_to').val('xchng');
+      $('#action_viz_transfer_memo').val('log:');
+     document.getElementById('transfer_to_vesting').checked = false;
+    } else {
+      $('#action_viz_transfer_to').val($(':selected', this).data('to'));
+      $('#action_viz_transfer_memo').val($(':selected', this).data('memo'))
+     if ($(':selected', this).data('to_vesting') == true) {
+      document.getElementById('transfer_to_vesting').checked = true;
+     } else {
+        document.getElementById('transfer_to_vesting').checked = false;
+      }
+     }
+    });
+    
   $('#username').html(viz_login);
   $("#all_transfers").click(function ()
 {

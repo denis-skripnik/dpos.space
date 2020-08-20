@@ -4,7 +4,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                         <div id="main_wallet_info" style="display: none;">
                         <h2>Балансы пользователя <span id="username"></span></h2>
                         <p>Баланс: <a class="tt" onclick="spoiler(`golos_actions`); return false"><span class="golos_balance"></span> GOLOS</a>, <a class="tt" onclick="spoiler(`gbg_actions`); return false"><span class="gbg_balance"></span> GBG</a> и <a class="tt" onclick="spoiler(`gp_actions`); return false"><span class="golos_vesting_shares"></span> СГ</a></p>
-                                                    <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;">Перевести</a></li>
+                                                    <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести</a></li>
                                                     <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
                                                     <li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
                                                     <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
@@ -35,6 +35,12 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_transfer">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
+<p><select name="transfer_template" id="select_transfer_template">
+<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
+<option value="rudex">Биржа, RUDEX.GOLOS (заметку берите на бирже, начинается с "btsid-")</option>
+<option value="livecoin">Биржа, livecoin (заметку берите на бирже)</option>
+</select></p>
                                                 <p><label for="golos_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="golos_transfer_to" id="action_golos_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="golos_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="golos_balance"></span> golos</span>):</label></p>
@@ -48,7 +54,9 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 <option value="to_vesting">в СГ</option>
                                                 </select></p>
                                                  <p><input type="button" id="action_golos_transfer_start" value="Перевести"></p>
-                                                </form>
+                                                <hr>
+                                                <p><input type="button" id="action_save_transfer_template" value="Создать шаблон перевода"></p>
+                                                 </form>
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="golos_gbg_transfer_modal">

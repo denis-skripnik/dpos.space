@@ -5,7 +5,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                         <div id="main_wallet_info" style="display: none;">
                         <h2>Балансы пользователя <span id="username"></span></h2>
                         <p>Баланс: <a class="tt" onclick="spoiler(`balance_actions`); return false"><span class="viz_balance"></span> VIZ</a>, социальный капитал: <a class="tt" onclick="spoiler(`shares_actions`); return false"><span class="viz_vesting_shares"></span> Ƶ</a></p>
-                                                <ul id="balance_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#viz_transfer_modal" href="javascript:;">Перевести viz</a></li>
+                                                <ul id="balance_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#viz_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести viz</a></li>
                                                 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">viz в соц. капитал этого аккаунта</a></li>
                                                 <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
 <li><a data-fancybox data-src="#viz_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
@@ -45,7 +45,12 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_viz_transfer">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
-                                                <p><label for="viz_transfer_to">Кому:</label></p>
+                                                <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
+<p><select name="transfer_template" id="select_transfer_template">
+<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
+<option value="xchng_market">Биржа, XCHNG.VIZ (В заметке введите логин после log:)</option>
+</select></p>
+<p><label for="viz_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="viz_transfer_to" id="action_viz_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="viz_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="viz_balance"></span> viz</span>):</label></p>
                                                 <p><input type="text" name="viz_transfer_amount" id="action_viz_transfer_amount" placeholder="1.000"></p>
@@ -53,7 +58,9 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                 <p><input type="text" name="viz_transfer_memo" id="action_viz_transfer_memo" placeholder="Введите memo"></p>
                                                 <p><input type="checkbox" id="transfer_to_vesting"> Перевести в SHARES</p>
                                                  <p><input type="button" id="action_viz_transfer_start" value="Перевести"></p>
-                                                </form>
+                                                <hr>
+                                                <p><input type="button" id="action_save_transfer_template" value="Создать шаблон перевода"></p>
+                                                 </form>
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="to_shares_transfer_modal">
