@@ -137,12 +137,96 @@ try {
       }
     counter++;
     }
-   window.alert(JSON.stringify(templates));
     localStorage.setItem('golos_transfer_templates', JSON.stringify(templates));
   window.alert('Шаблон удалён.');
+  $('#remove_transfer_template').css('display', 'none');
   $('#action_golos_transfer_to').val('');
   $('#action_golos_transfer_memo').val('');
   $('#golos_transfer_in').prop('selectedIndex',0);
+}
+} catch(e) {
+  window.alert('Ошибка: ' + e);
+}
+  }
+}
+
+function getGBGTransferTemplates() {
+  let transfer_templates = JSON.parse(localStorage.getItem('golos_gbg_transfer_templates'));
+ if (transfer_templates && transfer_templates.length > 0) {
+  let template_count = 1;
+  for (let template of transfer_templates) {
+$('#select_gbg_transfer_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}">${template.name}</option>
+`);
+template_count++;
+}
+ }
+}
+
+function removeGBGTransferTemplate(value) {
+  let q = window.confirm('Вы действительно хотите удалить выбранный шаблон?');
+  if (q == true) {
+    let option = document.querySelector("#select_gbg_transfer_template option[value='" + value + "']");
+    if (option) {
+        option.remove();
+    }
+try {
+  let transfer_templates = JSON.parse(localStorage.getItem('golos_gbg_transfer_templates'));
+  let templates = [];
+  if (transfer_templates && transfer_templates.length > 0) {
+    let counter = 1;
+    for (let template of transfer_templates) {
+      if (counter !== parseInt(value)) {
+        templates.push(template);
+      }
+    counter++;
+    }
+    localStorage.setItem('golos_gbg_transfer_templates', JSON.stringify(templates));
+  window.alert('Шаблон удалён.');
+  $('#remove_gbg_transfer_template').css('display', 'none');
+  $('#action_golos_gbg_transfer_to').val('');
+  $('#action_golos_gbg_transfer_memo').val('');
+}
+} catch(e) {
+  window.alert('Ошибка: ' + e);
+}
+  }
+}
+
+function getDonateTemplates() {
+  let donate_templates = JSON.parse(localStorage.getItem('golos_donate_templates'));
+ if (donate_templates && donate_templates.length > 0) {
+  let template_count = 1;
+  for (let template of donate_templates) {
+$('#select_donate_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}">${template.name}</option>
+`);
+template_count++;
+}
+ }
+}
+
+function removeDonateTemplate(value) {
+  let q = window.confirm('Вы действительно хотите удалить выбранный шаблон?');
+  if (q == true) {
+    let option = document.querySelector("#select_donate_template option[value='" + value + "']");
+    if (option) {
+        option.remove();
+    }
+try {
+  let donate_templates = JSON.parse(localStorage.getItem('golos_donate_templates'));
+  let templates = [];
+  if (donate_templates && donate_templates.length > 0) {
+    let counter = 1;
+    for (let template of donate_templates) {
+      if (counter !== parseInt(value)) {
+        templates.push(template);
+      }
+    counter++;
+    }
+    localStorage.setItem('golos_donate_templates', JSON.stringify(templates));
+  window.alert('Шаблон удалён.');
+  $('#remove_donate_template').css('display', 'none');
+  $('#donate_to').val('');
+  $('#donate_memo').val('');
 }
 } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -351,9 +435,9 @@ $("#action_save_transfer_template").click(function(){
        transfer_templates = [];
        transfer_templates.push({name, to: action_golos_transfer_to, memo: action_golos_transfer_memo, in: golos_transfer_in});
      }
-    window.alert(JSON.stringify(transfer_templates));
-     localStorage.setItem('golos_transfer_templates', JSON.stringify(transfer_templates));
-    location.reload();
+          localStorage.setItem('golos_transfer_templates', JSON.stringify(transfer_templates));
+    window.alert('Шаблон добавлен.');
+          location.reload();
     } catch(e) {
       window.alert('Ошибка: '  + JSON.stringify(e))
     }
@@ -362,7 +446,79 @@ $("#action_save_transfer_template").click(function(){
     }
   }); // end subform
   
-$("#max_vesting_donate").click(function(){
+  $("#action_save_gbg_transfer_template").click(function(){
+    let name = window.prompt('Введите название шаблона');
+    if (name && name !== '') {
+      try {
+      let action_golos_gbg_transfer_to = $('#action_golos_gbg_transfer_to').val();
+      let action_golos_gbg_transfer_memo = $('#action_golos_gbg_transfer_memo').val();
+    
+    let transfer_templates = JSON.parse(localStorage.getItem('golos_gbg_transfer_templates'));
+     if (transfer_templates && transfer_templates.length > 0) {
+      let counter = 0; 
+      for (let template of transfer_templates) {
+         if (name === template.name) {
+          counter = 1;
+          template.to = action_golos_gbg_transfer_to;
+          template.memo = action_golos_gbg_transfer_memo;
+         } // end if to.
+       } // end for.
+     if (counter === 0) {
+      transfer_templates.push({name, to: action_golos_gbg_transfer_to, memo: action_golos_gbg_transfer_memo});
+     }
+      } // end if templates.
+     else {
+       transfer_templates = [];
+       transfer_templates.push({name, to: action_golos_gbg_transfer_to, memo: action_golos_gbg_transfer_memo});
+     }
+     localStorage.setItem('golos_gbg_transfer_templates', JSON.stringify(transfer_templates));
+     window.alert('Шаблон добавлен.');
+     location.reload();
+    } catch(e) {
+      window.alert('Ошибка: '  + JSON.stringify(e))
+    }
+    } else {
+      window.alert('Вы отменили создание шаблона.');
+    }
+  }); // end subform
+
+  $("#action_save_donate_template").click(function(){
+    let name = window.prompt('Введите название шаблона');
+    if (name && name !== '') {
+      try {
+      let donate_to = $('#donate_to').val();
+      let donate_memo = $('#donate_memo').val();
+    
+    let donate_templates = JSON.parse(localStorage.getItem('golos_donate_templates'));
+     if (donate_templates && donate_templates.length > 0) {
+      let counter = 0; 
+      for (let template of donate_templates) {
+         if (name === template.name) {
+          counter = 1;
+          template.to = donate_to;
+          template.memo = donate_memo;
+         } // end if to.
+       } // end for.
+     if (counter === 0) {
+      donate_templates.push({name, to: donate_to, memo: donate_memo});
+     }
+      } // end if templates.
+     else {
+       donate_templates = [];
+       donate_templates.push({name, to: donate_to, memo: donate_memo});
+     }
+          localStorage.setItem('golos_donate_templates', JSON.stringify(donate_templates));
+    window.alert('Шаблон добавлен.');
+          location.reload();
+    } catch(e) {
+      window.alert('Ошибка: '  + JSON.stringify(e))
+    }
+    } else {
+      window.alert('Вы отменили создание шаблона.');
+    }
+  }); // end subform
+
+  $("#max_vesting_donate").click(function(){
   $('#donate_amount').val(new Number(parseFloat(acc.tip_balance)).toFixed(3));
    });
   $("#donate_start").click(function(){
@@ -895,6 +1051,34 @@ $(document).ready(function() {
      }
     });
   
+    $('#select_gbg_transfer_template').change(function() {
+      if ($('#select_gbg_transfer_template').val() === '') {
+        $('#remove_gbg_transfer_template').css('display', 'none');
+        $('#action_golos_gbg_transfer_to').val('');
+        $('#action_golos_gbg_transfer_memo').val('');
+      } else if ($('#select_gbg_transfer_template').val() === 'null') {
+        $('#remove_gbg_transfer_template').css('display', 'none');
+        $('#action_golos_gbg_transfer_to').val('null');
+        $('#action_golos_gbg_transfer_memo').val('');
+      } else {
+        $('#remove_gbg_transfer_template').css('display', 'inline');
+        $('#action_golos_gbg_transfer_to').val($(':selected', this).data('to'));
+        $('#action_golos_gbg_transfer_memo').val($(':selected', this).data('memo'));
+       }
+      });
+
+      $('#select_donate_template').change(function() {
+        if ($('#select_donate_template').val() === '') {
+          $('#remove_donate_template').css('display', 'none');
+          $('#donate_to').val('');
+          $('#donate_memo').val('');
+        } else {
+          $('#remove_donate_template').css('display', 'inline');
+          $('#donate_to').val($(':selected', this).data('to'));
+          $('#donate_memo').val($(':selected', this).data('memo'));
+         }
+        });
+
     $('#username').html(golos_login);
   let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
 let select_ops = filtr['select_ops'];

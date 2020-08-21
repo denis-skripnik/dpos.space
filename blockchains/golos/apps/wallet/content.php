@@ -9,11 +9,11 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                     <li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
                                                     <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
                                                     </ul>
-                                                    <ul id="gbg_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_gbg_transfer_modal" href="javascript:;">Перевести GBG</a></li></ul>
+                                                    <ul id="gbg_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_gbg_transfer_modal" href="javascript:;" onclick="getGBGTransferTemplates();">Перевести GBG</a></li></ul>
                                                     <ul id="gp_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
                                                     <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li></ul>
                                                     <p><strong>Баланс донатов: <a class="tt" onclick="spoiler(`tip_actions`); return false"><span class="tip_balance"></span></a>, Баланс начислений на СГ: <span class="accumulative_balance"></span></strong></p>
-                                                    <ul id="tip_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#donate_modal" href="javascript:;">Отблагодарить</a></li>
+                                                    <ul id="tip_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#donate_modal" href="javascript:;" onclick="getDonateTemplates()">Отблагодарить</a></li>
 <li><a data-fancybox data-src="#transfer_from_tip_modal" href="javascript:;">Перевести в СГ</a></li>
 </ul>
 <ul id="accumulative_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#accumulative_balance_modal" href="javascript:;">Получить</a></li>
@@ -64,6 +64,11 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_gbg_transfer">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
+<p><select name="gbg_transfer_template" id="select_gbg_transfer_template">
+<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
+<option value="null">Сжигание GBG в null</option>
+</select> <span style="display: none;" id="remove_gbg_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeGBGTransferTemplate(this.form.gbg_transfer_template.value)">)</span> </p>
                                                 <p><label for="golos_gbg_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="golos_gbg_transfer_to" id="action_golos_gbg_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="golos_gbg_transfer_amount">Сумма перевода (<span id="max_gbg_transfer">Перевести все доступные <span class="gbg_balance"></span> GBG</span>):</label></p>
@@ -71,7 +76,9 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 <p><label for="golos_gbg_transfer_memo">Заметка (описание) к платежу:</label></p>
                                                 <p><input type="text" name="golos_gbg_transfer_memo" id="action_golos_gbg_transfer_memo" placeholder="Введите memo"></p>
                                                  <p><input type="button" id="action_golos_gbg_transfer_start" value="Перевести"></p>
-                                                </form>
+                                                <hr>
+                                                <p><input type="button" id="action_save_gbg_transfer_template" value="Создать шаблон перевода"></p>
+                                                 </form>
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="to_shares_transfer_modal">
@@ -116,6 +123,10 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_donate">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <p><label for="donate_template">Выберите шаблон доната:</label></p>
+<p><select name="donate_template" id="select_donate_template">
+<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
+</select> <span style="display: none;" id="remove_donate_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeDonateTemplate(this.form.donate_template.value)">)</span> </p>
                                                 <p><label for="donate_to">Кому:</label></p>
                                                 <p><input type="text" name="donate_to" id="donate_to" placeholder="Введите получателя"></p>
                                                  <p><label for="donate_amount">Сумма перевода (<span id="max_vesting_donate">Перевести все доступные <span class="tip_balance"></span> GOLOS</span>):</label></p>
@@ -123,7 +134,9 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 <p><label for="donate_memo">Комментарий:</label></p>
                                                 <p><input type="text" name="donate_memo" id="donate_memo" placeholder="Введите комментарий"></p>
                                                  <p><input type="button" id="donate_start" value="Благодарю!"></p>
-                                                </form>
+                                                 <hr>
+                                                 <p><input type="button" id="action_save_donate_template" value="Создать шаблон перевода"></p>
+                                                 </form>
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="transfer_from_tip_modal">
