@@ -1,24 +1,32 @@
 function sendTransfer(name, data) {
-	let arr = [];
-	arr[0] = name;
-	arr[1] = data;
-	let json = JSON.stringify(arr);
-viz.broadcast.transfer(active_key, viz_login, 'viz-projects', '100.000 VIZ', json, function(err, result) {
-  if (!err) {
-window.alert('Операция произведена успешно.');
-  }
-  else window.alert(err);
-});
+	var q = window.confirm('Вы действительно хотите отправить транзакцию перевода 100 VIZ для добавления проекта или задачи?');
+	if (q == true) {
+		let arr = [];
+		arr[0] = name;
+		arr[1] = data;
+		let json = JSON.stringify(arr);
+	viz.broadcast.transfer(active_key, viz_login, 'viz-projects', '100.000 VIZ', json, function(err, result) {
+	  if (!err) {
+	window.alert('Операция произведена успешно.');
+	  }
+	  else window.alert(err);
+	});
+	
+	}
 }
 
 function sendCustom(name, data) {
-	let arr = [];
-	arr[0] = name;
-	arr[1] = data;
-	let json = JSON.stringify(arr);
-	viz.broadcast.custom(posting_key,[],[viz_login],'viz-projects', json, function(err, result) {
-		console.log(err, result);
-	  });
+	var q = window.confirm('Вы действительно хотите отправить эту транзакцию?');
+	if (q == true) {
+		let arr = [];
+		arr[0] = name;
+		arr[1] = data;
+		let json = JSON.stringify(arr);
+		viz.broadcast.custom(posting_key,[],[viz_login],'viz-projects', json, function(err, result) {
+			console.log(err, result);
+		  });
+	
+	}
 }
 
 function spoiler(elem)

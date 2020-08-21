@@ -101,7 +101,7 @@ $resultcount = count($discussions);
 
 for ($postnum = 0; $postnum < $resultcount; $postnum++) {
 $class_content = $discussions[$postnum];
-	if ($class_content['title'] != '' && $class_content['body'] != '') continue;
+	if ($class_content['title'] == '' && $class_content['body'] == '') continue;
 if (pageUrl()[3] == 'yes2') {
 		if ($class_content['author'] == pageUrl()[2]) {
 

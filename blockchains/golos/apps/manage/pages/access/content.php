@@ -99,7 +99,7 @@ return '<h2>Страницы сервиса</h2>
 							</div>
 						</div>
 
-						<p>Regular или обычный тип доступа:</p>
+						<p>Posting (постинг) тип доступа:</p>
 						<div class="account-keys-regular captions">
 							<p>
 								<label class="input-descr">

@@ -654,7 +654,7 @@ $( document ).ready(function() {
      document.getElementById('transfer_to_vesting').checked = false;
     } else {
       $('#remove_transfer_template').css('display', 'inline');
-      $('#action_viz_transfer_to').val($(':selected', this).data('to'));
+      $('#action_viz_transfer_to').val(String($(':selected', this).data('to')));
       $('#action_viz_transfer_memo').val($(':selected', this).data('memo'))
      if ($(':selected', this).data('to_vesting') == true) {
       document.getElementById('transfer_to_vesting').checked = true;

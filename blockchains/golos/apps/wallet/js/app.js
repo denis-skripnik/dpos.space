@@ -1045,7 +1045,7 @@ $(document).ready(function() {
       $('#golos_transfer_in').prop('selectedIndex',0);
     } else {
       $('#remove_transfer_template').css('display', 'inline');
-      $('#action_golos_transfer_to').val($(':selected', this).data('to'));
+      $('#action_golos_transfer_to').val(String($(':selected', this).data('to')));
       $('#action_golos_transfer_memo').val($(':selected', this).data('memo'));
       $(`#golos_transfer_in option[value=${$(':selected', this).data('in')}]`).prop("selected", "selected");
      }
@@ -1062,7 +1062,7 @@ $(document).ready(function() {
         $('#action_golos_gbg_transfer_memo').val('');
       } else {
         $('#remove_gbg_transfer_template').css('display', 'inline');
-        $('#action_golos_gbg_transfer_to').val($(':selected', this).data('to'));
+        $('#action_golos_gbg_transfer_to').val(String($(':selected', this).data('to')));
         $('#action_golos_gbg_transfer_memo').val($(':selected', this).data('memo'));
        }
       });
@@ -1074,7 +1074,7 @@ $(document).ready(function() {
           $('#donate_memo').val('');
         } else {
           $('#remove_donate_template').css('display', 'inline');
-          $('#donate_to').val($(':selected', this).data('to'));
+          $('#donate_to').val(String($(':selected', this).data('to')));
           $('#donate_memo').val($(':selected', this).data('memo'));
          }
         });
