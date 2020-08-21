@@ -4,12 +4,12 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                         <div id="main_wallet_info" style="display: none;">
                         <h2>Балансы пользователя <span id="username"></span></h2>
                         <p>Баланс: <a class="tt" onclick="spoiler(`golos_actions`); return false"><span class="golos_balance"></span> GOLOS</a>, <a class="tt" onclick="spoiler(`gbg_actions`); return false"><span class="gbg_balance"></span> GBG</a> и <a class="tt" onclick="spoiler(`gp_actions`); return false"><span class="golos_vesting_shares"></span> СГ</a></p>
-                                                    <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести</a></li>
+                                                    <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести GOLOS</a></li>
                                                     <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
                                                     <li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
                                                     <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
                                                     </ul>
-                                                    <ul id="gbg_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_gbg_transfer_modal" href="javascript:;">Перевести</a></li></ul>
+                                                    <ul id="gbg_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_gbg_transfer_modal" href="javascript:;">Перевести GBG</a></li></ul>
                                                     <ul id="gp_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
                                                     <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li></ul>
                                                     <p><strong>Баланс донатов: <a class="tt" onclick="spoiler(`tip_actions`); return false"><span class="tip_balance"></span></a>, Баланс начислений на СГ: <span class="accumulative_balance"></span></strong></p>
@@ -40,7 +40,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
 <option value="rudex">Биржа, RUDEX.GOLOS (заметку берите на бирже, начинается с "btsid-")</option>
 <option value="livecoin">Биржа, livecoin (заметку берите на бирже)</option>
-</select></p>
+</select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeTransferTemplate(this.form.transfer_template.value)">)</span> </p>
                                                 <p><label for="golos_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="golos_transfer_to" id="action_golos_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="golos_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="golos_balance"></span> golos</span>):</label></p>

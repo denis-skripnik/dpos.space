@@ -119,6 +119,37 @@ template_count++;
  }
 }
 
+function removeTransferTemplate(value) {
+  let q = window.confirm('Вы действительно хотите удалить выбранный шаблон?');
+  if (q == true) {
+    let option = document.querySelector("#select_transfer_template option[value='" + value + "']");
+    if (option) {
+        option.remove();
+    }
+try {
+  let transfer_templates = JSON.parse(localStorage.getItem('golos_transfer_templates'));
+  let templates = [];
+  if (transfer_templates && transfer_templates.length > 0) {
+    let counter = 1;
+    for (let template of transfer_templates) {
+      if (counter !== parseInt(value)) {
+        templates.push(template);
+      }
+    counter++;
+    }
+   window.alert(JSON.stringify(templates));
+    localStorage.setItem('golos_transfer_templates', JSON.stringify(templates));
+  window.alert('Шаблон удалён.');
+  $('#action_golos_transfer_to').val('');
+  $('#action_golos_transfer_memo').val('');
+  $('#golos_transfer_in').prop('selectedIndex',0);
+}
+} catch(e) {
+  window.alert('Ошибка: ' + e);
+}
+  }
+}
+
 function load_balance(account, active_key) {
 	golos.api.getAccounts([account], function(err, result){
  if (!err) {
@@ -294,32 +325,41 @@ window.alert('Ошибка: ' + err);
 }); // end subform
 
 $("#action_save_transfer_template").click(function(){
-  try {
     let name = window.prompt('Введите название шаблона');
-    let action_golos_transfer_to = $('#action_golos_transfer_to').val();
-    let action_golos_transfer_memo = $('#action_golos_transfer_memo').val();
-    let golos_transfer_in = $('#golos_transfer_in').val();
-  
-  let transfer_templates = JSON.parse(localStorage.getItem('golos_transfer_templates'));
-   if (transfer_templates && transfer_templates.length > 0) {
-     for (let template of transfer_templates) {
-       if (name === template.name) {
-        template.to = action_golos_transfer_to;
-        template.memo = action_golos_transfer_memo;
-         template.in = golos_transfer_in;
-       } // end if to.
-     } // end for.
-   } // end if templates.
-   else {
-     transfer_templates = [];
-     transfer_templates.push({name, to: action_golos_transfer_to, memo: action_golos_transfer_memo, in: golos_transfer_in});
-   }
-  localStorage.setItem('golos_transfer_templates', JSON.stringify(transfer_templates));
-  window.alert('Всё Ok: Шаблон создан.');
-  location.reload();
-  } catch(e) {
-    window.alert('Ошибка: '  + JSON.stringify(e))
-  }
+    if (name && name !== '') {
+      try {
+      let action_golos_transfer_to = $('#action_golos_transfer_to').val();
+      let action_golos_transfer_memo = $('#action_golos_transfer_memo').val();
+      let golos_transfer_in = $('#golos_transfer_in').val();
+    
+    let transfer_templates = JSON.parse(localStorage.getItem('golos_transfer_templates'));
+     if (transfer_templates && transfer_templates.length > 0) {
+      let counter = 0; 
+      for (let template of transfer_templates) {
+         if (name === template.name) {
+          counter = 1;
+          template.to = action_golos_transfer_to;
+          template.memo = action_golos_transfer_memo;
+           template.in = golos_transfer_in;
+         } // end if to.
+       } // end for.
+     if (counter === 0) {
+      transfer_templates.push({name, to: action_golos_transfer_to, memo: action_golos_transfer_memo, in: golos_transfer_in});
+     }
+      } // end if templates.
+     else {
+       transfer_templates = [];
+       transfer_templates.push({name, to: action_golos_transfer_to, memo: action_golos_transfer_memo, in: golos_transfer_in});
+     }
+    window.alert(JSON.stringify(transfer_templates));
+     localStorage.setItem('golos_transfer_templates', JSON.stringify(transfer_templates));
+    location.reload();
+    } catch(e) {
+      window.alert('Ошибка: '  + JSON.stringify(e))
+    }
+    } else {
+      window.alert('Вы отменили создание шаблона.');
+    }
   }); // end subform
   
 $("#max_vesting_donate").click(function(){
@@ -833,18 +873,22 @@ $( document ).ready(function() {
 $(document).ready(function() {
   $('#select_transfer_template').change(function() {
     if ($('#select_transfer_template').val() === '') {
+      $('#remove_transfer_template').css('display', 'none');
       $('#action_golos_transfer_to').val('');
       $('#action_golos_transfer_memo').val('');
       $('#golos_transfer_in').prop('selectedIndex',0);
     } else if ($('#select_transfer_template').val() === 'rudex') {
+      $('#remove_transfer_template').css('display', 'none');
       $('#action_golos_transfer_to').val('rudex');
       $('#action_golos_transfer_memo').val('');
       $('#golos_transfer_in').prop('selectedIndex',0);
     } else if ($('#select_transfer_template').val() === 'livecoin') {
+      $('#remove_transfer_template').css('display', 'none');
       $('#action_golos_transfer_to').val('livecoin');
       $('#action_golos_transfer_memo').val('');
       $('#golos_transfer_in').prop('selectedIndex',0);
     } else {
+      $('#remove_transfer_template').css('display', 'inline');
       $('#action_golos_transfer_to').val($(':selected', this).data('to'));
       $('#action_golos_transfer_memo').val($(':selected', this).data('memo'));
       $(`#golos_transfer_in option[value=${$(':selected', this).data('in')}]`).prop("selected", "selected");

@@ -20,7 +20,7 @@ $('input[name=tip_donate_amount]').val(tip_balance);
 });
 
 var url = document.location.pathname;
-var donate_to = url.split('/')[4];
+var donate_to = url.split('/')[3];
 $('input[name=send_donate_button]').click(function() {
 let tip_balance = $('input[name=tip_donate_amount]').val();
 tip_balance = parseFloat(tip_balance);

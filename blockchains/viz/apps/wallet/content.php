@@ -49,7 +49,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <p><select name="transfer_template" id="select_transfer_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
 <option value="xchng_market">Биржа, XCHNG.VIZ (В заметке введите логин после log:)</option>
-</select></p>
+</select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeTransferTemplate(this.form.transfer_template.value)">)</span> </p>
 <p><label for="viz_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="viz_transfer_to" id="action_viz_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="viz_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="viz_balance"></span> viz</span>):</label></p>
