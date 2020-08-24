@@ -1,5 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 $amount_account = 'null';
+global $conf;
 $content = '<h2>Список действий</h2>
 <ol><li>Перейдите на страницу своего аккаунта в <a href="https://golos.id" target="_blank">golos.id</a>;</li>
 <li>Отправьте 5 GOLOS или 3 GBG на аккаунт @'.$amount_account.'. Заметка (memo):<br />
@@ -79,7 +80,7 @@ $op_trx = ($op ?? $op ?? null);
 
 if (!isset($op_trx) ){
 $content .= '<p>Пользователь <a href="https://golos.id/@'.pageUrl()[2].'/transfers" target="_blank">@'.pageUrl()[2].'</a> не произвёл платёж<br />
-Перейдите в кошелёк, нажав на свой логин в строке выше.</p>
+Перейдите в кошелёк, нажав на свой логин в строке выше или, если вы авторизованы на dpos.space активным ключом, <a href="'.$conf['siteUrl'].'golos/wallet" target="_blank">перейдите в кошелёк dpos.space/golos/wallet</a>.</p>
 <p>Либо оплатите <a href="https://golos.id/@'.pageUrl()[2].'/transfers?to='.$amount_account.'&amount=3.000&token=GBG&memo=posts" target="_blank">3 GBG через golos.id</a> или <a href="https://golos.id/@'.pageUrl()[2].'/transfers?to='.$amount_account.'&amount=5.000&token=GOLOS&memo=posts" target="_blank">5 GOLOS через golos.id</a></p>';
 }
 
