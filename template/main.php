@@ -58,6 +58,10 @@
 <footer class="footer">
     <p class="footer_text">© 2020 Dpos.space - Opensource проект для приложений, работающих с блокчейнами.</p>
 <p class="footer_text">Создал данный клиент незрячий программист <span id="creator_login">Денис Скрипник</span>.  <a href="/viz/profiles/denis-skripnik" target="_blank">профиль в Viz</a>, <a href="/golos/profiles/denis-skripnik" target="_blank">профиль в Golos</a>.</p>
+<h4>Контакты</h4>
+<ul><li>Telegram <a href="https://t.me/denis_skripnik" target="_blank">@denis_skripnik</a></li>
+<li>Вконтакте <a href="https://vk.com/denis_skripnik" target="_blank">@denis_skripnik</a></li>
+<li>Обратная связь <a href="https://denis-skripnik.name/contact" target="_blank">Написать</a></li>
 </footer>
 
 </div>
