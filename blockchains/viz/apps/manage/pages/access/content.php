@@ -7,6 +7,7 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/manage/workers">Заявки воркеров</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/create-account">Создать аккаунт/субаккаунт</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/reset-keys">Сброс ключей</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Ммножество инвайтов (чеков)</a></th>
 </tr></table>
 <style>.hidden{display:none;}</style>
 <script src="'.$conf['siteUrl'].'blockchains/viz/apps/manage/pages/access/dostup.js"></script>

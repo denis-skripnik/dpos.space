@@ -386,7 +386,7 @@ button.addEventListener('click', function () {
  var create_invite_amount = parseFloat($('#create_invite_amount').val().replace(/,/, '.')).toFixed(3) + ' VIZ';
  var create_private_invite_key = $('#create_invite_key').val();
 $("#create_private_invite_key_result").html(create_private_invite_key);
-$("#invite_reg_link").html('https://liveblogs.space/reg.html?invite=' + create_private_invite_key);
+$("#invite_reg_link").html('https://dpos.space/viz/accounts/registration/?invite=' + create_private_invite_key);
 $("#create_invite_result_amount").html(create_invite_amount);
 		var create_invite_key = viz.auth.wifToPublic(create_private_invite_key);
 viz.broadcast.createInvite(active_key, account, create_invite_amount, create_invite_key, function(err, result) {
