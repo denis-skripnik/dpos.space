@@ -34,19 +34,36 @@ if (!err) {
 });
 });
 
-$('#use_invites_balance').click(function() {
+$('#claim_invites_balance').click(function() {
 let invites = $('#result_invites').val().split('\n');
 let operations = [];
 for (let invite of invites) {
 if (invite !== '') {
-    operations.push(['use_invite_balance', {'initiator':viz_login,'receiver':viz_login,'invite_secret':invite}]);
+    operations.push(['claim_invite_balance', {'initiator':viz_login,'receiver':viz_login,'invite_secret':invite}]);
 }
 }
     viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
-window.alert('Чеки использованы.');
+window.alert('Чеки использованы на баланс.');
 } else {
     window.alert('Ошибка: ' + err);
 }
     });
 });
+
+$('#use_invites_balance').click(function() {
+    let invites = $('#result_invites').val().split('\n');
+    let operations = [];
+    for (let invite of invites) {
+    if (invite !== '') {
+        operations.push(['use_invite_balance', {'initiator':viz_login,'receiver':viz_login,'invite_secret':invite}]);
+    }
+    }
+        viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+    if (!err) {
+    window.alert('Чеки использованы в соц. капитал.');
+    } else {
+        window.alert('Ошибка: ' + err);
+    }
+        });
+    });

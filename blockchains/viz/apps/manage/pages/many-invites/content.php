@@ -21,7 +21,9 @@ return '<h2>Страницы сервиса</h2>
 <h2>Результат</h2>
 <form>
 <p><textarea id="result_invites"></textarea></p>
-<p><input type="button" value="Использовать чек в баланс VIZ" id="use_invites_balance"></p>
+<p><input type="button" value="Использовать чек в соц. капитал" id="use_invites_balance"></p>
+<hr>
+<p><input type="button" value="Использовать чек в баланс VIZ" id="claim_invites_balance"></p>
 </form>
 </div>
 <script src="'.$conf['siteUrl'].'blockchains/viz/apps/manage/pages/many-invites/footer.js"></script>
