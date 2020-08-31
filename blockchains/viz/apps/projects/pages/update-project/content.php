@@ -9,8 +9,9 @@ $content = '<h2>Страницы сервиса</h2>
 <div id="posting_page">
 <h2>Обновите данные о проекте</h2>
 <form>';
-$$filter = '{creator: "'.$_GET['creator'].'", name: "'.$_GET['name'].'"}';
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.$filter.'&page=1');
+$filter['creator'] =$_GET['creator'];
+$filter['name'] = urlencode($_GET['name']);
+$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
 $pro = json_decode($html, true);
 if ($pro && count($pro) > 0) {
 $project = $pro[0];
@@ -25,11 +26,11 @@ if ($name === 'type') {
     $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=types');
     $types = json_decode($html, true);
     if ($types && count($types) > 0) {
-        foreach($type as $types) {
-            if ($project['type'] === $type) {
-                $content .= '<option selected value="'.$type.'">'.$type.'</option>';
+        foreach($types as $type) {
+            if ($project['type'] === $type['name']) {
+                $content .= '<option selected value="'.$type['name'].'">'.$type['name'].'</option>';
             } else {
-                $content .= '<option value="'.$type.'">'.$type.'</option>';
+                $content .= '<option value="'.$type['name'].'">'.$type['name'].'</option>';
             }
         }
     }
@@ -43,10 +44,10 @@ if ($name === 'type') {
     $categories = json_decode($html, true);
     if ($categories && count($categories) > 0) {
         foreach($categories as $category) {
-if ($project['category'] === $category) {
-    $content .= '<option value="'.$category.'" selected>'.$category.'</option>';
+if ($project['category'] === $category['name']) {
+    $content .= '<option value="'.$category['name'].'" selected>'.$category['name'].'</option>';
 } else {
-                $content .= '<option value="'.$category.'">'.$category.'</option>';
+                $content .= '<option value="'.$category['name'].'">'.$category['name'].'</option>';
 }
         }
     }
@@ -68,10 +69,10 @@ if ($project['dev_status'] === 'stable') {
 $content .= '</select></p>
 ';
 } else if ($name === 'command') {
-    $content .= '<p><input type="text" name="'.$name.'" value="'.implode(',', $project[$name]).'" placeholder="'.$description.'"></p>
+    $content .= '<p><input type="text" name="'.$name.'" value="'.implode(',', $project[$name]).'" placeholder="'.$description.'"></p>
 ';
 } else {
-    $content .= '<p><input type="text" name="'.$name.' value="'.$project[$name].'" placeholder="'.$description.'"></p>
+    $content .= '<p><input type="text" name="'.$name.'" value="'.$project[$name].'" placeholder="'.$description.'"></p>
 ';
 }
 }

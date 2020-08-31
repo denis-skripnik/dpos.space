@@ -23,7 +23,11 @@ function sendCustom(name, data) {
 		arr[1] = data;
 		let json = JSON.stringify(arr);
 		viz.broadcast.custom(posting_key,[],[viz_login],'viz-projects', json, function(err, result) {
-			console.log(err, result);
+if (!err) {
+	window.alert('Успешно.');
+} else {
+	window.alert('Ошибка: ' + JSON.stringify(err));
+}
 		  });
 	
 	}

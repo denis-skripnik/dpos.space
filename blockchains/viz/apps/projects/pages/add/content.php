@@ -20,8 +20,8 @@ if ($name === 'type') {
     $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=types');
     $types = json_decode($html, true);
     if ($types && count($types) > 0) {
-        foreach($type as $types) {
-            $content .= '<option value="'.$type.'">'.$type.'</option>';
+        foreach($types as $type) {
+            $content .= '<option value="'.$type['name'].'">'.$type['name'].'</option>';
         }
     }
     $content .= '</select></p>
@@ -34,7 +34,7 @@ if ($name === 'type') {
     $categories = json_decode($html, true);
     if ($categories && count($categories) > 0) {
         foreach($categories as $category) {
-            $content .= '<option value="'.$category.'">'.$category.'</option>';
+            $content .= '<option value="'.$category['name'].'">'.$category['name'].'</option>';
         }
     }
     $content .= '</select></p>

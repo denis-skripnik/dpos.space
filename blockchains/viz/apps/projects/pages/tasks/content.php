@@ -25,14 +25,12 @@ $end_page_url = end($url);
 if (isset($end_page_url) && is_numeric($end_page_url)) {
     $pagenum = end(pageUrl());
 }
-$filter = '{}';
+$filter = array();
 	if (isset($url[3])) {
-		$filter = '{';
-			if ($url[4] !== 'false') $filter .= 'status: "'.$url[4].'"';
-			$filter .= '}';
+			if ($url[4] !== 'false') $filter['status'] = $url[4];
 			}
 	
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=tasks&filter='.$filter.'&page='.$pagenum);
+$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $tasks = json_decode($html, true);
 if ($tasks && count($tasks) > 0) {
 $fields = ['creator' => 'Создатель', 'name' => 'Название', 'description' => 'Описание', 'mambers' => 'Участники', 'status' => 'Статус'];
@@ -47,17 +45,22 @@ $content .= '<th>Действия</th>
 ';
 	foreach ($tasks as $task) {
 $content .= '<tr>';
+$counter = 0;
 foreach ($task as $key => $el) {
-	if ($key === 'mambers') {
-		$mambers = '';
-		foreach ($el as $mamber) {
-			$mambers .= '<a href="'.$conf['siteUrl'].'viz/projects/working-tasks/?task_creator='.$task['creator'].'&task_name='.$task['name'].'&mamber='.$mamber.'" target="_blank">'.$mamber.'</a>, ';
+	if ($counter > 0) {
+		if ($key === 'mambers') {
+			$mambers = '';
+			foreach ($el as $mamber) {
+				$mambers .= '<a href="'.$conf['siteUrl'].'viz/projects/working-tasks/?task_creator='.$task['creator'].'&task_name='.$task['name'].'&mamber='.$mamber.'" target="_blank">'.$mamber.'</a>, ';
+			}
+			$mambers .= '<a href="'.$conf['siteUrl'].'viz/projects/working-tasks/?task_creator='.$task['creator'].'&task_name='.$task['name'].'" target="_blank">Присоединиться</a>';
+			$content .= '<td>'.$mambers.'</td>';
+		} else {
+			$content .= '<td>'.$el.'</td>';
 		}
-		$mambers .= '<a href="'.$conf['siteUrl'].'viz/projects/working-task/?task_creator='.$task['creator'].'&task_name='.$task['name'].'" target="_blank">Присоединиться</a>';
-		$content .= '<td>'.$mambers.'</td>';
-	} else {
-		$content .= '<td>'.$el.'</td>';
+	
 	}
+$counter++;
 }
 $content .= '<td><a  href="'.$conf['siteUrl'].'viz/projects/update-task/?creator='.$task['creator'].'&name='.$task['name'].'" target="_blank">Изменить задачу (только для автора)</a></td>
 </tr>';

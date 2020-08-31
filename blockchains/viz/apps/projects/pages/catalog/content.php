@@ -18,8 +18,8 @@ $content = '<h2>Страницы сервиса</h2>
 $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=types');
 $types = json_decode($html, true);
 if ($types && count($types) > 0) {
-	foreach($type as $types) {
-		$content .= '<option value="'.$type.'">'.$type.'</option>';
+	foreach($types as $type) {
+		$content .= '<option value="'.$type['name'].'">'.$type['name'].'</option>';
 	}
 }
 $content .= '</select>
@@ -32,7 +32,7 @@ $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-project
 $categories = json_decode($html, true);
 if ($categories && count($categories) > 0) {
 	foreach($categories as $category) {
-		$content .= '<option value="'.$category.'">'.$category.'</option>';
+		$content .= '<option value="'.$category['name'].'">'.$category['name'].'</option>';
 	}
 }
 $content .= '</select>
@@ -52,15 +52,13 @@ $end_page_url = end($url);
 if (isset($end_page_url) && is_numeric($end_page_url)) {
     $pagenum = end(pageUrl());
 }
-$filter = '{}';
+$filter = array();
 if (isset($url[3])) {
-	$filter = '{';
-		if ($url[4] !== 'false') $filter .= 'type: "'.$url[4].'", ';
-		if ($url[6] !== 'false') $filter .= 'category: "'.$url[6].'", ';
-		if ($url[8] !== 'false') $filter .= 'dev_status: "'.$url[8].'"';
-		$filter .= '}';
+		if ($url[4] !== 'false') $filter['type'] = urlencode($url[4]);
+		if ($url[6] !== 'false') $filter['category'] = urlencode($url[6]);
+		if ($url[8] !== 'false') $filter['dev_status'] = urlencode($url[8]);
 		}
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.$filter.'&page='.$pagenum);
+		$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $projects = json_decode($html, true);
 if ($projects && count($projects) > 0) {
 	$fields = ['creator' => 'Создатель', 'name' => 'Название', 'description' => 'Описание', 'image_link' => 'Изображение', 'type' => 'Тип', 'category' => 'Категория', 'dev_status' => 'Статус разработки', 'command' => 'Команда', 'site' => 'Сайт', 'github' => 'Github'];
@@ -73,16 +71,24 @@ $content .= '<th>'.$field.'</th>
 $content .= '<th>Действия</th>
 </tr></thead><tbody>
 ';
-	foreach ($projects as $project) {
+foreach ($projects as $project) {
 $content .= '<tr>';
+$counter = 0;
 foreach ($project as $key => $el) {
-	if ($key === 'command') {
+if ($counter != 0) {
+	if ($key === 'creator') {
+		$content .= '<td><a href="'.$conf['siteUrl'].'viz/profiles/'.$el.'" target="_blank">'.$el.'</a></td>';
+	} else if ($key === 'command') {
 		$content .= '<td>'.implode($el).'</td>';
+	} else if ($key === 'site' || $key == 'github') {
+			$content .= '<td><a href="'.$el.'" target="_blank">'.$el.'</a></td>';
 	} else {
 		$content .= '<td>'.$el.'</td>';
 	}
 }
-$content .= '<td><a  href="'.$conf['siteUrl'].'viz/projects/update-project/?creator='.$project['creator'].'&name='.$project['name'].'" target="_blank">Изменить проект (только для автора)</a></td>
+$counter++;
+}
+$content .= '<td><a  href="'.$conf['siteUrl'].'viz/projects/news/?project_creator='.$project['creator'].'&project_name='.$project['name'].'" target="_blank">Новости по проекту</a>, <a  href="'.$conf['siteUrl'].'viz/projects/update-project/?creator='.$project['creator'].'&name='.$project['name'].'" target="_blank">Изменить проект (только для автора)</a></td>
 </tr>';
 }
 $content .= '</tbody></table>';

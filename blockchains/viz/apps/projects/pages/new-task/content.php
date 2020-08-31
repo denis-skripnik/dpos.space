@@ -13,7 +13,7 @@ $content = '<h2>Страницы сервиса</h2>
 <form>';
 $fields = ['name' => 'Название', 'description' => 'Описание'];
 foreach($fields as $name => $description) {
-    $content .= '<p><input type="text" name="'.$name.'" value="" placeholder="'.$description.'"></p>
+    $content .= '<p><input type="text" name="'.$name.'" value="" placeholder="'.$description.'"></p>';
 }
 $content .= '<p><input type="button" value="Добавить" onclick="sendTransfer(`task`, {name: this.form.name.value, description: this.form.description.value, mambers: [], status: `open`})"></p>
 </form>
