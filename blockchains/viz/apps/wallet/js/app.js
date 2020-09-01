@@ -570,7 +570,7 @@ function appendWalletData(items) {
 	items.forEach(item => {
 
     var get_time = Date.parse(item[1].timestamp);
-    var transfer_datetime = date_str(get_time - timezoneOffset, true, false, true);
+    var transfer_datetime = `<a href="https://dpos.space/viz/explorer/tx/${item[1].trx_id}" target="_blank">${date_str(get_time - timezoneOffset, true, false, true)}</a>`
 
     var op = item[1].op;
     if (op[1].from && op[1].to && op[1].amount) {

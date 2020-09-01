@@ -52,17 +52,19 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
 		if ($op[0] == 'account_create') {
             $rowCount++;
         $name = 'Создание аккаунта';
         $account = isset($op[1]['new_account_name']) ? $op[1]['new_account_name'] : "";
 $amount = $op[1]['delegation'] !== '0.000000 SHARES' ? (float)$op[1]['delegation'].' VIZ делегированием соц. капитала' : (float)$op[1]['fee'].' VIZ';
-$month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$account.'" target="_blank">'.$account.'</a></td>
@@ -76,11 +78,7 @@ $result['content'] .= '<tr>
         $name = 'Создание аккаунта через инвайт';
         $account = isset($op[1]['new_account_name']) ? $op[1]['new_account_name'] : "";
 $invite_secret = $op[1]['invite_secret'];
-$month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$account.'" target="_blank">'.$account.'</a></td>
@@ -93,11 +91,6 @@ $result['content'] .= '<tr>
         $rowCount++;
         $name = 'Обновление доступов аккаунта';
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -111,11 +104,6 @@ $result['content'] .= '<tr>
         $rowCount++;
         $name = 'Обновление публичного профиля';
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -131,11 +119,6 @@ $result['content'] .= '<tr>
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $price = (float)$op[1]['subaccount_offer_price'].' VIZ';
         $subaccount_on_sale = $op[1]['subaccount_on_sale'] == true ? 'продаются' : 'Не продаются';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -151,11 +134,6 @@ $result['content'] .= '<tr>
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $price = (float)$op[1]['account_offer_price'].' VIZ';
         $account_on_sale = $op[1]['account_on_sale'] == true ? 'продаются' : 'Не продаются';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -171,11 +149,6 @@ $result['content'] .= '<tr>
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $price = (float)$op[1]['price'].' VIZ';
         $buyer = $op[1]['buyer'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>

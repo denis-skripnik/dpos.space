@@ -6,7 +6,7 @@ $mass = $res['result'];
 function convert_operation_data($arr, $site_url) {
   $result = '{<br />';
   foreach ($arr as $key => $value) {
-    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'producer' || $key === 'owner' || $key === 'publisher' || $key === 'author' || $key === 'curator' || $key === 'comment_author') {
+    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'producer' || $key === 'owner' || $key === 'publisher' || $key === 'author' || $key === 'curator' || $key === 'comment_author' || $key === 'witness') {
       $result .= $key.': "<a href="'.$site_url.'golos/profiles/'.$value.'" target="_blank">'.$value.'</a>",';
     } else if ($key === 'beneficiaries') {
 $benif = $key.': [';
@@ -46,6 +46,6 @@ $op_data = convert_operation_data($op[1], $conf['siteUrl']);
 $content .= '</table>';
 return $content;
 } catch (Exception $e) {
-  return '<p>Такой транзакции нет.</p>';
+  return '<p>Такой транзакции нет или ошибка: '.$e.'.</p>';
 }
 ?>

@@ -63,9 +63,11 @@ while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
                 $op = $datas[1]['op'];
                 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
                 $timestamp1 = $datas[1]['timestamp'];
-                $timestamp2 = strtotime($timestamp1);
-                $month2 = date('m', $timestamp2);
-                $timestamp = date('j', $timestamp2) . ' ' . $month[$month2] . ' ' . date('Y г. H:i:s', $timestamp2);
+         $timestamp2 = strtotime($timestamp1);
+        $month2 = date('m', $timestamp2);
+        $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+        $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+                
                 $op1 = $op[1];
                 if ($op[0] == 'receive_award') {
                     $rowCount++;

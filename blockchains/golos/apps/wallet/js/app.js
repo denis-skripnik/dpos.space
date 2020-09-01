@@ -862,7 +862,7 @@ function appendWalletData(items) {
 items.forEach(item => {
 
   var get_time = Date.parse(item[1].timestamp);
-  var transfer_datetime = date_str(get_time - timezoneOffset, true, false, true);
+  var transfer_datetime = `<a href="https://dpos.space/golos/explorer/tx/${item[1].trx_id}" target="_blank">${date_str(get_time - timezoneOffset, true, false, true)}</a>`
 
   var op = item[1].op;
   if (op[0] === 'transfer' || op[0] === 'claim' || op[0] === 'transfer_to_tip' || op[0] === 'donate') {

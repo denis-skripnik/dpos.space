@@ -61,7 +61,13 @@ while ($startWith !== -1 && $rowCount !== B_REWARDS_LIMIT) {
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
 if ($op[0] == 'benefactor_award' && $op[1]['benefactor'] == $user) {
             $rowCount++;
 
@@ -71,11 +77,6 @@ if ($op[0] == 'benefactor_award' && $op[1]['benefactor'] == $user) {
             $b_custom_sequence = (float)($op[1]['custom_sequence'] ?? "");
             $b_shares = (float)($op[1]['shares'] ?? "");
 
-            $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 			$result['content'] .= '<tr><td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$b_initiator.'" target="_blank">'.$b_initiator.'</a></td>
             <td><a href="'.$site_url.'viz/profiles/'.$receiver.'" target="_blank">'.$receiver.'</a></td>

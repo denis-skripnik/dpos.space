@@ -48,9 +48,14 @@ $startWith = $_REQUEST['start'] ?? 300000000;
 
     foreach ($mass as $datas) {
         $startWith = $datas[0] - 1;
-
         $op = $datas[1]['op'];
-
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'golos/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
 		if ($op[0] == 'worker_request_vote') {
         $rowCount++;
         $name = 'Голосование по заявке воркера';
@@ -58,11 +63,7 @@ $startWith = $_REQUEST['start'] ?? 300000000;
         $vote_percent = $op[1]['vote_percent'] / 100;
 $author = $op[1]['author'];
 $permlink = $op[1]['permlink'];
-                $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'golos/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
@@ -78,11 +79,6 @@ $result['content'] .= '<tr>
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $witness = isset($op[1]['witness']) ? $op[1]['witness'] : "";
                 $approve = $op[1]['approve'] == true ? 'установлен' : 'снят';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -98,11 +94,6 @@ $result['content'] .= '<tr>
         $name = 'Установка прокси аккаунта голосования за делегатов';
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $proxy = isset($op[1]['proxy']) ? $op[1]['proxy'] : "";
-                $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -123,11 +114,6 @@ $result['content'] .= '<tr>
         $author = $op[1]['author'];
         $worker = $op[1]['worker'];
         $permlink = $op[1]['permlink'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 $vest_reward = $op[1]['vest_reward'] == true ? 'Да' : 'Нет';
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -143,11 +129,6 @@ $result['content'] .= '<tr>
         $name = 'Удаление заявки воркера';
         $author = $op[1]['author'];
         $permlink = $op[1]['permlink'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'golos/profiles/'.$author.'" target="_blank">'.$author.'</a></td>
@@ -162,11 +143,7 @@ $result['content'] .= '<tr>
         $name = 'Изменение статуса заявки воркера';
         $author = $op[1]['author'];
         $permlink = $op[1]['permlink'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $state = '';
 if ($op[1]['state'] === 'closed_by_voters') {
     $state = 'Отменена по голосам (заминусовали)';

@@ -53,8 +53,14 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
-		if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares') {
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
+if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares') {
         $rowCount++;
 
         $from = isset($op[1]['from']) ? $op[1]['from'] : $op[1]['delegator'];
@@ -64,11 +70,6 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
         $memo = '';
         if ($op[0] == 'transfer_to_vesting') $memo = 'Перевод в соц. капитал';
         if ($op[0] == 'delegate_vesting_shares') $memo = 'Делегирование соц. капитала';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -88,11 +89,6 @@ $result['content'] .= '<tr>
         $amount = $float_amount.' Ƶ';
         $memo = 'Запуск вывода из социального капитала.';
         if ($float_amount == 0) $memo = 'Отмена вывода соц. капитала';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -110,11 +106,6 @@ $result['content'] .= '<tr>
         $float_amount = (float)$op[1]['vesting_shares'];
         $amount = $float_amount.' Ƶ';
         $memo = 'Возврат делегирования из соц. капитала';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>

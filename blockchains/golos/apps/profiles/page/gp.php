@@ -58,7 +58,13 @@ $startWith = $_REQUEST['start'] ?? 300000000;
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'golos/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
 		if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares' || $op[0] == 'transfer_from_tip') {
         $rowCount++;
 
@@ -71,11 +77,6 @@ $startWith = $_REQUEST['start'] ?? 300000000;
         if ($op[0] == 'transfer_from_tip') $memo = 'Перевод из TIP баланса в СГ.'.($op[1]['memo'] !== '' ? ' Заметка: '.$op[1]['memo'] : '');
         if ($op[0] == 'delegate_vesting_shares') $memo = 'Делегирование СГ';
         if ($op[0] == 'claim' && $op[1]['to_vesting'] == true) $memo = 'Получение своих начислений на СГ.';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -95,11 +96,6 @@ $result['content'] .= '<tr>
         $amount = round($float_amount, 3).' GOLOS';
         $memo = 'Запуск вывода из Силы Голоса.';
         if ($float_amount == 0) $memo = 'Отмена вывода СГ';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -117,11 +113,6 @@ $result['content'] .= '<tr>
         $float_amount = (float)$op[1]['vesting_shares'] / 1000000 * $steem_per_vests;
         $amount = round($float_amount, 3).' GOLOS';
         $memo = 'Возврат делегирования из СГ';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>

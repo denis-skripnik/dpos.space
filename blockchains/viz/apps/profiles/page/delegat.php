@@ -65,11 +65,12 @@ while ($startWith !== -1 && $rowCount !== DELEGAT_LIMIT) {
     foreach ($history_mass as $history_datas) {
         $startWith = $history_datas[0] - 1;
         $op = $history_datas[1]['op'];
-                    $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
         $timestamp1 = $history_datas[1]['timestamp'];
  $timestamp2 = strtotime($timestamp1);
 $month2 = date('m', $timestamp2);
 $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$siteUrl.'viz/explorer/tx/'.$history_datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
 
 		if ($op[0] == 'account_witness_vote') {
             $rowCount++;

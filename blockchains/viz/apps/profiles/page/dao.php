@@ -52,18 +52,20 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
-		if ($op[0] == 'committee_vote_request') {
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
+if ($op[0] == 'committee_vote_request') {
         $rowCount++;
         $name = 'Голосование по заявке в комитет';
         $voter = isset($op[1]['voter']) ? $op[1]['voter'] : "";
         $vote_percent = $op[1]['vote_percent'] / 100;
         $request_id = $op[1]['request_id'];
-                $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
@@ -79,11 +81,6 @@ $result['content'] .= '<tr>
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $witness = isset($op[1]['witness']) ? $op[1]['witness'] : "";
                 $approve = $op[1]['approve'] == true ? 'установлен' : 'снят';
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -99,11 +96,6 @@ $result['content'] .= '<tr>
         $name = 'Установка прокси аккаунта голосования за делегатов';
         $account = isset($op[1]['account']) ? $op[1]['account'] : "";
         $proxy = isset($op[1]['proxy']) ? $op[1]['proxy'] : "";
-                $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -124,11 +116,7 @@ $result['content'] .= '<tr>
         $creator = $op[1]['creator'];
         $worker = $op[1]['worker'];
         $url = $op[1]['url'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$creator.'" target="_blank">'.$creator.'</a></td>
@@ -143,11 +131,7 @@ $result['content'] .= '<tr>
         $name = 'Отмена заявки';
         $creator = $op[1]['creator'];
         $request_id = $op[1]['request_id'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$creator.'" target="_blank">'.$creator.'</a></td>
@@ -163,11 +147,7 @@ $result['content'] .= '<tr>
         $request_id = $op[1]['request_id'];
         $worker = $op[1]['worker'];
         $tokens = $op[1]['tokens'];
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
 <td><a href="'.$site_url.'viz/profiles/'.$worker.'" target="_blank">'.$worker.'</a></td>

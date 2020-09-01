@@ -51,7 +51,13 @@ $startWith = $_REQUEST['start'] ?? 300000000;
         $startWith = $datas[0] - 1;
 
         $op = $datas[1]['op'];
-
+        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
+        $timestamp1 = $datas[1]['timestamp'];
+ $timestamp2 = strtotime($timestamp1);
+$month2 = date('m', $timestamp2);
+$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$site_url.'golos/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        
 		$op1 = $op[1];
 
 		if ($op[0] == 'transfer' || $op[0] == 'transfer_to_vesting' || $op[0] == 'claim' || $op[0] == 'transfer_to_tip' || $op[0] == 'transfer_from_tip') {
@@ -66,11 +72,6 @@ if ($op[0] == 'claim' && $op[1]['to_vesting'] == true) $memo = 'Получени
 if ($op[0] == 'claim' && $op[1]['to_vesting'] == false) $memo = 'Получение своих начислений в TIP-баланс.';
 if ($op[0] == 'transfer_from_tip') $memo = 'Перевод из TIP баланса в СГ.'.($op[1]['memo'] !== '' ? ' Заметка: '.$op[1]['memo'] : '');
 if ($op[0] == 'transfer_to_tip') $memo = 'Перевод в TIP баланс.'.($op[1]['memo'] !== '' ? ' Заметка: '.$op[1]['memo'] : '');
-$month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -89,11 +90,6 @@ $creator = $op[1]['creator'];
         $balance = $op[1]['balance'] ?? "";
         $invite_key = $op[1]['invite_key'];
         $memo = 'Создание инвайта. Код: '.$invite_key;
-        $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-        $timestamp1 = $datas[1]['timestamp'];
- $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
 
 $result['content'] .= '<tr>
 <td>'.$timestamp.'</td>
@@ -112,11 +108,6 @@ $initiator = $op[1]['initiator'];
             $receiver = $op[1]['receiver'] ?? "";
             $invite_secret = $op[1]['invite_secret'];
             $memo = 'Получение инвайта на баланс. Код инвайта: '.$invite_secret;
-            $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-            $timestamp1 = $datas[1]['timestamp'];
-     $timestamp2 = strtotime($timestamp1);
-    $month2 = date('m', $timestamp2);
-    $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
     
     $result['content'] .= '<tr>
     <td>'.$timestamp.'</td>

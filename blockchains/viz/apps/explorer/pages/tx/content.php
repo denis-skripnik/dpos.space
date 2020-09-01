@@ -6,14 +6,14 @@ $mass = $res['result'];
 function convert_operation_data($arr, $site_url) {
   $result = '{<br />';
   foreach ($arr as $key => $value) {
-    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'witness' || $key === 'owner') {
+    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'witness' || $key === 'owner' || $key === 'voter' || $key === 'delegator' || $key === 'delegatee' || $key === 'creator' || $key === 'subscriber' || $key === '') {
       $result .= $key.': "<a href="'.$site_url.'viz/profiles/'.$value.'" target="_blank">'.$value.'</a>",';
     } else if ($key === 'beneficiaries') {
 $benif = $key.': [';
       foreach ($value as $benefactor) {
   $benif .= '{
 account: "<a href="'.$site_url.'viz/profiles/'.$benefactor['account'].'" target="_blank">'.$benefactor['account'].'</a>,
-Weight: '.$benefactor['Weight'].'
+Weight: '.$benefactor['weight'].'
 },';
 }
 $benif = str_replace(array(","), ",<br />", $benif);

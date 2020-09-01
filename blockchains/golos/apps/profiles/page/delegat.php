@@ -70,6 +70,7 @@ $no_delegate_votes = '';
  $timestamp2 = strtotime($timestamp1);
 $month2 = date('m', $timestamp2);
 $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$timestamp = '<a href="'.$siteUrl.'golos/explorer/tx/'.$history_datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
 
 		if ($op[0] == 'account_witness_vote') {
             $rowCount++;
