@@ -3,7 +3,7 @@ try {
   function convert_operation_data($arr, $site_url) {
     $result = '{<br />';
     foreach ($arr as $key => $value) {
-      if ($value['key'] === 'sender' || $value['key'] === 'receiver' || $value['key'] === 'recipient' || $value['key'] === 'to' || $value['key'] === 'account' || $value['key'] === 'voter' || $value['key'] === 'delegator' || $value['key'] === 'delegatee' || $value['key'] === 'creator' || $value['key'] === 'subscriber') {
+      if ($value['key'] === 'sender' || $value['key'] === 'receiver' || $value['key'] === 'recipient' || $value['key'] === 'to' || $value['key'] === 'account' || $value['key'] === 'voter' || $value['key'] === 'delegator' || $value['key'] === 'delegatee' || $value['key'] === 'creator' || $value['key'] === 'subscriber' || $value['key'] === 'subject' && strpos ($value['value'], 'cyber') > -1) {
         if ($value !== $value['key']) {
           $result .= $value['key'].': "<a href="'.$site_url.'cyber/profiles/'.$value['value'].'" target="_blank">'.$value['value'].'</a>",';
         } else {
@@ -46,14 +46,22 @@ $next_block = $datas+1;
 <ol>';
 $txs = node('block_results?height='.$datas)['txs_results'];
 foreach ($txs as $num => $tr) {
-  $content .= '<li><table><tr><th>Тип операции</th>
+  $tx_data = isJSON($tr['log']);
+  if ($tx_data['approve'] !== false) {
+  $content .= '<li><table><tr><th>Тип события</th>
   <th>JSON</th></tr>';
-  foreach (json_decode($tr['log'], true) as $op) {
-  $op_data = convert_operation_data($op['events'][0]['attributes'], $conf['siteUrl']);
-    $content .= '<tr><td>'.$op['events'][0]['type'].'</td>
-  <td>'.$op_data.'</td></tr>';
+  foreach ($tx_data['data'] as $op) {
+    foreach ($op['events'] as $event) {
+      $op_data = convert_operation_data($event['attributes'], $conf['siteUrl']);
+      $content .= '<tr><td>'.$event['type'].'</td>
+    <td>'.$op_data.'</td></tr>';
+    }
   }
   $content .= '</table></li>';
+  } else {
+    $content .= '<h3>Ошибка</h3>
+    <p>'.$tx_data['data'].'</p>';
+  }
 }
 $content .= '</ol>
 

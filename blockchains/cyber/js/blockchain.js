@@ -39,8 +39,9 @@ $( document ).ready(function() {
                 'node': "https://api.cyber.cybernode.ai",
                 'chain': "euler-6"
             }
-    
-            async function transfer(addressTo, amount) {
+        }
+            
+        async function transfer(addressTo, amount) {
         const addressInfo = await axios({
             method: 'get',
             url: `${sender.node}/account?address="${sender.address}"`,
@@ -126,7 +127,6 @@ $( document ).ready(function() {
           })
         .catch(error => console.log('Cannot send', error));
     }
-}
 
 function spoiler(elem)
 {

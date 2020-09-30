@@ -217,4 +217,9 @@ $str .= '<li>'.$data['title'].'</li>';
 return $str;
 }
 
+function isJSON($string) {
+  $json = json_decode($string, true);
+  return is_string($string) && is_array($json) ? ['approve' => true, 'data' => $json] : ['approve' => false, 'data' => $string];
+}
+
 ?>

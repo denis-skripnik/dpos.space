@@ -7,10 +7,11 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <h2>Баланс</h2>
 <p id="balances"></p>
 <h2>Перевод средств</h2>
-<form>
-<p><input type="text" name="to" id="to" value="" placeholder="Введите адрес получателя"></p>
-<p><input type="text" name="amount" id="amount" value="" placeholder="Введите сумму (число)"></p>
-<p><input type="button" value="Отправить" onclick="sendTransfer(this.form.to.value, this.form.amount.value)"></p>
+<div id="result"></div>
+<form name="transfer">
+<p><input type="text" name="to" id="to" value="" placeholder="Введите адрес получателя" required></p>
+<p><input type="text" name="amount" id="amount" value="" placeholder="Введите сумму (число)" required></p>
+<p><input type="button" id="submit_transfer" value="Отправить" onclick="sendTransfer(this.form.to.value, this.form.amount.value)" disabled></p>
 </form>
 </div>';
 ?>
