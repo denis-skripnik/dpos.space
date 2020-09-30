@@ -48,7 +48,7 @@ $( document ).ready(function() {
     
         if(!addressInfo.data.result) { return console.log ("error") };
         const account = addressInfo.data.result.account;
-        if(!account) { return console.log ("error") };
+        if(!account) { return console.error('error: addressInfo.data.result.account undefined') }
     
         const acc = {
             address: account.address,
@@ -59,9 +59,9 @@ $( document ).ready(function() {
     
         const sendRequest = {
             acc,
+            amount,
             from: sender.address,
-            to: codec.bech32.toBech32(constants.CyberdNetConfig.PREFIX_BECH32_ACCADDR, addressTo),
-            amount: amount,
+            to: addressTo,
             type: 'send'
         };
     
@@ -72,7 +72,15 @@ $( document ).ready(function() {
             method: 'get',
             url: `${sender.node}/submit_signed_send?data="${signedSendHex}"`,
         })
-        // .then(res => console.log(res))
+        .then(res => {
+            if (!res.data) {
+              throw new Error('Empty data');
+            }
+            if (res.data.error) {
+              throw res.data.error;
+            }
+            return res.data;
+          })
         .catch(error => console.log('Cannot send', error));
     }
     
@@ -82,9 +90,9 @@ $( document ).ready(function() {
             url: `${sender.node}/account?address="${sender.address}"`,
         });
         
-        if(!addressInfo.data.result) { return console.log ("error") };
+        if(!addressInfo.data.result) { return console.error('error: addressInfo.data.result undefined') };
         const account = addressInfo.data.result.account;
-        if(!account) { return console.log ("error") };
+        if(!account) { return console.error('error: addressInfo.data.result.account undefined') }
         
         const acc = {
             address: account.address,
@@ -107,7 +115,15 @@ $( document ).ready(function() {
             method: 'get',
             url: `${sender.node}/submit_signed_link?data="${signedSendHex}"`,
         })
-        // .then(res => console.log(res))   
+        .then(res => {
+            if (!res.data) {
+              throw new Error('Empty data');
+            }
+            if (res.data.error) {
+              throw res.data.error;
+            }
+            return res.data;
+          })
         .catch(error => console.log('Cannot send', error));
     }
 }
