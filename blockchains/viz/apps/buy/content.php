@@ -1,0 +1,5 @@
+<?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+return '<h2>Вы можете купить VIZ</h2>
+<ol><li>Через обменник <a href="https://coins.black" target="_blank">Coins.black</a></li>
+<li>На бирже: <a href="https://control.viz.world/media/@urri77/покупка-viz-за-usdt-на-бирже-рудекс/" target="_blank">читать статью</a></li>
+<li>Инвайт-кодом (чеком) от стороннего продавца: 							<a style="text-decoration:none" href="https://www.digiseller.market/asp2/pay_payu.asp?id_d=2646644&curr=PYU&ai=844298" target="_blank"><input class="green-button captions" type="button" value="1000 viz"></a>, <a style="text-decoration:none" href="https://www.digiseller.market/asp2/pay_payu.asp?id_d=2646643&curr=PYU&ai=844298" target="_blank"><input class="green-button captions" type="button" value="500 viz"></a>, <a style="text-decoration:none" href="https://www.digiseller.market/asp2/pay_payu.asp?id_d=2646642&curr=PYU&ai=844298" target="_blank"><input class="green-button captions" type="button" value="200 viz"></a></li></ol>'; ?>

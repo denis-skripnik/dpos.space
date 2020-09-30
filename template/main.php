@@ -53,6 +53,9 @@
 <?php if (isset(pageUrl()[0]) && pageUrl()[0] === 'viz') { ?>
     <div id="price_widget"></div>
 <script>sendAjax('https://dpos.space/blockchains/viz/vizprice.php', 'price_widget');</script>
+<?php } else if (isset(pageUrl()[0]) && pageUrl()[0] === 'golos') { ?>
+    <hr>
+    <script type="text/javascript" src="https://files.coinmarketcap.com/static/widget/currency.js"></script><div class="coinmarketcap-currency-widget" data-currencyid="4834" data-base="RUB" data-secondary="BTC" data-ticker="true" data-rank="true" data-marketcap="true" data-volume="false" data-statsticker="false" data-stats="USD"></div>
 <?php } ?>
 </main>
 <footer class="footer">

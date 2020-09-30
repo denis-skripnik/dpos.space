@@ -1,5 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
+  if (isset(pageUrl()[3])) {
   if (!isset($_GET['month']) && !isset($_GET['year'])) {
     $_GET['month'] = (int)date('m');
     $_GET['year'] = (int)date('Y');
@@ -12,9 +13,9 @@ $selected = [];
 $selected[$_GET['month']] = 'selected ';
     $content = '<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
     <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
-    <p><span align="left"><a href="'.$conf['siteUrl'].'golos/donates">Топ донатящих</a></span> <span align="right"><a href="'.$conf['siteUrl'].'golos/donates/comments">Топ комментариев</a></span></p>
+    <p><span align="left"><a href="'.$conf['siteUrl'].'golos/donates/donators">Топ донатящих</a></span> <span align="right"><a href="'.$conf['siteUrl'].'golos/donates/comments">Топ комментариев</a></span></p>
     <h2>Выберите дату</h2>
-    <form action="'.$conf['siteUrl'].'golos-donates/posts/" method="get">
+    <form action="'.$conf['siteUrl'].'golos/donates/posts/'.pageUrl()[3].'/" method="get">
     <p>Месяц:
     <select name="month" placeholder="Месяц">';
     foreach ($months as $number => $month) {
@@ -26,17 +27,29 @@ $selected[$_GET['month']] = 'selected ';
     <option value="2020">2020</option>
     </select></p>
     <p><input type="submit" value="Посмотреть"></p></form>';
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=posts&date='.$_GET['month'].'_'.$_GET['year']);
+    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=posts&token='.pageUrl()[3].'&date='.$_GET['month'].'_'.$_GET['year']);
     $table = json_decode($html, true);
-    $content .= '<table id="table"><thead><tr><th>Ссылка на пост</th><th><a id="golos_amount">Сумма донатов в GOLOS</a></th><th><a id="gbg_amount">Сумма донатов в GBG</a></th></tr></thead><tbody id="target">';
+    $content .= '<table id="table"><thead><tr><th>Ссылка на пост</th><th><a id="golos_amount">Сумма донатов</a></th></tr></thead><tbody id="target">';
     if ($table) {
     foreach ($table as $post) {
       $content .= '<tr align="right"><td align="left">'.$post['link'].'</td>
-    <td>'.$post['golos_amount'].'</td>
-    <td>'.$post['gbg_amount'].'</td></tr>';
+    <td>'.$post['amount'].'</td></tr>';
     }
     }
     $content .= '</tbody></table>
     <script src="'.$conf['siteUrl'].'blockchains/golos/apps/donates/sort.js"></script>';
+  } else {
+    $content = '<p>Выберите токен</p>
+<ul><li><a href="'.$conf['siteUrl'].'golos/donates/posts/golos" target="_blank">GOLOS</a></li>
+<li><a href="'.$conf['siteUrl'].'golos/donates/posts/gbg" target="_blank">GBG</a></li></ul>
+<p>Или введите его название</p>
+<form action="'.$conf['siteUrl'].'golos/donates/posts" method="post">
+<input type="hidden" name="chain" value="golos">
+<input type="hidden" name="service" value="donates">
+<input type="hidden" name="page" value="posts">
+<p><input type="text" name="token" value="" placeholder="Введите токен"></p>
+<p><input type="submit" value="Посмотреть"></p></form>';
+  }
+
 return $content;
 ?>
