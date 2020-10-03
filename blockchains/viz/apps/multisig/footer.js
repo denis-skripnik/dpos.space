@@ -1,14 +1,13 @@
 var buttonSignTx = document.querySelector("a.signtx");
 buttonSignTx.addEventListener("click", function( event ) {
     buttonSignTx.classList.add('wait');
-var multisigacc = document.getElementById("multisigacc").value
-viz.api.getAccounts([multisigacc], function(err, result) {
+viz.api.getAccounts([viz_login], function(err, result) {
   if(err)return alert(err)
   var maccs = result[0].regular_authority.account_auths,
    amaccs = result[0].active_authority.account_auths,
    wt = result[0].regular_authority.weight_threshold,
    awt =  result[0].active_authority.weight_threshold,
-  log = "Минимальный суммарный вес threshold для записи транзакции в блокчейн:  постинг - "+wt+", активный:"+awt+" </br>Аккаунты которые могут подписать транзакцию от @"+multisigacc+" (логин,вес):</br>Постинги: "+maccs+"</br>Активные: "+amaccs;
+  log = "Минимальный суммарный вес threshold для записи транзакции в блокчейн:  постинг - "+wt+", активный:"+awt+" </br>Аккаунты которые могут подписать транзакцию от @"+viz_login+" (логин,вес):</br>Постинги: "+maccs+"</br>Активные: "+amaccs;
   return document.getElementById('out').insertAdjacentHTML("afterbegin","<div class='log'>"+log+"</br></br>");
 });
 var newTx = "";
@@ -71,7 +70,7 @@ viz.api.getAccounts([viz_login], function(err, result) {
    amaccs = result[0].active_authority.account_auths,
    wt = result[0].regular_authority.weight_threshold,
    awt =  result[0].active_authority.weight_threshold,
-  log = "Минимальный суммарный вес threshold для записи транзакции в блокчейн:  постинг - "+wt+", активный:"+awt+" </br>Аккаунты которые могут подписать транзакцию от @"+multisigacc+" (логин,вес):</br>Постинги: "+maccs+"</br>Активные: "+amaccs;
+  log = "Минимальный суммарный вес threshold для записи транзакции в блокчейн:  постинг - "+wt+", активный:"+awt+" </br>Аккаунты которые могут подписать транзакцию от @"+viz_login+" (логин,вес):</br>Постинги: "+maccs+"</br>Активные: "+amaccs;
   return document.getElementById('out-step2').insertAdjacentHTML("afterbegin","<div class='log'>"+log+"</br></br>");
 });
 var newTx = "";

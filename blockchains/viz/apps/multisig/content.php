@@ -89,7 +89,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                         <div class="regblock">
                         <a class="delete-multi"><button>⛓ Удалить чужие ключи</button></a>
                         </div>
-                        <div class="out" id="out-step-5"></div>
+                        <div class="out" id="out-step5"></div>
                         </section>
                         <a id="navlink" href="#nav">📲 Меню</a>
 <script src="'.$conf['siteUrl'].'blockchains/viz/apps/multisig/footer.js"></script>
