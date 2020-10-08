@@ -46,7 +46,7 @@ if (prop === 'bandwidth_reserve_below') {
     prop_value = parseFloat(props[prop]);
     prop_value /= 1000000;
         end_fild = ' VIZ';
-    } else if (prop.indexOf('percent') > -1 || prop === 'inflation_ratio_committee_vs_reward_fund') {
+    } else if (prop.indexOf('percent') > -1 || prop === 'inflation_ratio_committee_vs_reward_fund' || prop === 'data_operations_cost_additional_bandwidth') {
         prop_value = parseFloat(props[prop]);
         prop_value /= 100;
         end_fild = '%';
@@ -92,7 +92,7 @@ $('#save_props').click(function() {
 if (prop !== '') {
 let prop_value = elements[i].value.replace(/,/, '.');
 prop_value = parseFloat(prop_value);
-if (prop.indexOf('percent') > -1 || prop === 'inflation_ratio_committee_vs_reward_fund') {
+if (prop.indexOf('percent') > -1 || prop === 'inflation_ratio_committee_vs_reward_fund' || prop === 'data_operations_cost_additional_bandwidth') {
 prop_value *= 100;
         prop_value = parseInt(prop_value);
 } else if (prop.indexOf('_fee') > -1 || prop === 'min_delegation' || prop === 'create_invite_min_balance') {
