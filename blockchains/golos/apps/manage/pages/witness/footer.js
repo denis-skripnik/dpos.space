@@ -28,7 +28,7 @@ chf.allow_return_auction_reward_to_fund = "Распределение штраф
 chf.worker_reward_percent = "% от эмиссии в пул воркеров:";
 chf.witness_reward_percent = "% от эмиссии в пул делегатов:";
 chf.vesting_reward_percent = "% от эмиссии в пул вестинга/на СГ:";
-chf.worker_request_creation_fee = "Размер платы за подачу заявки воркером (GBG):";
+chf.worker_request_creation_fee = "Размер платы за подачу заявки воркером:";
 chf.worker_request_approve_min_percent = "% от общей СГ, необ. для одобрения заявки воркера:";
 chf.sbd_debt_convert_rate = "% от общего кол-ва GBG для ежедневной конвертации в GOLOS при долге более 20%:";
 chf.vote_regeneration_per_day = "Степень регенерации батарейки, кол-во полных апвоутов в день:";
@@ -37,6 +37,8 @@ chf.witness_idleness_time = "Срок с подписи последнего б�
 chf.account_idleness_time = "Срок неактивности аккаунта, после которого отменяется делегирование и запускается понижение СГ (дни)";
 chf.claim_idleness_time = 'Длительность окна/временного цикла для востребования пользователем своей доли от эмиссии (секунд): ';
 chf['min_invite_balance'] = 'Минимальный баланс инвайта/чека для создания: ';
+chf['asset_creation_fee'] = 'Стоимость создания UIA актива:';
+chf['invite_transfer_interval_sec'] = 'Минимальный интервал для переводов с инвайт-кодов (секунды):';
 
     golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
@@ -47,10 +49,13 @@ var form_filds = '';
 for (let prop in chf) {
     let prop_value = props[prop];
     let end_fild = '';
-if (typeof props[prop] == 'string' && prop !== 'curation_reward_curve') {
+    if (typeof props[prop] == 'string' && prop !== 'curation_reward_curve' && props[prop].indexOf('GBG') === -1) {
 prop_value = parseFloat(props[prop]);
     end_fild = ' GOLOS';
-    } else if (prop.indexOf('percent') > -1 || prop.indexOf('rate') > -1) {
+} else if (typeof props[prop] == 'string' && prop_value.indexOf('GBG') > -1) {
+    prop_value = parseFloat(props[prop]);
+    end_fild = ' GBG';
+} else if (prop.indexOf('percent') > -1 || prop.indexOf('rate') > -1) {
         prop_value = parseFloat(props[prop]);
         prop_value /= 100;
         end_fild = '%';
@@ -147,7 +152,7 @@ if (prop.indexOf('percent') > -1 || prop.indexOf('rate') > -1) {
             prop_value = elements[i].checked;
     } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance') {
         prop_value = prop_value.toFixed(3) + ' GOLOS';
-} else if (prop === 'worker_request_creation_fee') {
+} else if (prop === 'worker_request_creation_fee' || prop === 'asset_creation_fee') {
     prop_value = prop_value.toFixed(3) + ' GBG';
 } else if (prop === 'create_account_delegation_time' || prop === 'witness_idleness_time' || prop === 'account_idleness_time' || prop === 'max_referral_term_sec') {
     prop_value *= 86400;
@@ -166,7 +171,7 @@ let op = [];
 op[0] = 'chain_properties_update';
 op[1] = {};
 op[1].owner = golos_login;
-op[1].props = [4, props];
+op[1].props = [5, props];
 operations.push(op);  
 
 golos.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {

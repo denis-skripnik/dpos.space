@@ -82,6 +82,8 @@ $chf['witness_idleness_time'] = "Срок с подписи последнего
 $chf['account_idleness_time'] = "Срок неактивности аккаунта, после которого отменяется делегирование и запускается понижение СГ";
 $chf['claim_idleness_time'] = 'Длительность окна/временного цикла для востребования пользователем своей доли от эмиссии (секунд)';
 $chf['min_invite_balance'] = 'Минимальный баланс инвайта/чека для создания';
+$chf['asset_creation_fee'] = 'Стоимость создания UIA актива';
+$chf['invite_transfer_interval_sec'] = 'Минимальный интервал для переводов с инвайт-кодов (секунды)';
 foreach ($props as $prop => $value) {
 if ($prop !== 'min_curation_percent' && $prop !== 'max_curation_percent' && $prop !== 'flag_energy_additional_cost') {
     $content .= '<tr><td>'.$prop.'</td>
