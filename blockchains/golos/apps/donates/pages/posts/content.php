@@ -41,7 +41,15 @@ $selected[$_GET['month']] = 'selected ';
   } else {
     $content = '<p>Выберите токен</p>
 <ul><li><a href="'.$conf['siteUrl'].'golos/donates/posts/golos" target="_blank">GOLOS</a></li>
-<li><a href="'.$conf['siteUrl'].'golos/donates/posts/gbg" target="_blank">GBG</a></li></ul>
+<li><a href="'.$conf['siteUrl'].'golos/donates/posts/gbg" target="_blank">GBG</a></li>';
+$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=tokens');
+$tokens = json_decode($html, true);
+if (isset($tokens) && count($tokens) > 0) {
+  foreach ($tokens as $token) {
+    $content .= '<li><a href="'.$conf['siteUrl'].'golos/donates/posts/'.$token.'" target="_blank">'.$token.'</a></li>';
+  }
+}
+$content .= '</ul>
 <p>Или введите его название</p>
 <form action="'.$conf['siteUrl'].'golos/donates/posts" method="post">
 <input type="hidden" name="chain" value="golos">
