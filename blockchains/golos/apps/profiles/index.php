@@ -18,12 +18,14 @@ $pages = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/author-rewards">Авторские награды</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/curation-rewards">Кураторские награды</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/benefactor-rewards">Бенефициарские</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/votes">Апы и флаги</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/accounts">Аккаунты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/new-posts">Новые посты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/old-posts">Получившие выплаты посты</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/feed">Посты подписок</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/comments">Комментарии</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/witness">Делегат</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/orders">Ордера на dex</a></th>
 </tr></table>
 <p align="center"><strong><a data-fancybox data-src="#donate_modal_content" href="javascript:;">Донат</a></strong></p>
 ';
@@ -100,6 +102,17 @@ $data['content'] .= require_once(__DIR__.'/page/curation_rewards.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/benefactor_rewards.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'votes') {
+    $data['title'] .= ' - Апвоты и флаги';
+    $data['description'] .= ' - Апвоты и флаги';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/votes.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/votes.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'dao') {
     $data['title'] .= ' - ДАО';
     $data['description'] .= ' - ДАО';
@@ -167,6 +180,17 @@ $data['content'] .= require_once(__DIR__.'/page/comments.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/feed.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'orders') {
+    $data['title'] .= ' - ордера на dex';
+    $data['description'] .= ' - ордера на dex';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/orders.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/orders.php');
 }
 
 }
