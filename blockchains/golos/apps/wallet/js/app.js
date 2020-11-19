@@ -15,7 +15,7 @@ gates.YMRUB.withdraw = {
   vars: {
     address: "Адрес кошелька Yoomoney",
   },
-memo_format: "$address"
+  separator: " "
 };
 
 gates.YMRUB.deposit = {
