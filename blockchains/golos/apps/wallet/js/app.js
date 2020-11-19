@@ -898,7 +898,7 @@ $('#action_uia_withdraw_start').click(async function(){
 
  try {
   let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
-  window.alert('Вы вывели ' + action_golos_transfer_amount + '.');
+  window.alert('Вы вывели ' + action_transfer_amount + '.');
   await loadBalances();
   $.fancybox.close();
   } catch(e) {
@@ -957,7 +957,7 @@ let transfer_in = $('#transfer_in').val();
  if (transfer_in === 'to_vesting') {
  try {
   let result = await golos.broadcast.transferToVestingAsync(active_key, golos_login, action_transfer_to, action_transfer_amount);
- window.alert('Вы перевели ' + action_golos_transfer_amount + ' пользователю ' + action_golos_transfer_to + ' в СГ.');
+ window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' в СГ.');
 await loadBalances();
 $.fancybox.close(); 
 } catch(e) {
@@ -966,7 +966,7 @@ window.alert('Ошибка' + JSON.stringify(e));
 } else if (transfer_in === 'to_tip') {
    try {
     let result = await golos.broadcast.transferToTipAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo, []);
-        window.alert('Вы перевели ' + action_golos_transfer_amount + ' пользователю ' + action_golos_transfer_to + ' на баланс донатов.');
+        window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' на баланс донатов.');
 await loadBalances();
 $.fancybox.close();   
 } catch(e) {
@@ -975,11 +975,11 @@ $.fancybox.close();
  } else {
 try {
 let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
-window.alert('Вы перевели ' + action_golos_transfer_amount + ' пользователю ' + action_golos_transfer_to + '.');
+window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + '.');
 await loadBalances();
 $.fancybox.close();
 } catch(e) {
-window.alert('Ошибка: ' + JSON.stringify(e));
+window.alert('Ошибка: ' + e);
 }
  }
 } else {
