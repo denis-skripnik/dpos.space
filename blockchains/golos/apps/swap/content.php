@@ -13,7 +13,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 <option value="">Выберите токен</option>
 </select>
 <p><label for="buy_amount">Сумма покупки: <br>
-<input type="text" name="buy_amount" id="buy_amount" value="" placeholder="Сумма в виде числа без имени токена"></label></p>
+<input type="text" readonly name="buy_amount" id="buy_amount" value="" placeholder="Суммак получению"></label></p>
 <input type="hidden" id="pr1">
 <input type="hidden" id="pr2">
 <hr>

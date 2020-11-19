@@ -17,12 +17,12 @@ async function creationOrder(sell_amount, selected_sell_token, selected_buy_toke
     orders = orders.bids;
     if (orders.length > 0) {
     let asset1_counter = 0;
-    let asset2_counter = 0;
+    let price_counter = 0;
+    let orders_counter = 0;
     for (let order of orders) {
-            let asset1 = order.asset1 / (10 ** pr1);
-    let asset2 = order.asset2 / (10 ** pr2);
-    asset1_counter += asset1;
-        asset2_counter += asset2;
+    orders_counter++;
+        asset1_counter += order.asset1 / (10 ** pr1);
+        price_counter += order.price;
     if (asset1_counter >= sell_amount) {
         break;
     }
@@ -32,8 +32,8 @@ window.alert(`Сумма продажи больше имеющейся на р�
 $('#action_buy_token').attr('disabled', true);
 } else {
     $('#action_buy_token').attr('disabled', false);
-    let price = asset2_counter / asset1_counter;
-    price = price.toFixedNoRounding(3);
+    let price = price_counter / orders_counter;
+    price = price.toFixedNoRounding(5);
     price = parseFloat(price);
     let buy_amount = sell_amount * price;
     if (buy_amount && parseFloat(buy_amount.toFixedNoRounding(pr2)) === 0)     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled window.alert(buu)
