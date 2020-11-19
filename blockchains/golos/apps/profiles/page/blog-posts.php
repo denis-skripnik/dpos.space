@@ -196,7 +196,7 @@ $result['content'] .= "<td>$summ_fool_author GOLOS</td>
 }
 $result['content'] .= "</table>";
 } else {
-  $result['content'] .= '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
+  $result['content'] = '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
 }
 }
 return $result['content'];

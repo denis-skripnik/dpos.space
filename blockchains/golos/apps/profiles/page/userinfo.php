@@ -21,7 +21,8 @@ if( isset(pageUrl()[2]) && isset($mass) && count($mass) > 0){ // проверя�
  $mass3 = $res3['result'];
  $ticker_res = $ticker_command->execute($ticker_commandQuery); 
  $ticker_mass = $ticker_res['result'];
- $ticker_price = $ticker_mass['latest'];
+ $ticker_price = $ticker_mass['latest1'];
+ 
  $followcount_res = $followcount_command->execute($followcount_commandQuery); 
  $followcount_mass = $followcount_res['result'];
  $config_res = $config_command->execute($config_commandQuery); 

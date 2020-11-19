@@ -1,23 +1,13 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>. Если вы авторизованы, удалите аккаунт и добавьте с активным ключом; Если нет, авторизуйтесь с указанием обоих ключей.</p></div>                        
-                                                                        <div id="active_page">
-                        <div id="main_wallet_info" style="display: none;">
-                        <h2>Балансы пользователя <span id="username"></span></h2>
-                        <p>Баланс: <a class="tt" onclick="spoiler(`golos_actions`); return false"><span class="golos_balance"></span> GOLOS</a>, <a class="tt" onclick="spoiler(`gbg_actions`); return false"><span class="gbg_balance"></span> GBG</a> и <a class="tt" onclick="spoiler(`gp_actions`); return false"><span class="golos_vesting_shares"></span> СГ</a></p>
-                                                    <ul id="golos_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести GOLOS</a></li>
-                                                    <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
-                                                    <li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
-                                                    <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
-                                                    </ul>
-                                                    <ul id="gbg_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#golos_gbg_transfer_modal" href="javascript:;" onclick="getGBGTransferTemplates();">Перевести GBG</a></li></ul>
-                                                    <ul id="gp_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
-                                                    <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li></ul>
-                                                    <p><strong>Баланс донатов: <a class="tt" onclick="spoiler(`tip_actions`); return false"><span class="tip_balance"></span></a>, Баланс начислений на СГ: <span class="accumulative_balance"></span></strong></p>
-                                                    <ul id="tip_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#donate_modal" href="javascript:;" onclick="getDonateTemplates()">Отблагодарить</a></li>
-<li><a data-fancybox data-src="#transfer_from_tip_modal" href="javascript:;">Перевести в СГ</a></li>
-</ul>
-<ul id="accumulative_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#accumulative_balance_modal" href="javascript:;">Получить</a></li>
-</ul>
+<div id="active_page">
+<div id="main_wallet_info" style="display: none;">
+<h2>Балансы пользователя <span id="username"></span></h2>
+<p>После клика по балансу откроется либо список действий, либо список аккаунтов (для полученного и переданного делегирования). По наведении появится подсказка.</p>
+<table><thead><tr><th>Основной баланс</th><th>TIP-баланс</th></tr></thead>
+<tbody id="balances"></tbody></table>
+<ul id="actions" class="terms" style="display: none;">      </ul>
+
 <div style="display: none;" id="vesting_withdraw_modal">
                                                       <h4 class="modal-title">Вывод СГ в golos</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
@@ -30,54 +20,30 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 </form>
                                                 </div>
                                                       </div>
-                                                      <div style="display: none;" id="golos_transfer_modal">
-                                                      <h4 class="modal-title">Перевод golos на другой аккаунт</h4>
+                                                      <div style="display: none;" id="transfer_modal">
+                                                      <h4 class="modal-title">Перевод <span class="transfer_modal_token"></span> на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_golos_transfer">
+                                                      <div id="action_transfer">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
                                                 <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
 <p><select name="transfer_template" id="select_transfer_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
-<option value="rudex">Биржа, RUDEX.GOLOS (заметку берите на бирже, начинается с "btsid-")</option>
-<option value="livecoin">Биржа, livecoin (заметку берите на бирже)</option>
-</select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeTransferTemplate(this.form.transfer_template.value)">)</span> </p>
-                                                <p><label for="golos_transfer_to">Кому:</label></p>
-                                                <p><input type="text" name="golos_transfer_to" id="action_golos_transfer_to" placeholder="Введите получателя"></p>
-                                                 <p><label for="golos_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="golos_balance"></span> golos</span>):</label></p>
-                                                <p><input type="text" name="golos_transfer_amount" id="action_golos_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
-                                                <p><label for="golos_transfer_memo">Заметка (описание) к платежу:</label></p>
-                                                <p><input type="text" name="golos_transfer_memo" id="action_golos_transfer_memo" placeholder="Введите memo"></p>
-                                                <p><label for="golos_transfer_in">Куда переводить:</label></p>
-                                                <p><select name="golos_transfer_in" id="golos_transfer_in">
-<option value="to_balance">На GOLOS баланс</option>
+</select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" id="action_remove_transfer_template">)</span> </p>
+                                                <p><label for="transfer_to">Кому:</label></p>
+                                                <p><input type="text" name="transfer_to" id="action_transfer_to" placeholder="Введите получателя"></p>
+                                                 <p><label for="transfer_amount">Сумма перевода (<span id="max_token_transfer">Перевести все доступные <span id="max_transfer_amount"></span> <span class="transfer_modal_token"></span></span>):</label></p>
+                                                <p><input type="text" name="transfer_amount" id="action_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
+                                                <p><label for="transfer_memo">Заметка (описание) к платежу:</label></p>
+                                                <p><input type="text" name="transfer_memo" id="action_transfer_memo" placeholder="Введите memo"></p>
+                                                <p><label for="transfer_in">Куда переводить:</label></p>
+                                                <p><select name="transfer_in" id="transfer_in">
+<option value="to_balance">На ликвидный баланс</option>
 <option value="to_tip">На баланс донатов</option>
 <option value="to_vesting">в СГ</option>
                                                 </select></p>
-                                                 <p><input type="button" id="action_golos_transfer_start" value="Перевести"></p>
+                                                 <p><input type="button" id="action_transfer_start" value="Перевести"></p>
                                                 <hr>
                                                 <p><input type="button" id="action_save_transfer_template" value="Создать шаблон перевода"></p>
-                                                 </form>
-                                                      </div>
-                                                      </div>
-                                                      <div style="display: none;" id="golos_gbg_transfer_modal">
-                                                      <h4 class="modal-title">Перевод GBG на другой аккаунт</h4>
-                                                      <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_golos_gbg_transfer">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
-                                                <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
-<p><select name="gbg_transfer_template" id="select_gbg_transfer_template">
-<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
-<option value="null">Сжигание GBG в null</option>
-</select> <span style="display: none;" id="remove_gbg_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeGBGTransferTemplate(this.form.gbg_transfer_template.value)">)</span> </p>
-                                                <p><label for="golos_gbg_transfer_to">Кому:</label></p>
-                                                <p><input type="text" name="golos_gbg_transfer_to" id="action_golos_gbg_transfer_to" placeholder="Введите получателя"></p>
-                                                 <p><label for="golos_gbg_transfer_amount">Сумма перевода (<span id="max_gbg_transfer">Перевести все доступные <span class="gbg_balance"></span> GBG</span>):</label></p>
-                                                <p><input type="text" name="golos_gbg_transfer_amount" id="action_golos_gbg_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
-                                                <p><label for="golos_gbg_transfer_memo">Заметка (описание) к платежу:</label></p>
-                                                <p><input type="text" name="golos_gbg_transfer_memo" id="action_golos_gbg_transfer_memo" placeholder="Введите memo"></p>
-                                                 <p><input type="button" id="action_golos_gbg_transfer_start" value="Перевести"></p>
-                                                <hr>
-                                                <p><input type="button" id="action_save_gbg_transfer_template" value="Создать шаблон перевода"></p>
                                                  </form>
                                                       </div>
                                                       </div>
@@ -119,34 +85,34 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="donate_modal">
-                                                      <h4 class="modal-title">Желаю отблагодарить</h4>
+                                                      <h4 class="modal-title">Желаю отблагодарить токенами <span class="donate_modal_token"></span></h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_golos_donate">
+                                                      <div id="action_donate">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
                                                 <p><label for="donate_template">Выберите шаблон доната:</label></p>
 <p><select name="donate_template" id="select_donate_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
-</select> <span style="display: none;" id="remove_donate_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeDonateTemplate(this.form.donate_template.value)">)</span> </p>
+</select> <span style="display: none;" id="remove_donate_template">(<input type="button" value="Удалить текущий шаблон" id="action_remove_donate_template">)</span> </p>
                                                 <p><label for="donate_to">Кому:</label></p>
                                                 <p><input type="text" name="donate_to" id="donate_to" placeholder="Введите получателя"></p>
-                                                 <p><label for="donate_amount">Сумма перевода (<span id="max_vesting_donate">Перевести все доступные <span class="tip_balance"></span> GOLOS</span>):</label></p>
+                                                 <p><label for="donate_amount">Сумма перевода (<span id="max_token_donate">Перевести все доступные <span id="max_donate_amount"></span> <span class="donate_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="donate_amount" id="donate_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                 <p><label for="donate_memo">Комментарий:</label></p>
                                                 <p><input type="text" name="donate_memo" id="donate_memo" placeholder="Введите комментарий"></p>
                                                  <p><input type="button" id="donate_start" value="Благодарю!"></p>
                                                  <hr>
-                                                 <p><input type="button" id="action_save_donate_template" value="Создать шаблон перевода"></p>
+                                                 <p><input type="button" id="action_save_donate_template" value="Создать шаблон доната"></p>
                                                  </form>
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="transfer_from_tip_modal">
-                                                      <h4 class="modal-title">Перевод GOLOS в СГ с баланса донатов</h4>
+                                                      <h4 class="modal-title">Перевод <span class="transfer_from_tip_modal_token"></span> <span id="transfer_from_tip_to"></span> с баланса донатов</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_transfer_from_tip">
                                                 <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
                                                 <p><label for="transfer_from_tip_to">Кому:</label></p>
                                                 <p><input type="text" name="transfer_from_tip_to" id="transfer_from_tip_to" placeholder="Введите получателя"></p>
-                                                 <p><label for="transfer_from_tip_amount">Сумма перевода (<span id="max_vesting_transfer_from_tip">Перевести все доступные <span class="tip_balance"></span> golos</span>):</label></p>
+                                                 <p><label for="transfer_from_tip_amount">Сумма перевода (<span id="max_token_transfer_from_tip">Перевести все доступные <span id="max_transfer_from_tip_amount"></span> <span class="transfer_from_tip_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="transfer_from_tip_amount" id="transfer_from_tip_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                 <p><label for="transfer_from_tip_memo">Заметка (описание):</label></p>
                                                 <p><input type="text" name="transfer_from_tip_memo" id="transfer_from_tip_memo" placeholder="Введите memo"></p>
@@ -183,21 +149,37 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                                                                             <ul><li>Инвайд-код: <span id="create_private_invite_key_result"></span> </li><li>Баланс: <span id="create_invite_result_amount"></span></li></ul></div>
                                                                                                             </div>
                                                                                                             </div>
-                                                      <div><p>Делегировали другие пользователи вам <a data-fancybox data-src="#modal_received_vesting_shares" href="javascript:;"><span class="received_vesting_shares_result"></span></a></p>
                                                 <div style="display: none;" id="modal_received_vesting_shares">
                                                 <h4 class="modal-title">Список аккаунтов, которые делегировали Силу Голоса вам</h4>
                                                 <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <table id="body_received_vesting_shares"><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th></tr></table>
+                                                <table><thead><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th></tr></thead><tbody  id="body_received_vesting_shares"></tbody></table>
                                                       </div>
-                                                <p>Делегировано другим пользователям (Без учёта отменённого) <a data-fancybox data-src="#modal_delegated_vesting_shares" href="javascript:;"><span class="delegated_vesting_shares_result"></span></a></p>
                                                 <div style="display: none;" id="modal_delegated_vesting_shares">
                                                 <h4 class="modal-title">Список аккаунтов, которым вы делегировали Силу Голоса</h4>
                                                 <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <table id="body_delegated_vesting_shares"><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th><th>Отменить делегирование</th></tr></table>
+                                                <table><thead><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th><th>Отменить делегирование</th></tr></thead><tbody id="body_delegated_vesting_shares"></tbody></table>
                                                       </div>
-                                                <p>Ваша доля (С учётом полученного и переданного), которая влияет на силу апвотов и флагов: <span id="full_vesting"></span> СГ</p>
+                                                      <div style="display: none;" id="uia_deposit_modal">
+                                                      <h4 class="modal-title">Как пополнить баланс токеном <span class="diposit_modal_token"></span></h4>
+                                                      <p><button data-fancybox-close class="btn">Закрыть</button></p>
+<div id="uia_diposit_data"></div>
+</div>
+         
+<div style="display: none;" id="uia_withdraw_modal">
+<h4 class="modal-title">Вывод <span class="uia_withdraw_modal_token"></span></h4>
+<p><button data-fancybox-close class="btn">Закрыть</button></p>
+<form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+<input type="hidden" name="uia_withdraw_to" id="action_uia_withdraw_to">
+<p><label for="transfer_amount">Сумма перевода (<span id="max_token_uia_withdraw">Перевести все доступные <span id="max_uia_withdraw_amount"></span> <span class="uia_withdraw_modal_token"></span></span>):</label></p>
+<p><input type="text" name="uia_withdraw_amount" id="action_uia_withdraw_amount" placeholder="Введите сумму"></p>
+<div  id="fields_uia_withdraw"></div>
+<p><input type="button" id="action_uia_withdraw_start" value="Вывести"></p>
+</form>
+</div>
+
+                                                      <p>Ваша доля (С учётом полученного и переданного), которая влияет на силу апвотов и флагов: <span id="full_vesting"></span> СГ</p>
                                                 
-                                                <div id="info_vesting_withdraw" style="display: none;"><p>Выводится по <span id="vesting_withdraw_rate"></span> СГ 13 недель</p>
+                                                <div id="info_vesting_withdraw" style="display: none;"><p>Выводится по <span id="vesting_withdraw_rate"></span> СГ 8 недель</p>
                                                 <p>Следующий вывод: <span id="next_vesting_withdrawal"></span></p>
                                                 <p>В конечном итоге вы выведите <span id="full_vesting_withdraw"></span></p>
                                                 <p><input type="button" id="cancel_vesting_withdraw" value="Отменить вывод СГ"></p></div>
@@ -218,7 +200,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                           <li><label><input type="checkbox" name="ops" value="claim" placeholder="CLAIM">CLAIM</label></li>
 <li><label><input type="checkbox" name="ops" value="transfer_to_tip" placeholder="Перевод ликвида в TIP-баланс">Перевод ликвида в TIP-баланс</label></li>
                                           <li><label><input type="checkbox" name="ops" value="transfer_to_vesting" placeholder="Переводы ликвида в СГ">Переводы ликвида в СГ</label></li>
-                                          <li><label><input type="checkbox" name="ops" value="transfer_from_tip" placeholder="Переводы TIP-баланса в СГ">Переводы TIP-баланса в СГ</label></li>
+                                          <li><label><input type="checkbox" name="ops" value="transfer_from_tip" placeholder="Переводы из TIP-баланса">Переводы из TIP-баланса (в СГ, если GOLOS, или на основной баланс)</label></li>
                                           <li><label><input type="checkbox" name="ops" value="delegate_vesting_shares" placeholder="Делегирования">Делегирования СГ</label></li>
                                           <li><label><input type="checkbox" name="ops" value="delegate_vesting_shares_with_interest" placeholder="Делегирования с процентом возврата">Делегирования СГ с процентом возврата</label></li>
                                           <li><label><input type="checkbox" name="ops" value="delegation_reward" placeholder="Награды делегатору"> награды делегатору</label></li>
