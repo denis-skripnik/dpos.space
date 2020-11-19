@@ -17,28 +17,30 @@ async function creationOrder(sell_amount, selected_sell_token, selected_buy_toke
     orders = orders.bids;
     if (orders.length > 0) {
     let asset1_counter = 0;
-    asset2_counter = 0;
+    let asset2_counter = 0;
     for (let order of orders) {
-    let asset1 = order.asset1 / (10 ** pr1);
+            let asset1 = order.asset1 / (10 ** pr1);
     let asset2 = order.asset2 / (10 ** pr2);
-        asset1_counter += asset1;
+    asset1_counter += asset1;
         asset2_counter += asset2;
     if (asset1_counter >= sell_amount) {
         break;
     }
-    }
+}
     if (asset1_counter < sell_amount) {
 window.alert(`Сумма продажи больше имеющейся на рынке ${asset2_counter.toFixedNoRounding(pr2)} ${selected_buy_token}. Попробуйте позже или измените цену продажи на меньшую.`);
 $('#action_buy_token').attr('disabled', true);
 } else {
     $('#action_buy_token').attr('disabled', false);
     let price = asset2_counter / asset1_counter;
-    let sell_amount_percent = sell_amount / asset1_counter;
-        let buy_amount = asset2_counter * sell_amount_percent;
-    if (buy_amount && parseFloat(buy_amount.toFixedNoRounding(pr2)) === 0)     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled 
+    price = price.toFixedNoRounding(3);
+    price = parseFloat(price);
+    let buy_amount = sell_amount * price;
+    if (buy_amount && parseFloat(buy_amount.toFixedNoRounding(pr2)) === 0)     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled window.alert(buu)
+    
     $('#buy_amount').val(buy_amount.toFixedNoRounding(pr2));
             $('#market_fee').html(`${fee2}% (${(buy_amount * (fee2 / 100)).toFixedNoRounding(pr2)} ${selected_buy_token})`);
-            $('#market_price').html(`${price.toFixedNoRounding(pr2)} ${selected_buy_token} / ${selected_sell_token}`);
+            $('#market_price').html(`${price} ${selected_buy_token} / ${selected_sell_token}`);
     }
     }
 return {pr1, pr2, fee1, fee2};
