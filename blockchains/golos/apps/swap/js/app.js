@@ -13,6 +13,11 @@ Number.prototype.toFixedNoRounding = function(n) {
   }
   
 async function creationOrder(sell_amount, selected_sell_token, selected_buy_token, fee1, fee2, pr1, pr2) {
+    $('#buy_amount').val('');
+    $('#market_fee').html('');
+    $('#market_price').html('');
+    $('#action_buy_token').attr('disabled', true);
+    
     let orders = await golos.api.getOrderBookAsync(100, [selected_sell_token, selected_buy_token]);
     orders = orders.bids;
     if (orders.length > 0) {

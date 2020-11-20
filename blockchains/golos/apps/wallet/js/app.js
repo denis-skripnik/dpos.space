@@ -902,6 +902,17 @@ $('#fields_uia_withdraw').html('');
 }
   });
 
+  $("#max_token_uia_withdraw").click(async function(){
+    let token = $('.uia_withdraw_modal_token').html();
+    let precision = 3;
+   let assets = await golos.api.getAssetsAsync('', [token]);
+   if (assets && assets.length > 0) {
+     let asset = assets[0];
+     precision = asset.precision;
+   }
+    $('#action_uia_withdraw_amount').val(new Number(parseFloat($('#max_main_' + token).html())).toFixed(precision));
+     });
+
 $('#action_uia_withdraw_start').click(async function(){
   let q = window.confirm('Вы действительно хотите сделать вывести средства?');
   if (q == true) {
