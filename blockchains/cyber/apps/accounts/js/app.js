@@ -24,11 +24,11 @@ selectAccount();
 }
 
 function createAccount() {
-const create = keypair.create();
+const create = crypto.create();
 $('#account_create_result').css('display', 'block');
-$('#new_seed').val(create.secret);
+$('#new_seed').val(create.phrase);
 $('#new_acc_data').html(`<h3>Другие данные</h3>
-<ul><li>Адрес: cyber${create.address}</li>
+<ul><li>Адрес: ${create.address}</li>
 <li>Приватный ключ: ${create.privateKey}</li>
 <li>Публичный ключ: cyberpub${create.publicKey}</li>
 </ul>`);

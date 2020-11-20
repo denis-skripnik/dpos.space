@@ -21,4 +21,5 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 Курс: <span id="market_price"></span></strong></p>
 <p><input type="button" id="action_buy_token" value="Обменять"></p>
 </form>
+<p><strong><a id="orders_history" target="_blank">История обменов</a></strong></p>
 </div>'; ?>

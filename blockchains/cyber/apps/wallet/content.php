@@ -2,9 +2,11 @@
 global $conf;
 return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'cyber/accounts" target="_blank">здесь</a></p></div>                        
                         <div id="seed_page">
-<h2>Пропускная способность</h2>
+<p>Адрес:<br>
+<a id="current_address"></a></p>
+                        <h2>Пропускная способность</h2>
 <p><strong><span id="bandwidth_remained"></span> из <span id="bandwidth_max_value"></span></strong></p>
-<h2>Баланс</h2>
+<h2>Доступный к переводу баланс</h2>
 <p id="balances"></p>
 <h2>Перевод средств</h2>
 <div id="result"></div>

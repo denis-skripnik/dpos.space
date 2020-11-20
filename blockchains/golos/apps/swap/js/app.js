@@ -232,6 +232,7 @@ location.reload();
 } // end function.
 
 $(document).ready(async function() {
+    $('#orders_history').attr('href', `https://dpos.space/golos/profiles/${golos_login}/orders`);
     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled 
     await main();
 }); // end document ready function.

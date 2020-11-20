@@ -31,11 +31,15 @@ $('#amount').val('');
     // handle success
 let acc = response.data.result.account;
     let balances = '';
-for (let token of acc.coins) {
-  let balance = token.amount;
-  balances = `${balance} ${token.denom}`;
-}
-    $('#balances').html(balances);
+    if (acc.coins.length > 0) {
+      for (let token of acc.coins) {
+        let balance = token.amount;
+        balances = `${balance} ${token.denom}`;
+      }
+      $('#balances').html(balances);
+    } else {
+      $('#balances').html('0 EUL');
+    }
   })
   .catch(function (error) {
     // handle error
@@ -59,6 +63,17 @@ for (let token of acc.coins) {
   });
 
   $(document).ready(function() {
+    $('#current_address').html(sender.address);
+    $('#current_address').click(function() {
+      navigator.clipboard.writeText(sender.address)
+  .then(() => {
+    // Получилось!
+  })
+  .catch(err => {
+    console.log('Something went wrong', err);
+  });
+    });
+    
     $('#balances').click(function() {
 let amount = $('#balances').html();
 amount = parseInt(amount);

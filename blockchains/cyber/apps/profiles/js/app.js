@@ -4,7 +4,7 @@ if (url.endsWith("/") === true) {
   address = url.slice(-45, -1)
 }
 
-   axios.get('/account?address="' + address + '"')
+axios.get('/account?address="' + address + '"')
   .then(function (response) {
     // handle success
 let acc = response.data.result.account;
@@ -12,11 +12,15 @@ $('#other_data').css('display', 'block');
 $('#public_key').html(acc.public_key);
 $('#account_number').html(acc.account_number);
     let balances = '';
-for (let token of acc.coins) {
-  let balance = token.amount;
-  balances += `<li class="balance">${balance} ${token.denom}</li>`
+if (acc.coins && acc.coins.length > 0) {
+  for (let token of acc.coins) {
+    let balance = token.amount;
+    balances += `<li class="balance">${balance} ${token.denom}</li>`
+  }
+      $('#balances').html(balances);
+} else {
+  $('#balances').html('<li>0 EUL</li>');
 }
-    $('#balances').html(balances);
   })
   .catch(function (error) {
     // handle error

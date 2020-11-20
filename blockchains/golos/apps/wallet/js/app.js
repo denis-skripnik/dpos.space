@@ -558,7 +558,8 @@ async function thisAccountHistory(type) {
         op[0] === 'curation_reward' ||
         op[0] === 'author_reward' ||
         op[0] === 'comment_benefactor_reward' ||
-        op[0] === 'producer_reward';
+        op[0] === 'producer_reward' ||
+        op[0] === 'fill_order';
   
       if (isValidElement) {
         result.push(operation);
@@ -756,7 +757,21 @@ vesting_payout = vesting_payout.toFixed(6) + ' СГ';
 <td>' + shares + '</td>\
 <td>' + memo + '</td>\
 </tr>');
-  }
+} else if (op[0] === 'fill_order') {
+  var from = op[1].current_owner;
+  var to = op[1].open_owner;
+var current_pays = op[1].current_pays.split(' ');
+var open_pays = op[1].open_pays.split(' ');
+  var fee_amount = op[1].current_trade_fee;
+var price = parseFloat(current_pays[0]) / parseFloat(open_pays[0]) + `${current_pays[1]} / ${open_pays[1]}`;
+var memo = `Комиссия ${fee_amount}`;
+  jQuery("#transfer_history_tbody").append(`<tr class="filtered_witness_reward"><td>${transfer_datetime}</td>
+<td><a href="/golos/profiles/${from}" target="_blank">@${from}</a></td>
+<td><a href="/golos/profiles/${to}" target="_blank">@${to}</a></td>
+<td>Отдано ${current_pays}, получено ${open_pays}</td>
+<td>${memo}</td>
+</tr>`);
+}
 
 });
 }

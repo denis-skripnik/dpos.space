@@ -209,7 +209,8 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                           <li><label><input type="checkbox" name="ops" value="curation_reward" placeholder="Кураторские награды">Кураторские награды</label></li>
                                           <li><label><input type="checkbox" name="ops" value="comment_benefactor_reward" placeholder="Бенефициарские награды">Бенефициарские награды</label></li>
                                     <li><label><input type="checkbox" name="ops" value="producer_reward" placeholder="Награды делегату">Награды делегату</label></li>
-</ul>
+                                    <li><label><input type="checkbox" name="ops" value="fill_order" placeholder="ордера на бирже (выполненные обмены)">ордера на бирже (выполненные обмены)</label></li>
+                                    </ul>
                                           </div>
                                           <p><input type="button" value="Фильтр" onclick="createFiltr();"></p>
                                           </form>

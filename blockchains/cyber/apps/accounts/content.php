@@ -15,7 +15,7 @@ return '<div id="select_account"></div>
 <div id="account_create_result" style="display: none;">
 <p><strong>ВНИМАНИЕ: сохраните SEED фразу - от неё зависит сохранность ваших средств.</strong></p>
 <p><textarea id="new_seed"></textarea><br>
-<input type="button" onclick="copyText(`new_seed`)" value="Копировать в буффер обмена"></p>
+<input type="button" onclick="copyText(`new_seed`)" value="Копировать в буфер обмена"></p>
 <div id="new_acc_data"></div>
 </div>
 '; ?>
