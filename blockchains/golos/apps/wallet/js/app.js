@@ -150,10 +150,17 @@ async function loadBalances() {
   let accounts_balances = await golos.api.getAccountsBalancesAsync([golos_login]);
   if (accounts_balances && accounts_balances.length > 0) {
     let uias = accounts_balances[0];
+    let isYMRUB = false;
     for (let name in uias) {
-let token = uias[name];
+if (name === 'YMRUB') {
+  isYMRUB = true;
+}
+      let token = uias[name];
 tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFloat(token.tip_balance)});
     }
+  if (isYMRUB == false) {
+    tokens.push({name: 'YMRUB', main_balance: 0, tip_balance: 0});
+  }
   }
 
 let balances_table = '';
