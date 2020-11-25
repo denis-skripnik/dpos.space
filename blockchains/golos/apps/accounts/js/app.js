@@ -59,3 +59,14 @@ $('#auth_msg').html('Вероятно, аккаунт не существует.
 }
 });
 }
+
+function pass_gen(){
+	let length=100;
+	let charset='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
+	let ret='';
+	for (var i=0,n=charset.length;i<length;++i){
+		ret+=charset.charAt(Math.floor(Math.random()*n));
+	}
+	let wif=golos.auth.toWif('',ret,'')
+	return wif;
+}

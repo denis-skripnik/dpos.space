@@ -96,13 +96,13 @@ function selectAccount() {
     if (users) {
     let radioButtons = '';
     if (users.length === 1) {
-        radioButtons += '<input type="radio" name="users" value="' + users[0].login + '" placeholder="' + users[0].login + '" checked> ' + users[0].login + '<a onclick="deleteAccount(`' + users[0].login + '`);">Удалить</a><br />';
+        radioButtons += '<input type="radio" name="users" value="' + users[0].login + '" placeholder="' + users[0].login + '" checked> ' + users[0].login + ', <a onclick="deleteAccount(`' + users[0].login + '`);">Удалить</a><br />';
     } else if (users.length > 1) {
     for (user of users) {
         if (current_user.login === user.login) {
-        radioButtons += '<input type="radio" name="users" value="' + user.login + '" placeholder="' + user.login + '" checked> ' + user.login + ' <a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
+        radioButtons += '<input type="radio" name="users" value="' + user.login + '" placeholder="' + user.login + '" checked> ' + user.login + ', <a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
         }     else {
-            radioButtons += '<input type="radio" name="users" value="' + user.login + '" placeholder="' + user.login + '"> ' + user.login + '<a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
+            radioButtons += '<input type="radio" name="users" value="' + user.login + '" placeholder="' + user.login + '"> ' + user.login + ', <a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
         }
     }
     }

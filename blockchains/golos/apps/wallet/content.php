@@ -64,9 +64,10 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 <p><input type="text" name="vesting_delegate_to" id="action_vesting_delegate_to" placeholder="Введите получателя"></p>
                                                  <p><label for="vesting_delegate_amount">Сумма делегирования (<span id="max_vesting_delegate">Делегировать все доступные <span id="max_vesting_deligate"></span> СГ</span>):</label></p>
                                                 <p><input type="text" name="vesting_delegate_amount" id="action_vesting_delegate_amount" placeholder="Введите сумму в формате 1.000000"></p>
-                                                <p><label for="interest_rate">Процент с кураторских: </label></p>
-                                                <p><input type="text" name="interest_rate" value="80" data-fixed="interest_rate"> <input type="range" max="80" name="interest_rate" id="action_vesting_delegate_interest_rate" data-fixed="interest_rate" value="80"></p>
-                                                <p><input type="button" id="action_vesting_delegate_start" value="делегировать"></p>
+                                                <p id="delegate_interest_rate_filde"><label for="interest_rate">Процент с кураторских:<br>
+                                               <input type="text" name="interest_rate" value="80" data-fixed="interest_rate"> <input type="range" max="80" name="interest_rate" id="action_vesting_delegate_interest_rate" data-fixed="interest_rate" value="80"></label></p>
+<input type="hidden" id="is_delegated" value="no">
+                                               <p><input type="button" id="action_vesting_delegate_start" value="делегировать"></p>
                                                 </form></div>
                                                       </div>
                                                       <div style="display: none;" id="accumulative_balance_modal">
@@ -157,7 +158,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 <div style="display: none;" id="modal_delegated_vesting_shares">
                                                 <h4 class="modal-title">Список аккаунтов, которым вы делегировали Силу Голоса</h4>
                                                 <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <table><thead><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th><th>Отменить делегирование</th></tr></thead><tbody id="body_delegated_vesting_shares"></tbody></table>
+                                                <table><thead><tr><th>Логин</th><th>Сумма</th><th>Процент возврата кураторских</th><th>Мин. время возврата делегирования</th><th>Действия</th></tr></thead><tbody id="body_delegated_vesting_shares"></tbody></table>
                                                       </div>
                                                       <div style="display: none;" id="uia_deposit_modal">
                                                       <h4 class="modal-title">Как пополнить баланс токеном <span class="diposit_modal_token"></span></h4>
@@ -224,9 +225,5 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 <button id="wallet-data-button" onclick="walletData()">Ещё</button></div>
                                                                                         </div>
                                                                                     </div>
-                                                                                </div>																																
-
-<script>
-walletData();
-</script>
+                                                                                </div>
 '; ?>

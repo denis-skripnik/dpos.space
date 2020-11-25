@@ -32,7 +32,7 @@ async function creationOrder(sell_amount, selected_sell_token, selected_buy_toke
         break;
     }
 }
-    if (asset1_counter < sell_amount) {
+if (asset1_counter < sell_amount) {
 window.alert(`Сумма продажи больше имеющейся на рынке ${asset2_counter.toFixedNoRounding(pr2)} ${selected_buy_token}. Попробуйте позже или измените цену продажи на меньшую.`);
 $('#action_buy_token').attr('disabled', true);
 } else {
@@ -47,6 +47,8 @@ $('#action_buy_token').attr('disabled', true);
             $('#market_fee').html(`${fee2}% (${(buy_amount * (fee2 / 100)).toFixedNoRounding(pr2)} ${selected_buy_token})`);
             $('#market_price').html(`${price} ${selected_buy_token} / ${selected_sell_token}`);
     }
+    } else {
+        window.alert(`Ордеров на покупку ${selected_sell_token} за ${selected_buy_token} нет.`);
     }
 return {pr1, pr2, fee1, fee2};
 }

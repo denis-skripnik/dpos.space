@@ -8,9 +8,10 @@ if (url.endsWith("/") === true) {
   .then(function (response) {
     // handle success
 let balances = '';
-for (let token in response.data.result.balance) {
-  let balance = response.data.result.balance[token] / (10**18);
-  balances += `<li>${balance} ${token}</li>`
+for (let token of response.data.result.balances) {
+  let balance = token.value / (10**18);
+  balance = balance.toFixed(2)
+  balances += `<li>${balance} ${token.symbol}</li>`
 }
     $('#balances').html(balances);
   })

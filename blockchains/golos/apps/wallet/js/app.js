@@ -31,6 +31,35 @@ vars: {
 }
 };
 
+async function delegationGolosPower(golos_per_gests, type) {
+  let res = false;
+  try {
+  let result = await golos.api.getVestingDelegationsAsync(golos_login, '', 100, type);
+  let user = 'delegatee';
+  if (type === 'received') {
+    user = 'delegator';
+  }
+  let list = result.map( data => data[user]);
+  res = {all: result, list};
+} catch(err) {
+    console.error(err);  
+  }
+return res;
+}
+
+async function createCryptMemo(to, memo) {
+  let res = memo;
+    if (memo[0] === '#') {
+  let accounts = await golos.api.getAccountsAsync([to]);
+  if (accounts && accounts.length > 0) {
+    let acc = accounts[0];
+    let to_public_active_key = acc.active.key_auths[0][0];
+    res = golos.memo.encode(active_key,to_public_active_key,memo);
+  }
+  }
+  return res;
+  }
+
 function bind_range(){
 	$('input[type=range]').each(function(i){
 		if(typeof $(this).attr('data-fixed') !== 'undefined'){
@@ -80,6 +109,7 @@ function pass_gen(){
 }
 
 function links(tipe, token) {
+  $('#actions').html('');
   if (token === 'GOLOS' && tipe === 'main_balance') {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
@@ -99,7 +129,7 @@ $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#trans
 <li><a href="https://dpos.space/golos/swap/GBG" target="_blank">Обменять GBG</a></li>`);
 } else if (tipe === 'main_balance' && token === 'GP') {
   $('#actions').html(`<li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
-  <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li>`);
+  <li><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li>`);
 } else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'main_balance') {
   $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 `);
@@ -121,7 +151,9 @@ $('#actions').append(`<li><a href="https://dpos.space/golos/swap/${token}" targe
 }
 }
 
-async function loadBalances() {
+async function mainData() {
+let res = false;
+try {
   let accounts = await golos.api.getAccountsAsync([golos_login]);
   if (accounts && accounts.length > 0) {
     let acc = accounts[0];
@@ -140,8 +172,19 @@ async function loadBalances() {
     let delegated_gp = parseFloat(acc.delegated_vesting_shares) / 1000000 * golos_per_gests;
     delegated_gp = delegated_gp.toFixed(6);
     delegated_gp = parseFloat(delegated_gp);
-    
-    let tokens = [];
+  res = {acc, props, gp, delegated_gp, received_gp, golos_per_gests};
+  }
+} catch(e) {
+  console.log('Ошибка с  балансами или параметрами: ' + e);
+}
+  return res;
+  }
+
+  async function loadBalances() {
+let main_data =await mainData();
+    if (main_data !== false) {
+let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
+      let tokens = [];
   tokens.push({name: 'GOLOS', main_balance: parseFloat(acc.balance), tip_balance: parseFloat(acc.tip_balance), claim_balance: parseFloat(acc.accumulative_balance)});
   tokens.push({name: 'GBG', main_balance: parseFloat(acc.sbd_balance)});
   tokens.push({name: 'GP', main_balance: parseFloat(gp)});
@@ -197,213 +240,7 @@ let balances_table = '';
 }
 $('#balances').html(balances_table);
 
-var full_vesting = (gp - delegated_gp + received_gp).toFixed(6);
-$("#full_vesting").html(full_vesting);
-
- $("#cancel_vesting_withdraw").click(function(){
-golos.broadcast.withdrawVesting(active_key, golos_login, '0.000000 GESTS', function(err, result) {
-  if (!err) {
-window.alert('Вывод отменён.');
-$('#info_vesting_withdraw').css('display', 'none');
-  } else {
-window.alert(err);
-  }
-});
-}); // end subform
-
-var vesting_withdraw_rate = parseFloat(acc.vesting_withdraw_rate) / 1000000 * golos_per_gests;
-vesting_withdraw_rate = vesting_withdraw_rate.toFixed(6);
-vesting_withdraw_rate = parseFloat(vesting_withdraw_rate);
-$("#vesting_withdraw_rate").html(vesting_withdraw_rate);
-var nvwithdrawal = Date.parse(acc.next_vesting_withdrawal);
-$("#nvwithdrawal").html(nvwithdrawal);
-var next_vesting_withdrawal = date_str(nvwithdrawal-(new Date().getTimezoneOffset()*60000),true,false,true);
-$("#next_vesting_withdrawal").html(next_vesting_withdrawal);
-var full_vesting_withdraw = (vesting_withdraw_rate*13).toFixed(6) + ' СГ';
-$("#full_vesting_withdraw").html(full_vesting_withdraw);
-if (full_vesting_withdraw !== '0.000000 СГ') {
-jQuery("#info_vesting_withdraw").css("display", "block");
-}
-
-var max_vesting_withdraw = (gp - delegated_gp - parseFloat(full_vesting_withdraw)).toFixed(6);
-$("#max_vesting_withdraw_result").html(new Number(parseFloat(max_vesting_withdraw)).toFixed(6));
-
-  $("#max_vesting_withdraw").click(function(){
- $('#action_vesting_withdraw_amount').val(new Number(parseFloat(max_vesting_withdraw)).toFixed(6));
-  });
- 
-  $("#action_vesting_withdraw_start").click(async function(){
-let q = window.webkitConvertPointFromNodeToPage('Вы действительно хотите запустить вывод СГ?');
-if (q == true) {
-  var action_vesting_withdraw_amount = parseFloat($('#action_vesting_withdraw_amount').val());
-  let withdraw_gests = action_vesting_withdraw_amount * 1000000 / golos_per_gests;
-  withdraw_gests =  withdraw_gests.toFixed(6) + ' GESTS';
-  try {
-let result = await golos.broadcast.withdrawVestingAsync(active_key, golos_login, withdraw_gests);
-window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
-await loadBalances();
-$.fancybox.close();
-  } catch(err) {
-    window.alert('Ошибка: ' + JSON.stringify(err));
-  }
-} else {
-  window.alert('Вы отменили вывод из СГ');
-}
-}); // end subform
-
-
- $('#accumulative_balance_to').val(golos_login);
- $('#max_accumulative_balance').html(`Перевести все доступные ${acc.accumulative_balance}`);
- $("#max_accumulative_balance").click(function(){
-    $('#accumulative_balance_amount').val(new Number(parseFloat(acc.accumulative_balance)).toFixed(3));
-   });
-  $("#accumulative_balance_start").click(async function(){
-  var q = window.confirm('Вы действительно хотите получить токены из CLAIM-баланса?');
-  if (q == true) {
-    var accumulative_balance_to = $('#accumulative_balance_to').val();
-  var accumulative_balance_amount = $('#accumulative_balance_amount').val();
-  accumulative_balance_amount = parseFloat(accumulative_balance_amount);
-  accumulative_balance_amount = accumulative_balance_amount.toFixed(3) + ' GOLOS';
-  var accumulative_balance_vesting = $('#accumulative_balance_vesting').prop("checked");
-     try {
-let res = await   golos.broadcast.claimAsync(posting_key, golos_login, accumulative_balance_to, accumulative_balance_amount, accumulative_balance_vesting, []);
-window.alert('Вы получили GOLOS из баланса начислений на СГ. Сумма: ' + accumulative_balance_amount + ', получатель: ' + accumulative_balance_to + '.');
-await loadBalances();
-$.fancybox.close();
-     } catch(err) {
-      window.alert('Ошибка: ' + JSON.stringify(err));
-     }
-  } else {
-    window.alert('Действие отменено.');
-  }
- }); // end subform
-
-   $("#max_to_shares_transfer").click(function(){
- $('#action_to_shares_transfer_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
-  });
- $("#action_to_shares_transfer_start").click(async function(){
- var q = window.confirm('Вы действительно хотите перевести GOLOS в СГ?');
- if (q == true) {
-  var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
- action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' GOLOS';
-  try {
-let result = await golos.broadcast.transferToVestingAsync(active_key, golos_login, golos_login, action_to_shares_transfer_amount);
-window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' golos в СГ своего аккаунта.');
-await loadBalances();
-$.fancybox.close();
-  } catch(err) {
-    window.alert('Ошибка: ' + JSON.stringify(err));
-}
- } else {
-   window.alert('Перевод в СГ отменён.');
- }
-}); // end subform
-
-var max_vesting_deligate = (gp - delegated_gp).toFixed(6);
-$("#max_vesting_deligate").html(max_vesting_deligate);
-
-  $("#max_vesting_delegate").click(function(){
- $('#action_vesting_delegate_amount').val(new Number(parseFloat(max_vesting_deligate)).toFixed(6));
-  });
- $("#action_vesting_delegate_start").click(async function(){
- var q = window.confirm('Вы действительно хотите делегировать СГ?');
-  if (q == true) {
-    var action_vesting_delegate_to = $('#action_vesting_delegate_to').val();
-    var action_vesting_delegate_amount = parseFloat($('#action_vesting_delegate_amount').val());
-    let delegate_gests = action_vesting_delegate_amount * 1000000 / golos_per_gests;
-    delegate_gests = delegate_gests.toFixed(6) + ' GESTS';
-   var delegate_interest = parseFloat($('#action_vesting_delegate_interest_rate').val()) * 100;
-   delegate_interest = parseInt(delegate_interest);
-   try {
-let result = await golos.broadcast.delegateVestingSharesWithInterestAsync(active_key, golos_login, action_vesting_delegate_to, delegate_gests, delegate_interest, []);
-window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
-await loadBalances();
-$.fancybox.close();
-   } catch(err) {
-    window.alert('Вы отменили делегирование.');
-   }
-  } else {
-console.log(JSON.stringify(err));
-  window.alert('Ошибка: ' + err);
-}
-  }); // end subform
-
-$("#new_private_gen").click(function(){
-	$('#create_invite_key').val(pass_gen());
-});
-
-//цепляем событие на onclick кнопки
-var button = document.getElementById('new_private_copy');
-button.addEventListener('click', function () {
-  //нашли наш контейнер
-  var ta = document.querySelector('#create_invite_key');
-    ta.focus();
-    ta.setSelectionRange(0, ta.value.length);
- 
-  try { 
-    document.execCommand('copy'); 
-  } catch(err) { 
-    console.log('Can`t copy, boss'); 
-  } 
-  //очистим выделение текста, чтобы пользователь не парился
-  window.getSelection().removeAllRanges();
-});
-  
-  $("#max_invite_balance").click(function(){
- $('#create_invite_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
-  });
- $("#create_invite_start").click(function(){
- var create_invite_amount = parseFloat($('#create_invite_amount').val()).toFixed(3) + ' GOLOS';
- var create_private_invite_key = $('#create_invite_key').val();
-$("#create_private_invite_key_result").html(create_private_invite_key);
-$("#invite_reg_link").html('https://liveblogs.space/reg.html?invite=' + create_private_invite_key);
-$("#create_invite_result_amount").html(create_invite_amount);
-		var create_invite_key = golos.auth.wifToPublic(create_private_invite_key);
-golos.broadcast.invite(active_key, golos_login, create_invite_amount, create_invite_key, [], function(err, result) {
-if (!err) {
-$('#invite_created').css('display', 'block');
-} else {
-window.alert('Ошибка: ' + err);
-}
-  });
-}); // end subform
-
-$("#action_vesting_diposit_start").click(async function(){
-  var q = window.confirm('Вы действительно хотите пополнить баланс инвайт-кодом?');
-  if (q == true) {
-    var invite_secret = $('#invite_secret').val();
-try {
-  let result = await   golos.broadcast.inviteClaimAsync(active_key, golos_login, golos_login, invite_secret, [])
-  window.alert('Пополнение прошло успешно.');
-  await loadBalances();
-  $.fancybox.close();
-} catch(err) {
-  window.alert('Ошибка: ' + JSON.stringify(err));
-}
-  }
-  }); // end subform
-  
-var witness_votes = acc.witness_votes;
-var witness_votes_count = witness_votes.length;
-witness_votes.forEach(function(witness_vote) {
-if (witness_votes_count === 2 || witness_vote === 'denis-skripnik') {
-$("#witnesses_vote_button").css("display", "none");
-} else {
-$("#witnesses_vote_button").css("display", "inline");
-}
-	});
-
-  $("#witnesses_vote_button").click(function(){
-golos.broadcast.accountWitnessVote(active_key, golos_login, 'denis-skripnik', true, function(err, result) {
-if (!err) {
-window.alert('Благодарю вас за голос!');
-} else {
-window.alert('Ошибка: ' + err);
-}
-});
-$("#witnesses_vote_button").css("display", "none");
-  });
-}
+    }
 }
 
 function accountHistoryCompareDate(a, b)
@@ -503,13 +340,20 @@ template_count++;
 }
 
 function prepareContent(text) {
-  return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
-  const link = data.slice(3);
-    if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
-    if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
-    if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
-    return `${data.slice(0,3)} <a href="${link}">${link}</a> `
-  }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/golos/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+  try {
+    if (text && text.length > 0 && text[0] === '#') {
+        text = golos.memo.decode(active_key,text);
+    }
+    return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
+      const link = data.slice(3);
+        if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
+        if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
+        if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
+        return `${data.slice(0,3)} <a href="${link}">${link}</a> `
+      }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/golos/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+  } catch(e) {
+    return text;
+  }
  }
 
 const walletDataSettings = {
@@ -600,24 +444,6 @@ async function thisAccountHistory(type) {
   appendWalletData(result);
 }
 
-async function walletData() {
-  if (active_key) {
-  jQuery("#main_wallet_info").css("display", "block");
-  await loadBalances();
-thisAccountHistory();
-  }
-
-  $('.spoiler').click(async function() {
-    let token = $(this).attr('data-token');
-    let tipe = $(this).attr('data-tipe');
-    style = document.getElementById('actions').style;
-    style.display = (style.display == 'block') ? 'none' : 'block';
-  await links(tipe, token);
-  });
-  
-  
-}
-
 function appendWalletData(items) {
   golos.api.getDynamicGlobalProperties(function(error, res) {
     if (!error) {
@@ -642,7 +468,7 @@ items.forEach(item => {
       if (op[0] === 'claim' && op[1]['to_vesting'] === true) memo = 'Получение своих начислений на СГ.';
       if (op[0] === 'claim' && op[1]['to_vesting'] === false) memo = 'Получение своих начислений в TIP-баланс.';
       if (op[0] === 'transfer_to_tip') memo = 'Перевод в TIP баланс. ' + op[1]['memo'];
-      if (op[0] === 'donate') memo = 'Донат. Заметка: ' + op[1]['memo']['comment'];
+      if (op[0] === 'donate') memo = 'Донат. Заметка: ' + prepareContent(op[1]['memo']['comment']);
       jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
 <td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
 <td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
@@ -802,20 +628,274 @@ function createFiltr() {
         thisAccountHistory('filtr');
 }
 
-$(document).ready(function() {
-  $(document).on('click', '.modal_received_vesting_shares', async function(e) {
-    let props = await golos.api.getDynamicGlobalPropertiesAsync();
-    let tvfs = parseFloat(props.total_vesting_fund_steem);
-    let tvsh = parseFloat(props.total_vesting_shares);
-    let golos_per_gests = 1000000 * tvfs / tvsh;
+$(document).ready(async function() {
+  let main_data =await mainData();
+    if (main_data !== false) {
+let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
+  var full_vesting = (gp - delegated_gp + received_gp).toFixed(6);
+  $("#full_vesting").html(full_vesting);
+  
+   $("#cancel_vesting_withdraw").click(function(){
+  golos.broadcast.withdrawVesting(active_key, golos_login, '0.000000 GESTS', function(err, result) {
+    if (!err) {
+  window.alert('Вывод отменён.');
+  $('#info_vesting_withdraw').css('display', 'none');
+    } else {
+  window.alert(err);
+    }
+  });
+  }); // end subform
+  
+  var vesting_withdraw_rate = parseFloat(acc.vesting_withdraw_rate) / 1000000 * golos_per_gests;
+  vesting_withdraw_rate = vesting_withdraw_rate.toFixed(6);
+  vesting_withdraw_rate = parseFloat(vesting_withdraw_rate);
+  $("#vesting_withdraw_rate").html(vesting_withdraw_rate);
+  var nvwithdrawal = Date.parse(acc.next_vesting_withdrawal);
+  $("#nvwithdrawal").html(nvwithdrawal);
+  var next_vesting_withdrawal = date_str(nvwithdrawal-(new Date().getTimezoneOffset()*60000),true,false,true);
+  $("#next_vesting_withdrawal").html(next_vesting_withdrawal);
+  var full_vesting_withdraw = (vesting_withdraw_rate*13).toFixed(6) + ' СГ';
+  $("#full_vesting_withdraw").html(full_vesting_withdraw);
+  if (full_vesting_withdraw !== '0.000000 СГ') {
+  jQuery("#info_vesting_withdraw").css("display", "block");
+  }
+  
+  var max_vesting_withdraw = (gp - delegated_gp - parseFloat(full_vesting_withdraw)).toFixed(6);
+  $("#max_vesting_withdraw_result").html(new Number(parseFloat(max_vesting_withdraw)).toFixed(6));
+  
+    $("#max_vesting_withdraw").click(function(){
+   $('#action_vesting_withdraw_amount').val(new Number(parseFloat(max_vesting_withdraw)).toFixed(6));
+    });
+   
+    $("#action_vesting_withdraw_start").click(async function(){
+  let q = window.confirm('Вы действительно хотите запустить вывод СГ?');
+  if (q == true) {
+    var action_vesting_withdraw_amount = parseFloat($('#action_vesting_withdraw_amount').val());
+    let withdraw_gests = action_vesting_withdraw_amount * 1000000 / golos_per_gests;
+    withdraw_gests =  withdraw_gests.toFixed(6) + ' GESTS';
+    try {
+  let result = await golos.broadcast.withdrawVestingAsync(active_key, golos_login, withdraw_gests);
+  window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
+  await loadBalances();
+  $.fancybox.close();
+    } catch(err) {
+      window.alert('Ошибка: ' + JSON.stringify(err));
+    }
+  } else {
+    window.alert('Вы отменили вывод из СГ');
+  }
+  }); // end subform
+  
+  
+   $('#accumulative_balance_to').val(golos_login);
+   $('#max_accumulative_balance').html(`Перевести все доступные ${acc.accumulative_balance}`);
+   $("#max_accumulative_balance").click(function(){
+      $('#accumulative_balance_amount').val(new Number(parseFloat(acc.accumulative_balance)).toFixed(3));
+     });
+    $("#accumulative_balance_start").click(async function(){
+    var q = window.confirm('Вы действительно хотите получить токены из CLAIM-баланса?');
+    if (q == true) {
+      var accumulative_balance_to = $('#accumulative_balance_to').val();
+    var accumulative_balance_amount = $('#accumulative_balance_amount').val();
+    accumulative_balance_amount = parseFloat(accumulative_balance_amount);
+    accumulative_balance_amount = accumulative_balance_amount.toFixed(3) + ' GOLOS';
+    var accumulative_balance_vesting = $('#accumulative_balance_vesting').prop("checked");
+       try {
+  let res = await   golos.broadcast.claimAsync(posting_key, golos_login, accumulative_balance_to, accumulative_balance_amount, accumulative_balance_vesting, []);
+  window.alert('Вы получили GOLOS из баланса начислений на СГ. Сумма: ' + accumulative_balance_amount + ', получатель: ' + accumulative_balance_to + '.');
+  await loadBalances();
+  $.fancybox.close();
+       } catch(err) {
+        window.alert('Ошибка: ' + JSON.stringify(err));
+       }
+    } else {
+      window.alert('Действие отменено.');
+    }
+   }); // end subform
+  
+     $("#max_to_shares_transfer").click(function(){
+   $('#action_to_shares_transfer_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
+    });
+   
+    $("#action_to_shares_transfer_start").click(async function(){
+   var q = window.confirm('Вы действительно хотите перевести GOLOS в СГ?');
+   if (q == true) {
+    var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
+   action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' GOLOS';
+    
+   try {
+  let result = await golos.broadcast.transferToVestingAsync(active_key, golos_login, golos_login, action_to_shares_transfer_amount);
+  window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' golos в СГ своего аккаунта.');
+  await loadBalances();
+  $.fancybox.close();
+    } catch(err) {
+      window.alert('Ошибка: ' + JSON.stringify(err));
+  }
+   } else {
+     window.alert('Перевод в СГ отменён.');
+   }
+  }); // end subform
+  
+  var max_vesting_deligate = (gp - delegated_gp).toFixed(6);
+  $("#max_vesting_deligate").html(max_vesting_deligate);
+  
+    $("#max_vesting_delegate").click(function(){
+   $('#action_vesting_delegate_amount').val(new Number(parseFloat(max_vesting_deligate)).toFixed(6));
+    });
+   $("#action_vesting_delegate_start").click(async function(){
+   var q = window.confirm('Вы действительно хотите делегировать СГ?');
+    if (q == true) {
+      var action_vesting_delegate_to = $('#action_vesting_delegate_to').val();
+      var action_vesting_delegate_amount = parseFloat($('#action_vesting_delegate_amount').val());
+      let delegate_gests = action_vesting_delegate_amount * 1000000 / golos_per_gests;
+      delegate_gests = delegate_gests.toFixed(6) + ' GESTS';
+     var delegate_interest = parseFloat($('#action_vesting_delegate_interest_rate').val()) * 100;
+     delegate_interest = parseInt(delegate_interest);
+     let is_delegated = $('#is_delegated').val();
+     try {
+if (is_delegated === 'yes') {
+await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, action_vesting_delegate_to, delegate_gests);
+parent.jQuery.fancybox.getInstance().close();
+} else {
+      await golos.broadcast.delegateVestingSharesWithInterestAsync(active_key, golos_login, action_vesting_delegate_to, delegate_gests, delegate_interest, []);
+    }
+window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
+  await loadBalances();
+  $.fancybox.close();
+     } catch(err) {
+      window.alert('Ошибка: ' + err);
+     }
+    } else {
+  console.log(JSON.stringify(err));
+    window.alert('Ошибка: ' + err);
+  }
+    }); // end subform
+  
+  $("#new_private_gen").click(function(){
+    $('#create_invite_key').val(pass_gen());
+  });
+  
+  //цепляем событие на onclick кнопки
+  var button = document.getElementById('new_private_copy');
+  button.addEventListener('click', function () {
+    //нашли наш контейнер
+    var ta = document.querySelector('#create_invite_key');
+      ta.focus();
+      ta.setSelectionRange(0, ta.value.length);
+   
+    try { 
+      document.execCommand('copy'); 
+    } catch(err) { 
+      console.log('Can`t copy, boss'); 
+    } 
+    //очистим выделение текста, чтобы пользователь не парился
+    window.getSelection().removeAllRanges();
+  });
+    
+    $("#max_invite_balance").click(function(){
+   $('#create_invite_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
+    });
+   $("#create_invite_start").click(function(){
+   var create_invite_amount = parseFloat($('#create_invite_amount').val()).toFixed(3) + ' GOLOS';
+   var create_private_invite_key = $('#create_invite_key').val();
+  $("#create_private_invite_key_result").html(create_private_invite_key);
+  $("#invite_reg_link").html('https://liveblogs.space/reg.html?invite=' + create_private_invite_key);
+  $("#create_invite_result_amount").html(create_invite_amount);
+      var create_invite_key = golos.auth.wifToPublic(create_private_invite_key);
+  golos.broadcast.invite(active_key, golos_login, create_invite_amount, create_invite_key, [], function(err, result) {
+  if (!err) {
+  $('#invite_created').css('display', 'block');
+  } else {
+  window.alert('Ошибка: ' + err);
+  }
+    });
+  }); // end subform
+  
+  $("#action_vesting_diposit_start").click(async function(){
+    var q = window.confirm('Вы действительно хотите пополнить баланс инвайт-кодом?');
+    if (q == true) {
+      var invite_secret = $('#invite_secret').val();
+  try {
+    let result = await   golos.broadcast.inviteClaimAsync(active_key, golos_login, golos_login, invite_secret, [])
+    window.alert('Пополнение прошло успешно.');
+    await loadBalances();
+    $.fancybox.close();
+  } catch(err) {
+    window.alert('Ошибка: ' + JSON.stringify(err));
+  }
+    }
+    }); // end subform
+    
+  var witness_votes = acc.witness_votes;
+  var witness_votes_count = witness_votes.length;
+  witness_votes.forEach(function(witness_vote) {
+  if (witness_votes_count === 2 || witness_vote === 'denis-skripnik') {
+  $("#witnesses_vote_button").css("display", "none");
+  } else {
+  $("#witnesses_vote_button").css("display", "inline");
+  }
+    });
+  
+    $("#witnesses_vote_button").click(function(){
+  golos.broadcast.accountWitnessVote(active_key, golos_login, 'denis-skripnik', true, function(err, result) {
+  if (!err) {
+  window.alert('Благодарю вас за голос!');
+  } else {
+  window.alert('Ошибка: ' + err);
+  }
+  });
+  $("#witnesses_vote_button").css("display", "none");
+    });
+
+    $(document).on('click', '.vesting_delegate_modal', async function(e) {
+      $('#action_vesting_delegate_to').val('');
+      $('#action_vesting_delegate_amount').val('');
+      let to = $(this).attr('data-to');
+    if (to) {
+      $('#action_vesting_delegate_to').val(to);
+      $('#action_vesting_delegate_to').attr('disabled', true);
+    
+      let get_data = await delegationGolosPower(golos_per_gests, 'delegated');
+      if (get_data !== false) {
+    let accounts = get_data.list;
+  if (accounts.indexOf(to) > -1) {
+    $('#delegate_interest_rate_filde').css('display', 'none');
+  $('#is_delegated').val('yes');
+  } else {
+    $('#delegate_interest_rate_filde').css('display', 'block');
+    $('#is_delegated').val('no');
+  }
+      }
+    } else {
+      $('#action_vesting_delegate_to').attr('disabled', false);
+    }
+
+    $('#action_vesting_delegate_to').change(async function() {
+      let to = $('#action_vesting_delegate_to').val();
+      let get_data = await delegationGolosPower(golos_per_gests, 'delegated');
+      if (get_data !== false) {
+    let accounts = get_data.list;
+    if (accounts.indexOf(to) > -1) {
+    $('#delegate_interest_rate_filde').css('display', 'none');
+    $('#is_delegated').val('yes');
+  } else {
+    $('#delegate_interest_rate_filde').css('display', 'block');
+    $('#is_delegated').val('no');
+  }
+      }
+  
+    })
+  });
+
+    $(document).on('click', '.modal_received_vesting_shares', async function(e) {
+      let get_data = await delegationGolosPower(golos_per_gests, 'received');
+      if (get_data !== false) {
+    let res = get_data.all;
     jQuery("#body_received_vesting_shares").html('');
     const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-    var type = 'received';
-    try {
-    let res = await golos.api.getVestingDelegationsAsync(golos_login, '', 100, type);
     var vs_amount = '';
     var body_received_vesting_shares = '';
-    res.forEach(function(item) {
+    for (let item of res) {
     vs_amount = parseFloat(item.vesting_shares) / 1000000 * golos_per_gests;
     vs_amount = vs_amount.toFixed(6);
     vs_amount = parseFloat(vs_amount);
@@ -824,52 +904,52 @@ $(document).ready(function() {
     let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
     body_received_vesting_shares = '<tr><td><a href="/golos/profiles/' + item.delegator + '" target="_blank">@' + item.delegator + '</a></td><td>' + vs_amount + '</td><td>' + interest_rate + '%</td><td>' + min_delegation_datetime + '</td></tr>';
       jQuery("#body_received_vesting_shares").append(body_received_vesting_shares);
-    });
-    } catch(err) {
-      console.error(err);  
     }
-  });
-
-  $(document).on('click', '.modal_delegated_vesting_shares', async function(e) {
-    let props = await golos.api.getDynamicGlobalPropertiesAsync();
-    let tvfs = parseFloat(props.total_vesting_fund_steem);
-    let tvsh = parseFloat(props.total_vesting_shares);
-    let golos_per_gests = 1000000 * tvfs / tvsh;
-    jQuery("#body_delegated_vesting_shares").html('');
-    const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-    var type = 'delegated';
-    try {
-            var vesting_shares_amount = '';
-      let res = await golos.api.getVestingDelegationsAsync(golos_login, '', 100, type);
-      var body_delegated_vesting_shares = '';
-      res.forEach(async function(item) {
-    vesting_shares_amount = parseFloat(item.vesting_shares) / 1000000 * golos_per_gests;
-    vesting_shares_amount = vesting_shares_amount.toFixed(6);
-    vesting_shares_amount = parseFloat(vesting_shares_amount);
-    let interest_rate = item.interest_rate/100;
-    let min_delegation_time = Date.parse(item.min_delegation_time);
-    let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-    body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/golos/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' + interest_rate + '%</td><td>' +  min_delegation_datetime + '</td><td><input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
-        jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
-     
-        $('#cancel_delegated_vesting_shares_' + item.delegatee).click(async function(){
-    let q = window.confirm('Вы действительно хотите отменить делегирование?');
-    if (q == true) {
-      try {
-        let result = await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, item.delegatee, '0.000000 GESTS');
-        window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
-        $('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
-      } catch(e) {
-      window.alert('Ошибка: ' + JSON.stringify(e));
       }
-    }
     });
-     });
-    } catch(err) {
-      console.error(err);
+    
+      $(document).on('click', '.modal_delegated_vesting_shares', async function(e) {
+        let get_data = await delegationGolosPower(golos_per_gests, 'delegated');
+        if (get_data !== false) {
+      let res = get_data.all;
+        jQuery("#body_delegated_vesting_shares").html('');
+        const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
+                var vesting_shares_amount = '';
+          var body_delegated_vesting_shares = '';
+    for (let item of res) {
+        vesting_shares_amount = parseFloat(item.vesting_shares) / 1000000 * golos_per_gests;
+        vesting_shares_amount = vesting_shares_amount.toFixed(6);
+        vesting_shares_amount = parseFloat(vesting_shares_amount);
+        let interest_rate = item.interest_rate/100;
+        let min_delegation_time = Date.parse(item.min_delegation_time);
+        let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
+        body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/golos/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' + interest_rate + '%</td><td>' +  min_delegation_datetime + '</td><td><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;" data-to="' + item.delegatee + '">Изменить</a>, <input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
+            jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
+         
+            $('#cancel_delegated_vesting_shares_' + item.delegatee).click(async function(){
+        let q = window.confirm('Вы действительно хотите отменить делегирование?');
+        if (q == true) {
+          try {
+            let result = await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, item.delegatee, '0.000000 GESTS');
+            window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
+            $('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
+          } catch(e) {
+          window.alert('Ошибка: ' + JSON.stringify(e));
+          }
+        }
+        });
+    }   
+      }
+      });
+    
+  }
+  
+  if (active_key) {
+    jQuery("#main_wallet_info").css("display", "block");
+  await loadBalances();
+  await thisAccountHistory();
     }
-  });
-
+  
   $(document).on('click', '.uia_deposit_modal', function(e) {
     let token = $(this).attr('data-token');
     $('.uia_deposit_modal_token').html(token);
@@ -984,14 +1064,14 @@ if (q == true) {
   let action_transfer_amount = $('#action_transfer_amount').val();
   action_transfer_amount = parseFloat(action_transfer_amount);
   action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
-let action_transfer_memo = $('#action_transfer_memo').val();
+let action_transfer_memo = await createCryptMemo(action_transfer_to, $('#action_transfer_memo').val());
 let transfer_in = $('#transfer_in').val();
  
  if (transfer_in === 'to_vesting') {
  try {
   let result = await golos.broadcast.transferToVestingAsync(active_key, golos_login, action_transfer_to, action_transfer_amount);
  window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' в СГ.');
-await loadBalances();
+ await loadBalances();
 $.fancybox.close(); 
 } catch(e) {
 window.alert('Ошибка' + JSON.stringify(e));
@@ -1000,7 +1080,7 @@ window.alert('Ошибка' + JSON.stringify(e));
    try {
     let result = await golos.broadcast.transferToTipAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo, []);
         window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' на баланс донатов.');
-await loadBalances();
+        await loadBalances();
 $.fancybox.close();   
 } catch(e) {
     window.alert('Ошибка: ' + JSON.stringify(e));
@@ -1034,12 +1114,13 @@ window.alert('Ошибка: ' + e);
      let donate_amount = $('#donate_amount').val();
      donate_amount = parseFloat(donate_amount);
      donate_amount = donate_amount.toFixed(precision) + ' ' + token;
-     let donate_memo = $('#donate_memo').val();
+     let donate_memo = await createCryptMemo(donate_to, $('#donate_memo').val());
+
      try {
 let result = await golos.broadcast.donateAsync(posting_key, golos_login, donate_to, donate_amount, {app: 'dpos-space', version: 1, comment: donate_memo, target: {type: 'personal_donate'}}, []);
 window.alert('Вы отблагодарили пользователя ' + donate_to + ' на ' + donate_amount + '.');
-await loadBalances();
 $.fancybox.close();
+await loadBalances();
 } catch(e) {
        window.alert('Ошибка: ' + JSON.stringify(e));
      }
@@ -1316,4 +1397,18 @@ if (direction !== '') {
 if(0<$('input[type=range]').length){
   bind_range();
 }
+
+var link_state = {};
+$('.spoiler').on('click', async function() {
+  let token = $(this).attr('data-token');
+  let tipe = $(this).attr('data-tipe');
+  style = document.getElementById('actions').style;
+  if (!link_state.display || link_state.tipe === tipe && link_state.token === token) {
+    style.display = (style.display == 'block') ? 'none' : 'block';
+    }
+    await links(tipe, token);
+    link_state.tipe = tipe;
+  link_state.token = token;
+  link_state.display = style.display;
+});
 });

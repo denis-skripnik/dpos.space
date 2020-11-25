@@ -1,3 +1,16 @@
+async function createCryptMemo(to, memo) {
+let res = memo;
+  if (memo[0] === '#') {
+let accounts = await viz.api.getAccountsAsync([to]);
+if (accounts && accounts.length > 0) {
+  let acc = accounts[0];
+  let to_public_active_key = acc.active_authority.key_auths[0][0];
+  res = viz.memo.encode(active_key,to_public_active_key,memo);
+}
+}
+return res;
+}
+
 function getUrlVars() {
   var vars = {};
   var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
@@ -255,12 +268,12 @@ window.alert('Ошибка: ' + err);
   $("#max_vesting_transfer").click(function(){
  $('#action_viz_transfer_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
   });
- $("#action_viz_transfer_start").click(function(){
+ $("#action_viz_transfer_start").click(async function(){
  var action_viz_transfer_to = $('#action_viz_transfer_to').val();
  var action_viz_transfer_amount = $('#action_viz_transfer_amount').val().replace(/,/, '.');
  action_viz_transfer_amount = parseFloat(action_viz_transfer_amount);
  action_viz_transfer_amount = action_viz_transfer_amount.toFixed(3) + ' VIZ';
- var action_viz_transfer_memo = $('#action_viz_transfer_memo').val();
+ var action_viz_transfer_memo = await createCryptMemo(action_viz_transfer_to, $('#action_viz_transfer_memo').val());
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
 
 if (transfer_to_vesting.checked) {
@@ -471,13 +484,20 @@ $('#action_viz_transfer_memo').val(decodeURIComponent(memo)).prop('readonly', tr
 }
 
 function prepareContent(text) {
-  return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
-  const link = data.slice(3);
-    if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
-    if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
-    if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
-    return `${data.slice(0,3)} <a href="${link}">${link}</a> `
-  }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/viz/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+  try {
+    if (text && text.length > 0 && text[0] === '#') {
+        text = golos.memo.decode(active_key,text);
+    }
+    return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
+      const link = data.slice(3);
+        if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
+        if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
+        if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
+        return `${data.slice(0,3)} <a href="${link}">${link}</a> `
+      }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/viz/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+  } catch(e) {
+    return text;
+  }
  }
  
  const walletDataSettings = {

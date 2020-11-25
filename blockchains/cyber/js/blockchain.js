@@ -1,5 +1,6 @@
 const {builder, codec, crypto, constants, keypair} = window.bundle;
-axios.defaults.baseURL = 'https://api.cyber.cybernode.ai';
+// https://cyber.cybernode.ai
+axios.defaults.baseURL = 'https://dpos.space/blockchains/cyber/node.php';
 
 let current_user = JSON.parse(localStorage.getItem("cyber_current_user"));
 if (current_user) {
