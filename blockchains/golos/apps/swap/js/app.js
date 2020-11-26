@@ -127,7 +127,7 @@ $('#action_buy_token').attr('disabled', true);
     
     $('#buy_amount').val(buy_amount.toFixedNoRounding(pr2));
             $('#market_fee').html(`${fee2}% (${(buy_amount * (fee2 / 100)).toFixedNoRounding(pr2)} ${selected_buy_token})`);
-            $('#market_price').html(`${price} ${selected_buy_token} / ${selected_sell_token}`);
+            $('#market_price').html(`${price.toFixed(5)} ${selected_buy_token} / ${selected_sell_token}`);
     }
     } else {
         window.alert(`Ордеров на покупку ${selected_sell_token} за ${selected_buy_token} нет.`);
@@ -300,6 +300,16 @@ $('#sell_amount').change(async function() {
     } else {
         $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled 
     }
+});
+
+
+$('#buy_amount').change(async function() {
+    let sell_token = $('#sell_token').val();
+    let buy_token = $('#buy_token').val();
+    let sell_amount = parseFloat($('#sell_amount').val());
+    let buy_amount = parseFloat($('#buy_amount').val());
+    let order_price = parseFloat(buy_amount) / parseFloat(sell_amount)
+    $('#market_price').html(`${order_price.toFixed(5)} ${buy_token} / ${sell_token}`);
 });
 
 $('#max_amount').click(async function() {
