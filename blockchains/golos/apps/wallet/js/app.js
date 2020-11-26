@@ -31,6 +31,63 @@ vars: {
 }
 };
 
+async function links(tipe, token) {
+  $('#actions').html('');
+  if (token === 'GOLOS' && tipe === 'main_balance') {
+$('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
+<li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
+<li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
+<li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
+<li><a href="https://dpos.space/golos/swap/GOLOS" target="_blank">Обменять GOLOS</a></li>
+`);
+} else if (token === 'GOLOS' && tipe === 'tip_balance') {
+  $('#actions').html(`<li><a data-fancybox class="donate_modal" data-src="#donate_modal" href="javascript:;" data-token="${token}" onclick="getDonateTemplates('${token}');">Донат токенами ${token}</a></li>
+  <li><a data-fancybox class="transfer_from_tip_modal" data-src="#transfer_from_tip_modal" href="javascript:;" data-token="${token}">Перевести в СГ ${token}</a></li>
+`);
+} else if (token === 'GOLOS' && tipe === 'claim_balance') {
+  $('#actions').html(`<li><a data-fancybox data-src="#accumulative_balance_modal" href="javascript:;">Получить</a></li>
+`);
+} else if (tipe === 'main_balance' && token === 'GBG') {
+  $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
+<li><a href="https://dpos.space/golos/swap/GBG" target="_blank">Обменять GBG</a></li>`);
+} else if (tipe === 'main_balance' && token === 'GP') {
+  $('#actions').html(`<li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
+  <li><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li>`);
+} else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'main_balance') {
+  $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
+`);
+if (gates[token] && gates[token].deposit) {
+  $('#actions').append(`<li><a data-fancybox class="uia_deposit_modal" data-src="#uia_deposit_modal" href="javascript:;" data-token="${token}">Пополнить ${token}</a></li>
+  `);
+}
+
+if (gates[token] && gates[token].withdraw) {
+  $('#actions').append(`<li><a data-fancybox class="uia_withdraw_modal" data-src="#uia_withdraw_modal" href="javascript:;" data-token="${token}">Вывести ${token}</a></li>
+  `);
+}
+$('#actions').append(`<li><a href="https://dpos.space/golos/swap/${token}" target="_blank">Обменять ${token}</a></li>
+`);
+} else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'tip_balance') {
+  $('#actions').html(`<li><a data-fancybox class="donate_modal" data-src="#donate_modal" href="javascript:;" data-token="${token}" onclick="getDonateTemplates('${token}');">Донат токенами ${token}</a></li>
+  <li><a data-fancybox class="transfer_from_tip_modal" data-src="#transfer_from_tip_modal" href="javascript:;" data-token="${token}">Перевести из TIP-баланса ${token}</a></li>
+`);
+}
+}
+
+var link_state = {};
+async function spoiler(t) {
+    let token = $(t).attr('data-token');
+    let tipe = $(t).attr('data-tipe');
+    style = document.getElementById('actions').style;
+    if (!link_state.display || link_state.tipe === tipe && link_state.token === token) {
+      style.display = (style.display == 'block') ? 'none' : 'block';
+      }
+      await links(tipe, token);
+      link_state.tipe = tipe;
+    link_state.token = token;
+    link_state.display = style.display;
+  }
+
 async function delegationGolosPower(golos_per_gests, type) {
   let res = false;
   try {
@@ -108,49 +165,6 @@ function pass_gen(){
 	return wif;
 }
 
-function links(tipe, token) {
-  $('#actions').html('');
-  if (token === 'GOLOS' && tipe === 'main_balance') {
-$('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
-<li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
-<li><a data-fancybox data-src="#golos_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
-<li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
-<li><a href="https://dpos.space/golos/swap/GOLOS" target="_blank">Обменять GOLOS</a></li>
-`);
-} else if (token === 'GOLOS' && tipe === 'tip_balance') {
-  $('#actions').html(`<li><a data-fancybox class="donate_modal" data-src="#donate_modal" href="javascript:;" data-token="${token}" onclick="getDonateTemplates('${token}');">Донат токенами ${token}</a></li>
-  <li><a data-fancybox class="transfer_from_tip_modal" data-src="#transfer_from_tip_modal" href="javascript:;" data-token="${token}">Перевести в СГ ${token}</a></li>
-`);
-} else if (token === 'GOLOS' && tipe === 'claim_balance') {
-  $('#actions').html(`<li><a data-fancybox data-src="#accumulative_balance_modal" href="javascript:;">Получить</a></li>
-`);
-} else if (tipe === 'main_balance' && token === 'GBG') {
-  $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
-<li><a href="https://dpos.space/golos/swap/GBG" target="_blank">Обменять GBG</a></li>`);
-} else if (tipe === 'main_balance' && token === 'GP') {
-  $('#actions').html(`<li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод СГ в golos</a></li>
-  <li><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;">Делегировать СГ</a></li>`);
-} else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'main_balance') {
-  $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
-`);
-if (gates[token] && gates[token].deposit) {
-  $('#actions').append(`<li><a data-fancybox class="uia_deposit_modal" data-src="#uia_deposit_modal" href="javascript:;" data-token="${token}">Пополнить ${token}</a></li>
-  `);
-}
-
-if (gates[token] && gates[token].withdraw) {
-  $('#actions').append(`<li><a data-fancybox class="uia_withdraw_modal" data-src="#uia_withdraw_modal" href="javascript:;" data-token="${token}">Вывести ${token}</a></li>
-  `);
-}
-$('#actions').append(`<li><a href="https://dpos.space/golos/swap/${token}" target="_blank">Обменять ${token}</a></li>
-`);
-} else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'tip_balance') {
-  $('#actions').html(`<li><a data-fancybox class="donate_modal" data-src="#donate_modal" href="javascript:;" data-token="${token}" onclick="getDonateTemplates('${token}');">Донат токенами ${token}</a></li>
-  <li><a data-fancybox class="transfer_from_tip_modal" data-src="#transfer_from_tip_modal" href="javascript:;" data-token="${token}">Перевести из TIP-баланса ${token}</a></li>
-`);
-}
-}
-
 async function mainData() {
 let res = false;
 try {
@@ -224,12 +238,12 @@ let balances_table = '';
       } else {
         if (token.name === 'GP') name = 'СГ';
         balances_table += `<tr>
-        <td><a class="spoiler" data-tipe="main_balance" data-token="${token.name}" href="javascript:;" title="Клик для выбора действия"><span id="max_main_${token.name}">${token.main_balance}</span> ${name}</a></td>`;
+<td><a class="spoiler" data-tipe="main_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_main_${token.name}">${token.main_balance}</span> ${name}</a></td>`;
         if (token.tip_balance && token.claim_balance) {
-          balances_table += `<td><a class="spoiler" data-tipe="tip_balance" data-token="${token.name}" href="javascript:;" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${token.name}</a> (<a class="spoiler"data-tipe="claim_balance" data-token="${token.name}" href="javascript:;" title="Клик для выбора действия"><span id="max_claim_${token.name}">${token.claim_balance}</span> ${name} в CLAIM</a>)</td>
+          balances_table += `<td><a class="spoiler" data-tipe="tip_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${token.name}</a> (<a class="spoiler"data-tipe="claim_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_claim_${token.name}">${token.claim_balance}</span> ${name} в CLAIM</a>)</td>
         `;
         } else if (token.tip_balance && !token.claim_balance) {
-          balances_table += `<td><a class="spoiler"data-tipe="tip_balance" data-token="${token.name}" href="javascript:;" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${name}</a></td>
+          balances_table += `<td><a class="spoiler"data-tipe="tip_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${name}</a></td>
         `;
         } else {
           balances_table += `<td></td>
@@ -1398,17 +1412,4 @@ if(0<$('input[type=range]').length){
   bind_range();
 }
 
-var link_state = {};
-$('.spoiler').on('click', async function() {
-  let token = $(this).attr('data-token');
-  let tipe = $(this).attr('data-tipe');
-  style = document.getElementById('actions').style;
-  if (!link_state.display || link_state.tipe === tipe && link_state.token === token) {
-    style.display = (style.display == 'block') ? 'none' : 'block';
-    }
-    await links(tipe, token);
-    link_state.tipe = tipe;
-  link_state.token = token;
-  link_state.display = style.display;
-});
 });

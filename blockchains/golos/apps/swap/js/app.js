@@ -11,7 +11,89 @@ Number.prototype.toFixedNoRounding = function(n) {
   
     return b > 0 ? (a + '0'.repeat(b)) : a;
   }
+
+  async function deleteOrder(orderid) {
+    let q = window.confirm('Вы действительно хотите удалить этот ордер?');
+    if (q == true) {
+      try {
+        await golos.broadcast.limitOrderCancelAsync(active_key, golos_login, orderid);
+    window.alert('Ордер удалён.');
+      await myOrders();
+    } catch(e) {
+      console.log(e);
+    }
+    }
+  }
   
+  function fast_str_replace(search,replace,str){
+      return str.split(search).join(replace);
+  }
+  
+  function date_str(timestamp,add_time,add_seconds,remove_today=false){
+      if(-1==timestamp){
+          var d=new Date();
+      }
+      else{
+          var d=new Date(timestamp);
+      }
+      var day=d.getDate();
+      if(day<10){
+          day='0'+day;
+      }
+      var month=d.getMonth()+1;
+      if(month<10){
+          month='0'+month;
+      }
+      var minutes=d.getMinutes();
+      if(minutes<10){
+          minutes='0'+minutes;
+      }
+      var hours=d.getHours();
+      if(hours<10){
+          hours='0'+hours;
+      }
+      var seconds=d.getSeconds();
+      if(seconds<10){
+          seconds='0'+seconds;
+      }
+      var datetime_str=day+'.'+month+'.'+d.getFullYear();
+      if(add_time){
+          datetime_str=datetime_str+' '+hours+':'+minutes;
+          if(add_seconds){
+              datetime_str=datetime_str+':'+seconds;
+          }
+      }
+      if(remove_today){
+          datetime_str=fast_str_replace(date_str(-1)+' ','',datetime_str);
+      }
+      return datetime_str;
+  }
+  
+  
+  async function myOrders() {
+    let sell_token = $('#sell_token').val();
+    let buy_token = $('#buy_token').val();
+    try {
+    let orders = await golos.api.getOpenOrdersAsync(golos_login, [sell_token, buy_token]);
+    const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
+  let table = '';
+    for (let order of orders) {
+    let sell_price = order.sell_price;
+      let get_time = Date.parse(order.created);
+  table += `<tr>
+  <td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
+  <td>${sell_price.base}</td>
+  <td>${sell_price.quote}</td>
+  <td>${order.real_price} ${buy_token} / ${sell_token}</td>
+  <td><a onclick="deleteOrder(${order.orderid});">Удалить</a></td>
+  </tr>`;
+  }
+    $('#my_orders_list').html(table);
+  } catch(e) {
+    console.log('Ошибка: ' + e);
+    }
+    }
+ 
 async function creationOrder(sell_amount, selected_sell_token, selected_buy_token, fee1, fee2, pr1, pr2) {
     $('#buy_amount').val('');
     $('#market_fee').html('');
@@ -81,7 +163,8 @@ if (name !== uia) {
 }
 }
         } else {
-                        $('#buy_token').append(`<option value="GOLOS">GOLOS</option>`);assets = await golos.api.getAssetsAsync('');
+                        $('#buy_token').append(`<option value="GOLOS">GOLOS</option>`);
+                        assets = await golos.api.getAssetsAsync('');
                         $('#buy_token').append(`<option value="GBG">GBG</option>`);
                         if (assets && assets.length > 0) {
                     for (let token of assets) {
@@ -135,11 +218,11 @@ return {pr1, pr2, fee1, fee2};
     }
 
 async function main() {
+    var tokens = document.location.pathname.toUpperCase().slice(12).split('/');
     var max_amounts = {};
     let accounts = await golos.api.getAccountsAsync([golos_login]);
     if (accounts && accounts.length > 0) {
         let acc = accounts[0];
-        let assets = await golos.api.getAccountsBalancesAsync([golos_login]);
         if (parseFloat(acc.balance) > 0) {
             $('#sell_token').append(`<option value="GOLOS">GOLOS</option>`);
                          max_amounts['GOLOS'] = parseFloat(acc.balance);
@@ -149,7 +232,9 @@ async function main() {
             $('#sell_token').append(`<option value="GBG">GBG</option>`);
                             max_amounts['GBG'] = parseFloat(acc.sbd_balance);
         }
-        
+
+        let assets = await golos.api.getAccountsBalancesAsync([golos_login]);
+        let account_tokens = [];
         if (assets && assets.length > 0) {
         let account_balances = assets[0];
             for (let asset in account_balances) {
@@ -157,11 +242,34 @@ async function main() {
             if (parseFloat(token.balance) !== 0) {
                 $('#sell_token').append(`<option value="${asset}">${asset}</option>`);
                 max_amounts[asset] = parseFloat(token.balance);
-    }
+                account_tokens.push(asset);
+            }
        
 }
     }
+        
+    if (document.location.pathname.indexOf('my-orders') > -1) {
+            tokens = document.location.pathname.toUpperCase().slice(22).split('/');
+              if (parseFloat(acc.balance) === 0) {
+                $('#sell_token').append(`<option value="GOLOS">GOLOS</option>`);
+                max_amounts['GOLOS'] = parseFloat(acc.balance);
+              }
+            
+              if (parseFloat(acc.sbd_balance) === 0) {
+                $('#sell_token').append(`<option value="GBG">GBG</option>`);
+                max_amounts['GBG'] = parseFloat(acc.sbd_balance);
+              }
 
+              let assets = await golos.api.getAssetsAsync('');
+              for (let asset of assets) {
+                let name = asset.max_supply.split(' ')[1];
+                if (account_tokens.indexOf(name) === -1) {
+                    $('#sell_token').append(`<option value="${name}">${name}</option>`);
+                    max_amounts[name] = 0;
+                    }
+            }
+        }
+        
 $('#sell_token').change(async function() {
 await sellTokens(max_amounts);
 });
@@ -169,10 +277,15 @@ await sellTokens(max_amounts);
 $('#buy_token').change(async function() {
 let sell_token = $('#sell_token').val()
 let buy_token = $('#buy_token').val()
-history.pushState([], '', `/golos/swap/${sell_token}/${buy_token}`);
+if (document.location.pathname.indexOf('my-orders') > -1) {
+    history.pushState([], '', `/golos/swap/my-orders/${sell_token}/${buy_token}`);
+} else {
+    history.pushState([], '', `/golos/swap/${sell_token}/${buy_token}`);
+}
 let sell_amount = $('#sell_amount').val();
 let {pr1, pr2, fee1, fee2} = await orderConfig(sell_token, buy_token);
 await creationOrder(sell_amount, sell_token, buy_token, fee1, fee2, pr1, pr2);
+await myOrders();
 });
 
 $('#sell_amount').change(async function() {
@@ -223,15 +336,40 @@ location.reload();
     }
 });
 
-    var tokens = document.location.pathname.toUpperCase().slice(12).split('/');
-    if (tokens && tokens.length === 1 && tokens[0] !== '') {
+$('#action_create_order').click(async function() {
+    let selected_sell_token = $('#sell_token').val();
+    let selected_buy_token = $('#buy_token').val();
+    let sell_amount = parseFloat($('#sell_amount').val());
+    let buy_amount = parseFloat($('#buy_amount').val());
+    let pr1 = parseFloat($('#pr1').val());
+    let pr2 = parseFloat($('#pr2').val());
+    let q = window.confirm('Вы действительно хотите создать ордер на обмен?');
+    if (q == true) {
+        let orderid = Math.floor(Date.now() / 1000); // it is golos.id way and it is preferred
+        let expiration = new Date();
+        expiration.setHours(expiration.getHours() + 1);
+        expiration = expiration.toISOString().substr(0, 19); // i.e. 2020-09-07T11:33:00
+       try {
+        let res = await golos.broadcast.limitOrderCreateAsync(active_key, golos_login, orderid, sell_amount.toFixedNoRounding(pr1) + ' ' + selected_sell_token, buy_amount.toFixedNoRounding(pr2) + ' ' + selected_buy_token, false, expiration);
+if (res) {
+    window.alert('Ордер создан');
+location.reload();
+}
+} catch(e) {
+           console.log(e);
+       }
+    }
+});
+    
+if (tokens && tokens.length === 1 && tokens[0] !== '') {
     $("#sell_token option[value=" + tokens[0] + "]").attr('selected', 'true');
     await sellTokens(max_amounts);
 } else if (tokens && tokens.length === 2 && tokens[0] !== '') {
         $("#sell_token option[value=" + tokens[0] + "]").attr('selected', 'true');
         await sellTokens(max_amounts);
         $("#buy_token option[value=" + tokens[1] + "]").attr('selected', 'true');
-} else {
+await myOrders();
+    } else {
     await sellTokens(max_amounts);
       }
 
@@ -242,4 +380,6 @@ $(document).ready(async function() {
     $('#orders_history').attr('href', `https://dpos.space/golos/profiles/${golos_login}/orders`);
     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled 
     await main();
+
+
 }); // end document ready function.
