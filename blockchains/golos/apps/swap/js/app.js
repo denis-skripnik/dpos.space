@@ -84,7 +84,7 @@ Number.prototype.toFixedNoRounding = function(n) {
   <td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
   <td>${sell_price.base}</td>
   <td>${sell_price.quote}</td>
-  <td>${order.real_price.toFixed(5)} ${buy_token} / ${sell_token}</td>
+  <td>${parseFloat(order.real_price).toFixed(5)} ${buy_token} / ${sell_token}</td>
   <td><a onclick="deleteOrder(${order.orderid});">Удалить</a></td>
   </tr>`;
   }
