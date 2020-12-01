@@ -1,5 +1,6 @@
 {
 "title": "Генератор случайных чисел randomblockchain для Cyber",
 "description": "Генератор случайных чисел с использованием блоков блокчейна Cyber",
-"in_menu": "ГСЧ"
+"in_menu": "ГСЧ",
+"category": "tools"
 }

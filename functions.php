@@ -73,7 +73,7 @@ global $conf;
       $blockchain_styles = '';
 $blockchain_snippet = '';
       if (!empty($url)) {
-        if (count($url) >= 2) {
+        if (count($url) >= 1) {
           if (is_dir(__DIR__.'/blockchains/'.$url[0].'/js')) {
       $scripts = dirScanner(__DIR__.'/blockchains/'.$url[0].'/js');
       foreach($scripts as $script) {
@@ -111,6 +111,7 @@ $blockchain_snippet = '';
 
   if (count($url) == 1 && file_exists(__DIR__.'/blockchains/'.$url[0].'/index.html')) {
 $data = configs(__DIR__.'/blockchains/'.$url[0].'/config.json');
+$data['scripts'] = $blockchain_scripts;
 $data['content'] = $blockchain_snippet;
 $data['content'] .= file_get_contents(__DIR__.'/blockchains/'.$url[0].'/content.html');
 } else if (count($url) == 2 && file_exists(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/index.php')) {
@@ -170,15 +171,37 @@ return $obj;
 
 function generateMenu() {
 global $conf;
-  $str = '';
-  if (!pageUrl()) {
-$blockchains = dirScanner(__DIR__.'/blockchains');
-foreach ($blockchains as $blockchain) {
-$blockchain_config = configs(__DIR__.'/blockchains/'.$blockchain.'/config.json');
-  $str .= '<li><a href="'.$conf['siteUrl'].$blockchain.'">'.$blockchain_config['in_menu'].'</a></li>';
-}
+  $file = file_get_contents(__DIR__.'/menu.json');
+$menu = json_decode($file, TRUE);
+$str = '';
+if (!pageUrl()) {
+  foreach ($menu as $key => $val) {
+    $str .= '<li><a href="'.$conf['siteUrl'].$key.'">'.$val['name'].'</a></li>';
+  }
 } else {
-  if (is_dir(__DIR__.'/blockchains/'.pageUrl()[0].'/apps')) {
+  $services = $menu[pageUrl()[0]]['services'];
+foreach ($services as $key => $val) {
+  if ($key == 'no_category' || $key == '') {
+    foreach ($val as $permlink => $ankor) {
+      if ($permlink != 'name') {
+        $str .= '<li><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'">'.$ankor.'</a></li>';
+      } // if not no_category name
+    } // foreach no_category services
+  } // if no_category
+else {
+  $str .= '<li><a class="tt" onclick="spoiler(`'.$key.'`); return false;">'.$val['name'].'</a>
+<ul id="'.$key.'" class="terms" style="display: none;">
+';
+  foreach ($val as $permlink => $ankor) {
+    if ($permlink != 'name') {
+      $str .= '<li><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'">'.$ankor.'</a></li>';
+    } // if not category name
+  } // foreach category services
+$str .= '</ul></li>';
+}
+} // end foreach services
+} // end if app
+/*   if (is_dir(__DIR__.'/blockchains/'.pageUrl()[0].'/apps')) {
     $apps = dirScanner(__DIR__.'/blockchains/'.pageUrl()[0].'/apps');
   foreach ($apps as $app) {
   $app_config = configs(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/'.$app.'/config.json');
@@ -190,8 +213,8 @@ $blockchain_config = configs(__DIR__.'/blockchains/'.$blockchain.'/config.json')
     $blockchain_config = configs(__DIR__.'/blockchains/'.$blockchain.'/config.json');
     $str .= '<li><a href="'.$conf['siteUrl'].$blockchain.'">'.$blockchain_config['in_menu'].'</a></li>';
   }
-}
-}
+} */
+
 return $str;
 }
 
@@ -222,4 +245,20 @@ function isJSON($string) {
   return is_string($string) && is_array($json) ? ['approve' => true, 'data' => $json] : ['approve' => false, 'data' => $string];
 }
 
+function to_menu($blockchain, $permlink, $ankor, $category = 'no_category') {
+if ($blockchain != 'favicon.ico') {
+  $file = file_get_contents(__DIR__.'/menu.json');
+  $taskList = json_decode($file, TRUE);
+unset($file);
+if ($blockchain == $permlink) {
+  $taskList[$blockchain]['name'] = $ankor;
+} else {
+  $categories = ['no_category' => '', 'reytings' => 'Рейтинги', 'tools' => 'Инструменты', 'info' => 'Информация'];
+  $taskList[$blockchain]['services'][$category]['name'] = $categories[$category];
+  $taskList[$blockchain]['services'][$category][$permlink] = $ankor;
+}
+file_put_contents(__DIR__.'/menu.json', json_encode($taskList, JSON_UNESCAPED_UNICODE));
+unset($taskList);
+}
+}
 ?>

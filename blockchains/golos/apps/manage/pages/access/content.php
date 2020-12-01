@@ -7,6 +7,7 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'golos/manage/workers">Заявки воркеров</a></th><th><a href="'.$conf['siteUrl'].'golos/manage/subscribes">Подписки</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/create-account">Создать аккаунт</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/reset-keys">Сброс ключей</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/multisig">Мультисиг</a></th>
 </tr></table>
 <style>.hidden{display:none;}</style>
 <script src="'.$conf['siteUrl'].'blockchains/golos/apps/manage/pages/access/dostup.js"></script>

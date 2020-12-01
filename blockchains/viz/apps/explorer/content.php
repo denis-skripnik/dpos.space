@@ -64,7 +64,8 @@ $chf['inflation_witness_percent'] = 'Доля эмиссии, идущая на 
       $chf['withdraw_intervals'] = 'Количество интервалов для уменьшения капитала';
 foreach ($chain_mass as $prop => $prop_value) {
   if ($prop !== 'min_curation_percent' && $prop !== 'max_curation_percent' && $prop !== 'flag_energy_additional_cost') {
-  $content .= '<li>'.$chf[$prop].': '.$prop_value.'</li>';
+  if ($prop === 'vote_accounting_min_rshares') $prop_value /= 1000000;
+    $content .= '<li>'.$chf[$prop].': '.$prop_value.'</li>';
   }
 }
 $content .= '</ul>

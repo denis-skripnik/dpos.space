@@ -75,7 +75,7 @@ $('#actions').append(`<li><a href="https://dpos.space/golos/swap/${token}" targe
 }
 
 var link_state = {};
-async function spoiler(t) {
+async function actionsSpoiler(t) {
     let token = $(t).attr('data-token');
     let tipe = $(t).attr('data-tipe');
     style = document.getElementById('actions').style;
@@ -238,12 +238,12 @@ let balances_table = '';
       } else {
         if (token.name === 'GP') name = 'СГ';
         balances_table += `<tr>
-<td><a class="spoiler" data-tipe="main_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_main_${token.name}">${token.main_balance}</span> ${name}</a></td>`;
+<td><a class="spoiler" data-tipe="main_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_main_${token.name}">${token.main_balance}</span> ${name}</a></td>`;
         if (token.tip_balance && token.claim_balance) {
-          balances_table += `<td><a class="spoiler" data-tipe="tip_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${token.name}</a> (<a class="spoiler"data-tipe="claim_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_claim_${token.name}">${token.claim_balance}</span> ${name} в CLAIM</a>)</td>
+          balances_table += `<td><a class="spoiler" data-tipe="tip_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${token.name}</a> (<a class="spoiler"data-tipe="claim_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_claim_${token.name}">${token.claim_balance}</span> ${name} в CLAIM</a>)</td>
         `;
         } else if (token.tip_balance && !token.claim_balance) {
-          balances_table += `<td><a class="spoiler"data-tipe="tip_balance" data-token="${token.name}" onclick="spoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${name}</a></td>
+          balances_table += `<td><a class="spoiler"data-tipe="tip_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${name}</a></td>
         `;
         } else {
           balances_table += `<td></td>

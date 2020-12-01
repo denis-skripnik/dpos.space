@@ -1,5 +1,6 @@
 {
 "title": "Бекап постов в Steem",
 "description": "Резервное копирование постов в Steem.",
-"in_menu": "Бекап постов"
+"in_menu": "Бекап постов",
+"category": "tools"
 }

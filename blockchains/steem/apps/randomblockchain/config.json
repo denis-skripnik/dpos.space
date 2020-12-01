@@ -1,5 +1,6 @@
 {
 "title": "Генератор случайных чисел randomblockchain для Steem",
 "description": "Генератор случайных чисел с использованием блоков блокчейна Steem.",
-"in_menu": "ГСЧ"
+"in_menu": "ГСЧ",
+"category": "tools"
 }

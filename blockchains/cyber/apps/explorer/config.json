@@ -1,5 +1,6 @@
 {
 "title": "Блок-эксплорер для Cyber",
 "description": "block explorer (просмотр блоков) в Cyber",
-"in_menu": "Блок-эксплорер"
+"in_menu": "Блок-эксплорер",
+"category": "no_category"
 }

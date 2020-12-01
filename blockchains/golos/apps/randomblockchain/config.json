@@ -1,5 +1,6 @@
 {
 "title": "Генератор случайных чисел randomblockchain для Golos",
 "description": "Генератор случайных чисел с использованием блоков блокчейна Golos",
-"in_menu": "ГСЧ"
+"in_menu": "ГСЧ",
+"category": "tools"
 }

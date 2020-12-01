@@ -10,23 +10,32 @@ $data = [];
 $data['title'] = $page_config['title'].' '.$user;
 $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
-<table><tr><th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'">Основное</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/transfers">Переводы средств</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/gp">Сила Голоса</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/dao">ДАО</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/donates">Донаты</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/author-rewards">Авторские награды</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/curation-rewards">Кураторские награды</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/benefactor-rewards">Бенефициарские</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/votes">Апы и флаги</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/accounts">Аккаунты</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/new-posts">Новые посты</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/old-posts">Получившие выплаты посты</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/feed">Посты подписок</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/comments">Комментарии</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/witness">Делегат</a></th>
-<th><a href="'.$conf['siteUrl'].'golos/profiles/'.$user.'/orders">Ордера на dex</a></th>
-</tr></table>
+<p>Выберите страницу в выпадающем списке и нажмите на кнопку "открыть".</p>
+<form method="post">
+<input type="hidden" name="chain" value="golos">
+<input type="hidden" name="service" value="profiles">
+<input type="hidden" name="user" value="'.$user.'">
+<p><label for="page">Страница:<br>
+<select name="page">
+<option value="">Основное</option>
+<option value="transfers>Переводы средств</option>
+<option value="gp">Сила Голоса</option>
+<option value="dao">ДАО</option>
+<option value="donates">Донаты</option>
+<option value="author-rewards">Авторские награды</option>
+<option value="curation-rewards">Кураторские награды</option>
+<option value="benefactor-rewards">Бенефициарские награды</option>
+<option value="votes">Апвоты и флаги</option>
+<option value="accounts">Аккаунты</option>
+<option value="new-posts">Новые посты</option>
+<option value="old-posts">Получившие выплаты посты</option>
+<option value="feed">Посты подписок</option>
+<option value="comments">Комментарии</option>
+<option value="witness">Делегат</option>
+<option value="orders">Ордера на dex</option>
+</select></label></p>
+<p><input type="submit" value="Открыть"></p>
+</form>
 <p align="center"><strong><a data-fancybox data-src="#donate_modal_content" href="javascript:;">Донат</a></strong></p>
 ';
 $pages .= file_get_contents($conf['siteUrl'].'blockchains/golos/apps/profiles/donate.php');

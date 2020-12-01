@@ -7,7 +7,8 @@ return '<h2>Выберите страницу</h2>
 <th><a href="'.$conf['siteUrl'].'viz/manage/create-account">Создать аккаунт/субаккаунт</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/access">Доступы аккаунта</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/reset-keys">Сброс ключей</a></th>
-<th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Ммножество инвайтов (чеков)</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Множество инвайтов (чеков)</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/manage/multisig">Мультисиг</a></th>
 </tr></table>
 <h2>Управление блокчейном и профилем</h2>
 <h3>Профиль</h3>

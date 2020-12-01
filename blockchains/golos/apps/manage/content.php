@@ -7,6 +7,7 @@ return '<h2>Выберите страницу</h2>
 <th><a href="'.$conf['siteUrl'].'golos/manage/create-account">Создать аккаунт</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/access">Доступы аккаунта</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/reset-keys">Сброс ключей</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/multisig">Мультисиг</a></th>
 </tr></table>
 <h2>Управление блокчейном и профилем</h2>
 <h3>Профиль</h3>

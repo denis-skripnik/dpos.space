@@ -24,6 +24,12 @@ class GolosApiMethods
                 '0' => ['array'], //authors
             ]
         ],
+        'get_accounts_balances'                          => [
+            'apiName' => 'database_api',
+            'fields'  => [
+                '0' => ['array'], //authors
+            ]
+        ],
         'get_account_count'                     => [
             'apiName' => 'database_api',
             'fields'  => []

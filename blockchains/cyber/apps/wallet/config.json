@@ -1,5 +1,6 @@
 {
 "title": "Кошелёк",
 "description": "Кошелёк для Cyber: просмотр баланса и перевод средств.",
-"in_menu": "Кошелёк"
+"in_menu": "Кошелёк",
+"category": "no_category"
 }

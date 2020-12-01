@@ -3,6 +3,7 @@ global $conf;
 use GrapheneNodeClient\Tools\Reputation;
 
 require 'snippets/get_account.php';
+require 'snippets/get_account_balances.php';
 require 'snippets/get_dynamic_global_properties.php';
 require 'snippets/get_chain_properties.php';
 require 'snippets/get_config.php';
@@ -50,8 +51,11 @@ $all_shares = $minus_shares + (float)$sp;
 date_default_timezone_set('UTC');
 $server_time = time();
 
+$uia = balances($user);
+
 $content .=  '<h2><a name="contents">Оглавление</a></h2>
 <nav><ul><li><a href="#data1">Экономика</a></li>
+<li><a href="#data12">UIA активы</a></li>
 <li><a href="#data2">Профиль</a></li>
 <li><a href="#data3">Статистика</a></li></ul></nav>
 <h2><a name="data1">Экономика</a></h2>';
@@ -338,6 +342,23 @@ $content .=  '<tr>
 <td><a data-fancybox class="ajax_modal" data-src="#ajax_modal_content" href="javascript:;" data-url="'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/delegat.php" data-params="user='.$user.'&siteUrl='.$conf['siteUrl'].'">'.$datas['witnesses_voted_for'].'</a></td></tr>
 </table>
 <p align="center"><a href="#contents">К меню</a></p>
+<h2><a name="data12">UIA активы</a></h2>';
+if ($uia != false) {
+    $content .= '<table><thead><tr><th>Название</th><th>Основной баланс</th><th>TIP-баланс</th></tr></thead></tbody>';
+    foreach ($uia as $token => $balances) {
+        if ((float)$balances['balance'] != 0 && (float)$balances['tip_balance'] != 0 || (float)$balances['balance'] != 0 && (float)$balances['tip_balance'] == 0 || (float)$balances['balance'] == 0 && (float)$balances['tip_balance'] != 0) {
+    $content .= '<tr>
+    <td>'.$token.'</td>
+    <td>'.$balances['balance'].'</td>
+    <td>'.$balances['tip_balance'].'</td>
+    </tr>';
+}
+    }
+$content .= '</tbody></table>';
+} else {
+    $content .= '<p>У этого аккаунта нет UIA активов, которые он когда-либо получал.</p>';
+}
+$content .= '<p align="center"><a href="#contents">К меню</a></p>
 <h2><a name="data2">Профиль</a></h2>
 <table><tr><th>Название</th><th>Значение</th></tr>
 <tr>

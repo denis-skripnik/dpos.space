@@ -10,6 +10,7 @@ use GrapheneNodeClient\Connectors\ConnectorInterface;
  * @method Commands broadcast_transaction()
  * @method Commands broadcast_transaction_synchronous()
  * @method Commands get_accounts()
+  * @method Commands get_accounts_balances()
  * @method Commands get_account_count()
  * @method Commands get_account_history()
  * @method Commands get_account_votes()

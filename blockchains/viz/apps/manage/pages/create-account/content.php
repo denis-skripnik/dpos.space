@@ -7,7 +7,8 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/manage/workers">Заявки воркеров</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/access">Доступы аккаунта</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/reset-keys">Сброс ключей</a></th>
-<th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Ммножество инвайтов (чеков)</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Множество инвайтов (чеков)</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/manage/multisig">Мультисиг</a></th>
 </tr></table>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>

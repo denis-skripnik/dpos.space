@@ -1,5 +1,6 @@
 {
 "title": "Поиск viz-links",
 "description": "Сервис по поиску на основе использования api сервиса viz-links",
-"in_menu": "Поиск viz-links"
+"in_menu": "Поиск viz-links",
+"category": "tools"
 }

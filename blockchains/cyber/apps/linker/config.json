@@ -1,5 +1,6 @@
 {
 "title": "Создатель ссылок в Cyber",
 "description": "Сервис Линкер - создаёт ссылки из 2 ipfs хешей, для Cyber.",
-"in_menu": "Линкер"
+"in_menu": "Линкер",
+"category": "tools"
 }

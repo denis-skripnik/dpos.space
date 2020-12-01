@@ -7,6 +7,7 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'golos/manage/create-account">Создать аккаунт</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/access">Доступы аккаунта</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/reset-keys">Сброс ключей</a></th>
+<th><a href="'.$conf['siteUrl'].'golos/manage/multisig">Мультисиг</a></th>
 </tr></table>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
 <div id="posting_page">
