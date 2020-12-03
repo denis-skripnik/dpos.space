@@ -107,7 +107,7 @@ if (pageUrl()[3] == 'yes2') {
 
 			// открываем файл, если файл не существует,
 //делается попытка создать его
-$filename = $put1.$postnum."_".$class_content['permlink'];
+$filename = $put1.$class_content['id']."_".$class_content['permlink'];
 $fp = fopen($filename.".txt", "w");
 
 // записываем в файл текст
@@ -129,7 +129,7 @@ fclose($fp);
 } else if (pageUrl()[3] == 'yes3') {
 // открываем файл, если файл не существует,
 //делается попытка создать его
-$filename = $put1.'/'.$postnum."_".$class_content['permlink'];
+$filename = $put1.'/'.$class_content['id']."_".$class_content['permlink'];
 $fp = fopen($filename.".txt", "w");
 // записываем в файл текст
 fwrite($fp, "Заголовок: ".$class_content['title']."\r\n"."Текст:"."\r\n".$class_content['body']."\r\n"."Теги:"."\r\n");
@@ -213,7 +213,7 @@ if (pageUrl()[3] == 'yes2') {
 if ($content['author'] == pageUrl()[2]) {
 // открываем файл, если файл не существует,
 //делается попытка создать его
-$filename = $app_dir."/users/".pageUrl()[2]."/".$postnum."_".$content['permlink'];
+$filename = $app_dir."/users/".pageUrl()[2]."/".$content['id']."_".$content['permlink'];
 $fp = fopen($filename.".html", "w");
 
 $markdown_text = generate_html_text($content['body']);
@@ -237,7 +237,7 @@ fclose($fp);
 } else if (pageUrl()[3] == 'yes3') {
 // открываем файл, если файл не существует,
 //делается попытка создать его
-$filename = $app_dir."/users/".pageUrl()[2]."/".$postnum."_".$content['permlink'];
+$filename = $app_dir."/users/".pageUrl()[2]."/".$content['id']."_".$content['permlink'];
 $fp = fopen($filename.".html", "w");
 
 $markdown_text = generate_html_text($content['body']);

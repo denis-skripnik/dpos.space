@@ -26,9 +26,8 @@ require __DIR__.'/snippets/getRewardFund.php';
  $RewardFund_mass = $RewardFund_res['result'];
   $config_res = $config_command->execute($config_commandQuery); 
  $config_mass = $config_res['result'];
-
   // Расчет hive_per_vests
-  $tvfs = (float)$mass3['total_vesting_fund_steem'];
+  $tvfs = (float)$mass3['total_vesting_fund_hive'];
   $tvsh = (float)$mass3['total_vesting_shares'];
   
   $hive_per_vests = 1000000 * $tvfs / $tvsh;
@@ -59,7 +58,7 @@ echo "<p>Стоимость апвота: $dasdas_golos HIVE, $dasdas_gbg HBD</p
     $mass3 = $res3['result'];
    
      // Расчет hive_per_vests
-     $tvfs = (float)$mass3['total_vesting_fund_steem'];
+     $tvfs = (float)$mass3['total_vesting_fund_hive'];
      $tvsh = (float)$mass3['total_vesting_shares'];
      
      $hive_per_vests = 1000000 * $tvfs / $tvsh;

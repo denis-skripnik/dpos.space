@@ -30,40 +30,23 @@ posts;<br></li>
 </form>';
 
 require $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
-require_once $_SERVER['DOCUMENT_ROOT'] . '/helpers.php';
+require_once __DIR__.'/get_account_history_chunk.php';
 require_once __DIR__.'/functions.php';
 
-use GrapheneNodeClient\Commands\Single;
-use GrapheneNodeClient\Commands\CommandQueryData;
-use GrapheneNodeClient\Commands\Single\GetAccountHistoryCommand;
+$rowCount = 0;
 
-$connector_class = CONNECTORS_MAP['golos'];
-$commandQuery = new CommandQueryData();
-        
-$query = ['select_ops' => ['transfer']];
-$method_data = [
-        '0' => ($amount_account ?? $amount_account ?? ""), //authors
-                '1' => -1, //from
-                '2' => 10000, //limit max 2000
-                '3' => $query,
-        ];
+$startWith = $_REQUEST['start'] ?? 300000000;
 
-        $commandQuery->setParams($method_data);
+    $res = getAccountHistoryChunk($amount_account, $startWith, ['select_ops' => ['transfer', 'transfer_to_vesting','claim','transfer_from_tip','transfer_to_tip','invite','invite_claim']]);
 
-if(!empty($connector_class)){
-$connector = new $connector_class();
-}
+    $mass = $res['result'];
 
-if(!empty($connector)){
-$command = new GetAccountHistoryCommand($connector);
-}
-$res = $command->execute($commandQuery); 
- $mass = $res['result'];
+    krsort($mass);
 
  foreach ($mass as $datas) {
 $op = $datas[1]['op'];
 $tokens3 = "5.000 GOLOS";
-if ($op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === $tokens3 or ($op['1']['amount'] ?? $op['1']['amount'] ?? "") === "3.000 GBG") && $op['1']['memo'] === "posts") {
+if ($op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === $tokens3) && $op['1']['memo'] === "posts") {
         if (isset($op) ){
 $contentformat = pageUrl()[4];
 if ($contentformat == 'Markdown') {

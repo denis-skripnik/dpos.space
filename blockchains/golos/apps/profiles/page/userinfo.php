@@ -346,17 +346,17 @@ $content .=  '<tr>
 if ($uia != false) {
     $content .= '<table><thead><tr><th>Название</th><th>Основной баланс</th><th>TIP-баланс</th></tr></thead></tbody>';
     foreach ($uia as $token => $balances) {
-        if ((float)$balances['balance'] != 0 && (float)$balances['tip_balance'] != 0 || (float)$balances['balance'] != 0 && (float)$balances['tip_balance'] == 0 || (float)$balances['balance'] == 0 && (float)$balances['tip_balance'] != 0) {
     $content .= '<tr>
     <td>'.$token.'</td>
     <td>'.$balances['balance'].'</td>
     <td>'.$balances['tip_balance'].'</td>
     </tr>';
-}
     }
 $content .= '</tbody></table>';
 } else {
-    $content .= '<p>У этого аккаунта нет UIA активов, которые он когда-либо получал.</p>';
+    $content .= '<p><br>
+У этого аккаунта нет UIA активов, которые он когда-либо получал.<br>
+</p>';
 }
 $content .= '<p align="center"><a href="#contents">К меню</a></p>
 <h2><a name="data2">Профиль</a></h2>

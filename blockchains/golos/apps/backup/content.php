@@ -1,9 +1,10 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-$amount_account = 'golos-backup';
+$amount_account = 'null';
 return '<h2>Список действий</h2>
 <ol><li>Перейдите на страницу своего аккаунта в <a href="https://golos.id" target="_blank">golos.id</a>;</li>
 <li>Отправьте 3 GBG или 5 GOLOS на аккаунт @'.$amount_account.'. Заметка (memo):<br />
-posts;<br></li>
+posts;<br>
+<strong>ВНИМАНИЕ: донаты не принимаются (только ликвид)</strong></li>
 <li>Введите логин в форме ниже</li>
 <li>Выберите вариант получения репостов в списке материалов.</li></ol>
 <h2><strong>Важно:</strong></h2>
