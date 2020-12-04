@@ -111,7 +111,7 @@ $filename = $put1.$class_content['id']."_".$class_content['permlink'];
 $fp = fopen($filename.".txt", "w");
 
 // записываем в файл текст
-fwrite($fp, "Заголовок: ".$class_content['title']."\r\n"."Текст:"."\r\n".$class_content['body']."\r\n"."Теги:"."\r\n");
+fwrite($fp, "Заголовок: ".$class_content['title']."\r\n"."Создан: ".$class_content['created']."\r\n"."Текст:"."\r\n".$class_content['body']."\r\n"."Теги:"."\r\n");
 
 $metadata = json_decode($class_content['json_metadata'], true);
 if (!empty($metadata['tags'])) {
@@ -132,7 +132,7 @@ fclose($fp);
 $filename = $put1.'/'.$class_content['id']."_".$class_content['permlink'];
 $fp = fopen($filename.".txt", "w");
 // записываем в файл текст
-fwrite($fp, "Заголовок: ".$class_content['title']."\r\n"."Текст:"."\r\n".$class_content['body']."\r\n"."Теги:"."\r\n");
+fwrite($fp, "Заголовок: ".$class_content['title']."\r\n"."Создан: ".$class_content['created']."\r\n"."Текст:"."\r\n".$class_content['body']."\r\n"."Теги:"."\r\n");
 
 $metadata = json_decode($class_content['json_metadata'], true);
 if (isset($metadata['tags'])) {
@@ -219,7 +219,7 @@ $fp = fopen($filename.".html", "w");
 $markdown_text = generate_html_text($content['body']);
 
 // записываем в файл текст
-fwrite($fp, "Заголовок: ".$content['title']."<br>"."Текст:"."<br>".$markdown_text."<br>"."Теги:"."<br>");
+fwrite($fp, "<header><h1>".$content['title']."</h1><p>Создан: ".$content['created']."</p></header><main>"."<br>".$markdown_text."</main><footer>"."Теги:"."<br>");
 
 $metadata = json_decode($content['json_metadata'], true);
 if (isset($metadata['tags'])) {
@@ -231,6 +231,7 @@ $taging .= transliteration($teg, 'torus').' ';
 }
 	fwrite($fp, $taging);
 }
+fwrite($fp, '</footer>');
 // закрываем
 fclose($fp);
 }
@@ -243,7 +244,7 @@ $fp = fopen($filename.".html", "w");
 $markdown_text = generate_html_text($content['body']);
 
 // записываем в файл текст
-fwrite($fp, "Заголовок: ".$content['title']."<br>"."Текст:"."<br>".$markdown_text."<br>"."Теги:"."<br>");
+fwrite($fp, "<header><h1>".$content['title']."</h1><p>Создан: ".$content['created']."</p></header><main>"."<br>".$markdown_text."</main><footer>"."Теги:"."<br>");
 
 $metadata = json_decode($content['json_metadata'], true);
 if (isset($metadata['tags'])) {
@@ -255,6 +256,7 @@ $taging .= transliteration($teg, 'torus').' ';
 }
 	fwrite($fp, $taging);
 }
+fwrite($fp, '</footer>');
 // закрываем
 fclose($fp);
 } else { }

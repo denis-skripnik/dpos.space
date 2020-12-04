@@ -253,7 +253,7 @@ unset($file);
 if ($blockchain == $permlink) {
   $taskList[$blockchain]['name'] = $ankor;
 } else {
-  $categories = ['no_category' => '', 'reytings' => 'Рейтинги', 'tools' => 'Инструменты', 'info' => 'Информация'];
+  $categories = ['no_category' => '', 'reytings' => 'Рейтинги', 'tools' => 'Инструменты', 'info' => 'Информация', 'games' => 'Игры'];
   $taskList[$blockchain]['services'][$category]['name'] = $categories[$category];
   $taskList[$blockchain]['services'][$category][$permlink] = $ankor;
 }
