@@ -4,13 +4,13 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 												<div id="active_page">
                         <div id="main_wallet_info" style="display: none;">
                         <h2>Балансы пользователя <span id="username"></span></h2>
-                        <p>Баланс: <a class="tt" onclick="spoiler(`balance_actions`); return false"><span class="viz_balance"></span> VIZ</a>, социальный капитал: <a class="tt" onclick="spoiler(`shares_actions`); return false"><span class="viz_vesting_shares"></span> Ƶ</a></p>
-                                                <ul id="balance_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#viz_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести viz</a></li>
+                        <p>Баланс: <a class="tt" onclick="spoiler(`balance_actions`, `walletSpoiler`); return false"><span class="viz_balance"></span> VIZ</a>, социальный капитал: <a class="tt" onclick="spoiler(`shares_actions`, `walletSpoiler`); return false"><span class="viz_vesting_shares"></span> Ƶ</a></p>
+                                                <ul id="balance_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#viz_transfer_modal" href="javascript:;" onclick="getTransferTemplates();">Перевести viz</a></li>
                                                 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">viz в соц. капитал этого аккаунта</a></li>
                                                 <li><a data-fancybox data-src="#create_invite_form_modal" href="javascript:;">Создать инвайт-код</a></li>
 <li><a data-fancybox data-src="#viz_diposit_modal" href="javascript:;">Пополнить счёт</a></li>
 </ul>
-<ul id="shares_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод соц. капитал в viz</a></li>
+<ul id="shares_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод соц. капитал в viz</a></li>
                                                 <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать</a></li>
 </ul>
 <div style="display: none;" id="viz_diposit_modal">
@@ -18,7 +18,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
 <p><strong>Пополнение производится с использованием инвайт-кодов. Получить за фиат или криптовалюту их вы сможете, обратившись к пользователям viz, например, к создателю liveblogs.</strong></p>
 <div id="action_vesting_diposit">
-<form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+<form class="form" name="postForm">
 <p><label for="invite_secret">Инвайт-код (Начинается с 5):</label></p>
 <p><input type="text" name="invite_secret" id="invite_secret" placeholder="5K..." onchange="getInviteWithForm()"></p>
 <p id="invite_code_data"></p>                                                
@@ -33,7 +33,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                 <div id="action_vesting_withdraw">
                                                 <p><strong>Предупреждение: если у вас сейчас уже есть вывод, отправка этой формы сбросит сумму на вывод.</strong></p>
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="vesting_withdraw_amount">Сумма на вывод (<span id="max_vesting_withdraw">Вывести все доступные <span id="max_vesting_withdraw_result"></span> SHARES</span>):</label></p>
                                                 <p><input type="text" name="vesting_withdraw_amount" id="action_vesting_withdraw_amount" placeholder="1.000000"></p>
                                                  <p><input type="button" id="action_vesting_withdraw_start" value="Начать вывод"></p>
@@ -44,7 +44,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <h4 class="modal-title">Перевод viz на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_viz_transfer">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
 <p><select name="transfer_template" id="select_transfer_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
@@ -66,7 +66,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <div style="display: none;" id="to_shares_transfer_modal">
                                                       <h4 class="modal-title">Перевод viz в SHARES этого аккаунта</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_to_shares_transfer"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                      <div id="action_to_shares_transfer"><form class="form" name="postForm">
                                                  <p><label for="to_shares_transfer_amount">Количество viz (<span id="max_to_shares_transfer">Все доступные <span class="viz_balance"></span> viz</span>):</label></p>
                                                 <p><input type="text" name="to_shares_transfer_amount" id="action_to_shares_transfer_amount" placeholder="1.000"></p>
                                                  <p><input type="button" id="action_to_shares_transfer_start" value="Начать перевод"></p>
@@ -75,7 +75,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <div style="display: none;" id="vesting_delegate_modal">
                                                       <h4 class="modal-title">Делегирование SHARES</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <div id="action_vesting_delegate"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <div id="action_vesting_delegate"><form class="form" name="postForm">
                                                 <p><label for="vesting_delegate_to">Кому:</label></p>
                                                 <p><input type="text" name="vesting_delegate_to" id="action_vesting_delegate_to" placeholder="Введите получателя"></p>
                                                  <p><label for="vesting_delegate_amount">Сумма делегирования (<span id="max_vesting_delegate">Делегировать все доступные <span id="max_vesting_deligate"></span> SHARES</span>):</label></p>
@@ -87,7 +87,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <h4 class="modal-title">Создание инвайта</h4>
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
 <p>Инвайты могут использоваться при регистрации и для перевода в баланс</p>
-<div id="create_invite"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+<div id="create_invite"><form class="form" name="postForm">
 <p><label for="create_invite_balance">Баланс инвайта (<span id="max_invite_balance">В баланс инвайта все доступные <span class="viz_balance"></span> viz</span>):</label></p>
 <p><input type="text" name="create_invite_balance" id="create_invite_amount" placeholder="1.000"></p>
 <p><label for="create_invite_key">Инвайт-код:</label></p>

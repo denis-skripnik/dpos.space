@@ -10,7 +10,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <p id="balances"></p>
 <h2>Перевод средств</h2>
 <div id="result"></div>
-<form name="transfer">
+<form class="form" name="transfer">
 <p><input type="text" name="to" id="to" value="" placeholder="Введите адрес получателя" required></p>
 <p><input type="text" name="amount" id="amount" value="" placeholder="Введите сумму (число)" required></p>
 <p><input type="button" id="submit_transfer" value="Отправить" onclick="sendTransfer(this.form.to.value, this.form.amount.value)" disabled></p>

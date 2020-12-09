@@ -13,7 +13,7 @@ return '<h2>Страницы сервиса</h2>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 <div id="posting_page">
 <h2>Заполните профиль</h2>
-<form class="profile-update" action="" name="postForm" method="POST" id="postForm" onsubmit="return false">
+<form class="form" class="profile-update" action="" name="postForm" method="POST" id="postForm" onsubmit="return false">
 <h3>Основное:</h3>
 										<div class="form-group1">
 											<p><label for="nickname">Отображаемое имя (публичное): 

@@ -10,7 +10,7 @@
 <h2 class="tt" onclick="spoiler(`witness_activation`); return false">Активация/деактивация и указание url</h2>
 <div id="witness_activation" class="terms" style="display: none;">
 <p>В поле "публичный ключ делегата" впишите ваш ключ делегата, который генерировали при запуске Ноды. Он должен начинаться с STEEM. Если хотите отключить делегата, оставьте поле пустым.</p>
-<form>
+<form class="form">
 <p><label for="witness_url">Url делегата (Страница с подробной информацией о делегате и его деятельности): 
 <input type="text" name="witness_url" value="" placeholder="Url делегата"></label></p>
 <p><label for="witness_key">Публичный ключ делегата: 
@@ -20,7 +20,7 @@
 </div>
 <h2 class="tt" onclick="spoiler(`witness_props`); return false">Параметры делегата</h2>
 <div id="witness_props" class="terms" style="display: none;">
-<form name="props_form">
+<form class="form" name="props_form">
 <div id="props_list"></div>
 <p><input type="button" id="save_props" value="Сохранить"></p>
 </form>

@@ -1,0 +1,469 @@
+.tab.active a,article,aside,details,figcaption,figure,footer,header,hgroup,main,menu,nav,section,summary{display:block}#tabs,.tab{float:left}#tabs_content{box-sizing:border-box}a,abbr,acronym,address,applet,article,aside,audio,b,big,blockquote,body,canvas,caption,center,cite,code,dd,del,details,dfn,div,dl,dt,em,embed,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,html,i,iframe,img,ins,kbd,label,legend,li,mark,menu,nav,object,ol,output,p,pre,q,ruby,s,samp,section,small,span,strike,strong,sub,summary,sup,table,tbody,td,tfoot,th,thead,time,tr,tt,u,ul,var,video{border:0;font-size:100%;margin:0;padding:0;vertical-align:baseline}body{font:16px/24px Arial,sans-serif}h1{font-size:24px;margin-bottom:15px}th{border-bottom:3px solid gray}td{padding:1%}a{text-decoration:none}a:hover{color:#a4a7ac}tr:hover td{background:rgba(164,167,172,.1)}li{list-style-position:inside}ul{list-style:none}blockquote,q{quotes:none}blockquote:after,blockquote:before,q:after,q:before{content:'';content:none}table{border-collapse:collapse;border-spacing:0}p,ul{margin:0;padding:0}#tabs{background-color: #f2f2f2;border-radius: 6px 6px 0 0;font-size: 12px; list-style-type: none; margin-top: 10px;margin-bottom: 6px; width: 100%; position: relative; box-shadow: 0 0 5px #aaa}.tab{border: 1px solid #a4a7ac; border-radius: 6px 6px 0 0; background-color: #0371A8; color: #fff; font-size: 13px; font-weight: 500; padding: 6px 30px; margin: 5px 5px 0 0;}.tab:hover{color:#fff;cursor:pointer;background-color:#38414C;}#tabs_content{border:1px solid #a6a6a6;border-radius:3px;box-shadow:0 0 7px #5B6573;clear:both;color:#2f2f2f;padding:30px 10px 50px;position:relative;z-index:1000;width:100%;background:rgba(164,167,172,.1)}.tab_content{display:none}.tab_content.active{display:block; display: inline-table;} .tab_content.active>h2 {font-weight: 700; margin-bottom: 10px;} #tab_block {margin: 100px 30px 100px 95px;}.post_title{text-align:center}.post_content{padding:50px 10px}
+    /* max-width: 800px; */
+@media all and (max-width:1000px){#tab_block{margin:80px auto}td{border:1px solid #ccc;}img{width:90%!important;height:auto;display:block;margin:0 auto}}
+
+@media all and (max-width : 1224px) {}
+@media all and (max-width : 550px) {}
+
+
+/*Additional styles*/
+
+/*body*/
+
+body {background-color:#F2F2F2; font-family: Verdana; font-family: 'Arimo', sans-serif;}
+h1 {color: #1E2329; margin: 40px 0 25px 0;}
+h3 {margin: 0 0 5px 0;}
+input, button, select {font: 16px Verdana, sans-serif; border: 1px solid #bbb; border-radius: 4px; padding: 6px 12px;}
+th,td {padding: 5px 5px 0 7px; border: 1px solid #ccc;}
+th {border-bottom: 3px solid gray;}
+blockquote {margin: 16px 40px;}
+ul {list-style: inherit;}
+strong {font-weight: bold;}
+em {font-style: italic;}
+code {padding: 2px 4px; background-color: #edf3fb; border-radius: 0.3em;}
+
+@keyframes active {
+from {background-color:#ccc;}
+to {background:#a9a9a9;}
+}
+
+.spoy_load > input:hover+label, .spoy_load > input:active+label {
+   /* background:#777;*/ animation: active  0.7s forwards linear;}
+
+
+/*header*/
+/*menu*/
+#menu ul {margin: 10px 0px 10px 0px; padding: 0; display: inline-block;}
+#menu ul > li {list-style-position: inside; display: inline-block; margin: 10px; background-color: #0371A8; }
+#menu ul > li > a {text-decoration: none; color: #F1F1F1; display: inline-block; padding: 7px;}
+#menu ul > li > a:hover {background: #38414C;}
+
+/*CONTENT*/
+
+.content {margin: 1% 1% 1% 1%;}
+label > span {color: #D64B1F;}
+h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
+@media only screen and (min-width : 1224px) {.content {margin: 0 5% 5% 5%;}}
+.content > form > input {margin: 4px 0;}
+
+/*spoilers*/
+.spoy_load > h2 {display:inline;}
+.spoy_load > input{display:none;}
+.spoy_load > input + label , .spoy_load > .spoiler_body{/*background:#CCC;*/ margin:5px 15px;padding:6px 15px;overflow:hidden;width:100%;box-sizing: border-box; /*border: 1px solid #bbb;*/ border-radius: 4px; }
+.spoy_load > input + label + .spoiler_body{display:none;}
+.spoy_load > input:checked + label + .spoiler_body{display: block; background-color: #f3f3f3; color: #38414C; /*border-style: solid; border-width: 1px 1px 1px 1px;*/ margin: 10px 0; width: 50%; max-width: fit-content;}
+.spoy_load > .spoiler_body{/*background: #ccc;*/ display: block;}
+.spoy_load > label {cursor:pointer; display: inline; border-style: solid;  border-width: 1px; border-color: #ccc; background-color:#ccc; color:#38414C;}
+.spoy_load>div {cursor:default;}
+.spoy_load > #spoiler_links3 label {margin: 10px 0;}
+.fillfields > .spoy_load > input:checked + label + .spoiler_body {width:100%;}
+
+/*md-file uploading*/
+.custom-file-upload {border: 1px solid #bbb; border-radius: 4px; display: inline-block; padding: 6px 12px;   cursor: pointer;}
+#files {margin: 5px; padding: 5px; background-color:#ccc; display: none;}
+
+/*post editing*/
+.postedit {width: 50%; max-width: fit-content; margin: 15px 0;}
+.postedit >.spoy_load > input:checked + label + .spoiler_body {width: 100%; max-width: fit-content; padding: 0;}
+.postedit > div > label {display: inline-block; margin:0 0;}
+/*#postediturl, #load4edit {margin:0 0 5px 10px;}*/
+#postediturl {height: 20px; font: 16px Verdana, sans-serif; padding: 5px 10px; width: 250px;}
+
+/*post*/
+.ptitle {margin:30px 0 15px 0;}
+#content_title {height:20px; width: 97%; font: 16px Verdana, sans-serif; padding: 5px 10px;}
+#content_image  {height: 20px; width: 97%; font: 16px Verdana, sans-serif; padding: 5px 10px;}
+.ptext {margin:10px 0 0 0;}
+
+/*writing fields*/
+#content_tags, #permlink_filde, #content_payouts, #nick, #per  {height:20px; width: 30%; font: 16px Verdana, sans-serif; padding: 5px 10px;}
+ #content_payouts {border: 1px solid #bbb; border-radius: 4px; height:auto;}
+ #per {width: 20%;}
+
+ /*add settings*/
+.additional {display: block; margin: 25px 0;}
+.additional > .spoy_load > label {display: block; margin: 25px 0 0 0; max-width: fit-content;}
+.additional > .spoy_load > input:checked + label + .spoiler_body  {width: 100%; max-width:fit-content;}
+.additional h2 {font-weight: bold;}
+.additional > .spoy_load > .spoiler_body >p> button {padding: 6px 12px; margin: 10px 0;}
+
+.drdrop > input, .pperm > p > input, #load4edit  {border: 1px solid #ccc;
+    display: inline-block;
+    padding: 6px 12px;
+    cursor: pointer;}
+	
+/*login*/
+ #blockchain_login, #posting_key {height: 20px; width: 250px; font: 16px Verdana, sans-serif; padding: 5px 10px;}	
+
+#post-WLS-form {margin:15px 0;}
+#post-WLS-form > h2 {font: 20px Verdana, sans-serif;}
+
+.login {margin: 30px 0 10px 0;}
+.login h2 {font: 20px Verdana, sans-serif;}
+
+.psend {background-color: #BFF08E;
+	border: 1px solid #ccc;
+    display: inline-block;
+    padding: 6px 12px;
+    cursor: pointer;}
+	
+    .pclear {border: 1px solid #ccc;
+        display: inline-block;
+        padding: 6px 12px;
+        cursor: pointer;
+     background-color: #f36435;
+     margin: 20px 0 10px 0;}
+	
+.tab_content_active > h2 {font-size: 1.2em; margin-bottom: 15px;}
+.table > .tbody {background: #f2f2f2;}
+
+/* кликабельный текст */
+.tt {
+    color:#f70;
+    cursor: help
+}
+.tt:hover{
+    border-bottom:1px dashed green;
+    color:green;
+}
+
+*{
+    margin: 0;
+    padding: 0;
+  }
+  a{
+    text-decoration: none;
+  }
+  ul{
+    list-style: none;
+  }
+  
+.logo_image{
+  width: 100%;
+}
+
+  .body{
+    background-color: #f0f0f0;
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+  main{
+    flex: 1;
+  }
+  
+  
+  
+  /* Общий стиль контейнера, оборочивай в <div class='container'> весь код, чтобы разметку сохранить */
+  .container{
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* Стиль для header, просто задаем*/
+  .header{
+    height: 70px;
+    margin-top: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0px 0px 16px -3px #8A917E;
+    display: flex;
+    margin-bottom: 10px;
+  }
+  
+  /* Ограничение, чтоб картинка занимала 20px; */
+  .logo-container{
+    height: 100%;
+    width: 20%;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    margin-right: auto;
+  }
+  
+  /* Стили для списка меню */
+  .nav-list{
+    display: flex;
+    height: 100%;
+    align-items: center;
+  }
+  
+  /* стили для элементов списка меню */
+  .nav-link{
+    width:100%;
+    z-index:10;
+    padding-left:5px;
+    padding-right:5px;
+    height: 40px;
+    background-color: #383838;
+    border-radius: 10px;
+  }
+  /* отступы кроме последнего элемента */
+  .nav-link:not(:last-child){
+    margin-right: 10px;
+  }
+  /* стили при наведении */
+  .nav-link:hover{
+    background-color: black;
+  }
+
+  /* стили для ссылок списка меню */
+  .nav-item{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 500;
+  }
+  
+  /* ниже анимации и стили для бургера */
+  #sandwichmenu {
+    margin: 5px 0 0 0;
+    text-align: center;
+  }
+  .tpl_hamburger{
+    display: none;
+  }
+  .tpl_hamburger svg {
+    height: 40px;
+    width: 60px;
+  }
+  
+  .tpl_hamburger svg {
+    cursor: pointer;
+    height: 50px;
+    transform: translate3d(0px, 0px, 0px);
+    width: 80px;
+  }
+  
+  svg:not(:root) {
+    overflow: hidden;
+  }
+  
+  .tpl_hamburger path.top,
+  .tpl_hamburger path.bottom {
+    stroke-dasharray: 240px, 950px;
+  }
+  
+  .tpl_hamburger path {
+    fill: none;
+    stroke: #C6CADB;
+    stroke-dashoffset: 0;
+    stroke-linecap: round;
+    stroke-width: 40px;
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.25, -0.25, 0.75, 1.25) 0s, stroke-dasharray 0.5s cubic-bezier(0.25, -0.25, 0.75, 1.25) 0s;
+  }
+  
+  .tpl_hamburger path.middle {
+    stroke-dasharray: 240px, 240px;
+  }
+  
+  .tpl_hamburger path {
+    fill: none;
+    stroke: #C6CADB;
+    stroke-dashoffset: 0;
+    stroke-linecap: round;
+    stroke-width: 40px;
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.25, -0.25, 0.75, 1.25) 0s, stroke-dasharray 0.5s cubic-bezier(0.25, -0.25, 0.75, 1.25) 0s;
+  }
+  
+  .tpl_hamburger.active path.top,
+  .tpl_hamburger.active path.bottom {
+    stroke-dashoffset: -650px;
+  }
+  
+  .tpl_hamburger path.top,
+  .tpl_hamburger path.bottom {
+    stroke-dasharray: 240px, 950px;
+  }
+  
+  .tpl_hamburger.active path.middle {
+    stroke-dasharray: 1px, 220px;
+    stroke-dashoffset: -115px;
+  }
+  
+  .js_menu {
+    display: none;
+  }
+  
+  .js_menu.active {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .menu{
+    background-color: rgba(255, 255, 255, 0.08);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  /* конец */
+  
+  
+  
+  /* Хлебные крошки список */
+  .list{
+    display: flex;
+    align-items: center;
+    height: 30px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 40px;
+  }
+  
+  /* активная крошка */
+  .active-link{
+    font-size: 18px;
+    color: black;
+  }
+  
+  /* для ссылок хрошек стили */
+  .list-item{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #383838;
+    font-size: 18px;
+    border-bottom: 2px solid #383838;
+    margin-right: 10px;
+  }
+  
+  /* Для элементов крошек */
+  .list-link{
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+    color: black;
+    font-size: 20px;
+  }
+  
+  /* универсальный стиль для h */
+  .h1-main{
+    font-size: 34px;
+    font-weight: 600;
+    font-stretch: expanded;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  /* универсальный стиль для p */
+  .p-main{
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: black;
+  }
+  
+  /* стиль футера */
+  .footer{
+    min-height: 100px;
+    border-radius: 10px;
+    background-color: white;
+    box-shadow: 0px 0px 16px 0px #8A917E;
+    padding-top: 10px;
+  }
+  
+  .p-footer{
+    text-align: center;
+    color: black;
+  }
+  .a-footer{
+    border-bottom: 2px solid #383838;
+    color: black;
+    margin-right: 10px;
+  }
+  
+  /* ссылки на твоем сайте */
+  .profile{
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  
+  /* //соц сети и сайт */
+  .profile-social{
+    max-width: 30px;
+    margin-top: 10px;
+    margin-right: 10px;
+    margin-bottom: 5px;
+  }
+  
+  /* для форм */
+  .form-label{
+    margin-right: 10px;
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+  .form-group{
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .form-input{
+    border: 1px solid rgba(207, 207, 207, 1);
+    height: 40px;
+    width: 50%;
+    border-radius: 20px;
+    padding-left: 20px;
+  }
+  .form-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(207, 207, 207, 1);
+    border-color: rgba(207, 207, 207, 1);
+  
+  }
+  
+  /* для планшетов  и компов маленьких*/
+  @media (max-width: 1200px) {
+  
+    .list-item{
+      font-size: 14px;
+    }
+    .header{
+      margin-top: 0;
+    }
+    .container{
+      width: 100%;
+    }
+    .logo-container{
+      width: 50%;
+    }
+    .nav-link{
+      width: 70px;
+    }
+  
+  }
+  
+  
+  /* для мобилок */
+  @media (max-width: 760px) {
+  
+  .show{
+    display: flex;
+  }
+  .hidden{
+    display: none;
+  }
+  .nav-list{
+    flex-direction: column;
+    width: 100%;
+    padding: 0;
+  }
+  
+  .nav-link:not(:last-child){
+    margin-right: 0;
+  }
+  .nav-link{
+    width: 100%;
+    border-radius: 0;
+    margin-bottom: 2px;
+  }
+  .form-input{
+    width: 80%;
+  }
+  
+  }

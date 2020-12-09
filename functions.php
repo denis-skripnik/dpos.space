@@ -176,7 +176,7 @@ $menu = json_decode($file, TRUE);
 $str = '';
 if (!pageUrl()) {
   foreach ($menu as $key => $val) {
-    $str .= '<li><a href="'.$conf['siteUrl'].$key.'">'.$val['name'].'</a></li>';
+    $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].$key.'" class="nav-item">'.$val['name'].'</a></li>';
   }
 } else {
   $services = $menu[pageUrl()[0]]['services'];
@@ -184,37 +184,23 @@ foreach ($services as $key => $val) {
   if ($key == 'no_category' || $key == '') {
     foreach ($val as $permlink => $ankor) {
       if ($permlink != 'name') {
-        $str .= '<li><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'">'.$ankor.'</a></li>';
+        $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
       } // if not no_category name
     } // foreach no_category services
   } // if no_category
 else {
-  $str .= '<li><a class="tt" onclick="spoiler(`'.$key.'`); return false;">'.$val['name'].'</a>
-<ul id="'.$key.'" class="terms" style="display: none;">
+  $str .= '<li class="nav-link"><a class="nav-item" onclick="spoiler(`'.$key.'`, `subMenu`); return false;">'.$val['name'].'</a>
+<ul class="nav-list subMenu" id="'.$key.'" style="display: none;">
 ';
   foreach ($val as $permlink => $ankor) {
     if ($permlink != 'name') {
-      $str .= '<li><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'">'.$ankor.'</a></li>';
+      $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
     } // if not category name
   } // foreach category services
 $str .= '</ul></li>';
 }
 } // end foreach services
 } // end if app
-/*   if (is_dir(__DIR__.'/blockchains/'.pageUrl()[0].'/apps')) {
-    $apps = dirScanner(__DIR__.'/blockchains/'.pageUrl()[0].'/apps');
-  foreach ($apps as $app) {
-  $app_config = configs(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/'.$app.'/config.json');
-    $str .= '<li><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$app.'">'.$app_config['in_menu'].'</a></li>';
-  }
-} else {
-  $blockchains = dirScanner(__DIR__.'/blockchains');
-  foreach ($blockchains as $blockchain) {
-    $blockchain_config = configs(__DIR__.'/blockchains/'.$blockchain.'/config.json');
-    $str .= '<li><a href="'.$conf['siteUrl'].$blockchain.'">'.$blockchain_config['in_menu'].'</a></li>';
-  }
-} */
-
 return $str;
 }
 
@@ -225,18 +211,18 @@ global $data;
 $str = '';
 if (!empty($url)) {
 $max_key = count($url) -1;
-  $str .= '<li><a href="'.$conf['siteUrl'].'">Главная</a></li>
+  $str .= '<li class="list-link"><a href="'.$conf['siteUrl'].'" class="list-item">Главная</a></li>
 ';
 if ($max_key > 0) {
-  $str .= '<li><a href="'.$conf['siteUrl'].$url[0].'">'.configs(__DIR__.'/blockchains/'.$url[0].'/config.json')['title'].'</a></li>
+  $str .= '<li class="list-link"><a href="'.$conf['siteUrl'].$url[0].'" class="list-item">'.configs(__DIR__.'/blockchains/'.$url[0].'/config.json')['title'].'</a></li>
 ';
 if ($max_key >= 2) {
-  $str .= '<li><a href="'.$conf['siteUrl'].$url[0].'/'.$url[1].'">'.configs(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/config.json')['title'].'</a></li>
+  $str .= '<li class="list-link"><a href="'.$conf['siteUrl'].$url[0].'/'.$url[1].'" class="list-item">'.configs(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/config.json')['title'].'</a></li>
 ';
 }
 }
 }
-$str .= '<li>'.$data['title'].'</li>';
+$str .= '<li class="active-link">'.$data['title'].'</li>';
 return $str;
 }
 

@@ -17,7 +17,7 @@ return '<h2>Страницы сервиса</h2>
 <div style="display: none;" id="create_committee_request">
 <h4 class="modal-title">Создание заявки воркера в комитет</h4>
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
-<form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+<form class="form" name="postForm">
 <p><label for="request_url">Url заявки: 
 <input type="url" name="request_url" placeholder="https://"></label></p>
 <p><label for="request_account">Аккаунт исполнителя (получатель токенов): 
@@ -49,7 +49,7 @@ return '<h2>Страницы сервиса</h2>
 </ul>
 <div id="if_request_status_0">
 <h4>Голосование по заявке</h4>
-<form>
+<form class="form">
 <input type="hidden" name="vote_request_id" value="">
 <p><label for="request_percent">Процент от максимальной суммы заявки: 
     <input type="text" name="request_percent" value=100" data-fixed="request_percent"> <input type="range" name="request_percent" data-fixed="request_percent" value="100" min="-100" max="100"></p>

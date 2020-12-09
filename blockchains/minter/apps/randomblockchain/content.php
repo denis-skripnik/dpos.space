@@ -39,7 +39,7 @@ blocksData('.$start_block.', '.$end_block.');
 </script>
 </div>';
 } else {
-return '<form action="'.$conf['siteUrl'].'minter/randomblockchain/" method="get">
+return '<form class="form" action="'.$conf['siteUrl'].'minter/randomblockchain/" method="get">
 <p><label for="block1">Первый блок (начальный): </label>
 <input type="text" name="block1" value="" placeholder="Введите стартовый блок"></p>
 <p><label for="block2">Второй блок, на основе которого (также как и на базе первого) будет производиться генерация случайного числа: </label>

@@ -1,5 +1,0 @@
-{
-    "require": {
-        "t3ran13/php-graphene-node-client": "^4.0"
-    }
-}

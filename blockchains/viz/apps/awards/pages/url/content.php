@@ -7,7 +7,7 @@ return '<h2>Что такое награждение пользователей 
 <p><span align="left"><a href="'.$conf['siteUrl'].'viz/awards">Форма награждения</a></span> <span align="right"><a href="'.$conf['siteUrl'].'viz/awards/builder">Конструктор форм</a></span></p>
 <h2>Сформировать url и qr-код</h2>
 <p>В полях названия, как в url, а в скобках пояснения.</p>
-<form id="AwardUrlForm">
+<form class="form" id="AwardUrlForm">
 <p><label for="target">target (логин Viz награждаемого):</label></p>
 <p><input type="text" name="target" value=""></p>
 <p><label for="energy">Energy (процент энергии, который вы готовы потратить при награде):</label></p>

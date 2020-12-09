@@ -11,7 +11,7 @@ $data['title'] = $page_config['title'].' '.$user;
 $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
 <p>Выберите страницу в выпадающем списке и нажмите на кнопку "открыть".</p>
-<form method="post">
+<form class="form" method="post">
 <input type="hidden" name="chain" value="golos">
 <input type="hidden" name="service" value="profiles">
 <input type="hidden" name="user" value="'.$user.'">

@@ -19,12 +19,6 @@ function getUrlVars() {
   return vars;
 }
 
-function spoiler(elem)
-{
-    style = document.getElementById(elem).style;
-    style.display = (style.display == 'block') ? 'none' : 'block';
-}
-
 function pass_gen(){
 	let length=100;
 	let charset='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';

@@ -10,7 +10,7 @@ $content = '<h2>Страницы сервиса</h2>
 <div id="active_page">
 <h2>Укажите информацию о проекте и отправьте в блокчейн</h2>
 <p><strong><font color="red">ВНИМАНИЕ: стоимость добавления проекта 100 VIZ. Она будет переведена аккаунту viz-projects. Но если проект окажется не спамом, наградим вас на сумму больше ста Viz.</font></strong></p>
-<form>';
+<form class="form">';
 $fields = ['name' => 'Название', 'description' => 'Описание', 'image_link' => 'Изображение', 'type' => 'Тип', 'category' => 'Категория', 'dev_status' => 'Статус разработки', 'command' => 'Команда (логины через запятую)', 'site' => 'Сайт', 'github' => 'Github'];
 foreach($fields as $name => $description) {
 if ($name === 'type') {

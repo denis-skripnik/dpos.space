@@ -94,13 +94,13 @@ return '
 					<h3>Форма результат:</h3>
 <p>Если у вас уже подключены viz.min.js и/или sjcl.min.js, рекомендуем перед использованием формы удалить из её кода подключение. Если же не подключен, необходимо оставить их, поскольку иначе работать не будет.</p>
 <p>Также необходимо <a href="'.$conf['siteUrl'].'blockchains/viz/apps/awards/pages/builder/builder.js" target="_blank">Скачать</a> builder.js (скрипт формы).</p>
-					<div id="result"><form action="test.php"></form></div>
+					<div id="result"><form class="form" action="test.php"></form></div>
 					<button onclick="get_code()">Получить код</button>
 					<textarea id="head_code"></textarea>
 					<textarea id="final_code"></textarea>
 					<div id="pre_code">
 						<div id="awards_send_form">
-							<form action="index.html">
+							<form class="form" action="index.html">
 							</form>
 						</div>
 					</div>

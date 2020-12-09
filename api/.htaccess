@@ -1,0 +1,14 @@
+Options +FollowSymLinks
+Options -Indexes
+DirectoryIndex index.html index.php
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^www\.api\.dpos\.space$ [NC]
+RewriteRule ^(.*)$ https://api.dpos.space/$1 [R=301,L]
+RewriteBase /api/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
+</IfModule>

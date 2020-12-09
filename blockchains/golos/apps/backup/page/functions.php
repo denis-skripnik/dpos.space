@@ -73,7 +73,7 @@ function archive($app_dir) {
 	$zip -> close(); // закрываем архив.
 	$content = '<p>Резервная копия успешно создана. Вы можете <a href="'.$conf['siteUrl'].'blockchains/golos/apps/backup/archives/'.pageUrl()[2].'.zip" target="_blank">скачать архив</a></p>
 	<p>Либо вы можете скопировать адрес из поля ниже:
-	<form><input type="url" name="download_url" value="'.$conf['siteUrl'].'blockchains/golos/apps/backup/archives/'.pageUrl()[2].'.zip"></form></p>';
+	<form class="form"><input type="url" name="download_url" value="'.$conf['siteUrl'].'blockchains/golos/apps/backup/archives/'.pageUrl()[2].'.zip"></form></p>';
 	} else {
 	die ('Произошла ошибка при создании архива');
 	}
@@ -180,7 +180,7 @@ function html_archive($app_dir) {
 	$zip -> close(); // закрываем архив.
 	$content = '<p>Резервная копия успешно создана. Вы можете <a href="'.$conf['siteUrl'].'blockchains/golos/apps/backup/archives/'.'html_'.pageUrl()[2].'.zip" target="_blank">скачать архив</a></p>
 	<p>Либо вы можете скопировать адрес из поля ниже:
-	<form><input type="url" name="download_url" value="'.$conf['siteUrl'].'golos/backup/archives/'.'html_'.pageUrl()[2].'.zip"></form></p>';
+	<form class="form"><input type="url" name="download_url" value="'.$conf['siteUrl'].'golos/backup/archives/'.'html_'.pageUrl()[2].'.zip"></form></p>';
 	} else {
 	die ('Произошла ошибка при создании архива');
 	}

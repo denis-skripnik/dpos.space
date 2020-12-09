@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<p><span align="center"><a href="'.$conf['siteUrl'].'viz/search/add-link">добавить ссылку</a></span></p>
-<form method = "post" action = "">
+<form class="form" method = "post" action = "">
 <input type = "hidden" name = "chain" value = "viz">
 <input type = "hidden" name = "service" value = "search">
 <p><label for="type">Тип поиска: </label>

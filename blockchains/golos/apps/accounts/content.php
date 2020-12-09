@@ -3,7 +3,7 @@ return '<div id="select_account"></div>
 <h2>Добавить аккаунт</h2>
 <div id="auth_msg"></div>
 <p>Ключи никуда не передаются: сохраняются в зашифрованном виде в вашем браузере.</p>
-<form>
+<form class="form">
 <p><label for="login">Ваш логин: </label>
 <input type="text" name="login" id="login" value="" required placeholder="Введите логин в Golos"></p>
 <p><label for="posting_key">Posting (постинг) ключ: </label>

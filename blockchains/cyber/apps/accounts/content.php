@@ -2,8 +2,8 @@
 return '<div id="select_account"></div>
 <h2>Добавить аккаунт</h2>
 <div id="auth_msg"></div>
-<p>Фраза никуда не передаётся: сохраняется в зашифрованном виде в вашем браузере.</p>
-<form>
+<p class="p-main">Фраза никуда не передаётся: сохраняется в зашифрованном виде в вашем браузере.</p>
+<form class="form">
 <p><label for="login">Имя аккаунта: </label>
 <input type="text" name="login" id="login" value="" required placeholder="Введите произвольное имя аккаунта"></p>
 <p><label for="seed">SEED фраза: </label></p>

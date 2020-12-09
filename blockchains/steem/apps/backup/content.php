@@ -11,7 +11,7 @@ posts;<br></li>
 <li><strong>Вы можете скачать только записи не старше 11 месяцев - ограничение взаимодействия с Нодами блокчейна</strong></li>
 <li><strong>Если вы оплатили услуги сервиса, но отображается по-прежнему сообщение о требующейся оплате, просьба пробовать несколько раз: возможно проблемы с публичной Нодой, к которой производится подключение. Если же сообщение очень долго, просьба написать в Telegram чат <a href="https://t.me/dpos_space" target="_blank">@dpos_space</a></strong></li></ol>
 
-<form action="" method="post">
+<form class="form" action="" method="post">
 <input type="hidden" name="chain" value="steem">
 <input type="hidden" name="service" value="backup">
 <p><label for="user">Имя пользователя (логин) на Steem (Без "@"):</label>

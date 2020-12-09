@@ -13,13 +13,13 @@ if (isset($_GET) && isset($_GET['type']) && isset($_GET['creator']) && isset($_G
     if ($_GET['type'] === 'project') $type_text = 'проекта';
     if ($_GET['type'] === 'task') $type_text = 'задачи';
     $content .= '<h2>Удаление '.$type_text.'</h2>
-<form>
+<form class="form">
 <p><input type="checkbox" required placeholder="Я уверен, что хочу модерировать"></p>
 <p><input type="button" value="Модерировать" onclick="sendCustom(`moderation`, {type: `'.$_GET['type'].'`, creator: `'.$_GET['creator'].'`, name: `'.$_GET['name'].'`})"></p>
     </form>';
 } else {
     $content .= '<h2>Действия с типами и категориями</h2>
-    <form>
+    <form class="form">
     <p><input type="text" name="name" value="" placeholder="Введите название"></p>
     <p><label for="who">Действия с чем выполняем:</label><br>
     <select name="who">

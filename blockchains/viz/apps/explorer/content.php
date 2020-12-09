@@ -7,7 +7,7 @@ $mass3 = $res3['result'];
 $chain_res = $chain_command->execute($chain_commandQuery); 
 $chain_mass = $chain_res['result'];
 $content = '<h2>Введите в поле ниже номер блока или хэш-сумму транзакции блокчейна Viz:</h2>
-<form method = "post" action = "">
+<form class="form" method = "post" action = "">
   <input type = "hidden" name = "chain" value = "viz">
   <input type = "hidden" name = "service" value = "explorer">
   <label for = "data">Введите номер блока или хэш-сумму транзакции: </label>

@@ -10,7 +10,7 @@ return '<h2>Страницы сервиса</h2>
 <h2 class="tt" onclick="spoiler(`proxy_vote`); return false">Прокси</h2>
 <div id="proxy_vote" class="terms" style="display: none;">
 <p>Установка прокси голосования за делегатов позволяет вам передать голосование за делегатами тем, кому вы доверяете.</p>
-<form>
+<form class="form">
 <label for="proxy_login">Логин прокси: 
 <input type="text" name="proxy_login" value="" placeholder="Логин прокси аккаунта"></label></p>
 <p><input type="button" onclick="proxyVote(`proxy_login`)" value="Установить"></p>
@@ -18,7 +18,7 @@ return '<h2>Страницы сервиса</h2>
 </div>
 <div id="proxy"></div>
 <div id="delete_proxy">
-<form>
+<form class="form">
 <input type="hidden" name="delete_proxy_login" value="">
 <p><input type="button" onclick="proxyVote(`delete_proxy_login`)" value="Удалить прокси"></p>
 </form>
@@ -26,7 +26,7 @@ return '<h2>Страницы сервиса</h2>
 <h2 class="tt" onclick="spoiler(`witness_form_vote`); return false">Голосование за делегата путём ввода его логина (не рекомендуется)</h2>
 <div id="witness_form_vote" class="terms" style="display: none;">
 <p>Мы не рекомендуем использовать данный метод, т.к. выше вероятность неправильно ввести имя пользователя.</p>
-<form>
+<form class="form">
 <label for="witness_login">Логин делегата (без @): 
 <input type="text" name="witness_login" value="" placeholder="Логин делегата"></label></p>
 <p><input type="button" onclick="oneWitnessVote()" value="Проголосовать"></p>
@@ -34,7 +34,7 @@ return '<h2>Страницы сервиса</h2>
 </div>
 <h2>Список делегатов</h2>
 <p><strong>Вы можете проголосовать максимум за 30 делегатов: проверяйте количество перед голосованием. Осталось голосов: <span id="count_witnesses"></span></strong></p>
-<form>
+<form class="form">
 <ol id="witnesses_list"></ol>
 <p><input type="button" onclick="witnessesVote()" value="Проголосовать за выбранных"></p>
 </form>

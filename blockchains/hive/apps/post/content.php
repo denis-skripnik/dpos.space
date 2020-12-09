@@ -2,7 +2,7 @@
 return '<div id="posting_page">
 <h2>Адрес публичной Ноды</h2>
 <p>Ниже вы можете указать произвольный адрес публичной Ноды. После сохранения обновите страницу.</p>
-<form>
+<form class="form">
 <p><label for="node_url">Адрес Ноды: </label>
 <input type="text" name="node_url" id="public_node" value="">
 <button type="button" id="submit_node">Сохранить</button>
@@ -33,7 +33,7 @@ return '<div id="posting_page">
 </div>
 </div>
 
-<form data-persist="garlic" data-domain="true" id="post-WLS-form" enctype="multipart/form-data">
+<form class="form" data-persist="garlic" data-domain="true" id="post-WLS-form" enctype="multipart/form-data">
 
 <div class="ptitle">
 <!--[if lt IE 10]><p><label for="post_title">Заголовок поста: </label></p><![endif]-->

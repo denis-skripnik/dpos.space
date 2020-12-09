@@ -13,7 +13,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                 <div id="action_vesting_withdraw">
                                                 <p><strong>Предупреждение: если у вас сейчас уже есть вывод, отправка этой формы сбросит сумму на вывод.</strong></p>
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="vesting_withdraw_amount">Сумма на вывод (<span id="max_vesting_withdraw">Вывести все доступные <span id="max_vesting_withdraw_result"></span> СГ</span>):</label></p>
                                                 <p><input type="text" name="vesting_withdraw_amount" id="action_vesting_withdraw_amount" placeholder="Введите сумму в формате 1.000000"></p>
                                                  <p><input type="button" id="action_vesting_withdraw_start" value="Начать вывод"></p>
@@ -24,7 +24,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <h4 class="modal-title">Перевод <span class="transfer_modal_token"></span> на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_transfer">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="transfer_template">Выберите шаблон перевода:</label></p>
 <p><select name="transfer_template" id="select_transfer_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
@@ -50,7 +50,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <div style="display: none;" id="to_shares_transfer_modal">
                                                       <h4 class="modal-title">Перевод golos в СГ этого аккаунта</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_to_shares_transfer"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                      <div id="action_to_shares_transfer"><form class="form" name="postForm">
                                                  <p><label for="to_shares_transfer_amount">Количество golos (<span id="max_to_shares_transfer">Все доступные <span class="golos_balance"></span> golos</span>):</label></p>
                                                 <p><input type="text" name="to_shares_transfer_amount" id="action_to_shares_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                  <p><input type="button" id="action_to_shares_transfer_start" value="Начать перевод"></p>
@@ -59,7 +59,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <div style="display: none;" id="vesting_delegate_modal">
                                                       <h4 class="modal-title">Делегирование СГ</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <div id="action_vesting_delegate"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <div id="action_vesting_delegate"><form class="form" name="postForm">
                                                 <p><label for="vesting_delegate_to">Кому:</label></p>
                                                 <p><input type="text" name="vesting_delegate_to" id="action_vesting_delegate_to" placeholder="Введите получателя"></p>
                                                  <p><label for="vesting_delegate_amount">Сумма делегирования (<span id="max_vesting_delegate">Делегировать все доступные <span id="max_vesting_deligate"></span> СГ</span>):</label></p>
@@ -74,7 +74,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <h4 class="modal-title">Получение начислений на СГ</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_claim">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="accumulative_balance_to">Кому:</label></p>
                                                 <p><input type="text" name="accumulative_balance_to" id="accumulative_balance_to" placeholder="Введите получателя"></p>
                                                  <p><label for="accumulative_balance_amount">Сумма перевода (<span id="max_accumulative_balance"></span>):</label></p>
@@ -89,7 +89,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <h4 class="modal-title">Желаю отблагодарить токенами <span class="donate_modal_token"></span></h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_donate">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="donate_template">Выберите шаблон доната:</label></p>
 <p><select name="donate_template" id="select_donate_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
@@ -110,7 +110,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <h4 class="modal-title">Перевод <span class="transfer_from_tip_modal_token"></span> <span id="transfer_from_tip_to"></span> с баланса донатов</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_transfer_from_tip">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="transfer_from_tip_to">Кому:</label></p>
                                                 <p><input type="text" name="transfer_from_tip_to" id="transfer_from_tip_to" placeholder="Введите получателя"></p>
                                                  <p><label for="transfer_from_tip_amount">Сумма перевода (<span id="max_token_transfer_from_tip">Перевести все доступные <span id="max_transfer_from_tip_amount"></span> <span class="transfer_from_tip_modal_token"></span></span>):</label></p>
@@ -126,7 +126,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <p><strong>Пополнение производится с использованием инвайт-кодов. Получить за фиат или криптовалюту их вы сможете, обратившись к пользователям golos, например, к создателю liveblogs.</strong></p>
                                                       <div id="action_vesting_diposit">
-                                                      <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                      <form class="form" name="postForm">
                                                       <p><label for="invite_secret">Инвайт-код (Начинается с 5):</label></p>
                                                       <p><input type="text" name="invite_secret" id="invite_secret" placeholder="5K..."></p>
                                                                                                       <p><input type="button" id="action_vesting_diposit_start" value="Пополнить"></p>
@@ -137,7 +137,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                                                                             <h4 class="modal-title">Создание инвайта</h4>
                                                                                                             <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                                                                             <p>Инвайты могут использоваться при регистрации и для перевода в баланс</p>
-                                                                                                            <div id="create_invite"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                                                                            <div id="create_invite"><form class="form" name="postForm">
                                                                                                             <p><label for="create_invite_balance">Баланс инвайта (<span id="max_invite_balance">В баланс инвайта все доступные <span class="golos_balance"></span> GOLOS</span>):</label></p>
                                                                                                             <p><input type="text" name="create_invite_balance" id="create_invite_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                                                                             <p><label for="create_invite_key">Инвайт-код:</label></p>
@@ -169,7 +169,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 <div style="display: none;" id="uia_withdraw_modal">
 <h4 class="modal-title">Вывод <span class="uia_withdraw_modal_token"></span></h4>
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
-<form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+<form class="form" name="postForm">
 <input type="hidden" name="uia_withdraw_to" id="action_uia_withdraw_to">
 <p><label for="transfer_amount">Сумма перевода (<span id="max_token_uia_withdraw">Перевести все доступные <span id="max_uia_withdraw_amount"></span> <span class="uia_withdraw_modal_token"></span></span>):</label></p>
 <p><input type="text" name="uia_withdraw_amount" id="action_uia_withdraw_amount" placeholder="Введите сумму"></p>
@@ -189,7 +189,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                 
                                                 <div id="wallet_transfer_history" style="display: none;">
                                                 <h2>История переводов средств</h2>
-                                                <div id="filtrs"><form>
+                                                <div id="filtrs"><form class="form">
                                                 <p><label for="direction">Направление: </label>
                                           <select name="direction" id="direction" placeholder="Выберите направление">
                                           <option value="">Все</option>

@@ -9,7 +9,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для обмена 
 <h2>Обменять</h2>
 <p>Отображаются только токены с ненулевым балансом, т.к. если у вас 0, нечего обменивать.</p>
 <hr>
-<form>
+<form class="form">
 <select id="sell_token">
 </select>
 <p><label for="sell_amount">Сумма продажи (Максимум <span id="max_amount">0</span>): <br>

@@ -6,7 +6,7 @@ return $data['result'];
 }
 
 $content = '<h2>Введите в поле ниже номер блока или хэш-сумму транзакции блокчейна Cyber:</h2>
-<form method = "post" action = "">
+<form class="form" method = "post" action = "">
   <input type = "hidden" name = "chain" value = "cyber">
   <input type = "hidden" name = "service" value = "explorer">
   <label for = "data">Введите номер блока или хэш-сумму транзакции: </label>

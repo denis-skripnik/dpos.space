@@ -20,7 +20,7 @@ $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-project
 $wt = json_decode($html, true);
 if ($wt) {
 $content .= '<h2>Добавить отчёт по ходу работы</h2>
-<form>
+<form class="form">
 <p><label for="text">Введите текст отчёта:</label></p>
 <p><textarea name="text" id="wt_content" placeholder="текст отчёта"></textarea></p>
 <p><input type="button" value="Отправить" onclick="sendCustom(`working_tasks`, {task_creator: `'.$_GET['task_creator'].'`, task_name: `'.$_GET['task_name'].'`, text: this.form.text.value})"></p>
@@ -31,7 +31,7 @@ $content .= '<h2>Добавить отчёт по ходу работы</h2>
 $content .= '<tr><td>'.$work['date'].'</td>
 <td>'.$work['text'].'</td>
 <td class="wt_author">
-<form>
+<form class="form">
 <p><textarea name="wt_text" placeholder="текст отчёта">'.$work['text'].'</textarea></p>
 <p><input type="button" value="Изменить" onclick="sendCustom(`working_tasks`, {task_creator: `'.$_GET['task_creator'].'`, task_name: `'.$_GET['task_name'].'`, text: this.form.wt_text.value, date: `'.$work['date'].'`})"></p>
 </form>
@@ -59,7 +59,7 @@ $(`#wt_author`).css(`display`, `block`);
 if ($tasks && count($tasks) > 0) {
 	$content .= '<p style="display: none;" id="whitelist_users">'.implode($tasks[0]['mambers']).'</p>
 <div id="add_wt"><h2>Добавить отчёт по ходу работы, задача: "'.$_GET['task_name'].'"</h2>
-<form>
+<form class="form">
 <p><label for="text">Введите текст отчёта:</label></p>
 <p><textarea name="text" id="wt_content" placeholder="текст отчёта"></textarea></p>
 <p><input type="button" value="Отправить" onclick="sendCustom(`working_tasks`, {task_creator: `'.$_GET['task_creator'].'`, task_name: `'.$_GET['task_name'].'`, text: this.form.text.value})"></p>

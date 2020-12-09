@@ -15,7 +15,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                 <div id="action_vesting_withdraw">
                                                 <p><strong>Предупреждение: если у вас сейчас уже есть вывод, отправка этой формы сбросит сумму на вывод.</strong></p>
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="vesting_withdraw_amount">Сумма на вывод (<span id="max_vesting_withdraw">Вывести все доступные <span id="max_vesting_withdraw_result"></span> SP</span>):</label></p>
                                                 <p><input type="text" name="vesting_withdraw_amount" id="action_vesting_withdraw_amount" placeholder="1.000000"></p>
                                                  <p><input type="button" id="action_vesting_withdraw_start" value="Начать вывод"></p>
@@ -26,7 +26,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <h4 class="modal-title">Перевод steem на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_steem_transfer">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="steem_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="steem_transfer_to" id="action_steem_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="steem_transfer_amount">Сумма перевода (<span id="max_vesting_transfer">Перевести все доступные <span class="steem_balance"></span> steem</span>):</label></p>
@@ -42,7 +42,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <h4 class="modal-title">Перевод SBD на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_steem_sbd_transfer">
-                                                <form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <form class="form" name="postForm">
                                                 <p><label for="steem_sbd_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="steem_sbd_transfer_to" id="action_steem_sbd_transfer_to" placeholder="Введите получателя"></p>
                                                  <p><label for="steem_sbd_transfer_amount">Сумма перевода (<span id="max_sbd_transfer">Перевести все доступные <span class="sbd_balance"></span> SBD</span>):</label></p>
@@ -56,7 +56,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <div style="display: none;" id="to_shares_transfer_modal">
                                                       <h4 class="modal-title">Перевод steem в SP этого аккаунта</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_to_shares_transfer"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                      <div id="action_to_shares_transfer"><form class="form" name="postForm">
                                                  <p><label for="to_shares_transfer_amount">Количество steem (<span id="max_to_shares_transfer">Все доступные <span class="steem_balance"></span> steem</span>):</label></p>
                                                 <p><input type="text" name="to_shares_transfer_amount" id="action_to_shares_transfer_amount" placeholder="1.000"></p>
                                                  <p><input type="button" id="action_to_shares_transfer_start" value="Начать перевод"></p>
@@ -65,7 +65,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                       <div style="display: none;" id="vesting_delegate_modal">
                                                       <h4 class="modal-title">Делегирование SP</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                <div id="action_vesting_delegate"><form name="postForm" class="form-validate col-sm-10 col-sm-offset-1">
+                                                <div id="action_vesting_delegate"><form class="form" name="postForm">
                                                 <p><label for="vesting_delegate_to">Кому:</label></p>
                                                 <p><input type="text" name="vesting_delegate_to" id="action_vesting_delegate_to" placeholder="Введите получателя"></p>
                                                  <p><label for="vesting_delegate_amount">Сумма делегирования (<span id="max_vesting_delegate">Делегировать все доступные <span id="max_vesting_deligate"></span> SP</span>):</label></p>

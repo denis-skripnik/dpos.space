@@ -5,7 +5,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                         <p><strong><span id="bandwidth_remained"></span> из <span id="bandwidth_max_value"></span></strong></p>
 <hr>                        
 <div id="result"></div>
-<form>
+<form class="form">
 <p><input type="text" name="keyword_ipfs_hash" value="" placeholder="Введите IPFS хеш запроса"></p>
 <p><input type="text" name="data_ipfs_hash" value="" placeholder="Введите ipfs хеш с данными"></p>
 <p><input type="button" onclick="sendIpfsHashes(this.form.keyword_ipfs_hash.value, this.form.data_ipfs_hash.value)" value="Создать"></p>

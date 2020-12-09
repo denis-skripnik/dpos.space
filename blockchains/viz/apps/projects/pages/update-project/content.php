@@ -8,7 +8,7 @@ $content = '<h2>Страницы сервиса</h2>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 <div id="posting_page">
 <h2>Обновите данные о проекте</h2>
-<form>';
+<form class="form">';
 $filter['creator'] =$_GET['creator'];
 $filter['name'] = urlencode($_GET['name']);
 $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');

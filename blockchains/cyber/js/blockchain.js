@@ -129,11 +129,14 @@ $( document ).ready(function() {
         .catch(error => console.log('Cannot send', error));
     }
 
-function spoiler(elem)
-{
-    style = document.getElementById(elem).style;
-    style.display = (style.display == 'block') ? 'none' : 'block';
-}
+    function spoiler(elem, group){
+        style = document.getElementById(elem).style;
+        if(document.querySelector("#" + elem).classList.contains(group) && style.display === 'none') {
+            $('.' + group).hide();
+        }
+
+        style.display = (style.display == 'block') ? 'none' : 'block';
+    }
 
 function copyText(id) {
     let text = document.getElementById(id);

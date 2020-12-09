@@ -14,7 +14,7 @@ return '<h2>Страницы сервиса</h2>
 <div id="active_page">
 <div id="golos_balance"></div>
 <div id="free_shares"></div>
-<form>
+<form class="form">
 <div class="form-group1">
 	<label for="newAccountName">Логин нового аккаунта<span style="color: red;">*</span> </label>
 	<input type="text" class="form-control required" id="new_account_name" name="newAccountName" required="required"> 

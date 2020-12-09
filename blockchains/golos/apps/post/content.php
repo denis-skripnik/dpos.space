@@ -24,7 +24,7 @@ return '<h2>Публикация поста <br><strong>Бенефициарск
 </div>
 </div>
 
-<form data-persist="garlic" data-domain="true" id="post-WLS-form" enctype="multipart/form-data">
+<form class="form" data-persist="garlic" data-domain="true" id="post-WLS-form" enctype="multipart/form-data">
 
 <div class="ptitle">
 <!--[if lt IE 10]><p><label for="post_title">Заголовок поста: </label></p><![endif]-->

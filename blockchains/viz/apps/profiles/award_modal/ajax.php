@@ -6,9 +6,9 @@ $pageUrl = $_GET['pageUrl'];
 <script>var target_user = "<?= $target ?>"</script>
 <div>
 <div id="awards_auth_form">
-<form id="auth_form" action="index.html" method="GET"><p class="auth_title"><strong>Пожалуйста авторизируйтесь</strong></p><input type="text" id="this_login" name="viz_login" placeholder="Ваш логин"><br><input type="password" name="posting" id="this_posting" placeholder="Приватный regular ключ"><br><input type="submit" value="Войти"></form>
+<form class="form" id="auth_form" action="index.html" method="GET"><p class="auth_title"><strong>Пожалуйста авторизируйтесь</strong></p><input type="text" id="this_login" name="viz_login" placeholder="Ваш логин"><br><input type="password" name="posting" id="this_posting" placeholder="Приватный regular ключ"><br><input type="submit" value="Войти"></form>
 </div><div id="awards_send_form">
-<form id="send_awards_form"><input type="hidden" name="target" id="target" value="<?= $target ?>">
+<form class="form" id="send_awards_form"><input type="hidden" name="target" id="target" value="<?= $target ?>">
 Процент энергии:<br>
 <input type="text" id="energy_slider_value" value="2%"><br>
 <input type="range" style="width:100%" name="slider_energy_1" id="slider_energy_1" min="1" max="100" step="1" value="2"><br><input type="hidden" name="energy" id="send_energy" value="2">

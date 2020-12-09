@@ -41,7 +41,7 @@ for (let token of acc.coins) {
 <h2>Баланс</h2>
 <p id="my_balances"></p>
 <h2>Перевод средств</h2>
-<form>
+<form class="form">
 <p><input type="text" name="to" id="to" value="<?= $to; ?>" placeholder="Адрес получателя" readonly></p>
 <p><input type="text" name="amount" id="amount" value="" placeholder="Введите сумму (число)"></p>
 <p><input type="button" value="Отправить" onclick="sendTransfer(this.form.to.value, this.form.amount.value)"></p>

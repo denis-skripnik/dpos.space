@@ -10,7 +10,7 @@ $content = '<h2>Страницы сервиса</h2>
 <div id="active_page">
 <h2>Укажите информацию о задаче и отправьте в блокчейн</h2>
 <p><strong><font color="red">ВНИМАНИЕ: стоимость добавления новой задачи 100 VIZ. Она будет переведена аккаунту viz-projects. Но если она окажется не спамом, наградим вас на сумму больше ста Viz.</font></strong></p>
-<form>';
+<form class="form">';
 $fields = ['name' => 'Название', 'description' => 'Описание'];
 foreach($fields as $name => $description) {
     $content .= '<p><input type="text" name="'.$name.'" value="" placeholder="'.$description.'"></p>';

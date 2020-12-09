@@ -10,7 +10,7 @@ return '<h2>Что такое награждение пользователей 
 <div id="posting_page">
 <h2>Заполните поля, чтобы отправить награду</h2>
 <h3 id ="now_energy"></h3>
-<form id="award_user_form" action="'.$conf['siteUrl'].'viz/awards/send/" method="get">
+<form class="form" id="award_user_form" action="'.$conf['siteUrl'].'viz/awards/send/" method="get">
 <p><label for="target">Кого наградить:</label>
 <input type="text" name="target" value="" placeholder="Введите получателя награды"></p>
 <p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>

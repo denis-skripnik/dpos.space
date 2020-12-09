@@ -22,10 +22,10 @@ php_value log_errors_max_len 0
 #php_flag html_errors off
 #php_value max_execution_time 120000
 
-#редирект для поддомена flotilia
-RewriteCond %{HTTP_HOST} ^(www\.)?flotilia\.dpos\.space$ [NC]
-RewriteCond %{REQUEST_URI} !^/flotilia/
-RewriteRule ^(.*)$ flotilia/$1 [L]
+#редирект для поддомена api
+RewriteCond %{HTTP_HOST} ^(www\.)?api\.dpos\.space$ [NC]
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule ^(.*)$ api/$1 [L]
 
 #редрект для поддомена viz
 RewriteCond %{HTTP_HOST} ^(www\.)?viz\.dpos\.space$ [NC]

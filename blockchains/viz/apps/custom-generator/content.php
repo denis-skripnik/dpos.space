@@ -8,7 +8,7 @@ return '<div class="container-before">
 </p>
 </div>
 <div class="container">
-<form id="js-form">
+<form class="form" id="js-form">
     <p class="ui-sortable-handle">
         <label>
             <span>Ваше имя</span>
@@ -106,7 +106,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3></h3>
-        <form>
+        <form class="form">
             <p>
                 <label>Заголовок поля
                     <br><input type="text" name="label" required>
@@ -141,7 +141,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3></h3>
-        <form>
+        <form class="form">
             <p>
                 <label>Заголовок массива
                     <br><input type="text" name="label" required>
@@ -163,7 +163,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3></h3>
-        <form>
+        <form class="form">
             <p>
                 <label>Значение
                     <br><input type="text" name="value" required>
@@ -180,7 +180,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3></h3>
-        <form>
+        <form class="form">
             <p>
                 <label>Заголовок уровня
                     <br><input type="text" name="label" required>
@@ -202,7 +202,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3>Получить код JSON</h3>
-        <form>
+        <form class="form">
             <p>
                 <textarea name="ta-get-json"  cols="30" rows="10"></textarea>
             </p>
@@ -216,7 +216,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3>Свой JSON</h3>
-        <form>
+        <form class="form">
             <p>
                 <textarea name="ta-set-json"  cols="30" rows="10"></textarea>
             </p>
@@ -231,7 +231,7 @@ return '<div class="container-before">
     <div class="modal-overlay"></div>
     <div class="modal-content-inner">
         <h3>Получить код формы</h3>
-        <form>
+        <form class="form">
             <p>
                 <textarea name="ta-get-form"  cols="30" rows="10"></textarea>
             </p>

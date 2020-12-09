@@ -1,7 +1,7 @@
 <?php return '
 <p>Авторизовать и выбрать аккаунты можете <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">на странице аккаунтов</a>.</p>
 <h2>Создаём новый аккаунт</h2>
-<form method="post" name="postForm" id="postForm">
+<form class="form" method="post" name="postForm" id="postForm">
 <div class="form-group1">
 	<label for="newAccountName">Логин нового аккаунта<span style="color: red;">*</span> </label>
 	<input type="text" class="form-control required" id="new_account_name" name="newAccountName" required="required" onChange="check_it();"> 

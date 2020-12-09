@@ -1,6 +1,6 @@
 <div style="display: none;" id="donate_modal_content">
 <div>Ваш TIP-баланс: <span class="tip_balance_for_donate"></span></div>
-<form>
+<form class="form">
 <p><label for="tip_donate_amount">Сумма доната (<span id="action_donate_tip">Перевести все <span class="tip_balance_for_donate"></span></span>):<br>
 <input type="text" name="tip_donate_amount" value="" placeholder="Сумма доната"></label></p>
 <p><strong><input type="button" value="Наградить" name="send_donate_button"></strong></p>

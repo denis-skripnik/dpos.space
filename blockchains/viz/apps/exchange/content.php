@@ -6,7 +6,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для обмена 
 <p><strong>Баланс: <span id="balance"></span> (необходим для продажи и оплаты 1 VIZ для покупки)</strong></p>
 <hr>
 <div id="config" style="display: none;"></div>
-<form>
+<form class="form">
 <p><label for="sell_token">Токен на продажу:<br>
 <select name="sell_token" id="sell_token">
 <option value="VIZ">VIZ</option>

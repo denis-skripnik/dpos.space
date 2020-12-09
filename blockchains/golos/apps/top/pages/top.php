@@ -7,6 +7,7 @@ if (isset(pageUrl()[3])) {
 }
 $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
 $top = json_decode($html, true);
+$next_page = true;
 if ($top && count($top) > 0) {
 $fields = ['name' => 'Логин', 'gp' => 'СГ', 'gp_percent' => '% от всей СГ', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвотинге', 'golos' => 'Баланс GOLOS', 'golos_percent' => '% от всех GOLOS', 'gbg' => 'Баланс GBG', 'gbg_percent' => '% от всех GBG', 'tip_balance' => 'TIP-баланс', 'reputation' => 'Репутация'];
 if ($top) {
@@ -51,12 +52,17 @@ $content = '<table><thead>'.$th.'</thead>
 } else {
     $content = '<p>Данных на данной странице не найдено. Вернитесь на предыдущую.</p>
 ';
+$next_page = false;
+}
+if ($top && count($top) < 100) {
+    $next_page = false;
 }
 $content .= '</p>';
 if ($pagenum > 1) {
     $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
 }
-$content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
-
-return $content;
+if ($next_page == true) {
+    $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
+}
+    return $content;
 ?>

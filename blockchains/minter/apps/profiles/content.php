@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<h2>Введите в поле ниже адрес любого пользователя блокчейна Minter:</h2>
-<form method = "post" action = "">
+<form class="form" method = "post" action = "">
   <input type = "hidden" name = "chain" value = "minter">
   <input type = "hidden" name = "service" value = "profiles">
   <label for = "user">Введите адрес (начинается с MX):</label>

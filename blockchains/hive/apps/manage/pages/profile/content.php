@@ -8,7 +8,7 @@ return '<h2>Страницы сервиса</h2>
 <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'hive/accounts" target="_blank">здесь</a></p></div>
 <div id="active_page">
 <h2>Заполните профиль</h2>
-<form class="profile-update" action="" name="postForm" method="POST" id="postForm" onsubmit="return false">
+<form class="form" class="profile-update" action="" name="postForm" method="POST" id="postForm" onsubmit="return false">
 <h3>Основное:</h3>
 										<div class="form-group1">
 											<p><label for="nickname">Отображаемое имя (публичное): 

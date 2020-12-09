@@ -6,7 +6,7 @@ $content = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/projects/new-task">Добавить задачу</a></th>
 </tr></table>
 <h2>Фильтр</h2>
-<form method = "post" action = "">
+<form class="form" method = "post" action = "">
 <input type = "hidden" name = "chain" value = "viz">
 <input type = "hidden" name = "service" value = "projects">
 <input type = "hidden" name = "page" value = "catalog">

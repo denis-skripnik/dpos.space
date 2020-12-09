@@ -5,7 +5,7 @@ return '<p><span align="center"><a href="'.$conf['siteUrl'].'viz/search">Най�
 <div id="posting_page">
 <h2>Заполните поля, чтобы создать ссылку</h2>
 <h3 id ="now_energy"></h3>
-<form>
+<form class="form">
 <input type="hidden" name="target" value="committee">
 <p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
 <input type="text" name="energy" id="awarding_energy" value="" required placeholder="Введите процент энергии без знака %">%</p>

@@ -15,7 +15,7 @@ $selected[$_GET['month']] = 'selected ';
     <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
     <p><span align="left"><a href="'.$conf['siteUrl'].'golos/donates/donators">Топ донатящих</a></span> <span align="right"><a href="'.$conf['siteUrl'].'golos/donates/comments">Топ комментариев</a></span></p>
     <h2>Выберите дату</h2>
-    <form action="'.$conf['siteUrl'].'golos/donates/posts/'.pageUrl()[3].'/" method="get">
+    <form class="form" action="'.$conf['siteUrl'].'golos/donates/posts/'.pageUrl()[3].'/" method="get">
     <p>Месяц:
     <select name="month" placeholder="Месяц">';
     foreach ($months as $number => $month) {
@@ -51,7 +51,7 @@ if (isset($tokens) && count($tokens) > 0) {
 }
 $content .= '</ul>
 <p>Или введите его название</p>
-<form action="'.$conf['siteUrl'].'golos/donates/posts" method="post">
+<form class="form" action="'.$conf['siteUrl'].'golos/donates/posts" method="post">
 <input type="hidden" name="chain" value="golos">
 <input type="hidden" name="service" value="donates">
 <input type="hidden" name="page" value="posts">

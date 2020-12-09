@@ -80,12 +80,15 @@ $( document ).ready(function() {
     }
             });
 
-function spoiler(elem)
-{
-    style = document.getElementById(elem).style;
-    style.display = (style.display == 'block') ? 'none' : 'block';
-}
-
+            function spoiler(elem, group){
+                style = document.getElementById(elem).style;
+                if(document.querySelector("#" + elem).classList.contains(group) && style.display === 'none') {
+                    $('.' + group).hide();
+                }
+    
+                style.display = (style.display == 'block') ? 'none' : 'block';
+            }
+        
 function selectAccount() {
     let current_user = JSON.parse(localStorage.getItem("hive_current_user"));
     users = JSON.parse(localStorage.getItem('hive_users'));

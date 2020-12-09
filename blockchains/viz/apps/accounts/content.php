@@ -4,7 +4,7 @@ return '<div id="select_account"></div>
 <h2>Добавить аккаунт</h2>
 <div id="auth_msg"></div>
 <p>Ключи никуда не передаются: сохраняются в зашифрованном виде в вашем браузере.</p>
-<form id="add_account">
+<form class="form" id="add_account">
 <p><label for="login">Ваш логин: </label>
 <input type="text" name="login" id="login" value="" required placeholder="Введите логин в Viz"></p>
 <p><label for="regular_key">regular (регулярный) ключ: </label>

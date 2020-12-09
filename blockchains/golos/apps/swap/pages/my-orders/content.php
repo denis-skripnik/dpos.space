@@ -7,7 +7,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для обмена 
 <div id="active_page">
 <p align="center"><a href="'.$conf['siteUrl'].'golos/swap'.$add_to_url.'">Моментальный обмен</a></p>
 <h2>Создание и просмотр ордеров на обмен</h2>
-<form>
+<form class="form">
 <select id="sell_token">
 </select>
 <p><label for="sell_amount">Сумма продажи (Максимум <span id="max_amount">0</span>): <br>

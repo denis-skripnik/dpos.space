@@ -3,7 +3,7 @@ global $conf;
 $page = [];
 $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/golos/apps/polls/pages/create/page.js"></script>
 <p><span align="left">Создание опроса</span> <span align="right"><a href="'.$conf['siteUrl'].'golos/polls/list">Список</a></span></p>
-<form>
+<form class="form">
 <p><label for="login">Логин создателя опроса:</label>
 <input type="text" name="login" id="sender" value="" placeholder="Введите логин создателя опроса"></p>
 <p><label for="q">Вопрос:</label>

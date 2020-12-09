@@ -6,13 +6,12 @@ $res3 = $command3->execute($commandQuery3);
 $mass3 = $res3['result'];
 $chain_res = $chain_command->execute($chain_commandQuery); 
 $chain_mass = $chain_res['result'];
-$content = '<h2>Введите в поле ниже номер блока или хэш-сумму транзакции блокчейна Golos:</h2>
-<form method = "post" action = "">
-  <input type = "hidden" name = "chain" value = "golos">
-  <input type = "hidden" name = "service" value = "explorer">
-  <label for = "data">Введите номер блока или хэш-сумму транзакции: </label>
-  <input type = "text" name = "data" value="">
-  <input type = "submit" value = "узнать инфу"/>
+$content = '<form class="form" method = "post" action = "">
+<input type = "hidden" name = "chain" value = "golos">
+<input type = "hidden" name = "service" value = "explorer">
+<label for = "data">Номер блока или id транзакции: </label>
+<input align="left" type = "text" name = "data" value="">
+<input align="left" type = "submit" value = "узнать инфу"/>
 </form>
 <hr />
 <h2><a name="contents">Оглавление</a></h2>

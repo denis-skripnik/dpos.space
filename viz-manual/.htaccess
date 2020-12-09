@@ -5,7 +5,12 @@ AddDefaultCharset UTF-8
 
 <IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /
+RewriteCond %{HTTP_HOST} ^www\.viz\.dpos\.space$ [NC]
+RewriteRule ^(.*)$ https://viz.dpos.space/$1 [R=301,L]
+RewriteCond %{REQUEST_URI} /awards/(.*)
+RewriteRule ^(.*)$ https://dpos.space/viz/awards [L,R=301] 
+
+RewriteBase /viz-manual/
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.html [L]
