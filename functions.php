@@ -176,6 +176,7 @@ $menu = json_decode($file, TRUE);
 $str = '';
 if (!pageUrl()) {
   foreach ($menu as $key => $val) {
+    $val['name'] = mb_strtoupper($val['name']);
     $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].$key.'" class="nav-item">'.$val['name'].'</a></li>';
   }
 } else {
@@ -183,6 +184,7 @@ if (!pageUrl()) {
 foreach ($services as $key => $val) {
   if ($key == 'no_category' || $key == '') {
     foreach ($val as $permlink => $ankor) {
+      $ankor = mb_strtoupper($ankor);
       if ($permlink != 'name') {
         $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
       } // if not no_category name
@@ -193,6 +195,7 @@ else {
 <ul class="nav-list subMenu" id="'.$key.'" style="display: none;">
 ';
   foreach ($val as $permlink => $ankor) {
+    $ankor = mb_strtoupper($ankor);
     if ($permlink != 'name') {
       $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
     } // if not category name

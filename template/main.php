@@ -40,7 +40,7 @@
 <?= (!pageUrl() ? '<img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.jpg" alt="'.$conf['siteName'].'">' : '<a href="'.$conf['siteUrl'].'"><img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.jpg" alt="'.$conf['siteName'].'"></a>'); ?>
 </div>
     <ul class="nav-list hidden">
-    <li class="nav-link"><a href="<?= $conf['siteUrl']; ?>" class="nav-item">Главная</a></li>
+    <li class="nav-link"><a href="<?= $conf['siteUrl']; ?>" class="nav-item">ГЛАВНАЯ</a></li>
 <?= ($data['menu'] ?? $data['menu'] ?? "") ?>
 </ul>    
     <div class="tpl_hamburger show" id="sandwichmenu">
