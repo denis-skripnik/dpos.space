@@ -1,14 +1,20 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div class="container-before">
+return '<div class="cj-container">
 <p>
     <label>
         <span>ID формы *</span> <br> <br>
         <input type="text" name="form-id" id="form-id">
     </label>
 </p>
+<p>
+    <label>
+        <span>Название операции *</span> <br> <br>
+        <input type="text" name="form-operation" id="form-operation">
+    </label>
+</p>
 </div>
-<div class="container">
-<form class="form" id="js-form">
+<div class="cjs-container">
+<form class="cjs-form" id="js-form">
     <p class="ui-sortable-handle">
         <label>
             <span>Ваше имя</span>

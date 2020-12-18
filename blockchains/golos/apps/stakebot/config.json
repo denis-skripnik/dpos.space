@@ -1,6 +1,6 @@
 {
 "title": "Текущие ставки в Golos Stake Bot",
 "description": "Страница со списком участников, которые сделали ставки",
-"in_menu": "Ставки golos_stake_bot",
+"in_menu": "Stake_bot",
 "category": "games"
 }

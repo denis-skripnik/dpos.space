@@ -335,9 +335,16 @@ var generatedObject = {};
                     alert('Введите id формы');
                     return;
                 }
+                var operation = '';
+                if (!$('#form-operation').val()) {
+                    alert('Введите название операции');
+                    return;
+                } else {
+                    operation = $('#form-operation').val();
+                }
                 var $clearNewCloneOfForm = $('#js-form').clone().find('.gen-controls').remove().end();
                 var object = readForm($clearNewCloneOfForm);
-                var result = generateResultForm(object);
+                var result = generateResultForm(object, operation);
                 $('.modal-getResultHTML').addClass('modal-visible')
                 $('body').css('overflow', 'hidden')
                 $("[name='ta-get-form']").val('').val(result).focus();
@@ -359,11 +366,18 @@ var generatedObject = {};
                     alert('Введите id формы');
                     return;
                 }
+                let operation = '';
+                if (!$('#form-operation').val()) {
+                    alert('Введите название операции');
+                    return;
+                } else {
+                    operation = $('#form-operation').val();
+                }
                 $('.modal-getDemo').addClass('modal-visible')
                 $('body').css('overflow', 'hidden')
                 var $clearNewCloneOfForm = $('#js-form').clone().find('.gen-controls').remove().end();
                 var object = readForm($clearNewCloneOfForm);
-                var result = generateResultForm(object);
+                var result = generateResultForm(object, operation);
                 var formId = $('.result-demo').empty().html(result).find('form').attr('id');
             });
             $('.ta-set-json-ready').click(function(e){
@@ -665,7 +679,7 @@ var generatedObject = {};
             return ''+
             '</fieldset>\n';
         }
-        function generateResultForm(arr){
+        function generateResultForm(arr, op){
             var id = localStorage.getItem('builder_form_id');
             var vizScript = document.createElement('script');
             vizScript.setAttribute("src", 'https://cdn.jsdelivr.net/npm/viz-js-lib@latest/dist/viz.min.js');
@@ -683,11 +697,12 @@ var generatedObject = {};
             // serializeScript.outerHTML+'\n'+
             '<form id="'+id+'" class="generated-form">' + '\n' +
             generateResultFormParts(arr) + '\n' +
+            '<input type="hidden" name="viz_json_operation_name" id="viz_json_operation_name" value="">' + '\n' +
             '<p><button>Отправить</button></p>' + '\n' +
             '</form>' + '\n' +
             eventScript.outerHTML.split('<br>').join('\n');
         }
-        window.generatedFormScript=function(){function e(e){if(localStorage.getItem("viz_login")&&localStorage.getItem("vizPostingKey"))viz_login=localStorage.getItem("viz_login"),posting_key=sjcl.decrypt(viz_login+"_postingKey",localStorage.getItem("vizPostingKey"));else if(sessionStorage.getItem("viz_login")&&sessionStorage.getItem("vizPostingKey"))viz_login=sessionStorage.getItem("viz_login"),posting_key=sjcl.decrypt(viz_login+"_postingKey",sessionStorage.getItem("vizPostingKey"));else{document.getElementById(e)&&(document.getElementById(e).style.display="none");var t=document.createElement("div");t.innerHTML='<form id="auth_form" action="index.html" method="GET"><p class="auth_title"><strong>Пожалуйста авторизируйтесь</strong></p><p><input type="text" id="this_login" name="viz_login" placeholder="Ваш логин"></p><p><input type="password" name="posting" id="this_posting" placeholder="Приватный regular (регулярный) ключ"></p><p><input type="submit" value="Войти"></p></form>',document.getElementById(e).parentNode.insertAdjacentElement("beforeend",t),document.getElementById("auth_form").onsubmit=function(t){t.preventDefault(),async function(e){let t=document.getElementById("this_login").value,o=document.getElementById("this_posting").value;if(localStorage.getItem("vizPostingKey"))var n=sjcl.decrypt(t+"_postingKey",localStorage.getItem("vizPostingKey"));else if(sessionStorage.getItem("vizPostingKey"))var n=sjcl.decrypt(t+"_postingKey",sessionStorage.getItem("vizPostingKey"));else var n=o;if(!0===viz.auth.isWif(n)){const e=await viz.api.getAccountsAsync([t]),s=viz.auth.wifToPublic(n);let i=[];if(e.length>0)for(key of e[0].regular_authority.key_auths)i.push(key[0]);else window.alert("Вероятно, аккаунт не существует. Просьба проверить введённый логин.");i.includes(s)?(localStorage.setItem("viz_login",t),localStorage.setItem("vizPostingKey",sjcl.encrypt(t+"_postingKey",o)),sessionStorage.setItem("viz_login",t),sessionStorage.setItem("vizPostingKey",sjcl.encrypt(t+"_postingKey",o)),viz_login=t,posting_key=n):0===e.length?window.alert("Аккаунт не существует. Пожалуйста, проверьте его"):window.alert("regular ключ не соответствует пренадлежащему аккаунту.")}else window.alert("Regular ключ имеет неверный формат. Пожалуйста, попробуйте ещё раз.");viz_login||posting_key?(document.getElementById(e)&&(document.getElementById(e).style.display="block"),document.getElementById("auth_form").remove()):alert("Не удалось авторизироваться с текущей парой логин/ключ")}(e)}}}var t=document.querySelector(".generated-form").id;document.querySelector(".generated-form").querySelector("button").disabled=!0;setTimeout(function o(){window.hasOwnProperty("viz")?(console.log("done"),function(){const e=["wss://viz.lexa.host/ws","wss://solox.world/ws"];let t=localStorage.getItem("viz_node")||e[0];const o=Math.max(e.indexOf(t),0),n=o=>{o>=e.length&&(o=0),0>=e.length?alert("no working nodes found"):(t=e[o],viz.config.set("websocket",t),viz.api.getDynamicGlobalPropertiesAsync().then(e=>{console.log("found working node",t),localStorage.setItem("viz_node",t)}).catch(e=>{console.log("connection error",t,e),n(o+1)}))};n(o)}(),e(t),document.querySelector(".generated-form").querySelector("button").disabled=!1):(console.log("wait"),setTimeout(o,50))},0);document.querySelector(".generated-form").onsubmit=function(e){e.preventDefault(),this.querySelector("button").disabled=!0;var t=new XMLHttpRequest;t.open("POST","https://dpos.space/blockchains/viz/apps/custom-generator/json_encode.php"),t.setRequestHeader("Content-Type","application/x-www-form-urlencoded"),t.onload=function(){200===t.status?(console.log(t.responseText),viz.broadcast.custom(posting_key,[],[viz_login],document.querySelector(".generated-form").id,t.responseText,function(e,t){e?alert("Ошибка: "+e):(alert("Ок. custom отправлен"),console.log(t)),document.querySelector(".generated-form").querySelector("button").disabled=!1})):alert("Request failed.  Returned status of "+t.status)},t.send(function(e){for(var t=[],o=0;o<e.elements.length;o++){var n=e.elements[o];if(n.name&&!n.disabled&&"file"!==n.type&&"reset"!==n.type&&"submit"!==n.type&&"button"!==n.type)if("select-multiple"===n.type)for(var s=0;s<n.options.length;s++)n.options[s].selected&&t.push(encodeURIComponent(n.name)+"="+encodeURIComponent(n.options[s].value));else("checkbox"!==n.type&&"radio"!==n.type||n.checked)&&t.push(encodeURIComponent(n.name)+"="+encodeURIComponent(n.value))}return t.join("&")}(document.querySelector(".generated-form")))}};
+        window.generatedFormScript=function(){function e(e){if(localStorage.getItem("viz_login")&&localStorage.getItem("vizPostingKey"))viz_login=localStorage.getItem("viz_login"),posting_key=sjcl.decrypt(viz_login+"_postingKey",localStorage.getItem("vizPostingKey"));else if(sessionStorage.getItem("viz_login")&&sessionStorage.getItem("vizPostingKey"))viz_login=sessionStorage.getItem("viz_login"),posting_key=sjcl.decrypt(viz_login+"_postingKey",sessionStorage.getItem("vizPostingKey"));else{document.getElementById(e)&&(document.getElementById(e).style.display="none");var t=document.createElement("div");t.innerHTML='<form id="auth_form" action="index.html" method="GET"><p class="auth_title"><strong>Пожалуйста авторизируйтесь</strong></p><p><input type="text" id="this_login" name="viz_login" placeholder="Ваш логин"></p><p><input type="password" name="posting" id="this_posting" placeholder="Приватный regular (регулярный) ключ"></p><p><input type="submit" value="Войти"></p></form>',document.getElementById(e).parentNode.insertAdjacentElement("beforeend",t),document.getElementById("auth_form").onsubmit=function(t){t.preventDefault(),async function(e){let t=document.getElementById("this_login").value,o=document.getElementById("this_posting").value;if(localStorage.getItem("vizPostingKey"))var n=sjcl.decrypt(t+"_postingKey",localStorage.getItem("vizPostingKey"));else if(sessionStorage.getItem("vizPostingKey"))var n=sjcl.decrypt(t+"_postingKey",sessionStorage.getItem("vizPostingKey"));else var n=o;if(!0===viz.auth.isWif(n)){const e=await viz.api.getAccountsAsync([t]),s=viz.auth.wifToPublic(n);let i=[];if(e.length>0)for(key of e[0].regular_authority.key_auths)i.push(key[0]);else window.alert("Вероятно, аккаунт не существует. Просьба проверить введённый логин.");i.includes(s)?(localStorage.setItem("viz_login",t),localStorage.setItem("vizPostingKey",sjcl.encrypt(t+"_postingKey",o)),sessionStorage.setItem("viz_login",t),sessionStorage.setItem("vizPostingKey",sjcl.encrypt(t+"_postingKey",o)),viz_login=t,posting_key=n):0===e.length?window.alert("Аккаунт не существует. Пожалуйста, проверьте его"):window.alert("regular ключ не соответствует пренадлежащему аккаунту.")}else window.alert("Regular ключ имеет неверный формат. Пожалуйста, попробуйте ещё раз.");viz_login||posting_key?(document.getElementById(e)&&(document.getElementById(e).style.display="block"),document.getElementById("auth_form").remove()):alert("Не удалось авторизироваться с текущей парой логин/ключ")}(e)}}}var t=document.querySelector(".generated-form").id;document.querySelector(".generated-form").querySelector("button").disabled=!0;setTimeout(function o(){window.hasOwnProperty("viz")?(console.log("done"),function(){const e=["wss://viz.lexa.host/ws","wss://solox.world/ws"];let t=localStorage.getItem("viz_node")||e[0];const o=Math.max(e.indexOf(t),0),n=o=>{o>=e.length&&(o=0),0>=e.length?alert("no working nodes found"):(t=e[o],viz.config.set("websocket",t),viz.api.getDynamicGlobalPropertiesAsync().then(e=>{console.log("found working node",t),localStorage.setItem("viz_node",t)}).catch(e=>{console.log("connection error",t,e),n(o+1)}))};n(o)}(),e(t),document.querySelector(".generated-form").querySelector("button").disabled=!1):(console.log("wait"),setTimeout(o,50))},0);document.querySelector(".generated-form").onsubmit=function(e){e.preventDefault(),this.querySelector("button").disabled=!0;var t=new XMLHttpRequest;t.open("POST","https://dpos.space/blockchains/viz/apps/custom-generator/json_encode.php"),t.setRequestHeader("Content-Type","application/x-www-form-urlencoded"),t.onload=function(){200===t.status?(console.log(t.responseText),toArr=JSON.parse(t.responseText),result_json=JSON.stringify([document.querySelector(`#viz_json_operation_name`).value,toArr]),viz.broadcast.custom(posting_key,[],[viz_login],document.querySelector(".generated-form").id,result_json,function(e,t){e?alert("Ошибка: "+e):(alert("Ок. custom отправлен"),console.log(t)),document.querySelector(".generated-form").querySelector("button").disabled=!1})):alert("Request failed.  Returned status of "+t.status)},t.send(function(e){for(var t=[],o=0;o<e.elements.length;o++){var n=e.elements[o];if(n.name&&!n.disabled&&"file"!==n.type&&"reset"!==n.type&&"submit"!==n.type&&"button"!==n.type)if("select-multiple"===n.type)for(var s=0;s<n.options.length;s++)n.options[s].selected&&t.push(encodeURIComponent(n.name)+"="+encodeURIComponent(n.options[s].value));else("checkbox"!==n.type&&"radio"!==n.type||n.checked)&&t.push(encodeURIComponent(n.name)+"="+encodeURIComponent(n.value))}return t.join("&")}(document.querySelector(".generated-form")))}};
         /*
         window.generatedFormScript = function(){
             function serialize(e) {
