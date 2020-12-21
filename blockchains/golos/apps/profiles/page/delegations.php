@@ -4,10 +4,18 @@ define('DELEGATIONS_LIMIT', 10);
 $user = $_GET['options']['user'];
 $type = $_GET['options']['type'];
 $siteUrl = $_GET['options']['siteUrl'];
-require_once 'snippets/get_vesting_delegations.php';
+require $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
+require 'snippets/get_vesting_delegations.php';
+require 'snippets/get_dynamic_global_properties.php';
 if (!$user) {
     die();
 }
+
+$res3 = $command3->execute($commandQuery3); 
+$mass3 = $res3['result'];
+$tvfs = (float)$mass3['total_vesting_fund_steem'];
+$tvsh = (float)$mass3['total_vesting_shares'];
+$steem_per_vests = 1000000 * $tvfs / $tvsh;
 
 $rowCount = 0;
 
@@ -41,9 +49,11 @@ $month2 = date('m', $min_delegation_time2);
 $timestamp = date('j', $min_delegation_time2).' '.$month[$month2].' '.date('Y г. H:i:s', $min_delegation_time2);
 $rowCount++;
 $percent = $delegation['interest_rate'] / 100;
+$gp = $delegation['vesting_shares'] / 1000000 * $steem_per_vests;
+$gp = round($gp, 6);
 $result['content'] .= '<tr>
 <td><a href="'.$siteUrl.'golos/profiles/'.$delegation[$type_account].'" target="_blank">@'.$delegation[$type_account].'</a></td>
-<td>'.$delegation['vesting_shares'].'</td>
+<td>'.$gp.' СГ</td>
 <td>'.$percent.'%</td>
 <td>'.$timestamp.'</td>
 </tr>';

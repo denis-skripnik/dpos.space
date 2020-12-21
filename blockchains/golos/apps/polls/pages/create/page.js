@@ -33,7 +33,7 @@ answers.push(a);
    updateText();
 
 function sendData(operations) {
-    var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 20 GBG');
+    var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 2 GBG');
     if (q === true) {
     golos.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
@@ -58,7 +58,7 @@ memo_array.contractPayload.end_date = endDate;
 memo_array.contractPayload.consider = parseFloat(consider);
 let memo = JSON.stringify(memo_array);
     let data_url = [];
-    data_url.push(["transfer",{"from":sender,"to":"null","amount":"20.000 GBG","memo":memo}]);
+    data_url.push(["transfer",{"from":sender,"to":"null","amount":"2.000 GBG","memo":memo}]);
     let str_data_url = JSON.stringify(data_url);
     if (answers.length > 0) {
     if (clients === "sign") {
@@ -66,8 +66,8 @@ window.open("https://gropox.github.io/sign/?user=" + sender + "&tr=" + str_data_
     } else if (clients === 'dpos.space') {
 sendData(data_url);
 } else if (clients === "golos_id") {
-        // window.open("https://golos.id/@" + sender + "/transfers?to=null&amount=20.000&token=gbg&memo=" + memo);
-window.alert('Пока что golos.id выбирать нельзя. Пожалуйста, создайте опрос при помощи Писаря.');
+        // window.open("https://golos.id/@" + sender + "/transfers?to=null&amount=2.000&token=gbg&memo=" + memo);
+window.alert('Пока что golos.id выбирать нельзя. Пожалуйста, создайте опрос при помощи dpos.space или Писаря.');
     }
 } else {
 window.alert('Нет добавленных вариантов ответа.');

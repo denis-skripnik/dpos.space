@@ -482,7 +482,23 @@ items.forEach(item => {
       if (op[0] === 'claim' && op[1]['to_vesting'] === true) memo = 'Получение своих начислений на СГ.';
       if (op[0] === 'claim' && op[1]['to_vesting'] === false) memo = 'Получение своих начислений в TIP-баланс.';
       if (op[0] === 'transfer_to_tip') memo = 'Перевод в TIP баланс. ' + op[1]['memo'];
-      if (op[0] === 'donate') memo = 'Донат. Заметка: ' + prepareContent(op[1]['memo']['comment']);
+      if (op[0] === 'donate') {
+let metadata = JSON.parse(item[1].json_metadata);
+        if (metadata['referrer'] === golos_login && golos_login !== from) {
+          from = op[1].to;
+          to = golos_login;
+          amount = metadata.referrer_interest;
+          memo = 'Процент от доната в адрес вашего реферала';
+        } else {
+          memo = 'Донат';
+        }
+        if (op[1]['memo']['comment']) {
+          memo += ', заметка: ' + prepareContent(op[1]['memo']['comment']);
+        }
+        if (op[1]['memo']['target'] && op[1]['memo']['target']['author'] && op[1]['memo']['target']['permlink']) {
+  memo += `, <a href="https://golos.id/@${op[1]['memo']['target']['author']}/${op[1]['memo']['target']['permlink']}" target="_blank">@${op[1]['memo']['target']['author']}/${op[1]['memo']['target']['permlink']}</a>`;
+}
+      }
       jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
 <td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
 <td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\

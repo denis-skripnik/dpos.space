@@ -58,8 +58,7 @@ $startWith = $_REQUEST['start'] ?? 300000000;
                     break;
                 }
                 $startWith = $datas[0] - 1;
-    
-                    $op = $datas[1]['op'];
+                $op = $datas[1]['op'];
                     $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
                     $timestamp1 = $datas[1]['timestamp'];
              $timestamp2 = strtotime($timestamp1);
@@ -72,10 +71,21 @@ $startWith = $_REQUEST['start'] ?? 300000000;
                     $to = $op[1]['to'];
                     $amount = $op[1]['amount'];
 $memo = $op[1]['memo'];
-$more_info = 'Приложение: '.$memo['app'].', версия: '.$memo['version'].(isset($memo['comment']) ? ', Комментарий: '.$memo['comment'] : '').'. ';
+$more_info = 'Донат с приложения '.$memo['app'].' V'.$memo['version'].(isset($memo['comment']) && $memo['comment'] !== '' ? ', Комментарий: '.$memo['comment'] : '').'. ';
+$metadata = json_decode($datas[1]['json_metadata'], true);
+if ($user === $metadata['referrer'] && $user !== $op[1]['from']) {
+    $from = $op[1]['to'];
+    $to = $user;
+    $amount = $metadata['referrer_interest'];
+$more_info = 'Процент от доната в адрес реферала данного пользователя, приложение: '.$memo['app'].' V'.$memo['version'].(isset($memo['comment']) && $memo['comment'] !== '' ? ', Комментарий: '.$memo['comment'] : '').'. ';
+}
 $target = $memo['target'];
-foreach ($target as $key => $value) {
-$more_info .= $key.': '.$value.',';
+if ($target['author'] && $target['permlink']) {
+    $more_info .= '<a href="https://golos.id/@'.$target['author'].'/'.$target['permlink'].'" target="_blank">@'.$target['author'].'/'.$target['permlink'].'</a>';
+} else {
+    foreach ($target as $key => $value) {
+        $more_info .= $key.': '.$value.',';
+        }
 }
 $more_info = substr($more_info, 0, -1);                    
 $result['content'] .= '<tr><td>' . $timestamp . '</td>
