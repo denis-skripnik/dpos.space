@@ -3,32 +3,58 @@ gates.PRIZM = {};
 gates.YMRUB = {};
 gates.PRIZM.withdraw = {
   account: "exprizm",
-  vars: {
-    address: "Адрес в сети PRIZM",
-    key: "Публичный ключ"
-  },
+  vars: [
+    {
+      address: "Адрес в сети PRIZM",
+      key: "Публичный ключ"
+        }
+  ],
   separator: " "
 };
 
 gates.YMRUB.withdraw = {
   account: "ecurrex-ymrub",
-  vars: {
-    address: "Адрес кошелька Yoomoney",
-  },
-  separator: " "
+get_max: {
+  allow: true,
+login: "ecurrex-ru",
+  separator: " / ",
+},
+  vars: [
+    {
+      name: "advcash",
+      address: "Адрес кошелька Advcash",
+    },
+    {
+      name: "payeer",
+      address: "Адрес кошелька Payeer",
+    }
+  ],
+  separator: ":"
 };
 
 gates.YMRUB.deposit = {
-vars: {
+vars: [
+  { // Advcash
   address: {
-    name: "Адрес кошелька в Yoomoney",
-    value: `<a href="https://yoomoney.ru/to/41001183294372" target="_blank">41001183294372</a>`,
+    name: "Адрес кошелька в Advcash",
+    value: `R 9085 0398 0645`,
   },
   memo: {
     name: "Примечание к платежу",
     value: "golos:" + golos_login
   }
-}
+  }, // end Advcash method
+  { // Payeer
+    address: {
+      name: "Адрес кошелька в Payeer",
+      value: `P9741574`,
+    },
+    memo: {
+      name: "Примечание к платежу",
+      value: "golos:" + golos_login
+    }
+    }
+]
 };
 
 async function links(tipe, token) {
@@ -658,6 +684,42 @@ function createFiltr() {
         thisAccountHistory('filtr');
 }
 
+async function changeWithdrawUIASelect(value) {
+  let token = $('.uia_withdraw_modal_token').html();
+  let w = gates[token].withdraw;
+    $('#action_uia_withdraw_to').val(w.account);
+  let vars = w.vars;
+$('.action_uia_withdraw_memo').remove();
+  let method = vars[parseInt(value)];
+  let get_max = w.get_max;  
+  $('#max_uia_withdraw_amount').html($('#max_main_' + token).html());
+  if (get_max.allow == true) {
+  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
+  if (gate_account && gate_account.length > 0) {
+let metadata = JSON.parse(gate_account[0].json_metadata);
+let methods = metadata.profile.about.split(w.get_max.separator);
+let methods_list = [];
+for (let m of methods) {
+  let arr = m.split(':');
+  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
+}
+let max_method = methods_list[parseInt(value)];
+if (max_method.name === method.name && max_method.amount < parseFloat($('#max_main_' + token).html())) {
+  $('#max_uia_withdraw_amount').html(max_method.amount);
+} // end if.
+}
+}
+  
+  for (let el in method) {
+if (el === 'name') {
+  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
+} else {
+  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
+  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
+}
+  }
+}
+
 $(document).ready(async function() {
   let main_data =await mainData();
     if (main_data !== false) {
@@ -986,41 +1048,86 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
     if (gates[token] && gates[token].deposit) {
 let deposit = gates[token].deposit;
 let res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
-<ul>`;
+`;
 let vars = deposit.vars;
-for (let el in vars) {
-res += `<li>${vars[el].name}: ${vars[el].value} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${vars[el].value.replace(/<[^>]*>/g, "")}').then(() => {console.log('Successfully copied to clipboard');}).catch(() => {console.log('Copy error');});">)</li>`;
+for (let method of vars) {
+  res += '<ul>';
+for (let el in method) {
+res += `<li>${method[el].name}: ${method[el].value} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${method[el].value.replace(/<[^>]*>/g, "")}').then(() => {console.log('Successfully copied to clipboard');}).catch(() => {console.log('Copy error');});">)</li>`;
 }
   res += `</ul>`;
+}
+
 $('#uia_diposit_data').html(res);
 }
   });
 
-  $(document).on('click', '.uia_withdraw_modal', function(e) {
+  $(document).on('click', '.uia_withdraw_modal', async function(e) {
     let token = $(this).attr('data-token');
 $('.uia_withdraw_modal_token').html(token);
-    $('#max_uia_withdraw_amount').html($('#max_main_' + token).html());
   if (gates[token] && gates[token].withdraw) {
     let w = gates[token].withdraw;
-  $('#action_uia_withdraw_to').val(w.account);
+    $('#action_uia_withdraw_to').val(w.account);
 $('#fields_uia_withdraw').html('');
-  let vars = w.vars;
-  for (let el in vars) {
-    $('#fields_uia_withdraw').append(`<p><label for="${el}">${vars[el]}:</label></p>
-<p><input type="text" name="${el}" placeholder="${vars[el]}" class="action_uia_withdraw_memo" value=""></p>`);
+$('#max_uia_withdraw_amount').html($('#max_main_' + token).html());
+let vars = w.vars;
+if (vars.length > 1) {
+  $('#fields_uia_withdraw').append(`<select name="withdraw_uia_method" onchange="changeWithdrawUIASelect(this.value);">`);
+  vars.filter((val, key) => $('select[name=withdraw_uia_method]').append(`<option value="${key}">${val.name}</option>
+`));
+$('#fields_uia_withdraw').append(`</select>`);
+let method = vars[parseInt($('select[name=withdraw_uia_method]').val())];
+let get_max = w.get_max;
+if (get_max.allow == true) {
+  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
+  if (gate_account && gate_account.length > 0) {
+let metadata = JSON.parse(gate_account[0].json_metadata);
+let methods = metadata.profile.about.split(w.get_max.separator);
+let methods_list = [];
+for (let m of methods) {
+  let arr = m.split(':');
+  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
+}
+let max_method = methods_list[parseInt($('select[name=withdraw_uia_method]').val())];
+if (max_method.name === method.name && max_method.amount < parseFloat($('#max_main_' + token).html())) {
+  $('#max_uia_withdraw_amount').html(max_method.amount);
+} // end if.
+}
+}
+  
+for (let el in method) {
+if (el === 'name') {
+  $('#fields_uia_withdraw').append(`<input type="hidden" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
+} else {
+  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
+  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
+}
   }
+} else {
+for (let method of vars) {
+      for (let el in method) {
+if (el === 'name') {
+  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
+} else {
+  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
+  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
+}
+  }
+}
+}
 }
   });
 
   $("#max_token_uia_withdraw").click(async function(){
     let token = $('.uia_withdraw_modal_token').html();
+    let amount = $('#max_uia_withdraw_amount').html();
     let precision = 3;
    let assets = await golos.api.getAssetsAsync('', [token]);
    if (assets && assets.length > 0) {
      let asset = assets[0];
      precision = asset.precision;
    }
-    $('#action_uia_withdraw_amount').val(new Number(parseFloat($('#max_main_' + token).html())).toFixed(precision));
+    $('#action_uia_withdraw_amount').val(new Number(parseFloat(amount)).toFixed(precision));
      });
 
 $('#action_uia_withdraw_start').click(async function(){
@@ -1039,7 +1146,7 @@ $('#action_uia_withdraw_start').click(async function(){
     action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
     let action_transfer_memo = $(".action_uia_withdraw_memo").map( (i,el) => $(el).val() ).get().join(gates[token].withdraw.separator);
 
- try {
+    try {
   let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
   window.alert('Вы вывели ' + action_transfer_amount + '.');
   await loadBalances();
@@ -1057,9 +1164,9 @@ $('#action_uia_withdraw_start').click(async function(){
 $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_main_' + token).html());
 if (token === 'GOLOS') {
-  $('#to_vesting').css('display', 'list-item');
+  $('#transfer_in').css('display', 'list-item');
 } else {
-  $('#to_vesting').css('display', 'none');
+  $('#transfer_in').css('display', 'none');
 }
   });
 

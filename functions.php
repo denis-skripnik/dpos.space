@@ -235,7 +235,7 @@ function isJSON($string) {
 }
 
 function to_menu($blockchain, $permlink, $ankor, $category = 'no_category') {
-  if (is_dir(__DIR__.'/blockchains/'.$blockchain)) {
+  if ($blockchain !== '' && $blockchain !== '/' && is_dir(__DIR__.'/blockchains/'.$blockchain)) {
   $file = file_get_contents(__DIR__.'/menu.json');
   $taskList = json_decode($file, TRUE);
 unset($file);
