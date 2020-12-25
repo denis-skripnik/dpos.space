@@ -1,7 +1,7 @@
 *:before,*:after,*{
     box-sizing: border-box;
 }
-.container, .buttons, .container-before {
+.cj_container, .buttons, .cj_container-before {
     max-width: 1000px;
     margin: 50px auto;
 }

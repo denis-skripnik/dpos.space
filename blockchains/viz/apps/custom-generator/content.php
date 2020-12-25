@@ -1,5 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div class="cj-container">
+return '<div id="cj_main">
+<div class="cj_container-before">
 <p>
     <label>
         <span>ID формы *</span> <br> <br>
@@ -13,8 +14,8 @@ return '<div class="cj-container">
     </label>
 </p>
 </div>
-<div class="cjs-container">
-<form class="cjs-form" id="js-form">
+<div class="cj_container">
+<form class="form" id="js-form">
     <p class="ui-sortable-handle">
         <label>
             <span>Ваше имя</span>
@@ -258,4 +259,5 @@ return '<div class="cj-container">
     </div>
 </div>
 </div>
-'; ?>
+</div>
+</div>'; ?>
