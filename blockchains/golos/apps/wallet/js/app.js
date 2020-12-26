@@ -1,8 +1,15 @@
 var gates = {};
 gates.PRIZM = {};
 gates.YMRUB = {};
+gates.YMPZM = {};
 gates.PRIZM.withdraw = {
   account: "exprizm",
+  
+  get_max: {
+    allow: false,
+  login: "prizm",
+    separator: " / ",
+  },
   vars: [
     {
       address: "Адрес в сети PRIZM",
@@ -57,7 +64,38 @@ vars: [
 ]
 };
 
-async function links(tipe, token) {
+gates.YMPZM.withdraw = {
+  account: "ecurrex-prizm",
+get_max: {
+  allow: false,
+login: "ecurrex-ru",
+  separator: " / ",
+},
+  vars: [
+    {
+      name: "",
+      address: "Адрес кошелька Prizm",
+    }
+    ],
+  separator: ""
+};
+
+gates.YMPZM.deposit = {
+  vars: [
+    {
+      address: {
+        name: "Адрес кошелька в Prizm",
+        value: `PRIZM-5UER-N986-BU24-AXJRL`,
+      },
+      memo: {
+        name: "Примечание к платежу",
+        value: "golos:" + golos_login
+      }
+      }
+  ]
+  };
+
+  async function links(tipe, token) {
   $('#actions').html('');
   if (token === 'GOLOS' && tipe === 'main_balance') {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
@@ -234,17 +272,24 @@ let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
   if (accounts_balances && accounts_balances.length > 0) {
     let uias = accounts_balances[0];
     let isYMRUB = false;
+    let isYMPZM = false;
     for (let name in uias) {
 if (name === 'YMRUB') {
   isYMRUB = true;
 }
-      let token = uias[name];
+if (name === 'YMPZM') {
+  isYMPZM = true;
+}      
+let token = uias[name];
 tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFloat(token.tip_balance)});
     }
   if (isYMRUB == false) {
     tokens.push({name: 'YMRUB', main_balance: 0, tip_balance: 0});
   }
-  }
+  if (isYMPZM == false) {
+    tokens.push({name: 'YMPZM', main_balance: 0, tip_balance: 0});
+  }  
+}
 
 let balances_table = '';
     for (let token of tokens) {
