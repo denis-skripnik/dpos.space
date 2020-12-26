@@ -39,7 +39,7 @@ blocksData('.$start_block.', '.$end_block.');
 </div>';
 } else {
 return '<form class="form" action="'.$conf['siteUrl'].'viz/randomblockchain/" method="get">
-<p><label for="block1">Первый блок (начальный): </label>
+<p><label for="block1">Первый блок (начальный) (<a onclick="getLastBlocks()">Получить текущий и предыдущий блок</a>): </label>
 <input type="text" name="block1" value="" placeholder="Введите стартовый блок"></p>
 <p><label for="block2">Второй блок, на основе которого (также как и на базе первого) будет производиться генерация случайного числа: </label>
 <input type="text" name="block2" value="" placeholder="Введите второй блок"></p>

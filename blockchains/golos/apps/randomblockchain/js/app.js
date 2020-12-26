@@ -1,3 +1,9 @@
+async function getLastBlocks() {
+let props = await golos.api.getDynamicGlobalPropertiesAsync();
+$('input[name=block1]').val(props.head_block_number);
+$('input[name=block2]').val(props.head_block_number-1);
+}
+
 function blocksData(start_block, end_block) {
     golos.api.getBlock(start_block, function (err, res) {
     if (!err) {
