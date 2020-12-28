@@ -191,6 +191,7 @@ foreach ($services as $key => $val) {
     } // foreach no_category services
   } // if no_category
 else {
+  $val['name'] = mb_strtoupper($val['name']);
   $str .= '<li class="nav-link"><a class="nav-item" onclick="spoiler(`'.$key.'`, `subMenu`); return false;">'.$val['name'].'</a>
 <ul class="nav-list subMenu" id="'.$key.'" style="display: none;">
 ';
