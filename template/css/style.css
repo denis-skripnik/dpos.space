@@ -186,8 +186,13 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
   /* Стили для списка меню */
   .nav-list{
     display: flex;
+    Width:105%;
     height: 100%;
     align-items: center;
+    Padding-left:2Px;
+    Padding-right:2px;
+    Margin-right:5px;
+    Margin-left:-5px;
   }
   
   /* стили для элементов списка меню */
@@ -200,7 +205,21 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     background-color: #808080;
     border-radius: 10px;
   }
-  /* отступы кроме последнего элемента */
+
+  .nav-link1 {
+    Width:105%;
+    z-index: 10;
+    height: 40px;
+    background-color: #808080;
+    border-radius:10px;
+    margin-top:2px;
+    Padding-left:2Px;
+    Padding-right:2px;
+    Margin-right:5px;
+    Margin-left:-5px;
+  }
+  
+/* отступы кроме последнего элемента */
   .nav-link{
     margin-right: 10px;
   }
@@ -221,6 +240,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     color: white;
     font-size: 14px;
     font-weight: 500;
+    cursor:pointer;
   }
   
   /* ниже анимации и стили для бургера */

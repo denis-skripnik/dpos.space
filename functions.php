@@ -198,7 +198,7 @@ else {
   foreach ($val as $permlink => $ankor) {
     $ankor = mb_strtoupper($ankor);
     if ($permlink != 'name') {
-      $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
+      $str .= '<li class="nav-link1"><a href="'.$conf['siteUrl'].pageUrl()[0].'/'.$permlink.'" class="nav-item">'.$ankor.'</a></li>';
     } // if not category name
   } // foreach category services
 $str .= '</ul></li>';
