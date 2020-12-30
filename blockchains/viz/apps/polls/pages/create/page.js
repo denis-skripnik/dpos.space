@@ -46,6 +46,7 @@ if (!err) {
 }
 
    function submitPoll(sender, q, end_date, consider, clients) {
+    sender = sender.toLowerCase();
     if (end_date) {
     let endDate = parseInt(new Date(end_date).getTime()/1000);
     let memo_array = {};

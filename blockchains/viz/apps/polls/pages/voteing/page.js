@@ -19,6 +19,7 @@ if (!err) {
 }
 
 function submitVoteing(permlink, sender, answer) {
+    sender = sender.toLowerCase();
     let memo_array = {};
 memo_array.contractName = "viz-votes";
 memo_array.contractAction = "voteing";
