@@ -2,6 +2,15 @@
 global $conf;
 return '<h2>Балансы</h2>
 <ul id="balances"></ul>
+<h2>История транзакций</h2>
+<table><thead><tr><th>Дата</th>
+<th>Блок</th>
+<th>Хеш транзакции</th>
+<th>Тип</th>
+<th>Сумма</th></tr>
+</thead>
+<tbody id="history_tbody"></tbody></table>
+<div id="history_pages"></div>
 <h2>Введите в поле ниже адрес любого пользователя блокчейна Minter:</h2>
 <form class="form" method = "post" action = "">
   <input type = "hidden" name = "chain" value = "minter">
@@ -10,5 +19,4 @@ return '<h2>Балансы</h2>
   <input type = "text" name = "user" value="'.$user.'">
   <input type = "submit" value = "узнать инфу"/>
 </form>
-';
-?>
+'; ?>
