@@ -391,8 +391,6 @@ function getTransferTemplates(token) {
 if (token === 'GOLOS') {
   $('#select_transfer_template').append(`<option value="rudex" data-to="rudex" data-memo="" data-in="to_balance">На Rudex (memo берите на бирже)</option>
   `);
-  $('#select_transfer_template').append(`<option value="livecoin" data-to="livecoin" data-memo="" data-in="to_balance">На Livecoin (memo берите на бирже)</option>
-  `);
 }
 
   let transfer_templates = JSON.parse(localStorage.getItem(token + '_transfer_templates'));
@@ -1364,11 +1362,6 @@ await loadBalances();
     } else if ($('#select_transfer_template').val() === 'rudex') {
       $('#remove_transfer_template').css('display', 'none');
       $('#action_transfer_to').val('rudex');
-      $('#action_transfer_memo').val('');
-      $('#transfer_in').prop('selectedIndex',0);
-    } else if ($('#select_transfer_template').val() === 'livecoin') {
-      $('#remove_transfer_template').css('display', 'none');
-      $('#action_transfer_to').val('livecoin');
       $('#action_transfer_memo').val('');
       $('#transfer_in').prop('selectedIndex',0);
     } else {
