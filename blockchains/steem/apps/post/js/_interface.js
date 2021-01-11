@@ -1,3 +1,5 @@
+var author = steem_login;
+
 function bind_range(){
 	$('input[type=range]').each(function(i){
 		if(typeof $(this).attr('data-fixed') !== 'undefined'){
@@ -334,9 +336,7 @@ updateText();
 function fillContent(err, result) {
             if(err)return alert('Не найден пост ',Author, Permlink);
         console.log(result);
-
-        var jmeta = JSON.parse(result.json_metadata);
-       
+var jmeta = JSON.parse(result.json_metadata);
         $('#content_title').val(result.title);
         $('#content_tags').val(jmeta.tags.join(' '));
         $('#content_image').val(jmeta.image.join(' '));
@@ -430,7 +430,8 @@ function postSender(isEdit) {
  if (isEdit === true) {
          var q = window.confirm('Пост с таким permlink уже есть. его отправка повлечёт не создание нового, а изменение старого поста. Вы действительно хотите это сделать?')
          if (q === true) {
-         const operations = [
+            var wif = posting_key;
+            const operations = [
              ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}]];
 
              steem.broadcast.send({extensions: [], operations}, [wif], function(err, res) {
