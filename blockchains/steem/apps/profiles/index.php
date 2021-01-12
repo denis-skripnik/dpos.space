@@ -23,6 +23,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/feed">Посты подписчиков</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/comments">Комментарии</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/witness">Делегат</a></th>
+<th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/orders">Ордера</a></th>
 </tr></table>';
 if (!isset(pageUrl()[3])) {
 $data['title'] .= ' - основное';
@@ -163,8 +164,18 @@ $data['content'] .= require_once(__DIR__.'/page/comments.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/feed.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'orders') {
+    $data['title'] .= ' - ордера на dex';
+    $data['description'] .= ' - ордера на dex';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/orders.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/orders.php');
 }
-
 }
 return $data;
 }
