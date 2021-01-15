@@ -26,7 +26,7 @@ if( isset($user) ){ // проверяем существование элеме�
  $config_mass = $config_res['result'];
 
   // Расчет hive_per_vests
-  $tvfs = (float)$mass3['total_vesting_fund_steem'];
+  $tvfs = (float)$mass3['total_vesting_fund_hive'];
   $tvsh = (float)$mass3['total_vesting_shares'];
   $hive_per_vests = 1000000 * $tvfs / $tvsh;
 date_default_timezone_set('UTC');
@@ -35,12 +35,12 @@ $WLS_this_date = time();
 $base = (float)$feed_mass["current_median_history"]["base"];
     $quote = (float)$feed_mass["current_median_history"]["quote"];
    $median_price = round($base/$quote, 3);
-$total_vesting_fund_steem = (float)$mass3["total_vesting_fund_steem"];
-$total_reward_fund_steem = (float)$mass3["total_reward_fund_steem"];
+$total_vesting_fund_steem = (float)$mass3["total_vesting_fund_hive"];
+$total_reward_fund_steem = (float)$mass3["total_reward_fund_hive"];
 $total_reward_shares2 = (int)$mass3["total_reward_shares2"];
 $total_vesting_shares = (float)$mass3["total_vesting_shares"];
     $hive_per_vests = $total_vesting_fund_steem / $total_vesting_shares;
-    $sbd_print_rate = $mass3['sbd_print_rate']/10000;
+    $sbd_print_rate = $mass3['hbd_print_rate']/10000;
 $result = [];
     $result['content'] = "<h2>Свежие посты аккаунта $user</h2>
   <table><tr><th>№</th>
@@ -114,11 +114,11 @@ $beneficiaries_pending = round(($all_no_curations/100)*$beneficiaries_procent, 3
 $result['content'] .= '<td>'.$beneficiaries_list.'('.$beneficiaries_pending.' HP)</td>';
 $summ_beneficiaries_pending = $summ_beneficiaries_pending + $beneficiaries_pending;
 $full_author_pending = round($all_no_curations - $beneficiaries_pending, 3);
-if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '10000') {
+if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '10000') {
 $author_HP = round($full_author_pending, 3);
-} else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '0') {
+} else if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '0') {
 $author_HP = round($full_author_pending, 3);
-} else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '100') {
+} else if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '100') {
 $author_HP = round($full_author_pending/1.1, 3);
 }
 $author_pending = round($full_author_pending - $author_HP, 3);
@@ -127,10 +127,10 @@ $author_HBD = round($author_pending*$median_price*$sbd_print_rate, 3);
 $author_hive = round($author_pending - ($author_pending*$sbd_print_rate), 3);
 $author_WLS = $author_HP*2;
 
-  if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '0') {
+  if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '0') {
     $result['content'] .= "<td>$author_hive HIVE, $author_HBD HBD и $author_HP HP</td>
 <td>В HIVE: $full_author_pending, в HBD: ".round($full_author_pending*$median_price, 3)."</td>";
-  } else   if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '10000') {
+  } else   if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '10000') {
     $result['content'] .= "<td>$author_hive HIVE и $author_HP HP</td>
     <td>$full_author_pending HIVE</td>";
   }
@@ -155,12 +155,12 @@ $result['content'] .= "<tr><td></td>
 <td>Постов: $sum_num, Репостов: $sum_reblogs_num</td>
 <td>Все посты, опубликованные за $round_days.</td>
 <td>$summ_beneficiaries_pending HP</td>";
-  if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '10000') {
+  if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '10000') {
     $result['content'] .= "<td>Репосты: $full_summ_author_hive HIVE и $full_summ_author_HP HP<br />
 Общая сумма возможных выплат: $summ_author_hive HIVE и $summ_author_HP HP</td>";
 $summ_fool_author = $summ_author_hive+$summ_author_HP;
 $result['content'] .= "<td>$summ_fool_author HIVE</td>";
-  } else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '0') {
+  } else if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '0') {
     $result['content'] .= "<td>Репосты: $full_summ_author_hive HIVE,  $full_summ_author_HBD HBD и $full_summ_author_HP HP<br />
 Общая сумма возможных выплат: $summ_author_hive HIVE,  $summ_author_HBD HBD и $summ_author_HP HP</td>";
     $summ_fool_author = $summ_author_hive+$summ_author_HP;

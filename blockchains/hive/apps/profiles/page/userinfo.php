@@ -34,7 +34,7 @@ if( isset(pageUrl()[2]) && isset($mass) && count($mass) > 0){ // проверя�
  $RewardFund_mass = $RewardFund_res['result'];
   
  // Расчет hive_per_vests
-    $tvfs = (float)$mass3['total_vesting_fund_steem'];
+    $tvfs = (float)$mass3['total_vesting_fund_hive'];
   $tvsh = (float)$mass3['total_vesting_shares'];
   
   $hive_per_vests = 1000000 * $tvfs / $tvsh;
@@ -112,9 +112,9 @@ $last_post = date('d', $last_post2).' '.$month[$month4].' '.date('Y г. H:i:s', 
 $post_full_date = $server_time - strtotime($datas['last_post']);
 
  $chain_balance = $datas['balance'];
-$sbd_balance = $datas['sbd_balance'];
+$sbd_balance = $datas['hbd_balance'];
 $savings_balance = $datas['savings_balance'];
-$savings_sbd_balance = $datas['savings_sbd_balance']; 
+$savings_sbd_balance = $datas['savings_hbd_balance']; 
 $savings_withdraw_requests = $datas['savings_withdraw_requests'] === 0 ? 'да' : 'нет';
 $next_vesting_withdrawal1 = $datas['next_vesting_withdrawal'];
 $next_vesting_withdrawal2 = strtotime($next_vesting_withdrawal1);

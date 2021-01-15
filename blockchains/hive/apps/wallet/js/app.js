@@ -89,7 +89,7 @@ delegated_sp = delegated_sp.toFixed(6);
 delegated_sp = parseFloat(delegated_sp);
  
 $(".hive_balance").html(new Number(parseFloat(acc.balance)).toFixed(3));
- $(".sbd_balance").html(new Number(parseFloat(acc.sbd_balance)).toFixed(3));
+ $(".sbd_balance").html(new Number(parseFloat(acc.hbd_balance)).toFixed(3));
  $(".hive_vesting_shares").html(sp);
 $(".received_vesting_shares_result").html(received_sp);
 $(".delegated_vesting_shares_result").html(delegated_sp);
@@ -436,7 +436,7 @@ items.forEach(item => {
     var from = 'пул hive';
     var author = op[1].author;
     var permlink = op[1].permlink;
-var sbd_payout = op[1].sbd_payout;
+var sbd_payout = op[1].hbd_payout;
 var hive_payout = op[1].hive_payout;
 var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
 vesting_payout = vesting_payout.toFixed(6) + ' HP';
@@ -451,7 +451,7 @@ vesting_payout = vesting_payout.toFixed(6) + ' HP';
     var author = op[1].author;
     var permlink = op[1].permlink;
     var benefactor = op[1].benefactor;
-    var sbd_payout = op[1].sbd_payout;
+    var sbd_payout = op[1].hbd_payout;
     var hive_payout = op[1].hive_payout;
     var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
     vesting_payout = vesting_payout.toFixed(6) + ' HP';

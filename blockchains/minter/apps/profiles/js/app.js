@@ -4,26 +4,18 @@ if (url.endsWith("/") === true) {
   address = url.slice(-43, -1)
 }
 
-   axios.get('/address?address=' + address)
-  .then(function (response) {
-    // handle success
-let balances = '';
-for (let token of response.data.result.balances) {
-  let balance = token.value / (10**18);
-  balance = balance.toFixed(2)
-  balances += `<li>${balance} ${token.symbol}</li>`
+async function main() {
+  let acc = await getBalance(address);
+  let balances = '';
+  for (let token of acc) {
+    let balance = token.amount / (10**18);
+    balance = balance.toFixed(2)
+    balances += `<li>${balance} ${token.coin}</li>`
+  }
+      $('#balances').html(balances);
 }
-    $('#balances').html(balances);
-  })
-  .catch(function (error) {
-    // handle error
-    console.log(error);
-  })
-  .then(function () {
-    // always executed
-  });
-  
-  function fast_str_replace(search,replace,str){
+
+ function fast_str_replace(search,replace,str){
     return str.split(search).join(replace);
   }
   
@@ -144,5 +136,6 @@ $('#history_tbody').html(results);
 }
 
 $(document).ready(async function() {
+  await main();
   await getHistory(1);
 });

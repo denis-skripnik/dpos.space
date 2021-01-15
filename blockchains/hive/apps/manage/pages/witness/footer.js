@@ -2,7 +2,7 @@ function main() {
     var chf = {};
 chf.account_creation_fee = "Размер комиссии за создание аккаунта без делегирования (HIVE):";
 chf.maximum_block_size = 'Максимальный размер блока в сети (в байтах):';
-chf.sbd_interest_rate = "% начисляемый на HBD:";
+chf.hbd_interest_rate = "% начисляемый на HBD:";
 chf.account_subsidy_budget = "Субсидии аккаунта, которые будут добавлены к субсидии аккаунта за блок. Это максимальная ставка, которую можно создать с помощью субсидий:";
 chf.account_subsidy_decay = ":";
 
@@ -41,7 +41,7 @@ $('#witness_options').click(function() {
     let props = {};
 props.account_creation_fee = res.props.account_creation_fee;
 props.maximum_block_size = res.props.maximum_block_size;
-props.sbd_interest_rate = res.props.sbd_interest_rate;
+props.hbd_interest_rate = res.props.hbd_interest_rate;
     let url = $('input[name=witness_url]').val();
     let blockSigningKey = $('input[name=witness_key]').val();
     if (blockSigningKey === '') {

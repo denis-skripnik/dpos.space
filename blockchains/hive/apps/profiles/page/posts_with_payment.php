@@ -43,7 +43,7 @@ $median_price = round($base / $quote, 3);
 
 $res3 = $command3->execute($commandQuery3);
 $mass3 = $res3['result'];
-$tvfs = (float)$mass3['total_vesting_fund_steem'];
+$tvfs = (float)$mass3['total_vesting_fund_hive'];
 $tvsh = (float)$mass3['total_vesting_shares'];
 $hive_per_vests = 1000000 * $tvfs / $tvsh;
 
@@ -64,7 +64,7 @@ if (! $posts) {
     return $result['content'];
     }
 }
-$sbd_print_rate = $mass3['sbd_print_rate']/10000;
+$sbd_print_rate = $mass3['hbd_print_rate']/10000;
 date_default_timezone_set('UTC');
 $arr_shtraf_procent = [];
 $summ_beneficiaries_pending = 0;

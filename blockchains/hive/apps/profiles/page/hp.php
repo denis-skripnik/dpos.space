@@ -21,7 +21,7 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
     $res3 = $command3->execute($commandQuery3); 
     $mass3 = $res3['result'];
-    $tvfs = (float)$mass3['total_vesting_fund_steem'];
+    $tvfs = (float)$mass3['total_vesting_fund_hive'];
     $tvsh = (float)$mass3['total_vesting_shares'];
     $hive_per_vests = 1000000 * $tvfs / $tvsh;
     
