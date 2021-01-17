@@ -167,7 +167,7 @@ $result['content'] .= "<td>$summ_fool_author HIVE</td>";
     $result['content'] .= "<td>$summ_fool_author HIVE, ".round($summ_fool_author*$median_price, 3)." HBD</td>";
      
   }
-  $result['content'] .= '<td><a href="https://dpos.HPace/upromo/" target="_blank">Очередь в UPRomo</a></td>
+  $result['content'] .= '<td></td>
 </tr>';
 }
 $result['content'] .= "</table>";

@@ -167,7 +167,7 @@ $result['content'] .= "<td>$summ_fool_author STEEM</td>";
     $result['content'] .= "<td>$summ_fool_author STEEM, ".round($summ_fool_author*$median_price, 3)." SBD</td>";
      
   }
-  $result['content'] .= '<td><a href="https://dpos.space/upromo/" target="_blank">Очередь в UPRomo</a></td>
+  $result['content'] .= '<td></td>
 </tr>';
 }
 $result['content'] .= "</table>";
