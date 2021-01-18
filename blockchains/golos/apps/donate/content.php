@@ -50,7 +50,7 @@ if (isset($url[4])) {
 $content .= '<hr>
 <h2>Ссылка на страницу</h2>
 <p>Вы можете её использовать на сайте:</p>
-<p><textarea readonly id="this_page_url"><a href="'.((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'].'" target="_blank">Донат на '.$url[4].' '.$url[3].'</a></textarea>
+<p><textarea readonly id="this_page_url"><a href="'.((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'].'" target="_blank">Донат</a></textarea>
 <input type="button" onclick="copyText(`this_page_url`)" value="Копировать в буфер обмена"></p>
 ';
 return $content;

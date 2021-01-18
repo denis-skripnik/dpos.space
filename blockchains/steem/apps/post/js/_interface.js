@@ -451,7 +451,8 @@ function postSender(isEdit) {
 window.alert('Вы отказались отправлять изменения. Проверьте пермлинк в расширенных настройках.');
          }
 } else {
- const extensions = [];
+    var wif = posting_key;
+             const extensions = [];
 extensions.push([0,{beneficiaries:benif}]);
 let operations = [
  ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':author,'permlink':permlink,'max_accepted_payout':'1000000.000 SBD','percent_steem_dollars':+percent_steem_dollars,'allow_votes':true,'allow_curation_rewards':true,extensions}]];

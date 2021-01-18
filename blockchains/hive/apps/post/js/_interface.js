@@ -427,6 +427,7 @@ if (!user_permlink) {
 
 function postSender(isEdit) {
  console.log(isEdit);
+ var wif = posting_key;
  if (isEdit === true) {
          var q = window.confirm('Пост с таким permlink уже есть. его отправка повлечёт не создание нового, а изменение старого поста. Вы действительно хотите это сделать?')
          if (q === true) {
