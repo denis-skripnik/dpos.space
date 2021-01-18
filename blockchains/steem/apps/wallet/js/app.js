@@ -67,8 +67,8 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 	return datetime_str;
 }
 
-function load_balance(account, active_key) {
-	steem.api.getAccounts([account], function(err, result){
+function load_balance() {
+	steem.api.getAccounts([steem_login], function(err, result){
  if (!err) {
  result.forEach(function(acc) {
 steem.api.getDynamicGlobalProperties(function(error, res) {
@@ -94,8 +94,27 @@ $(".steem_balance").html(new Number(parseFloat(acc.balance)).toFixed(3));
 $(".received_vesting_shares_result").html(received_sp);
 $(".delegated_vesting_shares_result").html(delegated_sp);
 
+  let claim_data = [];
+  if (acc.reward_steem_balance !== '0.000 STEEM') claim_data.push(acc.reward_steem_balance);
+  if (acc.reward_sbd_balance !== '0.000 SBD') claim_data.push(acc.reward_sbd_balance);
+  if (acc.reward_vesting_balance !== '0.000000 VESTS') claim_data.push(parseFloat(acc.reward_vesting_steem) + ' SP');
+if (claim_data.length > 0) {
+  $('#claim').css('display', 'block');
+  $('#claim_balances').html(claim_data.join(', '));
+}
+
+$('#claim_action').click(function() {
+  steem.broadcast.claimRewardBalance(posting_key, steem_login, acc.reward_steem_balance, acc.reward_sbd_balance, acc.reward_vesting_balance, function(err, data) {
+if (!err) {
+  window.alert('Балансы получены');
+  $('#claim').css('display', 'none');
+load_balance();
+}
+  });
+});
+
 const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-steem.api.getVestingDelegations(account, '', 100, function(err, res) {
+steem.api.getVestingDelegations(steem_login, '', 100, function(err, res) {
   //console.log(err, res);
   if ( ! err) {
 var vesting_shares_amount = '';
@@ -109,7 +128,7 @@ let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, tru
 body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/steem/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' +  min_delegation_datetime + '</td><td><input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
 		jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
  $('#cancel_delegated_vesting_shares_' + item.delegatee).click(function(){
-steem.broadcast.delegateVestingShares(active_key, account, item.delegatee, '0.000000 VESTS', function(err, result) {
+steem.broadcast.delegateVestingShares(active_key, steem_login, item.delegatee, '0.000000 VESTS', function(err, result) {
 if (!err) {
 window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
 $('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
@@ -127,7 +146,7 @@ var full_vesting = (sp - delegated_sp + received_sp).toFixed(6);
 $("#full_vesting").html(full_vesting);
 
  $("#cancel_vesting_withdraw").click(function(){
-steem.broadcast.withdrawVesting(active_key, account, '0.000000 VESTS', function(err, result) {
+steem.broadcast.withdrawVesting(active_key, steem_login, '0.000000 VESTS', function(err, result) {
   if (!err) {
 window.alert('Вывод отменён.');
 $('#info_vesting_withdraw').css('display', 'none');
@@ -161,7 +180,7 @@ $("#max_vesting_withdraw_result").html(new Number(parseFloat(max_vesting_withdra
 var action_vesting_withdraw_amount = parseFloat($('#action_vesting_withdraw_amount').val());
 let withdraw_vests = action_vesting_withdraw_amount * 1000000 / steem_per_vests;
 withdraw_vests =  withdraw_vests.toFixed(6) + ' VESTS';
-steem.broadcast.withdrawVesting(active_key, account, withdraw_vests, function(err, result) {
+steem.broadcast.withdrawVesting(active_key, steem_login, withdraw_vests, function(err, result) {
 if (!err) {
 window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
 location.reload();
@@ -184,7 +203,7 @@ window.alert('Ошибка: ' + err);
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
 
 if (transfer_to_vesting.checked) {
-steem.broadcast.transferToVesting(active_key, account, action_steem_transfer_to, action_steem_transfer_amount, function(err, result) {
+steem.broadcast.transferToVesting(active_key, steem_login, action_steem_transfer_to, action_steem_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_steem_transfer_amount + ' пользователю ' + action_steem_transfer_to + ' в SP.');
 location.reload();
@@ -193,7 +212,7 @@ window.alert('Ошибка: ' + err);
 }
   });
 } else {
-	steem.broadcast.transfer(active_key, account, action_steem_transfer_to, action_steem_transfer_amount, action_steem_transfer_memo, function(err, result) {
+	steem.broadcast.transfer(active_key, steem_login, action_steem_transfer_to, action_steem_transfer_amount, action_steem_transfer_memo, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_steem_transfer_amount + ' пользователю ' + action_steem_transfer_to + '.');
 location.reload();
@@ -209,7 +228,7 @@ window.alert('Ошибка: ' + err);
  $("#action_to_shares_transfer_start").click(function(){
  var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
  action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' STEEM';
- steem.broadcast.transferToVesting(active_key, account, account, action_to_shares_transfer_amount, function(err, result) {
+ steem.broadcast.transferToVesting(active_key, steem_login, steem_login, action_to_shares_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' steem в SP своего аккаунта.');
 location.reload();
@@ -230,7 +249,7 @@ $("#max_vesting_deligate").html(max_vesting_deligate);
  var action_vesting_delegate_amount = parseFloat($('#action_vesting_delegate_amount').val());
  let delegate_vests = action_vesting_delegate_amount * 1000000 / steem_per_vests;
  delegate_vests = delegate_vests.toFixed(6) + ' VESTS';
- steem.broadcast.delegateVestingShares(active_key, account, action_vesting_delegate_to, delegate_vests, function(err, result) {
+ steem.broadcast.delegateVestingShares(active_key, steem_login, action_vesting_delegate_to, delegate_vests, function(err, result) {
 if (!err) {
 window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
 location.reload();
@@ -316,7 +335,7 @@ const walletDataSettings = {
 async function walletData() {
   if (active_key) {
   jQuery("#main_wallet_info").css("display", "block");
-  load_balance(steem_login, active_key);
+  load_balance();
 
   // История переводов:
   jQuery("#wallet_transfer_history").css("display", "block");

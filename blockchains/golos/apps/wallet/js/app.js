@@ -41,6 +41,16 @@ login: "ecurrex-ru",
 
 gates.YMRUB.deposit = {
 vars: [
+  { // Qiwi
+    address: {
+      name: "Никнейм в Qiwi",
+      value: `RICHE387`,
+    },
+    memo: {
+      name: "Примечание",
+      value: "golos:" + golos_login
+    }
+    }, // end Qiwi method
   { // Advcash
   address: {
     name: "Адрес кошелька в Advcash",

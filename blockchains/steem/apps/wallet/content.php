@@ -73,7 +73,10 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                  <p><input type="button" id="action_vesting_delegate_start" value="делегировать"></p>
                                                 </form></div>
                                                       </div>
-                                                <div><p>Делегировали другие пользователи вам <span class="received_vesting_shares_result"></span></p>
+<div id="claim" style="display: none;"><hr>
+<p>К получению: <span id="claim_balances"></span></p>
+<p><strong><input type="button" id="claim_action" value="Получить"></strong></p><hr></div>
+<div><p>Делегировали другие пользователи вам <span class="received_vesting_shares_result"></span></p>
                                                 <p>Делегировано другим пользователям (Без учёта отменённого) <a data-fancybox data-src="#modal_delegated_vesting_shares" href="javascript:;"><span class="delegated_vesting_shares_result"></span></a></p>
                                                 <div style="display: none;" id="modal_delegated_vesting_shares">
                                                 <h4 class="modal-title">Список аккаунтов, которым вы делегировали Steem Power</h4>

@@ -1,3 +1,7 @@
+#Редирект на https
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule (.*) https://%{HTTP_HOST}/$1 [L,R=301]
+
 Options +FollowSymLinks
 Options -Indexes
 DirectoryIndex index.html index.php

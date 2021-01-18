@@ -253,3 +253,9 @@ var ajax_options = {};
     }
     getLoad(url, 'ajax_modal_content', 'Следующие 10', 'Предыдущие 10')(START_MODE);
 });
+
+function copyText(id) {
+    let text = document.getElementById(id);
+    text.select();    
+  document.execCommand("copy");
+    }
