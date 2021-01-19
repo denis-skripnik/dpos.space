@@ -1,4 +1,5 @@
-const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one'});
+const TX_TYPE = minterSDK.TX_TYPE;
+const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one/v2'});
 
 axios.defaults.baseURL = 'https://api.minter.one';
 
@@ -36,8 +37,8 @@ $( document ).ready(function() {
             const import_data = minterWallet.walletFromMnemonic(secret);
             sender = {
                 'address': import_data.getAddressString(),
-                'privateKey': import_data.getPrivateKeyString().slice(2),
-                'node': "https://api.minter.one"
+                'privateKey': import_data.getPrivateKeyString(),
+                'node': "https://api.minter.one/v2"
             }
         }
 
@@ -55,7 +56,8 @@ $( document ).ready(function() {
             }
         }
         
-        async function send(wif, to, value, coin, memo) {
+        async function send(to, value, coin, memo) {
+            let wif = sender.privateKey;
             const txParams = {
                 chainId: 1,
                 type: TX_TYPE.SEND,
@@ -68,7 +70,7 @@ $( document ).ready(function() {
                 gasPrice: 1,
                 payload: memo,
             };
-            const idTxParams = await Minter.replaceCoinSymbol(txParams);
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
