@@ -9,6 +9,7 @@ $filter = array();
 if (isset($_GET)) {
 	$filter['task_creator'] = $_GET['task_creator'];
 	$filter['task_name'] = urlencode($_GET['task_name']);
+	$filter['user'] = urlencode((isset($_GET['mamber']) ? $_GET['mamber'] : ''));
 }
 $pagenum = 1;
 $url = pageUrl();

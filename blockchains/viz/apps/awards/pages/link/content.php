@@ -21,7 +21,7 @@ if (isset($url[4])) {
 }
 if (isset($url[5])) {
 	$memo_array = explode('/', $_SERVER['REQUEST_URI'], 7);
-	$memo = $memo_array[6];
+	$memo = urldecode($memo_array[6]);
 	$content .= '<p><label for="memo">Заметка (memo):</label></p>
 	<p><input type="text" readonly name="memo" value="'.$memo.'" placeholder="Заметка к награде"></p>';
 } else {
