@@ -19,7 +19,8 @@ if (isset($news) && count($news) > 0) {
 $content .= '<h2>'.$el['title'].'</h2>
 <p><a href="'.$conf['siteUrl'].'viz/projects/news/?project_creator='.$_GET['project_creator'].'&project_name='.$_GET['project_name'].'" target="_blank">к списку</a>, <a href="'.$conf['siteUrl'].'viz/projects/news-editor/?project_creator='.$_GET['project_creator'].'&project_name='.$_GET['project_name'].'&user='.$_GET['user'].'&date='.$_GET['date'].'" target="_blank">изменить</a></p>
 <ul><li>'.$el['date'].'</li>
-<li>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$el['user'].'" target="_blank">'.$el['user'].'</a></li></ul>
+<li>Автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$el['user'].'" target="_blank">'.$el['user'].'</a></li>
+<li><a  href="'.$conf['siteUrl'].'viz/awards/link/'.$el['user'].'/0/Награждение за новость '.$conf['siteUrl'].'viz/projects/one-news/?project_creator='.$_GET['project_creator'].'&project_name='.$_GET['project_name'].'&user='.$el['user'].'&date='.$_GET['date'].'" target="_blank">Наградить</a></li></ul>
 <article>'.$el['text'].'</article>';
 	} else {
 		$content .= '<p>Новость не найдена.</p>';

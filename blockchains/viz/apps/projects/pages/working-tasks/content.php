@@ -18,15 +18,16 @@ if (isset($end_page_url) && is_numeric($end_page_url)) {
 }
 $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=working_tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $wt = json_decode($html, true);
-if ($wt) {
-$content .= '<h2>Добавить отчёт по ходу работы</h2>
+if ($wt && isset($_GET['mamber'])) {
+$content .= '<div class="wt_author"><h2>Добавить отчёт по ходу работы</h2>
 <form class="form">
 <p><label for="text">Введите текст отчёта:</label></p>
 <p><textarea name="text" id="wt_content" placeholder="текст отчёта"></textarea></p>
 <p><input type="button" value="Отправить" onclick="sendCustom(`working_tasks`, {task_creator: `'.$_GET['task_creator'].'`, task_name: `'.$_GET['task_name'].'`, text: this.form.text.value})"></p>
-</form>
+</form></div>
 <h2>Ход работы по задаче "'.$_GET['task_name'].'", создатель которой <a href="'.$conf['siteUrl'].'viz/profiles/'.$_GET['task_creator'].'" target="_blank">'.$_GET['task_creator'].'</a>, автор: <a href="'.$conf['siteUrl'].'viz/profiles/'.$_GET['mamber'].'" target="_blank"><span id="wt_login">'.$_GET['mamber'].'</span></a></h2>
-	<table><thead><tr><th>Дата</th><th>Текст</th><th>действия</th></tr></thead><btoby>';
+<p><strong><a  href="'.$conf['siteUrl'].'viz/awards/link/'.$_GET['mamber'].'/0/Награждение ход работы по задаче: '.$conf['siteUrl'].'viz/projects/working-tasks/?task_creator='.$_GET['task_creator'].'&task_name='.$_GET['task_name'].'&mamber='.$_GET['mamber'].'" target="_blank">Наградить</a></strong></p>
+<table><thead><tr><th>Дата</th><th>Текст</th><th>действия</th></tr></thead><btoby>';
 	foreach ($wt as $num => $work) {
 $content .= '<tr><td>'.$work['date'].'</td>
 <td>'.$work['text'].'</td>
@@ -40,10 +41,10 @@ $content .= '<tr><td>'.$work['date'].'</td>
 }
 $content .= '</tbody></table>
 <script>
-if ($(`#wt_login`).html() === viz_login) {
-$(`#wt_author`).css(`display`, `block`);
+if (viz_login === `'.$_GET['mamber'].'`) {
+$(`.wt_author`).css(`display`, `block`);
 } else {
-	$(`#wt_author`).css(`display`, `none`);
+	$(`.wt_author`).css(`display`, `none`);
 }
 	</script>';
 } else if (!isset($_GET['mamber'])) {

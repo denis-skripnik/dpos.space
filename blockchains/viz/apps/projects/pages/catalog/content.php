@@ -88,7 +88,7 @@ if ($counter != 0) {
 }
 $counter++;
 }
-$content .= '<td><a  href="'.$conf['siteUrl'].'viz/projects/news/?project_creator='.$project['creator'].'&project_name='.$project['name'].'" target="_blank">Новости по проекту</a>, <a  href="'.$conf['siteUrl'].'viz/projects/update-project/?creator='.$project['creator'].'&name='.$project['name'].'" target="_blank">Изменить проект (только для автора)</a></td>
+$content .= '<td><a  href="'.$conf['siteUrl'].'viz/awards/link/'.$project['creator'].'/0/Награждение за проект '.$project['name'].'" target="_blank">Наградить</a>, <a  href="'.$conf['siteUrl'].'viz/projects/news/?project_creator='.$project['creator'].'&project_name='.$project['name'].'" target="_blank">Новости по проекту</a>, <a  href="'.$conf['siteUrl'].'viz/projects/update-project/?creator='.$project['creator'].'&name='.$project['name'].'" target="_blank">Изменить проект (только для автора)</a></td>
 </tr>';
 }
 $content .= '</tbody></table>';
