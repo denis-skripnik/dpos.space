@@ -59,6 +59,20 @@ async function main() {
     return datetime_str;
   }
   
+  function prepareContent(text) {
+    try {
+      return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
+        const link = data.slice(3);
+          if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
+          if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
+          if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
+          return `${data.slice(0,3)} <a href="${link}">${link}</a> `
+        }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/minter/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+    } catch(e) {
+      return text;
+    }
+   }
+
   async function getHistory(page) {
     try {
       let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address + '/transactions?page=' + page);
@@ -109,13 +123,15 @@ amount = sum_amount;
 amount += coin;
 }
 let get_time = Date.parse(tr.timestamp);
-  
+let memo = decodeURIComponent(escape(window.atob(tr.payload)));
+memo = prepareContent(memo);
 results += `
 <tr><td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
-<td><a href="https://explorer.minter.network/blocks/${tr.height}" target="_blank">${tr.height}</a></td>
-<td><a href="https://explorer.minter.network/transactions/${tr.hash}" target="_blank">${tr.hash}</a></td>
+<td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+<td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
 <td>${type}</td>
 <td>${amount}</td>
+<td>${memo}</td>
 </tr>`;
 }
 let next_page = page + 1;

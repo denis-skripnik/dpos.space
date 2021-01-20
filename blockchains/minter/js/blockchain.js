@@ -1,7 +1,7 @@
 const TX_TYPE = minterSDK.TX_TYPE;
 const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one/v2'});
 
-axios.defaults.baseURL = 'https://api.minter.one';
+axios.defaults.baseURL = 'https://api.minter.one/v2';
 
 let current_user = JSON.parse(localStorage.getItem("minter_current_user"));
 if (current_user) {
@@ -43,17 +43,17 @@ $( document ).ready(function() {
         }
 
         async function getTransaction(txHash) {
-            try {
-            let response = await axios.get('/transaction?hash=' + txHash);
-        if (response.data.result.code) {
-            return false;
-        } else {
-            return true;
-        }
-            } catch(e) {
-                console.log(JSON.stringify(e));
-            return false;
-            }
+                try {
+                    let response = await axios.get('/transaction/' + txHash);
+                    if (response.data.code !== "0") {
+                    return false;
+                } else {
+                    return true;
+                }
+                    } catch(e) {
+                        console.log(e);
+                    return false;
+                    }
         }
         
         async function send(to, value, coin, memo) {
@@ -74,54 +74,86 @@ $( document ).ready(function() {
             console.log(idTxParams);
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
-                    let res = await getTransaction(txHash);
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5000));
+                    let res = await getTransaction(txHash.hash);
                     if (res === true) {
-                        return `Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash}" target="_blank">${txHash}</a>`;
-                    } else {
-                        return 'Ошибка. Транзакция не отправлена.';
-                    }
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+    } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+    }
                 }).catch((error) => {
                     const errorMessage = error.response.data.error.message
-        return `Error: ${errorMessage}`;
+                    throw `Ошибка: ${errorMessage}`;
                 });
         }
         
-        async function multiSend(wif, list, memo) {
-                const txParams = {
-                    chainId: 1,
-                    type: TX_TYPE.MULTISEND,
-                    data: {
-                        list,
-                    },
-                    gasCoin: coin,
-                    gasPrice: 1,
-                    payload: memo,
-                };
-                const idTxParams = await minter.replaceCoinSymbol(txParams);
-                console.log(idTxParams);
-                minter.postTx(idTxParams, {privateKey: wif})
-                    .then(async (txHash) => {
-                        let res = await getTransaction(txHash);
-                        if (res === true) {
-                            return `Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash}" target="_blank">${txHash}</a>`;
-                        } else {
-                            return 'Ошибка. Транзакция не отправлена.';
-                        }
-                    }).catch((error) => {
-                        const errorMessage = error.response.data.error.message
-            return `Error: ${errorMessage}`;
-                    });
-            
-            }
+        async function convert(coin, to, value) {
+            let wif = sender.privateKey;
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE.SELL,
+                data: {
+                    coinToSell: coin,
+                    coinToBuy: to,
+                    valueToSell: value,
+                },
+            };
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            minter.postTx(idTxParams, {privateKey: wif})
+                .then(async (txHash) => {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5000));
+                    let res = await getTransaction(txHash.hash);
+                    if (res === true) {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+    } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+    }
+                }).catch((error) => {
+                    const errorMessage = error.response.data.error.message
+                    throw `Ошибка: ${errorMessage}`;
+                });
+        }
         
+        async function delegate(coin, publicKey, stake) {
+            let wif = sender.privateKey;
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE.DELEGATE,
+                data: {
+                    publicKey,
+                    coin,
+                    stake,
+                },
+            };
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            minter.postTx(idTxParams, {privateKey: wif})
+                .then(async (txHash) => {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5000));
+                    let res = await getTransaction(txHash.hash);
+                    if (res === true) {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+    } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+    }
+                }).catch((error) => {
+                    const errorMessage = error.response.error.message
+                    throw `Ошибка: ${errorMessage}`;
+                });
+        }
+
         async function getBalance(address) {
             try {
-            let response = await axios.get('/address?address=' + address);
+            let response = await axios.get('/address/' + address);
             let balances = [];
-            for (let token of response.data.result.balances) {
+            for (let token of response.data.balance) {
               let balance = parseFloat(token.value);
               balance = balance.toFixed(2)
-              balances.push({coin: token.symbol, amount: balance});
+              balances.push({coin: token.coin.symbol, amount: balance});
             }
             return balances;
             } catch(e) {

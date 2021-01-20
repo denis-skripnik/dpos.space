@@ -1,21 +1,38 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
+function cmp_function_desc($a, $b){
+    return ($a['stake'] < $b['stake']);
+  }
+
 try {
-    $html = file_get_contents('https://api.cyber.cybernode.ai/validators?page=1&per_page=100');
-    $validators = json_decode($html, true)['result'];
-    $list = $validators['validators'];
-    $content = '<h2>Блок: <a href="'.$conf['siteUrl'].'cyber/explorer/block/'.$validators['block_height'].'" target="_blank">'.$validators['block_height'].'</a></h2>
-<table><thead><tr><th>№</th><th>Адрес</th>
+    $html = file_get_contents('https://explorer-api.minter.network/api/v2/validators');
+    $validators = json_decode($html, true)['data'];
+    $list = $validators;
+    $content = '<table><thead><tr><th>№</th>
 <th>Публичный ключ</th>
-<th>Сила Голоса</th>
-<th>Преоритет претендента</th></tr></thead><tbody>';
-foreach ($list as $num => $validator) {
+<th>Название</th>
+<th>Стек</th>
+<th>Комиссия</th>
+<th>Описание</th>
+<th>сайт</th>
+</tr></thead><tbody>';
+uasort($list, 'cmp_function_desc');
+$num = 0;
+foreach ($list as $validator) {
 $num++;
-  $content .= '<tr><td>'.$num.'</td>
-<td>'.$validator['address'].'</td>
-<td>'.$validator['pub_key']['value'].'</td>
-<td>'.$validator['voting_power'].'</td>
-<td>'.$validator['proposer_priority'].'</td>
-</tr>';
+  if ($validator['status'] === 2 || $validator['status'] === 1) {
+    $content .= '<tr><td>'.$num.'</td>
+    <td><input type="text" readonly id="validator_'.$num.'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num.'_key`);" value="копировать"></td>
+    <td>'.$validator['name'].'</td>
+    <td>'.round($validator['stake'], 3).' BIP</td>
+    <td>'.$validator['commission'].'%</td>
+    <td>'.$validator['description'].'</td>';
+if (isset($validator['site_url']) && $validator['site_url'] !== '') {
+  $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$validator['site_url'].'</a></td>';
+} else {
+  $content .= '<td></td>';
+}
+    $content .= '</tr>';
+  }
 }
 $content .= '</tbody></table>';
 return $content;

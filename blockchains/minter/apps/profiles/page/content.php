@@ -7,7 +7,8 @@ return '<h2>Балансы</h2>
 <th>Блок</th>
 <th>Хеш транзакции</th>
 <th>Тип</th>
-<th>Сумма</th></tr>
+<th>Сумма</th>
+<th>Сообщение</th></tr>
 </thead>
 <tbody id="history_tbody"></tbody></table>
 <div id="history_pages"></div>

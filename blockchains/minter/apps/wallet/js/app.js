@@ -17,35 +17,6 @@ async function actionsSpoiler(t) {
     link_state.display = style.display;
   }
 
-async function delegationGolosPower(minter_per_gests, type) {
-  let res = false;
-  try {
-  let result = await golos.api.getVestingDelegationsAsync(minter_login, '', 100, type);
-  let user = 'delegatee';
-  if (type === 'received') {
-    user = 'delegator';
-  }
-  let list = result.map( data => data[user]);
-  res = {all: result, list};
-} catch(err) {
-    console.error(err);  
-  }
-return res;
-}
-
-async function createCryptMemo(to, memo) {
-  let res = memo;
-    if (memo[0] === '#') {
-  let accounts = await golos.api.getAccountsAsync([to]);
-  if (accounts && accounts.length > 0) {
-    let acc = accounts[0];
-    let to_public_active_key = acc.active.key_auths[0][0];
-    res = golos.memo.encode(active_key,to_public_active_key,memo);
-  }
-  }
-  return res;
-  }
-
 function bind_range(){
 	$('input[type=range]').each(function(i){
 		if(typeof $(this).attr('data-fixed') !== 'undefined'){
@@ -75,25 +46,6 @@ function bind_range(){
 	});
 }
 
-function getUrlVars() {
-  var vars = {};
-  var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
-      vars[key] = value;
-  });
-  return vars;
-}
-
-function pass_gen(){
-	let length=100;
-	let charset='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
-	let ret='';
-	for (var i=0,n=charset.length;i<length;++i){
-		ret+=charset.charAt(Math.floor(Math.random()*n));
-	}
-	let wif=golos.auth.toWif('',ret,'')
-	return wif;
-}
-
   async function loadBalances() {
 let tokens = await getBalance(sender.address);
     let balances_list = '';
@@ -103,18 +55,6 @@ let tokens = await getBalance(sender.address);
         balances_list += `<li><a class="spoiler" data-tipe="main_balance" data-token="${token.coin}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_${token.coin}">${amount}</span> ${token.coin}</a></li>`;
     }
 $('#balances').html(balances_list);
-
-}
-
-function accountHistoryCompareDate(a, b)
-{
-	if(a[1].timestamp > b[1].timestamp)
-	{
-		return -1;
-	}
-	else{
-		return 1;
-	}
 }
 
 function fast_str_replace(search,replace,str){
@@ -175,18 +115,13 @@ template_count++;
  }
 }
 
-function getDonateTemplates(token) {
-  $('#select_donate_template').html('<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>');
-  if (token === 'GOLOS') {
-    $('#select_donate_template').append(`<option value="ecurrex-t2g" data-to="ecurrex-t2g" data-memo="">Перевод с TIP-баланса в ликвид (не относится к создателю dpos.space)</option>
-    `);
-  }
-  
-  let donate_templates = JSON.parse(localStorage.getItem(token + '_donate_templates'));
- if (donate_templates && donate_templates.length > 0) {
+function getDelegateTemplates(token) {
+  $('#select_delegate_template').html('<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>');
+  let delegate_templates = JSON.parse(localStorage.getItem(token + '_minter_delegate_templates'));
+ if (delegate_templates && delegate_templates.length > 0) {
   let template_count = 1;
-  for (let template of donate_templates) {
-$('#select_donate_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}">${template.name}</option>
+  for (let template of delegate_templates) {
+$('#select_delegate_template').append(`<option value="${template_count}" data-key="${template.key}">${template.name}</option>
 `);
 template_count++;
 }
@@ -195,620 +130,177 @@ template_count++;
 
 function prepareContent(text) {
   try {
-    if (text && text.length > 0 && text[0] === '#') {
-        text = golos.memo.decode(active_key,text);
-    }
     return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
       const link = data.slice(3);
         if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
         if(/(vimeo)/.test(link)) return `${data.slice(0,3)} <iframe src="${link}" frameborder="0" allowfullscreen></iframe> `;
         if(/(youtu)/.test(link)) return `${data.slice(0,3)} <iframe src="${link.replace(/.*v=(.*)/, 'https://www.youtube.com/embed/$1')}" frameborder="0" allowfullscreen></iframe> `;
         return `${data.slice(0,3)} <a href="${link}">${link}</a> `
-      }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/golos/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
+      }).replace(/ (@[^< \.,]+)/gi, user => ` <a href="/minter/profiles/${user.trim().slice(1)}">${user.trim()}</a>`)
   } catch(e) {
     return text;
   }
  }
 
-const walletDataSettings = {
-	limit: 100,
-	limit_max: 10000,
-	from: -1,
-  get isFirstRequest() {
-		return this.from === -1;
-	},
-  buttonId: 'wallet-data-button',
+ async function getHistory(page) {
+    jQuery("#wallet_transfer_history").css("display", "block");try {
+    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + sender.address + '/transactions?page=' + page);
+    let results = '';
+    let res = response.data.data;
+let types = {
+1: 'Отправка',
+2: 'Продажа монеты',
+3: 'Продажа всех монет',
+4: 'Покупка монет',
+5: 'Создание монеты',
+6: 'Объявление кандидата в валидаторы',
+7: 'Делегирование',
+8: 'Анбонд',
+9: 'Получение чека',
+10: 'Установка кандидата в статусе онлайн',
+11: 'Установка кандидата в статусе оффлайн',
+12: 'Создание мультисига',
+13: 'Мультисенд (мульти-отправка)',
+14: 'Редактирование кандидата'
 };
-
-async function thisAccountHistory(type) {
-    // История переводов:
-    jQuery("#wallet_transfer_history").css("display", "block");
-
-    const result = [];
-    let isCompleted = false;
-    let isEnd = false;
-    let isValidElement;
-  
-    const {limit, limit_max, buttonId} = walletDataSettings;
-
-    while (! isCompleted && ! isEnd) {
-      let {from, isFirstRequest} = walletDataSettings;
-      let limitReal = (isFirstRequest || limit_max <= from) ? limit_max : from;
- if (type === 'filtr') {
-   from = -1;
-   limitReal = 10000;
-  }
-
- const data = await golos.api.getAccountHistoryAsync(minter_login, from, limitReal, JSON.parse(localStorage.getItem('wallet_history_filtr')));
-  data.sort(accountHistoryCompareDate);
-      for (const operation of data) {
-        const op = operation[1].op;
-        isValidElement = (op[1].from && op[1].to && op[1].amount) ||
-        op[0] === 'transfer' ||
-        op[0] === 'transfer_to_vesting' ||
-        op[0] === 'transfer_from_tip' ||
-        op[0] === 'transfer_to_tip' ||
-        op[0] === 'donate' ||
-        op[0] === 'claim' ||
-        op[0] === 'delegate_vesting_shares' ||
-        op[0] === 'delegate_vesting_shares_with_interest' ||
-        op[0] === 'delegation_reward' ||
-        op[0] === 'curation_reward' ||
-        op[0] === 'author_reward' ||
-        op[0] === 'comment_benefactor_reward' ||
-        op[0] === 'producer_reward' ||
-        op[0] === 'fill_order';
-  
-      if (isValidElement) {
-        result.push(operation);
-  
-        if (result.length === limit + 1) {
-          isCompleted = true;
-          break;
-        }
-      }
-    }
-  
-    if (! isCompleted) {
-      if (data.length < limitReal + 1) {
-        isEnd = true;
-      } else {
-        const lastElement = data[data.length - 1];
-  
-        walletDataSettings.from = lastElement[0];
-  
-        if (isValidElement) {
-          result.pop();
-        }
-      }
-    }
-  }
-  
-  if (isEnd) {
-    const button = document.getElementById(buttonId);
-    if (button) {
-      button.remove();
-    }
-  } else {
-    const lastElement = result.pop();
-  
-    walletDataSettings.from = lastElement[0];
-  }
-  
-  appendWalletData(result);
+const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
+for (let tr of res) {
+let amount;
+let coin_str = 'coin';
+let value_str = 'value';
+let type = types[tr.type];
+if (tr.type === 1 && tr.data.to === sender.address) {
+type = 'Получение';
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4) {
+coin_str = 'coin_to_sell'
+value_str = 'value_to_sell';
 }
 
-function appendWalletData(items) {
-  golos.api.getDynamicGlobalProperties(function(error, res) {
-    if (!error) {
-    let tvfs = parseFloat(res.total_vesting_fund_steem);
-    let tvsh = parseFloat(res.total_vesting_shares);
-    let minter_per_gests = 1000000 * tvfs / tvsh;
-
-  const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-
-items.forEach(item => {
-
-  var get_time = Date.parse(item[1].timestamp);
-  var transfer_datetime = `<a href="https://dpos.space/golos/explorer/tx/${item[1].trx_id}" target="_blank">${date_str(get_time - timezoneOffset, true, false, true)}</a>`
-
-  var op = item[1].op;
-  if (op[0] === 'transfer' || op[0] === 'claim' || op[0] === 'transfer_to_tip' || op[0] === 'donate') {
-    var from = op[1].from;
-    var to = op[1].to;
-    var amount = op[1].amount;
-      var memo = '';
-      if (op[0] === 'transfer') memo = prepareContent(op[1].memo);
-      if (op[0] === 'claim' && op[1]['to_vesting'] === true) memo = 'Получение своих начислений на СГ.';
-      if (op[0] === 'claim' && op[1]['to_vesting'] === false) memo = 'Получение своих начислений в TIP-баланс.';
-      if (op[0] === 'transfer_to_tip') memo = 'Перевод в TIP баланс. ' + op[1]['memo'];
-      if (op[0] === 'donate') {
-let metadata = JSON.parse(item[1].json_metadata);
-        if (metadata['referrer'] === minter_login && minter_login !== from) {
-          from = op[1].to;
-          to = minter_login;
-          amount = metadata.referrer_interest;
-          memo = 'Процент от доната в адрес вашего реферала';
-        } else {
-          memo = 'Донат';
-        }
-        if (op[1]['memo']['comment']) {
-          memo += ', заметка: ' + prepareContent(op[1]['memo']['comment']);
-        }
-        if (op[1]['memo']['target'] && op[1]['memo']['target']['author'] && op[1]['memo']['target']['permlink']) {
-  memo += `, <a href="https://golos.id/@${op[1]['memo']['target']['author']}/${op[1]['memo']['target']['permlink']}" target="_blank">@${op[1]['memo']['target']['author']}/${op[1]['memo']['target']['permlink']}</a>`;
-}
-      }
-      jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
-<td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
-<td>' + amount + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-  } else if (op[0] === 'transfer_to_vesting' || op[0] === 'transfer_from_tip') {
-  var from = op[1].from;
-  var to = op[1].to;
-  var amount = op[1].amount;
-    var memo = 'Перевод в СГ';
-  jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
-<td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
-<td>' + amount + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-} else if (op[0] === 'delegate_vesting_shares') {
-  var from = op[1].delegator;
-  var to = op[1].delegatee;
-  var amount = parseFloat(op[1].vesting_shares) / 1000000 * minter_per_gests;
-    amount = amount.toFixed(6) + ' СГ';
-  var memo = 'Делегирование Силы Голоса.';
-  jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
-<td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
-<td>' + amount + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-} else if (op[0] === 'delegate_vesting_shares_with_interest') {
-  var from = op[1].delegator;
-  var to = op[1].delegatee;
-  var amount = parseFloat(op[1].vesting_shares) / 1000000 * minter_per_gests;
-    amount = amount.toFixed(6) + ' СГ';
-  var interest_rate = op[1].interest_rate;
-    var memo = 'Делегирование Силы Голоса с возвратом ' + interest_rate/100 + '% от кураторских.';
-  jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
-<td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
-<td>' + amount + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-} else if (op[0] === 'delegation_reward') {
-  var from = op[1].delegator;
-  var to = op[1].delegatee;
-  var amount = parseFloat(op[1].vesting_shares) / 1000000 * minter_per_gests;
-    amount = amount.toFixed(6) + ' СГ';
-  var payout_strategy = op[1].payout_strategy;
-  var payout_strategy_str = '';
-  if (payout_strategy === 'to_delegator') {
-    payout_strategy_str = 'делегатору';
+if (!tr.data.list) {
+  amount = parseFloat(tr.data[value_str]);
+  amount += ' ' + tr.data[coin_str].symbol;
   } else {
-    payout_strategy_str = 'делегируемому';
-  }
-  var memo = 'Награда с делегирования Силы Голоса. Направление: ' + payout_strategy_str + '.';
-  jQuery("#transfer_history_tbody").append('<tr class="filtered ' + from + '"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + from + '" target="_blank">@' + from + '</a></td>\
-<td><a href="/golos/profiles/' + to + '" target="_blank">@' + to + '</a></td>\
-<td>' + amount + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-} else if (op[0] === 'curation_reward') {
-    var author = op[1].comment_author;
-    var permlink = op[1].comment_permlink;
-    var curator = op[1].curator;
-    var reward = parseFloat(op[1].reward) / 1000000 * minter_per_gests;
-    reward = reward.toFixed(6) + ' СГ';
-    var memo = 'Кураторская награда за пост или комментарий <a href="https://golos.id/@' + author + '/' + permlink + '" target="_blank">https://golos.id/@' + author + '/' + permlink + '</a>';
-    jQuery("#transfer_history_tbody").append('<tr class="filtered_curation_reward"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
-<td><a href="/golos/profiles/' + curator + '" target="_blank">@' + curator + '</a></td>\
-<td>' + reward + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-  } else if (op[0] === 'author_reward') {
-    var from = 'пул golos';
-    var author = op[1].author;
-    var permlink = op[1].permlink;
-var gbg_payout = op[1].sbd_payout;
-var minter_payout = op[1].steem_payout;
-var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * minter_per_gests;
-vesting_payout = vesting_payout.toFixed(6) + ' СГ';
-    var memo = 'Авторская награда за пост или комментарий <a href="https://golos.id/@' + author + '/' + permlink + '" target="_blank">https://golos.id/@' + author + '/' + permlink + '</a>';
-    jQuery("#transfer_history_tbody").append('<tr class="filtered_author_reward"><td>' + transfer_datetime + '</td>\
-<td>' + from + '</td>\
-<td><a href="/golos/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
-<td>' + gbg_payout + ', ' + minter_payout + ' и ' + vesting_payout + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-  } else if (op[0] === 'comment_benefactor_reward') {
-    var author = op[1].author;
-    var permlink = op[1].permlink;
-    var benefactor = op[1].benefactor;
-    var vesting_payout = parseFloat(op[1].reward) / 1000000 * minter_per_gests;
-    vesting_payout = vesting_payout.toFixed(6) + ' СГ';
-    var memo = 'Бенефициарская награда за пост или комментарий <a href="https://golos.id/@' + author + '/' + permlink + '" target="_blank">https://golos.id/@' + author + '/' + permlink + '</a>';
-    jQuery("#transfer_history_tbody").append('<tr class="filtered_content_benefactor_reward"><td>' + transfer_datetime + '</td>\
-<td><a href="/golos/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
-<td><a href="/golos/profiles/' + benefactor + '" target="_blank">@' + benefactor + '</a></td>\
-<td>' + vesting_payout + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-  } else if (op[0] === 'producer_reward') {
-    var from = 'пул golos';
-    var witness = op[1].producer;
-    var shares = parseFloat(op[1].vesting_shares) / 1000000 * minter_per_gests;
-    shares = shares.toFixed(6) + ' СГ';
-    var memo = 'Награда делегата.';
-    jQuery("#transfer_history_tbody").append('<tr class="filtered_witness_reward"><td>' + transfer_datetime + '</td>\
-<td>' + from + '</td>\
-<td><a href="/golos/profiles/' + witness + '" target="_blank">@' + witness + '</a></td>\
-<td>' + shares + '</td>\
-<td>' + memo + '</td>\
-</tr>');
-} else if (op[0] === 'fill_order') {
-  var from = op[1].current_owner;
-  var to = op[1].open_owner;
-var current_pays = op[1].current_pays.split(' ');
-var open_pays = op[1].open_pays.split(' ');
-  var fee_amount = op[1].current_trade_fee;
-var price = parseFloat(current_pays[0]) / parseFloat(open_pays[0]) + `${current_pays[1]} / ${open_pays[1]}`;
-var memo = `Комиссия ${fee_amount}`;
-  jQuery("#transfer_history_tbody").append(`<tr class="filtered_witness_reward"><td>${transfer_datetime}</td>
-<td><a href="/golos/profiles/${from}" target="_blank">@${from}</a></td>
-<td><a href="/golos/profiles/${to}" target="_blank">@${to}</a></td>
-<td>Отдано ${current_pays}, получено ${open_pays}</td>
+let sum_amount = 0;
+    let coin = '';
+for (let el of tr.data.list) {
+if (tr.from === address || el.to === address) {
+  sum_amount += parseFloat(el[value_str]);
+  coin = el[coin_str].symbol;
+}
+}
+amount = sum_amount;
+amount += coin;
+}
+let get_time = Date.parse(tr.timestamp);
+let memo = decodeURIComponent(escape(window.atob(tr.payload)));
+memo = prepareContent(memo);
+results += `
+<tr><td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
+<td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+<td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+<td>${type}</td>
+<td>${amount}</td>
 <td>${memo}</td>
-</tr>`);
+</tr>`;
 }
-
-});
-}
-});
-}
-
-function createFiltr() {
-  $('#transfer_history_tbody').html('');
-  let direction = $('#direction').val();
-  var gr = document.getElementsByName('ops');
-  var select_ops = [];
-  for(var i=0; i<gr.length; i++)
-    if (gr[i].checked) {
-      select_ops.push(gr[i].value);
-    }
-        if (direction !== '' && select_ops.length > 0) {
-    let query = {direction, select_ops};
-    localStorage.setItem('wallet_history_filtr', JSON.stringify(query));
-  } else if (direction !== '' && select_ops.length === 0) {
-          let query = {direction};
-          localStorage.setItem('wallet_history_filtr', JSON.stringify(query));
-        } else if (direction === '' && select_ops.length > 0) {
-          let query = {select_ops};
-          localStorage.setItem('wallet_history_filtr', JSON.stringify(query));
-        } else if (direction === '' && select_ops.length === 0) {
-          localStorage.removeItem('wallet_history_filtr')
-        }
-        thisAccountHistory('filtr');
-}
-
-async function changeWithdrawUIASelect(value) {
-  let token = $('.uia_withdraw_modal_token').html();
-  let w = gates[token].withdraw;
-    $('#action_uia_withdraw_to').val(w.account);
-  let vars = w.vars;
-$('.action_uia_withdraw_memo').remove();
-  let method = vars[parseInt(value)];
-  let get_max = w.get_max;  
-  $('#max_uia_withdraw_amount').html($('#max_' + token).html());
-  if (get_max.allow == true) {
-  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
-  if (gate_account && gate_account.length > 0) {
-let metadata = JSON.parse(gate_account[0].json_metadata);
-let methods = metadata.profile.about.split(w.get_max.separator);
-let methods_list = [];
-for (let m of methods) {
-  let arr = m.split(':');
-  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
-}
-let max_method = methods_list[parseInt(value)];
-if (max_method.name === method.name && max_method.amount < parseFloat($('#max_' + token).html())) {
-  $('#max_uia_withdraw_amount').html(max_method.amount);
-} // end if.
-}
-}
-  
-  for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
+let next_page = page + 1;
+let prev_page = page - 1;
+if (page === 1) {
+$('#history_pages').html(`<a onclick="getHistory(${next_page});">Следующая</a>`);
+} else if (page > 1 && res.length === 50) {
+$('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>
+<a onclick="getHistory(${next_page});">Следующая</a>`);
 } else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
+$('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>`);
 }
+$('#history_tbody').css('display', 'block');
+$('#history_tbody').html(results);
+} catch(e) {
+       console.log(e);
+     }
+}
+
+function byteCount(s) {
+  return encodeURI(s).split(/%..|./).length - 1;
+}
+
+async function getFee(coin, type, memo) {
+  let memo_bytes = byteCount(memo) * 0.2;
+let type_fee = 1;
+if (type === 'convert') type_fee = 10;
+if (type === 'delegate') type_fee = 20;  
+let fee = (memo_bytes + type_fee).toFixed(3);
+if (coin !== 'BIP') {
+  let coin_info = await minter.getCoinInfo(coin);
+  let price = (coin_info.volume / coin_info.reserve_balance) * (coin_info.crr / 100);
+  fee = ((memo_bytes + type_fee) * price).toFixed(3);
+  }
+$(`#${type}_fee`).html(fee);
+return fee;
+}
+
+async function getConvertPrice() {
+  let coin = $('.convert_modal_token').html();
+  let to = $('#action_convert_to').val().toUpperCase();
+  let amount = $('#action_convert_amount').val();
+  amount = parseFloat(amount);
+  let max_amount = $('#max_convert_amount').html();
+  max_amount = parseFloat(max_amount);
+  let fee = parseFloat(await getFee(coin, 'convert', ''));
+  if (amount === max_amount) {
+    amount -= fee + 0.001;
+  }
+  $('#action_convert_amount').val(amount.toFixed(3));
+  if (amount > 0 && to !== '') {
+    let to_buy = await minter.estimateCoinSell({
+      coinToSell: coin,
+      valueToSell: amount,
+      coinToBuy: to,
+    });
+    $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
+  $('#convert_fee').html(parseFloat(to_buy.commission).toFixed(3));
+  } else {
+    $('#buy_amount').html('');
+    $('#convert_fee').html('');
   }
 }
 
 $(document).ready(async function() {
-   $("#cancel_vesting_withdraw").click(function(){
-  golos.broadcast.withdrawVesting(active_key, minter_login, '0.000000 GESTS', function(err, result) {
-    if (!err) {
-  window.alert('Вывод отменён.');
-  $('#info_vesting_withdraw').css('display', 'none');
-    } else {
-  window.alert(err);
-    }
-  });
-  }); // end subform
-  
-     $("#max_to_shares_transfer").click(function(){
-   $('#action_to_shares_transfer_amount').val(new Number(parseFloat(acc.balance)).toFixed(3));
-    });
-   
-    $("#action_to_shares_transfer_start").click(async function(){
-   var q = window.confirm('Вы действительно хотите перевести GOLOS в СГ?');
-   if (q == true) {
-    var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
-   action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' GOLOS';
-    
-   try {
-  let result = await golos.broadcast.transferToVestingAsync(active_key, minter_login, minter_login, action_to_shares_transfer_amount);
-  window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' golos в СГ своего аккаунта.');
-  await loadBalances();
-  $.fancybox.close();
-    } catch(err) {
-      window.alert('Ошибка: ' + JSON.stringify(err));
-  }
-   } else {
-     window.alert('Перевод в СГ отменён.');
-   }
-  }); // end subform
-  
-    $(document).on('click', '.vesting_delegate_modal', async function(e) {
-      $('#action_vesting_delegate_to').val('');
-      $('#action_vesting_delegate_amount').val('');
-      let to = $(this).attr('data-to');
-    if (to) {
-      $('#action_vesting_delegate_to').val(to);
-      $('#action_vesting_delegate_to').attr('disabled', true);
-    
-      let get_data = await delegationGolosPower(minter_per_gests, 'delegated');
-      if (get_data !== false) {
-    let accounts = get_data.list;
-  if (accounts.indexOf(to) > -1) {
-    $('#delegate_interest_rate_filde').css('display', 'none');
-  $('#is_delegated').val('yes');
-  } else {
-    $('#delegate_interest_rate_filde').css('display', 'block');
-    $('#is_delegated').val('no');
-  }
-      }
-    } else {
-      $('#action_vesting_delegate_to').attr('disabled', false);
-    }
-
-    $('#action_vesting_delegate_to').change(async function() {
-      let to = $('#action_vesting_delegate_to').val();
-      let get_data = await delegationGolosPower(minter_per_gests, 'delegated');
-      if (get_data !== false) {
-    let accounts = get_data.list;
-    if (accounts.indexOf(to) > -1) {
-    $('#delegate_interest_rate_filde').css('display', 'none');
-    $('#is_delegated').val('yes');
-  } else {
-    $('#delegate_interest_rate_filde').css('display', 'block');
-    $('#is_delegated').val('no');
-  }
-      }
-  
-    })
-  });
-
-    $(document).on('click', '.modal_received_vesting_shares', async function(e) {
-      let get_data = await delegationGolosPower(minter_per_gests, 'received');
-      if (get_data !== false) {
-    let res = get_data.all;
-    jQuery("#body_received_vesting_shares").html('');
-    const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-    var vs_amount = '';
-    var body_received_vesting_shares = '';
-    for (let item of res) {
-    vs_amount = parseFloat(item.vesting_shares) / 1000000 * minter_per_gests;
-    vs_amount = vs_amount.toFixed(6);
-    vs_amount = parseFloat(vs_amount);
-    let interest_rate = item.interest_rate/100;
-    let min_delegation_time = Date.parse(item.min_delegation_time);
-    let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-    body_received_vesting_shares = '<tr><td><a href="/golos/profiles/' + item.delegator + '" target="_blank">@' + item.delegator + '</a></td><td>' + vs_amount + '</td><td>' + interest_rate + '%</td><td>' + min_delegation_datetime + '</td></tr>';
-      jQuery("#body_received_vesting_shares").append(body_received_vesting_shares);
-    }
-      }
-    });
-    
-      $(document).on('click', '.modal_delegated_vesting_shares', async function(e) {
-        let get_data = await delegationGolosPower(minter_per_gests, 'delegated');
-        if (get_data !== false) {
-      let res = get_data.all;
-        jQuery("#body_delegated_vesting_shares").html('');
-        const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-                var vesting_shares_amount = '';
-          var body_delegated_vesting_shares = '';
-    for (let item of res) {
-        vesting_shares_amount = parseFloat(item.vesting_shares) / 1000000 * minter_per_gests;
-        vesting_shares_amount = vesting_shares_amount.toFixed(6);
-        vesting_shares_amount = parseFloat(vesting_shares_amount);
-        let interest_rate = item.interest_rate/100;
-        let min_delegation_time = Date.parse(item.min_delegation_time);
-        let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-        body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/golos/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' + interest_rate + '%</td><td>' +  min_delegation_datetime + '</td><td><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;" data-to="' + item.delegatee + '">Изменить</a>, <input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
-            jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
-         
-            $('#cancel_delegated_vesting_shares_' + item.delegatee).click(async function(){
-        let q = window.confirm('Вы действительно хотите отменить делегирование?');
-        if (q == true) {
-          try {
-            let result = await golos.broadcast.delegateVestingSharesAsync(active_key, minter_login, item.delegatee, '0.000000 GESTS');
-            window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
-            $('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
-          } catch(e) {
-          window.alert('Ошибка: ' + JSON.stringify(e));
-          }
-        }
-        });
-    }   
-      }
-      });
-    
-
-  
   if (seed) {
     jQuery("#main_wallet_info").css("display", "block");
-  await loadBalances();
+    await loadBalances();
+    setInterval(async function() {await loadBalances();}, 5000);
+  $('#current_address').html(sender.address);
+  $('#address_link').attr('href', `https://dpos.space/minter/profiles/${sender.address}`)
+     $('#copy_address').click(async function() {
+       try {
+         await navigator.clipboard.writeText(sender.address);
+       } catch(e) {
+         console.log(e);
+       }
+     });    
+     await getHistory(1);
     }
   
-  $(document).on('click', '.uia_deposit_modal', function(e) {
-    let token = $(this).attr('data-token');
-    $('.uia_deposit_modal_token').html(token);
-    if (gates[token] && gates[token].deposit) {
-let deposit = gates[token].deposit;
-let res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
-`;
-let vars = deposit.vars;
-for (let method of vars) {
-  res += '<ul>';
-for (let el in method) {
-res += `<li>${method[el].name}: ${method[el].value} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${method[el].value.replace(/<[^>]*>/g, "")}').then(() => {console.log('Successfully copied to clipboard');}).catch(() => {console.log('Copy error');});">)</li>`;
-}
-  res += `</ul>`;
-}
-
-$('#uia_diposit_data').html(res);
-}
-  });
-
-  $(document).on('click', '.uia_withdraw_modal', async function(e) {
-    let token = $(this).attr('data-token');
-$('.uia_withdraw_modal_token').html(token);
-  if (gates[token] && gates[token].withdraw) {
-    let w = gates[token].withdraw;
-    $('#action_uia_withdraw_to').val(w.account);
-$('#fields_uia_withdraw').html('');
-$('#max_uia_withdraw_amount').html($('#max_' + token).html());
-let vars = w.vars;
-if (vars.length > 1) {
-  $('#fields_uia_withdraw').append(`<select name="withdraw_uia_method" onchange="changeWithdrawUIASelect(this.value);">`);
-  vars.filter((val, key) => $('select[name=withdraw_uia_method]').append(`<option value="${key}">${val.name}</option>
-`));
-$('#fields_uia_withdraw').append(`</select>`);
-let method = vars[parseInt($('select[name=withdraw_uia_method]').val())];
-let get_max = w.get_max;
-if (get_max.allow == true) {
-  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
-  if (gate_account && gate_account.length > 0) {
-let metadata = JSON.parse(gate_account[0].json_metadata);
-let methods = metadata.profile.about.split(w.get_max.separator);
-let methods_list = [];
-for (let m of methods) {
-  let arr = m.split(':');
-  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
-}
-let max_method = methods_list[parseInt($('select[name=withdraw_uia_method]').val())];
-if (max_method.name === method.name && max_method.amount < parseFloat($('#max_' + token).html())) {
-  $('#max_uia_withdraw_amount').html(max_method.amount);
-} // end if.
-}
-}
-  
-for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
-} else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
-}
-  }
-} else {
-for (let method of vars) {
-      for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
-} else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
-}
-  }
-}
-}
-}
-  });
-
-  $("#max_token_uia_withdraw").click(async function(){
-    let token = $('.uia_withdraw_modal_token').html();
-    let amount = $('#max_uia_withdraw_amount').html();
-    let precision = 3;
-   let assets = await golos.api.getAssetsAsync('', [token]);
-   if (assets && assets.length > 0) {
-     let asset = assets[0];
-     precision = asset.precision;
-   }
-    $('#action_uia_withdraw_amount').val(new Number(parseFloat(amount)).toFixed(precision));
-     });
-
-$('#action_uia_withdraw_start').click(async function(){
-  let q = window.confirm('Вы действительно хотите сделать вывести средства?');
-  if (q == true) {
-    let token = $('.uia_withdraw_modal_token').html();
-    let precision = 3;
-   let assets = await golos.api.getAssetsAsync('', [token]);
-   if (assets && assets.length > 0) {
-     let asset = assets[0];
-     precision = asset.precision;
-   }
-   let action_transfer_to = $('#action_uia_withdraw_to').val();
-    let action_transfer_amount = $('#action_uia_withdraw_amount').val();
-    action_transfer_amount = parseFloat(action_transfer_amount);
-    action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
-    let action_transfer_memo = $(".action_uia_withdraw_memo").map( (i,el) => $(el).val() ).get().join(gates[token].withdraw.separator);
-
-    try {
-  let result = await golos.broadcast.transferAsync(active_key, minter_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
-  window.alert('Вы вывели ' + action_transfer_amount + '.');
-  await loadBalances();
-  $.fancybox.close();
-  } catch(e) {
-  window.alert('Ошибка: ' + JSON.stringify(e));
-  }
-  } else {
-    window.alert('Вы отменили вывод.');
-  }
-    }); // end subform
-
-  $(document).on('click', '.transfer_modal', function(e) {
+  $(document).on('click', '.transfer_modal', async function(e) {
     let token = $(this).attr('data-token');
 $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_' + token).html());
+  await getFee(token, 'transfer', '');
   });
 
-  $(document).on('click', '.donate_modal', function(e) {
+  $(document).on('click', '.convert_modal', async function(e) {
     let token = $(this).attr('data-token');
-$('.donate_modal_token').html(token);
-$('#max_donate_amount').html($('#max_tip_' + token).html());
+$('.convert_modal_token').html(token);
+    $('#max_convert_amount').html($('#max_' + token).html());
+  await getFee(token, 'convert', '');
   });
-
-  $(document).on('click', '.transfer_from_tip_modal', async function(e) {
+  
+  $(document).on('click', '.delegate_modal', async function(e) {
     let token = $(this).attr('data-token');
-$('.transfer_from_tip_modal_token').html(token);
-if (token === 'GOLOS') {
-  $('#transfer_from_tip_to').html(' в СГ');
-} else {
-  $('#transfer_from_tip_to').html(' на основной баланс');
-}
-$('#max_transfer_from_tip_amount').html($('#max_tip_' + token).html());
+$('.delegate_modal_token').html(token);
+    $('#max_delegate_amount').html($('#max_' + token).html());
+  await getFee(token, 'delegate');
   });
 
   $("#action_transfer_start").click(async function(){
@@ -821,45 +313,73 @@ if (q == true) {
 let memo = $('#action_transfer_memo').val();
  
  try {
-  let result = await send(to, amount, coin, memo)
- window.alert('Вы перевели ' + amount + ' ' + coin + ' на адрес ' + to + '.');
+  $.fancybox.close(); 
+  await send(to, amount, coin, memo)
  await loadBalances();
-$.fancybox.close(); 
 } catch(e) {
-window.alert('Ошибка' + JSON.stringify(e));
+window.alert('Ошибка: ' + e);
  }
 }
   }); // end subform
 
-  $("#donate_start").click(async function(){
-    let q = window.confirm('Вы действительно хотите отправить донат?');
-    if (q == true) {
-      let token = $('.donate_modal_token').html();
-      let precision = 3;
-     let assets = await golos.api.getAssetsAsync('', [token]);
-     if (assets && assets.length > 0) {
-       let asset = assets[0];
-       precision = asset.precision;
-     }
-     let donate_to = $('#donate_to').val();
-     let donate_amount = $('#donate_amount').val();
-     donate_amount = parseFloat(donate_amount);
-     donate_amount = donate_amount.toFixed(precision) + ' ' + token;
-     let donate_memo = await createCryptMemo(donate_to, $('#donate_memo').val());
+$('#action_transfer_memo').change(async function() {
+let memo = $('#action_transfer_memo').val();
+let coin = $('.transfer_modal_token').html();
+let fee = parseFloat(await getFee(coin, 'transfer', memo));
+let amount = $('#action_transfer_amount').val();
+amount = parseFloat(amount);
+let max_amount = $('#max_transfer_amount').html();
+max_amount = parseFloat(max_amount) - 0.001;
+if (amount + fee > max_amount) {
+  amount = amount - (amount + fee - max_amount);
+}
+$('#action_transfer_amount').val(amount.toFixed(3));
+});
 
-     try {
-let result = await golos.broadcast.donateAsync(posting_key, minter_login, donate_to, donate_amount, {app: 'dpos-space', version: 1, comment: donate_memo, target: {type: 'personal_donate'}}, []);
-window.alert('Вы отблагодарили пользователя ' + donate_to + ' на ' + donate_amount + '.');
-$.fancybox.close();
-await loadBalances();
-} catch(e) {
-       window.alert('Ошибка: ' + JSON.stringify(e));
-     }
-     } else {
-      window.alert('Вы отменили отправку доната.');
-    }
-   }); // end subform
-    
+$("#action_convert_start").click(async function(){
+  let q = window.confirm('Вы действительно хотите сделать обмен средств?');
+  if (q == true) {
+    let coin = $('.convert_modal_token').html();
+   let to = $('#action_convert_to').val().toUpperCase();
+    let amount = $('#action_convert_amount').val();
+    amount = parseFloat(amount);
+   
+   try {
+    $.fancybox.close(); 
+    await convert(coin, to, amount)
+   await loadBalances();
+  } catch(e) {
+  window.alert('Ошибка: ' + e);
+   }
+  }
+    }); // end subform
+  
+    $('#action_convert_to').change(async function() {
+    await getConvertPrice();
+});
+
+$('#action_convert_amount').change(async function() {
+  await getConvertPrice();
+});
+
+$("#action_delegate_start").click(async function(){
+  let q = window.confirm('Вы действительно хотите делегировать?');
+  if (q == true) {
+    let coin = $('.delegate_modal_token').html();
+   let publicKey = $('#action_delegate_key').val();
+    let stake = $('#action_delegate_stake').val();
+    stake = parseFloat(stake);
+   
+   try {
+    $.fancybox.close(); 
+    await delegate(coin, publicKey, stake)
+   await loadBalances();
+  } catch(e) {
+  window.alert('Ошибка: ' + e);
+   }
+  }
+    }); // end subform
+
    $("#action_save_transfer_template").click(function(){
        let name = window.prompt('Введите название шаблона');
        if (name && name !== '') {
@@ -941,47 +461,40 @@ try {
   }
 }); // end action_remove_transfer_template
     
-      $('#select_donate_template').change(function() {
-        if ($('#select_donate_template').val() === '') {
-          $('#remove_donate_template').css('display', 'none');
-          $('#donate_to').val('');
-          $('#donate_memo').val('');
-        } else         if ($('#select_donate_template').val() === 'ecurrex-t2g') {
-          $('#remove_donate_template').css('display', 'none');
-          $('#donate_to').val('ecurrex-t2g');
-          $('#donate_memo').val('');
+      $('#select_delegate_template').change(function() {
+        if ($('#select_delegate_template').val() === '') {
+          $('#remove_delegate_template').css('display', 'none');
+          $('#action_delegate_key').val('');
         } else {
-          $('#remove_donate_template').css('display', 'inline');
-          $('#donate_to').val(String($(':selected', this).data('to')));
-          $('#donate_memo').val($(':selected', this).data('memo'));
+          $('#remove_delegate_template').css('display', 'inline');
+          $('#action_delegate_key').val(String($(':selected', this).data('key')));
          }
         });
 
-        $('#action_remove_donate_template').click(function() {
+        $('#action_remove_delegate_template').click(function() {
         let q = window.confirm('Вы действительно хотите удалить выбранный шаблон?');
         if (q == true) {
-          let value = $('#select_donate_template').val();
-          let token = $('.donate_modal_token').html();
-          let option = document.querySelector("#select_donate_template option[value='" + value + "']");
+          let value = $('#select_delegate_template').val();
+          let token = $('.delegate_modal_token').html();
+          let option = document.querySelector("#select_delegate_template option[value='" + value + "']");
           if (option) {
               option.remove();
           }
       try {
-        let donate_templates = JSON.parse(localStorage.getItem(token + '_donate_templates'));
+        let delegate_templates = JSON.parse(localStorage.getItem(token + '_minter_delegate_templates'));
         let templates = [];
-        if (donate_templates && donate_templates.length > 0) {
+        if (delegate_templates && delegate_templates.length > 0) {
           let counter = 1;
-          for (let template of donate_templates) {
+          for (let template of delegate_templates) {
             if (counter !== parseInt(value)) {
               templates.push(template);
             }
           counter++;
           }
-          localStorage.setItem(token + '_donate_templates', JSON.stringify(templates));
+          localStorage.setItem(token + '_minter_delegate_templates', JSON.stringify(templates));
         window.alert('Шаблон удалён.');
-        $('#remove_donate_template').css('display', 'none');
-        $('#donate_to').val('');
-        $('#donate_memo').val('');
+        $('#remove_delegate_template').css('display', 'none');
+        $('#action_delegate_key').val('');
       }
       } catch(e) {
         window.alert('Ошибка: ' + e);
@@ -989,42 +502,62 @@ try {
         } else {
           window.alert('Вы отменили удаление шаблона.');
         }
-    }); // end action_remove_donate_template
+    }); // end action_remove_delegate_template
    
       $("#max_token_transfer").click(async function(){
         let token = $('.transfer_modal_token').html();
-        $('#action_transfer_amount').val(new Number(parseFloat($('#max_' + token).html())).toFixed(3));
-         });
+        let amount = parseFloat($('#max_' + token).html());
+        let max_amount = $('#max_transfer_amount').html();
+        max_amount = parseFloat(max_amount);
+        let fee = parseFloat($('#transfer_fee').html());
+      if (amount === max_amount) {
+        amount -= fee + 0.001;
+      }
+        $('#action_transfer_amount').val(new Number(amount).toFixed(3));
+      });
     
-         $("#action_save_donate_template").click(async function(){
+         $("#max_token_convert").click(async function(){
+          let token = $('.convert_modal_token').html();
+          $('#action_convert_amount').val(new Number(parseFloat($('#max_' + token).html())).toFixed(3));
+          await getConvertPrice();   
+        });
+
+        $("#max_token_delegate").click(async function(){
+          let coin = $('.delegate_modal_token').html();
+          let max_amount = $('#max_delegate_amount').html();
+          max_amount = parseFloat(max_amount);
+          let fee = parseFloat($('#delegate_fee').html());
+            max_amount -= fee + 0.001;
+            $('#action_delegate_stake').val(new Number(max_amount).toFixed(3));
+            });
+
+         $("#action_save_delegate_template").click(async function(){
            let name = window.prompt('Введите название шаблона');
            if (name && name !== '') {
-            let  token = $('.transfer_modal_token').html();
+            let  token = $('.delegate_modal_token').html();
             try {
-             let donate_to = $('#donate_to').val();
-             let donate_memo = $('#donate_memo').val();
+             let delegate_key = $('#action_delegate_key').val();
            
-           let donate_templates = JSON.parse(localStorage.getItem( token + '_donate_templates'));
-            if (donate_templates && donate_templates.length > 0) {
+           let delegate_templates = JSON.parse(localStorage.getItem( token + '_minter_delegate_templates'));
+            if (delegate_templates && delegate_templates.length > 0) {
              let counter = 0; 
-             for (let template of donate_templates) {
+             for (let template of delegate_templates) {
                 if (name === template.name) {
                  counter = 1;
-                 template.to = donate_to;
-                 template.memo = donate_memo;
+                 template.key = delegate_key;
                 } // end if to.
               } // end for.
             if (counter === 0) {
-             donate_templates.push({name, to: donate_to, memo: donate_memo});
+             delegate_templates.push({name, key: delegate_key});
             }
              } // end if templates.
             else {
-              donate_templates = [];
-              donate_templates.push({name, to: donate_to, memo: donate_memo});
+              delegate_templates = [];
+              delegate_templates.push({name, key: delegate_key});
             }
-                 localStorage.setItem(token + '_donate_templates', JSON.stringify(donate_templates));
+                 localStorage.setItem(token + '_minter_delegate_templates', JSON.stringify(delegate_templates));
            window.alert('Шаблон добавлен.');
-    await getDonateTemplates(token);
+    await getDelegateTemplates(token);
            } catch(e) {
              window.alert('Ошибка: '  + JSON.stringify(e))
            }
@@ -1033,61 +566,6 @@ try {
            }
          }); // end subform
        
-         $("#max_token_donate").click(async function(){
-            let token = $('.donate_modal_token').html();
-            let precision = 3;
-           let assets = await golos.api.getAssetsAsync('', [token]);
-           if (assets && assets.length > 0) {
-             let asset = assets[0];
-             precision = asset.precision;
-           }
-            $('#donate_amount').val(new Number(parseFloat($('#max_tip_' + token).html())).toFixed(precision));
-          });
-   
-          $("#max_token_transfer_from_tip").click(async function(){
-            let token = $('.transfer_from_tip_modal_token').html();
-            let precision = 3;
-           let assets = await golos.api.getAssetsAsync('', [token]);
-           if (assets && assets.length > 0) {
-             let asset = assets[0];
-             precision = asset.precision;
-           }
-           $('#transfer_from_tip_amount').val(new Number(parseFloat($('#max_tip_' + token).html())).toFixed(precision));
-             });
-            
-             $("#transfer_from_tip_start").click(async function(){
-              let token = $('.transfer_from_tip_modal_token').html();  
-              let token_action = ' на основной баланс';
-              if (token === 'GOLOS') {
-token_action = ' в СГ';
-              }
-              let q = window.confirm('Вы действительно хотите перевести токены  из TIP-баланса' + token_action + '?');
-                if (q == true) {
-                  let precision = 3;
-                 let assets = await golos.api.getAssetsAsync('', [token]);
-                 if (assets && assets.length > 0) {
-                   let asset = assets[0];
-                   precision = asset.precision;
-                 }
-              
-                      var transfer_from_tip_to = $('#transfer_from_tip_to').val();
-                  var transfer_from_tip_amount = $('#transfer_from_tip_amount').val();
-                  transfer_from_tip_amount = parseFloat(transfer_from_tip_amount);
-                  transfer_from_tip_amount = transfer_from_tip_amount.toFixed(precision) + ' ' + token;
-                  var transfer_from_tip_memo = $('#transfer_from_tip_memo').val();
-                   try {
-                      let result = await golos.broadcast.transferFromTipAsync(active_key, minter_login, transfer_from_tip_to, transfer_from_tip_amount, transfer_from_tip_memo, []);
-                      window.alert('Вы перевели ' + transfer_from_tip_amount + ' пользователю ' + transfer_from_tip_to + token_action + '.');
-                      await loadBalances();
-                      $.fancybox.close();
-                    } catch(err) {
-                      window.alert('Ошибка: ' + JSON.stringify(err));
-                   }
-                } else {
-                  window.alert('Вы отменили перевод токенов из TIP-баланса' + token_action);
-                }
-           }); // end subform
-
       $('#username').html(minter_login);
   let filtr = JSON.parse(localStorage.getItem('wallet_history_filtr'));
 let select_ops = filtr['select_ops'];
