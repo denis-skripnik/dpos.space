@@ -146,6 +146,35 @@ $( document ).ready(function() {
                 });
         }
 
+        async function anbond(coin, publicKey, stake) {
+            let wif = sender.privateKey;
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE.UNBOND,
+                data: {
+                    publicKey,
+                    coin,
+                    stake,
+                },
+            };
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            minter.postTx(idTxParams, {privateKey: wif})
+                .then(async (txHash) => {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5000));
+                    let res = await getTransaction(txHash.hash);
+                    if (res === true) {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+        } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+        }
+                }).catch((error) => {
+                    const errorMessage = error.response.error.message
+                    throw `Ошибка: ${errorMessage}`;
+                });
+        }
+
         async function getBalance(address) {
             try {
             let response = await axios.get('/address/' + address);

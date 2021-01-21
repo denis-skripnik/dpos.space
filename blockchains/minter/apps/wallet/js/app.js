@@ -228,7 +228,7 @@ async function getFee(coin, type, memo) {
   let memo_bytes = byteCount(memo) * 0.2;
 let type_fee = 1;
 if (type === 'convert') type_fee = 10;
-if (type === 'delegate') type_fee = 20;  
+if (type === 'delegate' || type === 'anbond') type_fee = 20;  
 let fee = (memo_bytes + type_fee).toFixed(3);
 if (coin !== 'BIP') {
   let coin_info = await minter.getCoinInfo(coin);
@@ -265,6 +265,43 @@ async function getConvertPrice() {
   }
 }
 
+async function getDelegations() {
+  try {
+    let result = await axios.get('https://explorer-api.minter.network/api/v2/addresses/Mxae30a08fae2cc95960c5055d1142fd676995e18b/delegations');
+let res = result.data.data;
+    if (res && res.length > 0) {
+  $('#delegation_tbody').css('display', 'block');
+  let table = '';
+  for (let el of res) {
+let amount = parseFloat(el.value).toFixed(3) + ' ' + el.coin.symbol;
+let bip_amount = parseFloat(el.bip_value).toFixed(3) + ' BIP';
+let validator_key = el.validator.public_key;
+let validator_name = el.validator.name;
+let validator_status = 'Валидатор';
+if (el.validator.status === 1) {
+  validator_status = 'Кандидат';
+} else if (el.validator.status === 0) {
+  validator_status = 'Отключён';
+}
+let is_waitlisted = (el.is_waitlisted == false ? 'Нет' : 'Да');
+table += `<tr>
+<td><strong>${validator_status}</strong>
+<input type="text" readonly id="validator_${validator_key}" value="${validator_key}"> (<input type="button" value="копировать" onclick="copyText('validator_${validator_key}');">)<br>
+${validator_name}</td>
+<td>${amount}<br>
+${bip_amount}</td>
+<td>${is_waitlisted}</td>
+<td><a data-fancybox class="delegate_modal" data-src="#delegate_modal" href="javascript:;" data-token="${el.coin.symbol}" data-pubkey="${validator_key}" onclick="getDelegateTemplates('${el.coin.symbol}');">Делегировать ${el.coin.symbol}</a>, <a data-fancybox class="anbond_modal" data-src="#anbond_modal" href="javascript:;" data-token="${el.coin.symbol}" data-pubkey="${validator_key}" data-amount="${parseFloat(el.value).toFixed(3)}">Анбонд ${el.coin.symbol}</a></td>
+</tr>`;
+} // end for
+$('#delegation_tbody').html(table);
+} // end if res.
+
+} catch(e) {
+    console.log('Ошибка с делегированием: ' + e);
+  }
+}
+
 $(document).ready(async function() {
   if (seed) {
     jQuery("#main_wallet_info").css("display", "block");
@@ -298,10 +335,33 @@ $('.convert_modal_token').html(token);
   
   $(document).on('click', '.delegate_modal', async function(e) {
     let token = $(this).attr('data-token');
-$('.delegate_modal_token').html(token);
+    let key = $(this).attr('data-pubkey');
+    if (key) {
+      $('#action_delegate_key').val(key);
+    }
+    $('.delegate_modal_token').html(token);
     $('#max_delegate_amount').html($('#max_' + token).html());
   await getFee(token, 'delegate');
   });
+
+  $(document).on('click', '.anbond_modal', async function(e) {
+    let token = $(this).attr('data-token');
+    let key = $(this).attr('data-pubkey');
+      $('#action_anbond_key').val(key);
+      let amount = $(this).attr('data-amount');
+      $('.anbond_modal_token').html(token);
+    $('#max_anbond_amount').html(amount);
+  await getFee(token, 'anbond');
+  });
+
+  $("#max_token_anbond").click(async function(){
+    let coin = $('.anbond_modal_token').html();
+    let max_amount = $('#max_anbond_amount').html();
+    max_amount = parseFloat(max_amount);
+    let fee = parseFloat($('#anbond_fee').html());
+      max_amount -= fee + 0.001;
+      $('#action_anbond_stake').val(new Number(max_amount).toFixed(3));
+      });
 
   $("#action_transfer_start").click(async function(){
 let q = window.confirm('Вы действительно хотите сделать перевод средств?');
@@ -380,6 +440,24 @@ $("#action_delegate_start").click(async function(){
   }
     }); // end subform
 
+    $("#action_anbond_start").click(async function(){
+      let q = window.confirm('Вы действительно хотите сделать анбонд?');
+      if (q == true) {
+        let coin = $('.anbond_modal_token').html();
+       let publicKey = $('#action_anbond_key').val();
+        let stake = $('#action_anbond_stake').val();
+        stake = parseFloat(stake);
+       
+       try {
+        $.fancybox.close(); 
+        await anbond(coin, publicKey, stake)
+       await loadBalances();
+      } catch(e) {
+      window.alert('Ошибка: ' + e);
+       }
+      }
+        }); // end subform
+    
    $("#action_save_transfer_template").click(function(){
        let name = window.prompt('Введите название шаблона');
        if (name && name !== '') {

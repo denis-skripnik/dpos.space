@@ -7,7 +7,8 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <h2>Балансы пользователя <span id="username"></span></h2>
 <ul id="balances"></ul>
 <ul id="actions" class="terms" style="display: none;">      </ul>
-
+<h2>Делегированные монеты</h2>
+<p><a href="'.$conf['siteUrl'].'minter/wallet/delegation" target="_blank">Перейти</a></p>
 <div style="display: none;" id="vesting_withdraw_modal">
                                                       <h4 class="modal-title">Вывод СГ в golos</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
@@ -58,7 +59,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="delegate_modal">
-                                                      <h4 class="modal-title">Конвертация <span class="delegate_modal_token"></span></h4>
+                                                      <h4 class="modal-title">Делегирование <span class="delegate_modal_token"></span></h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_delegate">
                                                 <form class="form" name="postForm">
