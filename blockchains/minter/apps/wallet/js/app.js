@@ -1,4 +1,17 @@
-  async function links(token) {
+function compareCoins(a, b)
+{
+	if(parseFloat(a.reserve_balance) > parseFloat(b.reserve_balance))
+	{
+		return -1;
+	}
+	else{
+		return 1;
+	}
+}
+
+
+
+async function links(token) {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 <li><a data-fancybox class="convert_modal" data-src="#convert_modal" href="javascript:;" data-token="${token}">Конвертировать ${token}</a></li>
 <li><a data-fancybox class="delegate_modal" data-src="#delegate_modal" href="javascript:;" data-token="${token}" onclick="getDelegateTemplates('${token}');">Делегировать ${token}</a></li>
@@ -659,4 +672,27 @@ if(0<$('input[type=range]').length){
   bind_range();
 }
 
+try {
+$(async function() {
+  let result = await axios.get('https://explorer-api.minter.network/api/v2/coins');
+  let res = result.data.data;
+  res.sort(compareCoins);
+  let coins = res.reduce(function(p,c){return p + ',' +c.symbol;},[]).split(',');
+  $("#action_convert_to").autocomplete({ //на какой input:text назначить результаты списка
+      source: function(request, response) {
+          var term = request.term;
+          var pattern = new RegExp("^" + term, "i");
+          
+          var results = $.map(coins, function(elem) {                       
+              if (pattern.test(elem)) {
+                  return elem;
+              }
+          })                    
+          response(results);
+}
+})
+  });
+} catch(e) {
+  console.log(e);
+}
 });

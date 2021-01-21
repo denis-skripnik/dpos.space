@@ -50,7 +50,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                 <form class="form" name="postForm">
                                                 <p><label for="convert_to">Монета получения:</label></p>
                                                 <p><input type="text" name="convert_to" id="action_convert_to" placeholder="BIP"></p>
-                                                 <p><label for="convert_amount">Сумма конвертации (<span id="max_token_convert">Обменять все доступные <span id="max_convert_amount"></span> <span class="convert_modal_token"></span></span>):</label></p>
+                                                <p><label for="convert_amount">Сумма конвертации (<span id="max_token_convert">Обменять все доступные <span id="max_convert_amount"></span> <span class="convert_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="convert_amount" id="action_convert_amount" placeholder="Введите сумму в формате 1.000"></p>
 <p><strong>Комиссия: <span id="convert_fee">1</span> <span class="convert_modal_token"></span>
 Сумма покупки: <span id="buy_amount"></span></strong></p>
