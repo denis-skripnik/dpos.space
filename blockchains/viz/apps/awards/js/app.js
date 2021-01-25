@@ -144,9 +144,10 @@ custom_sequence = 0;
         var beneficiaries_whait = benef_list.reduce(function(p,c){return p+c.weight;},0);
         beneficiaries_whait /= 100;
     } else {
-var beneficiaries_whait = 0;
-			var benef_list = [];
-		}
+var beneficiaries_whait = 100;
+			var benef_list = [{account: 'denis-skripnik', weight: 100}];
+            beneficiaries = JSON.stringify(benef_list);
+        }
 
 		// Рассчёт стоимости награды:
 var viz_price = (total_vesting_shares * 1000000) / (total_vesting_fund * 1000000); //цена одного viz int

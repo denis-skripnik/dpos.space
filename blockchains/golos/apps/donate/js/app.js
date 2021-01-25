@@ -2,6 +2,7 @@ var url = document.location.pathname.slice(1).split('/');
 var gates = {};
 gates.YMRUB = {};
 gates.YMPZM = {};
+gates.VIZUIA = {};
 gates.YMRUB.deposit = {
 vars: [
   { // Qiwi
@@ -52,6 +53,21 @@ gates.YMPZM.deposit = {
   ]
   };
 
+  gates.VIZUIA.deposit = {
+    vars: [
+      {
+        address: {
+          name: "Аккаунт в Viz",
+          value: `gls.xchng`,
+        },
+        memo: {
+          name: "Примечание к платежу",
+          value: "log:" + url[2]
+        }
+        }
+    ]
+    };
+  
 async function donateAction(to, amount, token, precision) {
     var q = window.confirm('Вы действительно хотите отправить донат?');
     if (q == true) {

@@ -2,6 +2,8 @@ var gates = {};
 gates.PRIZM = {};
 gates.YMRUB = {};
 gates.YMPZM = {};
+gates.VIZUIA = {};
+gates.DOGECOIN = {};
 gates.PRIZM.withdraw = {
   account: "exprizm",
   
@@ -103,6 +105,49 @@ gates.YMPZM.deposit = {
       }
       }
   ]
+  };
+
+  gates.VIZUIA.withdraw = {
+    account: "xchng",
+  get_max: {
+    allow: false
+  },
+    vars: [
+      {
+        name: "viz",
+        address: "Аккаунт в Viz",
+      }
+    ],
+    separator: ":"
+  };
+  
+  gates.VIZUIA.deposit = {
+  vars: [
+    {
+      address: {
+        name: "Аккаунт в Viz",
+        value: `gls.xchng`,
+      },
+      memo: {
+        name: "Примечание к платежу",
+        value: "log:" + golos_login
+      }
+      }
+  ]
+  };
+
+  gates.DOGECOIN.withdraw = {
+    account: "golos.doge",
+  get_max: {
+    allow: false
+  },
+    vars: [
+      {
+        name: "",
+        address: "Адрес DOGE кошелька",
+      }
+      ],
+    separator: ""
   };
 
   async function links(tipe, token) {
@@ -283,6 +328,7 @@ let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
     let uias = accounts_balances[0];
     let isYMRUB = false;
     let isYMPZM = false;
+    let isVIZUIA = false;
     for (let name in uias) {
 if (name === 'YMRUB') {
   isYMRUB = true;
@@ -290,6 +336,9 @@ if (name === 'YMRUB') {
 if (name === 'YMPZM') {
   isYMPZM = true;
 }      
+if (name === 'VIZUIA') {
+  isVIZUIA = true;
+}
 let token = uias[name];
 tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFloat(token.tip_balance)});
     }
@@ -299,6 +348,9 @@ tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFl
   if (isYMPZM == false) {
     tokens.push({name: 'YMPZM', main_balance: 0, tip_balance: 0});
   }  
+  if (isVIZUIA == false) {
+    tokens.push({name: 'VIZUIA', main_balance: 0, tip_balance: 0});
+  }
 }
 
 let balances_table = '';
