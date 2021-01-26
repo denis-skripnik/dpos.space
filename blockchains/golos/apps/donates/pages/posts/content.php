@@ -24,6 +24,7 @@ $selected[$_GET['month']] = 'selected ';
     $content .= '</select></p>
     <p>Год:
     <select name="year" placeholder="Выберите год">
+    <option value="2021">2021</option>
     <option value="2020">2020</option>
     </select></p>
     <p><input type="submit" value="Посмотреть"></p></form>';

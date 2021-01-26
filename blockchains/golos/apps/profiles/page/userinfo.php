@@ -288,13 +288,13 @@ if ($datas['proxied_vsf_votes'][0] != 0) {
     $content .=  "<tr><td>Прокси СГ для голосования за делегатов</td>
     <td>$proxy_shares Ƶ</td></tr>";
 }
-    $content .=  "<tr><td>Итоговое количество СГ, влияющее на силу апвота</td>
+    $content .=  "<tr><td>Итоговое количество СГ, влияющее на силу апвоута</td>
     <td>".round($all_shares, 3)." GOLOS</td></tr>";
     if ($dasdas_gbg == 0) {
-        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%)</td>
+        $content .= "<tr><td>Прогнозируемая стоимость апвоута при текущей батарейке (При 100%)</td>
     <td>$dasdas_golos GOLOS ($fixx_golos GOLOS)</td></tr>";
     } else {
-        $content .= "<tr><td>Прогнозируемая стоимость апвота при текущей батарейке (При 100%), GBG по курсу продажи GOLOS</td>
+        $content .= "<tr><td>Прогнозируемая стоимость апвоута при текущей батарейке (При 100%), GBG по курсу продажи GOLOS</td>
     <td>$dasdas_golos GOLOS, $dasdas_gbg GBG ($fixx_golos GOLOS, $fixx_gbg GBG)</td></tr>";
     }
     $full_sp = $tvsh / 1000000 * $steem_per_vests;
@@ -467,7 +467,7 @@ $content .= "<tr>
 </tr>";
 }
 $content .= '<tr>
-<td>Время последнего апвота или флага</td>
+<td>Время последнего апвоута или флага</td>
 <td>'.$last_vote_time1.'</td>
 </tr>
 <tr>

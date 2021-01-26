@@ -5,7 +5,7 @@
     $content = '<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
 <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
 <p>Все данные удаляются в полночь по Москве. Иногда возможно будет пропускать, но чаще всего нет.</p>
-<table id="table"><thead><tr><th>Логин</th><th>Постов и комментариев</th><th>Количество флагов</th><th>Количество апвотов</th><th>Средний процент флага</th><th>Средний процент апа</th></tr></thead><tbody id="target">';
+<table id="table"><thead><tr><th>Логин</th><th>Постов и комментариев</th><th>Количество флагов</th><th>Количество апвоутов</th><th>Средний процент флага</th><th>Средний процент апа</th></tr></thead><tbody id="target">';
     if ($table) {
     foreach ($table as $user) {
       if ($user['flags'] > 0) {

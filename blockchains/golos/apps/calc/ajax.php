@@ -61,7 +61,7 @@ $value_market_gbg = round($value_golos * $ticker_price, 3);
 $dasdas_golos = $value_golos*($vote_weight/100);
 $dasdas_median_gbg = $value_median_gbg*($vote_weight/100);
 $dasdas_market_gbg = $value_market_gbg*($vote_weight/100);
-echo "<p>Стоимость апвота: $dasdas_golos GOLOS, $dasdas_market_gbg GBG по курсу продажи, $dasdas_median_gbg GBG по медиане.</p>";
+echo "<p>Стоимость апвоута: $dasdas_golos GOLOS, $dasdas_market_gbg GBG по курсу продажи, $dasdas_median_gbg GBG по медиане.</p>";
 } else if ($type == 'result_vesting') {
     $sp = (float)$_REQUEST['sp-tec'];
     $sp_result = round(($sp / 10000) * 7, 3);

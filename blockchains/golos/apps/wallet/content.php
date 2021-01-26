@@ -178,7 +178,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
 </form>
 </div>
 
-                                                      <p>Ваша доля (С учётом полученного и переданного), которая влияет на силу апвотов и флагов: <span id="full_vesting"></span> СГ</p>
+                                                      <p>Ваша доля (С учётом полученного и переданного), которая влияет на силу апвоутов и флагов: <span id="full_vesting"></span> СГ</p>
                                                 
                                                 <div id="info_vesting_withdraw" style="display: none;"><p>Выводится по <span id="vesting_withdraw_rate"></span> СГ 8 недель</p>
                                                 <p>Следующий вывод: <span id="next_vesting_withdrawal"></span></p>

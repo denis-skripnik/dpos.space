@@ -9,7 +9,7 @@ $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=top&type=
 $top = json_decode($html, true);
 $next_page = true;
 if ($top && count($top) > 0) {
-$fields = ['name' => 'Логин', 'gp' => 'СГ', 'gp_percent' => '% от всей СГ', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвотинге', 'golos' => 'Баланс GOLOS', 'golos_percent' => '% от всех GOLOS', 'gbg' => 'Баланс GBG', 'gbg_percent' => '% от всех GBG', 'tip_balance' => 'TIP-баланс', 'reputation' => 'Репутация'];
+$fields = ['name' => 'Логин', 'gp' => 'СГ', 'gp_percent' => '% от всей СГ', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвоутинге', 'golos' => 'Баланс GOLOS', 'golos_percent' => '% от всех GOLOS', 'gbg' => 'Баланс GBG', 'gbg_percent' => '% от всех GBG', 'tip_balance' => 'TIP-баланс', 'reputation' => 'Репутация'];
 if ($top) {
 $tr = '';
     $th = '<tr>';

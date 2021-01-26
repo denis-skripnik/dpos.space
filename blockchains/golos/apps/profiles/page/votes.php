@@ -36,7 +36,7 @@ $mass = $res['result'];
 
     krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>Апвоты и флаги, связанные с пользователем '.$user.'</h2>
+            $result['content'] = '<div id="ajax_content"><h2>Апвоуты и флаги, связанные с пользователем '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
             <th>Голосующий аккаунт</th>

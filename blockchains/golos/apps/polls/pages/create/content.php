@@ -18,7 +18,7 @@ $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/golos/apps/poll
 <select name="consider" id="vote_consider" placeholder="Учитывать при расчёте результатов СГ">
     <option value="0">Личную</option>
     <option value="1">Личную + прокси</option>
-    <option value="2">Как при апвотах</option>
+    <option value="2">Как при апвоутах</option>
 </select></p>
 <p><label for="service">При помощи чего создавать опрос. Если вы авторизованы <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a> с указанием активного ключа, будет выбран вариант dpos.space (создание опроса при помощи данного сайта): </label>
 <select name="service" id="clients" placeholder="При помощи чего создать опрос">
