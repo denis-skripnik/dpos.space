@@ -127,6 +127,7 @@ $( document ).ready(function() {
                     coin,
                     stake,
                 },
+                gasCoin: coin,
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
@@ -141,7 +142,8 @@ $( document ).ready(function() {
         document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
     }
                 }).catch((error) => {
-                    const errorMessage = error.response.error.message
+                    const errorMessage = error.response.data.error.message
+                    console.log(errorMessage);
                     throw `Ошибка: ${errorMessage}`;
                 });
         }

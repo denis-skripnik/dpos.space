@@ -196,7 +196,7 @@ if (!tr.data.list) {
 let sum_amount = 0;
     let coin = '';
 for (let el of tr.data.list) {
-if (tr.from === address || el.to === address) {
+if (tr.from === sender.address || el.to === sender.address) {
   sum_amount += parseFloat(el[value_str]);
   coin = el[coin_str].symbol;
 }
@@ -299,7 +299,7 @@ if (el.validator.status === 1) {
 let is_waitlisted = (el.is_waitlisted == false ? 'Нет' : 'Да');
 table += `<tr>
 <td><strong>${validator_status}</strong>
-<input type="text" readonly id="validator_${validator_key}" value="${validator_key}"> (<input type="button" value="копировать" onclick="copyText('validator_${validator_key}');">)<br>
+<input type="text" readonly id="validator_${el.coin.symbol}_${validator_key}" value="${validator_key}"> (<input type="button" value="копировать" onclick="copyText('validator_${el.coin.symbol}_${validator_key}');">)<br>
 ${validator_name}</td>
 <td>${amount}<br>
 ${bip_amount}</td>
