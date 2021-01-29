@@ -17,6 +17,9 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для обмена 
 </select>
 <p><label for="buy_amount">Сумма покупки: <br>
 <input type="text" name="buy_amount" id="buy_amount" value="" placeholder="Суммак получению"></label></p>
+<hr>
+<p><label for="order_endtime">Через сколько часов отменить ордер?:<br>
+<input type="number" name="order_endtime" id="order_endtime" min="1" value="1" placeholder="Окончание ордера"></label></p>
 <input type="hidden" id="pr1">
 <input type="hidden" id="pr2">
 <hr>

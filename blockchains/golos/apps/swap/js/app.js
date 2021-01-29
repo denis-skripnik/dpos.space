@@ -88,7 +88,8 @@ Number.prototype.toFixedNoRounding = function(n) {
   <td><a onclick="deleteOrder(${order.orderid});">Удалить</a></td>
   </tr>`;
   }
-    $('#my_orders_list').html(table);
+    $('#my_orders_list').css('display', 'block');
+  $('#my_orders_list').html(table);
   } catch(e) {
     console.log('Ошибка: ' + e);
     }
@@ -108,8 +109,8 @@ async function creationOrder(sell_amount, selected_sell_token, selected_buy_toke
     let orders_counter = 0;
     for (let order of orders) {
     orders_counter++;
-        asset1_counter += order.asset1 / (10 ** pr1);
-        price_counter += order.price;
+        asset1_counter += parseFloat(order.asset1) / (10 ** pr1);
+        price_counter += parseFloat(order.price);
     if (asset1_counter >= sell_amount) {
         break;
     }
@@ -341,7 +342,7 @@ if (res) {
 location.reload();
 }
 } catch(e) {
-           console.log(e);
+           window.alert(JSON.stringify(e));
        }
     }
 });
@@ -356,8 +357,9 @@ $('#action_create_order').click(async function() {
     let q = window.confirm('Вы действительно хотите создать ордер на обмен?');
     if (q == true) {
         let orderid = Math.floor(Date.now() / 1000); // it is golos.id way and it is preferred
+        let order_endtime = parseInt($('#order_endtime').val());
         let expiration = new Date();
-        expiration.setHours(expiration.getHours() + 1);
+        expiration.setHours(expiration.getHours() + order_endtime);
         expiration = expiration.toISOString().substr(0, 19); // i.e. 2020-09-07T11:33:00
        try {
         let res = await golos.broadcast.limitOrderCreateAsync(active_key, golos_login, orderid, sell_amount.toFixedNoRounding(pr1) + ' ' + selected_sell_token, buy_amount.toFixedNoRounding(pr2) + ' ' + selected_buy_token, false, expiration);
