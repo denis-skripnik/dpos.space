@@ -1,4 +1,3 @@
-if(0<$('.profile-update').length){
     viz.api.getAccounts([viz_login],function(err,response){
         if(!err){
             let json_metadata=response[0].json_metadata;
@@ -81,7 +80,7 @@ if(typeof metadata.profile.nickname !== 'undefined'){
 console.log(err);
         }
     });
-}
+
 
 function profile_save(){
     viz.api.getAccounts([viz_login],function(err,response){
@@ -97,19 +96,23 @@ function profile_save(){
 if (!metadata.profile) {
                 metadata.profile={};
 }
-metadata.profile.nickname=$('input[name=nickname]').val().trim();
+metadata.profile.nickname= $('input[name=nickname]').val().trim();
 metadata.profile.about=$('input[name=about]').val().trim();
 metadata.profile.avatar=$('input[name=avatar]').val().trim();
-            metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
-            metadata.profile.location=$('input[name=location]').val().trim();
+if ($('.profile-update select[name=gender]').val()) {
+    metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
+}
+metadata.profile.location=$('input[name=location]').val().trim();
             var fullInterests = $('input[name=Interests]').val().trim();
-            var i = fullInterests.split(',');
             var i2 = [];
-            i.forEach(function(item){
-                    i2.push(item.toLowerCase().trim());
-                        
-            });
-            i2 = unique(i2);
+            if (fullInterests !== '') {
+                var i = fullInterests.split(',');
+                i.forEach(function(item){
+                        i2.push(item.toLowerCase().trim());
+                            
+                });
+                i2 = unique(i2);
+            }
             metadata.profile.interests = i2;
             let b_day = $('input[name=birthday_day]').val().trim();
 let b_month = $('select[name=birthday_month]').val().trim();

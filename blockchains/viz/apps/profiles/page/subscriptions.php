@@ -135,36 +135,6 @@ $result['content'] .= '<tr>
                 if ($rowCount === TRX_LIMIT) {
             break;
         }
-    } else 		if ($op[0] == 'set_account_price') {
-        $rowCount++;
-        $name = 'Установка цены продажи аккаунта';
-        $account = isset($op[1]['account']) ? $op[1]['account'] : "";
-        $price = (float)$op[1]['account_offer_price'].' VIZ';
-        $account_on_sale = $op[1]['account_on_sale'] == true ? 'продаются' : 'Не продаются';
-
-$result['content'] .= '<tr>
-<td>'.$timestamp.'</td>
-<td><a href="'.$site_url.'viz/profiles/'.$account.'" target="_blank">'.$account.'</a></td>
-<td>'.$name.' за '.$price.', статус: '.$account_on_sale.'</td>
-</tr>';
-                if ($rowCount === TRX_LIMIT) {
-            break;
-        }
-    } else 		if ($op[0] == 'account_sale') {
-        $rowCount++;
-        $name = 'Продажа аккаунта';
-        $account = isset($op[1]['account']) ? $op[1]['account'] : "";
-        $price = (float)$op[1]['price'].' VIZ';
-        $buyer = $op[1]['buyer'];
-
-$result['content'] .= '<tr>
-<td>'.$timestamp.'</td>
-<td><a href="'.$site_url.'viz/profiles/'.$account.'" target="_blank">'.$account.'</a></td>
-<td>'.$name.' <a href="'.$site_url.'viz/profiles/'.$buyer.'" target="_blank">'.$buyer.'</a> за '.$price.'</td>
-</tr>';
-                if ($rowCount === TRX_LIMIT) {
-            break;
-        }
     }
     }
 }

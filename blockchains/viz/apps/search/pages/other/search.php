@@ -35,8 +35,8 @@ $content .= '</ul>';
 }
 $content .= '</p>';
 if ($pagenum > 1) {
-    $content .= '<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
+    $content .= '<a href="'.$conf['siteUrl'].'viz/search/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
 }
-$content .= '<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
+$content .= '<a href="'.$conf['siteUrl'].'viz/search/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
 return $content;
 ?>
