@@ -75,7 +75,7 @@ $( document ).ready(function() {
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
                     $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-                    await new Promise(r => setTimeout(r, 5000));
+                    await new Promise(r => setTimeout(r, 5500));
                     let res = await getTransaction(txHash.hash);
                     if (res === true) {
                         document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
@@ -104,7 +104,7 @@ $( document ).ready(function() {
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
                     $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-                    await new Promise(r => setTimeout(r, 5000));
+                    await new Promise(r => setTimeout(r, 5500));
                     let res = await getTransaction(txHash.hash);
                     if (res === true) {
                         document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
@@ -134,7 +134,7 @@ $( document ).ready(function() {
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
                     $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-                    await new Promise(r => setTimeout(r, 5000));
+                    await new Promise(r => setTimeout(r, 5500));
                     let res = await getTransaction(txHash.hash);
                     if (res === true) {
                         document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
@@ -164,7 +164,7 @@ $( document ).ready(function() {
             minter.postTx(idTxParams, {privateKey: wif})
                 .then(async (txHash) => {
                     $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-                    await new Promise(r => setTimeout(r, 5000));
+                    await new Promise(r => setTimeout(r, 5500));
                     let res = await getTransaction(txHash.hash);
                     if (res === true) {
                         document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
