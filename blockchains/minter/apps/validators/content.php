@@ -7,7 +7,7 @@ try {
     $html = file_get_contents('https://explorer-api.minter.network/api/v2/validators');
     $validators = json_decode($html, true)['data'];
     $list = $validators;
-    $content = '<table><thead><tr><th>№</th>
+    $content = '<table><thead><tr><th>№ и статус</th>
 <th>Публичный ключ</th>
 <th>Название</th>
 <th>Стек</th>
@@ -18,7 +18,9 @@ $num = 0;
 foreach ($list as $validator) {
 $num++;
   if ($validator['status'] === 2 || $validator['status'] === 1) {
-    $content .= '<tr><td>'.$num.'</td>
+    $status = '<span style="color: green;">Валидатор</span>';
+    if ($validator['status'] === 1) $status = '<span style="color: red;">Кандидат</span>';
+    $content .= '<tr><td>'.$num.' '.$status.'</td>
     <td><input type="text" readonly id="validator_'.$num.'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num.'_key`);" value="копировать">)</td>';
     if (isset($validator['site_url']) && $validator['site_url'] !== '' && $validator['name'] !== $validator['public_key']) {
       $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$validator['name'].'</a></td>';
