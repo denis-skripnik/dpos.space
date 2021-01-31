@@ -22,14 +22,16 @@ $num++;
     if ($validator['status'] === 1) $status = '<span style="color: red;">Кандидат</span>';
     $content .= '<tr><td>'.$num.' '.$status.'</td>
     <td><input type="text" readonly id="validator_'.$num.'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num.'_key`);" value="копировать">)</td>';
+$icon = '';
+    if (isset($validator['icon_url']) && $validator['icon_url'] !== '') $icon = '<img src="'.$validator['icon_url'].'" width="100px">';
     if (isset($validator['site_url']) && $validator['site_url'] !== '' && $validator['name'] !== $validator['public_key']) {
-      $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$validator['name'].'</a></td>';
+      $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$icon.''.$validator['name'].'</a></td>';
     } else if ($validator['name'] === $validator['public_key']) {
     $content .= '<td></td>';
   } else {
       $content .= '<td>'.$validator['name'].'</td>';
     }
-$content .= '<td>'.round($validator['stake'], 3).' BIP</td>
+$content .= '<td>'.round($validator['stake'], 3).' BIP (Мин. '.round($validator['min_stake'], 3).')</td>
     <td>'.$validator['commission'].'%</td>
 </tr>';
   }

@@ -3,7 +3,7 @@ return '<h2>Введите в поле ниже адрес любого поль
 <form class="form" method = "post" action = "">
   <input type = "hidden" name = "chain" value = "minter">
   <input type = "hidden" name = "service" value = "profiles">
-  <label for = "user">Введите адрес (начинается с MX):</label>
+  <label for = "user">Введите адрес (начинается с Mx):</label>
   <input type = "text" name = "user" value="">
   <input type = "submit" value = "узнать инфу"/>
 </form>

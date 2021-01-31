@@ -31,7 +31,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
 </select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" id="action_remove_transfer_template">)</span> </p>
                                                 <p><label for="transfer_to">Кому:</label></p>
-                                                <p><input type="text" name="transfer_to" id="action_transfer_to" placeholder="MX..."></p>
+                                                <p><input type="text" name="transfer_to" id="action_transfer_to" placeholder="Mx..."></p>
                                                  <p><label for="transfer_amount">Сумма перевода (<span id="max_token_transfer">Перевести все доступные <span id="max_transfer_amount"></span> <span class="transfer_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="transfer_amount" id="action_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                 <p><label for="transfer_memo">Заметка (описание) к платежу:</label></p>
