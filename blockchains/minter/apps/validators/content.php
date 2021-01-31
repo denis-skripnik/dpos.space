@@ -12,8 +12,6 @@ try {
 <th>Название</th>
 <th>Стек</th>
 <th>Комиссия</th>
-<th>Описание</th>
-<th>сайт</th>
 </tr></thead><tbody>';
 uasort($list, 'cmp_function_desc');
 $num = 0;
@@ -21,17 +19,17 @@ foreach ($list as $validator) {
 $num++;
   if ($validator['status'] === 2 || $validator['status'] === 1) {
     $content .= '<tr><td>'.$num.'</td>
-    <td><input type="text" readonly id="validator_'.$num.'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num.'_key`);" value="копировать"></td>
-    <td>'.$validator['name'].'</td>
-    <td>'.round($validator['stake'], 3).' BIP</td>
+    <td><input type="text" readonly id="validator_'.$num.'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num.'_key`);" value="копировать">)</td>';
+    if (isset($validator['site_url']) && $validator['site_url'] !== '' && $validator['name'] !== $validator['public_key']) {
+      $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$validator['name'].'</a></td>';
+    } else if ($validator['name'] === $validator['public_key']) {
+    $content .= '<td></td>';
+  } else {
+      $content .= '<td>'.$validator['name'].'</td>';
+    }
+$content .= '<td>'.round($validator['stake'], 3).' BIP</td>
     <td>'.$validator['commission'].'%</td>
-    <td>'.$validator['description'].'</td>';
-if (isset($validator['site_url']) && $validator['site_url'] !== '') {
-  $content .= '<td><a href="'.$validator['site_url'].'" target="_blank">'.$validator['site_url'].'</a></td>';
-} else {
-  $content .= '<td></td>';
-}
-    $content .= '</tr>';
+</tr>';
   }
 }
 $content .= '</tbody></table>';
