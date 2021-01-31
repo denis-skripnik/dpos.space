@@ -87,6 +87,7 @@
   <p class="p-footer">Создал данный клиент незрячий программист <span id="creator_login">Денис Скрипник</span>.</p>
   <div class="profile">
     <a href="/viz/profiles/denis-skripnik" class="a-footer">профиль в Viz</a>
+    <a href="/minter/profiles/Mxae30a08fae2cc95960c5055d1142fd676995e18b" class="a-footer">Адрес Minter кошелька</a>
     <a href="/golos/profiles/denis-skripnik" class="a-footer">профиль в Golos.</a>
   </div>
   <div class="profile">
