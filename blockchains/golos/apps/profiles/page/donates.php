@@ -80,7 +80,7 @@ if ($user === $metadata['referrer'] && $user !== $op[1]['from']) {
 $more_info = 'Процент от доната в адрес реферала данного пользователя, приложение: '.$memo['app'].' V'.$memo['version'].(isset($memo['comment']) && $memo['comment'] !== '' ? ', Комментарий: '.$memo['comment'] : '').'. ';
 }
 $target = $memo['target'];
-if ($target['author'] && $target['permlink']) {
+if (isset($target['author']) && isset($target['permlink'])) {
     $more_info .= '<a href="https://golos.id/@'.$target['author'].'/'.$target['permlink'].'" target="_blank">@'.$target['author'].'/'.$target['permlink'].'</a>';
 } else {
     foreach ($target as $key => $value) {
