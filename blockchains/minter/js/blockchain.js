@@ -177,6 +177,67 @@ $( document ).ready(function() {
                 });
         }
 
+        async function createCoin(type, name, symbol, initialAmount, constantReserveRatio, initialReserve, maxSupply) {
+            let wif = sender.privateKey;
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE[type],
+                data: {
+                    name,
+                    symbol,
+                    initialAmount,
+                    constantReserveRatio,
+                    initialReserve,
+                    maxSupply,
+                },
+            };
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            minter.postTx((type === 'RECREATE_COIN' ? idTxParams : txParams), {privateKey: wif})
+                .then(async (txHash) => {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5500));
+                    let res = await getTransaction(txHash.hash);
+                    if (res === true) {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+        } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+        }
+                }).catch((error) => {
+                    const errorMessage = error.response.data.error.message
+                    console.log(errorMessage);
+                    throw `Ошибка: ${errorMessage}`;
+                });
+        }
+        
+        async function editCoinOwner(symbol, newOwner) {
+            let wif = sender.privateKey;
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE.EDIT_COIN_OWNER,
+                data: {
+                    symbol,
+                    newOwner,
+                },
+            };
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            minter.postTx(idTxParams, {privateKey: wif})
+                .then(async (txHash) => {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    await new Promise(r => setTimeout(r, 5500));
+                    let res = await getTransaction(txHash.hash);
+                    if (res === true) {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/minter/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
+        } else {
+        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+        }
+                }).catch((error) => {
+                    const errorMessage = error.response.error.message
+                    throw `Ошибка: ${errorMessage}`;
+                });
+        }
+
         async function getBalance(address) {
             try {
             let response = await axios.get('/address/' + address);

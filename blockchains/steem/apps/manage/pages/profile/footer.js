@@ -1,4 +1,3 @@
-if(0<$('.profile-update').length){
     steem.api.getAccounts([steem_login],function(err,response){
         if(!err){
             let json_metadata=response[0].json_metadata;
@@ -69,7 +68,7 @@ if(typeof metadata.profile.name !== 'undefined'){
 console.log(err);
         }
     });
-}
+
 
 function profile_save(){
     steem.api.getAccounts([steem_login],function(err,response){
@@ -89,7 +88,9 @@ if (!metadata.profile) {
 metadata.profile.about=$('textarea[name=about]').html().trim();
 metadata.profile.profile_image=$('input[name=avatar]').val().trim();
 metadata.profile.cover_image =$('input[name=cover_image]').val().trim();
-metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
+if ($('.profile-update select[name=gender]').val()) {
+    metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
+}
             metadata.profile.location=$('input[name=location]').val().trim();
             var fullInterests = $('input[name=Interests]').val().trim();
             var i = fullInterests.split(',');

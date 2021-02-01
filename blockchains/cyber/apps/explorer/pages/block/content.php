@@ -45,23 +45,26 @@ $next_block = $datas+1;
 <h3>Транзакции</h3>
 <ol>';
 $txs = node('block_results?height='.$datas)['txs_results'];
-foreach ($txs as $num => $tr) {
-  $tx_data = isJSON($tr['log']);
-  if ($tx_data['approve'] !== false) {
-  $content .= '<li><table><tr><th>Тип события</th>
-  <th>JSON</th></tr>';
-  foreach ($tx_data['data'] as $op) {
-    foreach ($op['events'] as $event) {
-      $op_data = convert_operation_data($event['attributes'], $conf['siteUrl']);
-      $content .= '<tr><td>'.$event['type'].'</td>
-    <td>'.$op_data.'</td></tr>';
+if (isset($txs) && count($txs) > 0) {
+  foreach ($txs as $num => $tr) {
+    $tx_data = isJSON($tr['log']);
+    if ($tx_data['approve'] !== false) {
+    $content .= '<li><table><tr><th>Тип события</th>
+    <th>JSON</th></tr>';
+    foreach ($tx_data['data'] as $op) {
+      foreach ($op['events'] as $event) {
+        $op_data = convert_operation_data($event['attributes'], $conf['siteUrl']);
+        $content .= '<tr><td>'.$event['type'].'</td>
+      <td>'.$op_data.'</td></tr>';
+      }
     }
-  }
-  $content .= '</table></li>';
+    $content .= '</table></li>';
   } else {
     $content .= '<h3>Ошибка</h3>
     <p>'.$tx_data['data'].'</p>';
   }
+}
+ 
 }
 $content .= '</ol>
 

@@ -6,7 +6,7 @@ use GrapheneNodeClient\Commands\Single;
 use GrapheneNodeClient\Commands\CommandQueryData;
 use GrapheneNodeClient\Commands\Single\GetConfigCommand;
 
-$connector_class = CONNECTORS_MAP['whaleshares'];
+$connector_class = CONNECTORS_MAP['steem'];
 
 $config_commandQuery = new CommandQueryData();
 

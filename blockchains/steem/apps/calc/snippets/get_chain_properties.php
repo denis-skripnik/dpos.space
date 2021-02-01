@@ -4,7 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/helpers.php';
 
 use GrapheneNodeClient\Commands\CommandQueryData;
 use GrapheneNodeClient\Commands\Single\GetChainPropertiesCommand;
-$connector_class = CONNECTORS_MAP['whaleshares'];
+$connector_class = CONNECTORS_MAP['steem'];
 
 $chain_commandQuery = new CommandQueryData();
 

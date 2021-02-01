@@ -118,7 +118,7 @@ if (! $posts) {
 
 $rowCount = 0;
 
-$result['content'] .= '<div id="ajax_content"><h2>Посты и репосты подписчиков:</h2>
+$result['content'] .= '<div id="ajax_content"><h2>Посты и репосты подписок:</h2>
 <table><tr>
 <th>Дата</th>
 <th>Название</th>

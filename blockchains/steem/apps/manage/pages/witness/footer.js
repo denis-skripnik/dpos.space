@@ -6,7 +6,7 @@ chf.sbd_interest_rate = "% начисляемый на SBD:";
 chf.account_subsidy_budget = "Субсидии аккаунта, которые будут добавлены к субсидии аккаунта за блок. Это максимальная ставка, которую можно создать с помощью субсидий:";
 chf.account_subsidy_decay = "сокращение субсидий по счету:";
 
-    steem.api.getWitnessByAccount('dlike', function(err, res) {
+    steem.api.getWitnessByAccount(steem_login, function(err, res) {
         if (!err && !$.isEmptyObject(res)) {
         let props = res.props;
 $('input[name=witness_url]').val(res.url);
