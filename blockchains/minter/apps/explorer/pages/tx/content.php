@@ -71,8 +71,9 @@ $content = '<h2>Транзакция '.$datas.'</h2>
 <li>Создана: '.$timestamp.'</li>
 <li>Тип: '.$types[$tx['type']].'</li>
 <li>Отправитель: <a href="'.$conf['siteUrl'].'minter/profiles/'.$tx['from'].'" target="_blank">'.$tx['from'].'</a></li>
-<li>Комиссия: '.round($tx['fee'], 3).' '.$tx['gas_coin']['symbol'].'</li>
+<li>Комиссия: '.$tx['gas_coin']['symbol'].' (BIP '.round($tx['fee'], 3).')</li>
 </ul>';
+
   $tx_data = convert_operation_data($tx['data'], $conf['siteUrl']);
 $content .= '<hr />
   <h3>Данные</h3>

@@ -94,7 +94,6 @@ let types = {
   13: 'Мультисенд (мульти-отправка)',
   14: 'Редактирование кандидата'
 };
-const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
 for (let tr of res) {
   let amount;
   let coin_str = 'coin';
@@ -126,7 +125,7 @@ let get_time = Date.parse(tr.timestamp);
 let memo = decodeURIComponent(escape(window.atob(tr.payload)));
 memo = prepareContent(memo);
 results += `
-<tr><td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
+<tr><td>${date_str(get_time, true, false, true)}</td>
 <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
 <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
 <td>${type}</td>
