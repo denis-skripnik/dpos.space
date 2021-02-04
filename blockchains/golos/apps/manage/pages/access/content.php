@@ -101,34 +101,34 @@ return '<h2>Страницы сервиса</h2>
 						</div>
 
 						<p>Posting (постинг) тип доступа:</p>
-						<div class="account-keys-regular captions">
+						<div class="account-keys-posting captions">
 							<p>
 								<label class="input-descr">
 									<span class="input-caption">Необходимый вес:</span>
-									<input type="text" name="regular-weight-threshold" class="simple-rounded">
+									<input type="text" name="posting-weight-threshold" class="simple-rounded">
 								</label>
 							</p>
 							<hr>
 							<p class="bold">Ключи для подписи:</p>
-							<div class="regular-keys">
+							<div class="posting-keys">
 								<div class="none-auths">Ключи отсутствуют</div>
 							</div>
 							<div class="add-key-auths">
 								<input class="simple-inline" type="text" name="public-key" placeholder="публичный ключ">
 								<input class="simple-inline" type="text" name="private-key" placeholder="приватный ключ">
 								<input class="simple-inline" type="text" name="weight" placeholder="вес">
-								<a class="gen-key-auths-action blue-button-inline unselectable" rel="regular" onclick="genkeyauthsaction(`regular`);">сгенерировать</a>
-								<a class="add-key-auths-action blue-button-inline unselectable" rel="regular" onclick="addkeyauthsaction(`regular`);">добавить ключ</a>
+								<a class="gen-key-auths-action blue-button-inline unselectable" rel="posting" onclick="genkeyauthsaction(`posting`);">сгенерировать</a>
+								<a class="add-key-auths-action blue-button-inline unselectable" rel="posting" onclick="addkeyauthsaction(`posting`);">добавить ключ</a>
 							</div>
 							<hr>
 							<p class="bold">Доверенные аккаунты:</p>
-							<div class="regular-accounts">
+							<div class="posting-accounts">
 								<div class="none-auths">Доверенных аккаунтов нет</div>
 							</div>
 							<div class="add-account-auths">
 								<input class="simple-inline" type="text" name="account" placeholder="аккаунт">
 								<input class="simple-inline" type="text" name="weight" placeholder="вес">
-								<a class="add-account-auths-action blue-button-inline unselectable" rel="regular" onclick="addaccountauthsaction(`regular`);">добавить аккаунт</a>
+								<a class="add-account-auths-action blue-button-inline unselectable" rel="posting" onclick="addaccountauthsaction(`posting`);">добавить аккаунт</a>
 							</div>
 						</div>
 

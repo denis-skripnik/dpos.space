@@ -364,12 +364,12 @@ function manage_access_preload(account,el){
 			el.find('.account-keys input[name=manage-access-json-metadata]').val(response[0].json_metadata);
 
 			counter=0;
-			for(i in response[0].master.account_auths){
-				let new_el='<div class="account-auths" data-account1="'+response[0].master.account_auths[i][0]+'" data-weight="'+response[0].master.account_auths[i][1]+'">';
-				new_el+=response[0].master.account_auths[i][0];
+			for(i in response[0].owner.account_auths){
+				let new_el='<div class="account-auths" data-account1="'+response[0].owner.account_auths[i][0]+'" data-weight="'+response[0].owner.account_auths[i][1]+'">';
+				new_el+=response[0].owner.account_auths[i][0];
 				new_el+='<div class="adaptive-show-block"></div>';
-				new_el+=' <span class="weight-inline">'+ltmp(ltmp_arr.access_weight_caption,{weight:response[0].master.account_auths[i][1]})+'</span>';
-				new_el+='<a class="red-button-inline delete-auth-action" onclick="el = $(`div[data-account1='+response[0].master.account_auths[i][0]+']`); deleteauthaction(el);">'+ltmp_arr.access_remove_caption+'</a>';
+				new_el+=' <span class="weight-inline">'+ltmp(ltmp_arr.access_weight_caption,{weight:response[0].owner.account_auths[i][1]})+'</span>';
+				new_el+='<a class="red-button-inline delete-auth-action" onclick="el = $(`div[data-account1='+response[0].owner.account_auths[i][0]+']`); deleteauthaction(el);">'+ltmp_arr.access_remove_caption+'</a>';
 				new_el+='</div>';
 				el.find('.account-keys .master-accounts').append(new_el);
 				++counter;
@@ -378,12 +378,12 @@ function manage_access_preload(account,el){
 				el.find('.account-keys .master-accounts .none-auths').css('display','block');
 			}
 			counter=0;
-			for(i in response[0].master.key_auths){
-				let new_el='<div class="key-auths" data-key="'+response[0].master.key_auths[i][0]+'" data-weight="'+response[0].master.key_auths[i][1]+'">';
-				new_el+=response[0].master.key_auths[i][0];
+			for(i in response[0].owner.key_auths){
+				let new_el='<div class="key-auths" data-key="'+response[0].owner.key_auths[i][0]+'" data-weight="'+response[0].owner.key_auths[i][1]+'">';
+				new_el+=response[0].owner.key_auths[i][0];
 				new_el+='<div class="adaptive-show-block"></div>';
-				new_el+=' <span class="weight-inline">'+ltmp(ltmp_arr.access_weight_caption,{weight:response[0].master.key_auths[i][1]})+'</span>';
-				new_el+='<a class="red-button-inline delete-auth-action" onclick="el = $(`div[data-key='+response[0].master.key_auths[i][0]+']`); deleteauthaction(el);">'+ltmp_arr.access_remove_caption+'</a>';
+				new_el+=' <span class="weight-inline">'+ltmp(ltmp_arr.access_weight_caption,{weight:response[0].owner.key_auths[i][1]})+'</span>';
+				new_el+='<a class="red-button-inline delete-auth-action" onclick="el = $(`div[data-key='+response[0].owner.key_auths[i][0]+']`); deleteauthaction(el);">'+ltmp_arr.access_remove_caption+'</a>';
 				new_el+='</div>';
 				el.find('.account-keys .master-keys').append(new_el);
 				++counter;
@@ -514,7 +514,7 @@ var addkeyauthsaction = function(el){
 var addaccountauthsaction = function(el){
 		let type=el;
 			let num;
-		if(type=='master'){
+		if(type=='owner'){
 			num = 1;
 		} else if(type=='active'){
 			num = 2;

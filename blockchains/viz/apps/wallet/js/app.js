@@ -4,8 +4,8 @@ let res = memo;
 let accounts = await viz.api.getAccountsAsync([to]);
 if (accounts && accounts.length > 0) {
   let acc = accounts[0];
-  let to_public_active_key = acc.active_authority.key_auths[0][0];
-  res = viz.memo.encode(active_key,to_public_active_key,memo);
+  let to_public_memo_key = acc.memo_key;
+  res = viz.memo.encode(active_key,to_public_memo_key,memo);
 }
 }
 return res;
@@ -477,11 +477,22 @@ $('#action_viz_transfer_memo').val(decodeURIComponent(memo)).prop('readonly', tr
     });
 }
 
+var memo_key = current_user.memo;
 function prepareContent(text) {
   try {
     if (text && text.length > 0 && text[0] === '#') {
-        text = golos.memo.decode(active_key,text);
-    }
+try {
+  text = viz.memo.decode(active_key,text);
+} catch(e) {
+  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он сохранится до переключения аккаунта');
+if (memo_key && memo_key !== '') {
+current_user.memo = memo_key;
+localStorage.setItem('viz_current_user', JSON.stringify(current_user));
+  text = viz.memo.decode(memo_key,text);
+}
+
+}
+      }
     return text.replace(/[^=][^""][^"=\/](https?:\/\/[^" <>\n]+)/gi, data => {
       const link = data.slice(3);
         if(/(jpe?g|png|svg|gif)$/.test(link)) return `${data.slice(0,3)} <img src="${link}" alt="" /> `
