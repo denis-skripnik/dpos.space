@@ -7,9 +7,9 @@ return '<div id="select_account"></div>
 <form class="form" id="add_account">
 <p><label for="login">Ваш логин: </label>
 <input type="text" name="login" id="login" value="" required placeholder="Введите логин в Viz"></p>
-<p><label for="regular_key">regular (регулярный) ключ: </label>
+<p><label for="regular_key">Приватный regular (регулярный) ключ: </label>
 <input type="password" name="regular_key" id="regular_key" value="" required placeholder="Введите регулярный ключ"></p>
-<p><label for="active_key">active (активный) ключ: </label>
+<p><label for="active_key">Приватный active (активный) ключ: </label>
 <input type="password" name="active_key" id="active_key" value="" placeholder="Введите активный ключ"></p>
 <p><input type="button" onclick="saveAccount()" value="Войти"></p>
 </form>

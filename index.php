@@ -37,8 +37,9 @@ define('NOTLOAD', 1); // для защиты от прямого запуска 
 require_once 'functions.php';
 $conf = configs("config.json");
 if (!empty($_POST)) {
-$post_queries = implode("/", $_POST);
-    header("Location: " .$conf['siteUrl'] . $post_queries);
+$_POST = array_map('trim', $_POST);
+    $post_queries = trim(implode("/", $_POST));
+header("Location: " .$conf['siteUrl'] . $post_queries);
 }
 $data = generatePage();
 
