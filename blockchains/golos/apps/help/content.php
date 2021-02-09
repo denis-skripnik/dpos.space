@@ -9,5 +9,6 @@ return '<p>Выберите статью, касающуюся одного из
 <li><a href="https://golos.id/ru--blokcheijn/@lllll1ll/rukovodstvo-po-servisam-dpos-space-tom-1-golos-upravlenie-blokcheinom-i-akkauntom-golos?invite=denis-skripnik">GOLOS - Управление блокчейном и аккаунтом Golos</a></li>
 <li><a href="https://golos.id/ru--blokcheijn/@lllll1ll/rukovodstvo-po-servisam-dpos-space-tom-1-golos-blokchein-kalkulyator-oprosy-multisig?invite=denis-skripnik">GOLOS - Блокчейн-калькулятор - Опросы - Мультисиг</a><br /></li>
 <li><a href="https://golos.id/ru--blokcheijn/@lllll1ll/rukovodstvo-po-dpos-space-golos-swap?invite=denis-skripnik">GOLOS - Swap</a><br /></li>
+<li><a href="https://golos.id/ru--blokcheijn/@lllll1ll/rukovodstvo-po-servisam-dpos-space-golos-donaty-igry-spravka?invite=lllll1ll" target="_blank">Донаты-Игры-Справка</a>
 </ol>
 '; ?>

@@ -86,7 +86,7 @@ async function getTipBalance(token) {
     let balances = (await golos.api.getAccountsBalancesAsync([golos_login]))[0];
     if (balances && balances[token]) {
         return parseFloat(balances[token].tip_balance);
-    } else if (balances && !balances[token] || !balances) {
+    } else if (token === 'GOLOS') {
 let tip_balance = parseFloat((await golos.api.getAccountsAsync([golos_login]))[0].tip_balance);
 if (tip_balance) {
         return tip_balance;
