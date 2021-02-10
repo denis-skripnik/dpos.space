@@ -483,12 +483,20 @@ function prepareContent(text) {
     if (text && text.length > 0 && text[0] === '#') {
 try {
   text = viz.memo.decode(active_key,text);
+  text = text.slice(1);
 } catch(e) {
-  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он сохранится до переключения аккаунта');
+  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он будет сохранён.');
 if (memo_key && memo_key !== '') {
 current_user.memo = memo_key;
 localStorage.setItem('viz_current_user', JSON.stringify(current_user));
-  text = viz.memo.decode(memo_key,text);
+for (let user of users) {
+  if (user.login === viz_login) {
+    user.memo_key = memo_key;
+        }
+}
+localStorage.setItem('viz_users', JSON.stringify(users));
+text = viz.memo.decode(memo_key,text);
+text = text.slice(1);
 }
 
 }
