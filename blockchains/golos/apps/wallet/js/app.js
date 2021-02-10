@@ -490,12 +490,20 @@ function prepareContent(text) {
     if (text && text.length > 0 && text[0] === '#') {
 try {
   text = golos.memo.decode(active_key,text);
+  text = text.slice(1);
 } catch(e) {
   if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он сохранится до переключения аккаунта');
 if (memo_key && memo_key !== '') {
 current_user.memo = memo_key;
 localStorage.setItem('golos_current_user', JSON.stringify(current_user));
+  for (let user of users) {
+    if (user.login === golos_login) {
+      user.memo_key = memo_key;
+          }
+  }
+localStorage.setItem('golos_users', JSON.stringify(users));
   text = golos.memo.decode(memo_key,text);
+text = text.slice(1)
 }
 
 }

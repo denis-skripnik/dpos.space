@@ -150,7 +150,7 @@ function getRadioValue(radioboxGroupName)
 if (users) {
 for (let user of users) {
 if (user.login === group[x].value) {
-    let acc_data = {login: user.login, posting: user.posting, active: user.active};
+    let acc_data = {login: user.login, posting: user.posting, active: user.active, memo: user.memo_key};
     localStorage.setItem("golos_current_user", JSON.stringify(acc_data));
 $('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
 }
