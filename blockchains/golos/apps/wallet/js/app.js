@@ -492,7 +492,7 @@ try {
   text = golos.memo.decode(active_key,text);
   text = text.slice(1);
 } catch(e) {
-  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он сохранится до переключения аккаунта');
+  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он будет сохранён.');
 if (memo_key && memo_key !== '') {
 current_user.memo = memo_key;
 localStorage.setItem('golos_current_user', JSON.stringify(current_user));
