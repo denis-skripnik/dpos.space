@@ -137,8 +137,19 @@ try {
   }
 }
 
+function cancelDelegatedVestingShares(delegatee) {
+  viz.broadcast.delegateVestingShares(active_key, viz_login, delegatee, '0.000000 SHARES', function(err, result) {
+    if (!err) {
+    window.alert('Делегирование пользователю ' + delegatee + ' отменено.');
+    $('#delegated_vesting_shares_' + delegatee).css("display", "none");
+    } else {
+    window.alert(err);
+    }
+    });
+}
+
 function load_balance(account, active_key) {
-	viz.api.getAccounts([account], function(err, result){
+  viz.api.getAccounts([account], function(err, result){
  if (!err) {
  result.forEach(function(acc) {
 
@@ -174,18 +185,8 @@ viz.api.getVestingDelegations(account, '', 100, type, function(err, res) {
 vesting_shares_amount = parseFloat(item.vesting_shares).toFixed(3);
 let min_delegation_time = Date.parse(item.min_delegation_time);
 let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/viz/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + ' Ƶ</td><td>' + min_delegation_datetime + '</td><td><input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
+body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/viz/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + ' Ƶ</td><td>' + min_delegation_datetime + '</td><td><input type="button" onclick="cancelDelegatedVestingShares(`' + item.delegatee + '`);" value="Отменить делегирование"></td></tr>';
 		jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
- $('#cancel_delegated_vesting_shares_' + item.delegatee).click(function(){
-viz.broadcast.delegateVestingShares(active_key, account, item.delegatee, '0.000000 SHARES', function(err, result) {
-if (!err) {
-window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
-$('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
-} else {
-window.alert(err);
-}
-});
- });
  });
  }
   else console.error(err);

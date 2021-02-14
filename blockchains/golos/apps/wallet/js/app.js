@@ -844,6 +844,19 @@ if (el === 'name') {
   }
 }
 
+async function cancelDelegatedVestingShares(delegatee) {
+  let q = window.confirm('Вы действительно хотите отменить делегирование?');
+  if (q == true) {
+    try {
+      let result = await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, delegatee, '0.000000 GESTS');
+      window.alert('Делегирование пользователю ' + delegatee + ' отменено.');
+      $('#delegated_vesting_shares_' + delegatee).css("display", "none");
+    } catch(e) {
+    window.alert('Ошибка: ' + JSON.stringify(e));
+    }
+  }
+}
+
 $(document).ready(async function() {
   let main_data =await mainData();
     if (main_data !== false) {
@@ -1129,6 +1142,7 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
         if (get_data !== false) {
       let res = get_data.all;
         jQuery("#body_delegated_vesting_shares").html('');
+        jQuery("#body_delegated_vesting_shares").css('display', 'block');
         const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
                 var vesting_shares_amount = '';
           var body_delegated_vesting_shares = '';
@@ -1139,21 +1153,8 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
         let interest_rate = item.interest_rate/100;
         let min_delegation_time = Date.parse(item.min_delegation_time);
         let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-        body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/golos/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' + interest_rate + '%</td><td>' +  min_delegation_datetime + '</td><td><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;" data-to="' + item.delegatee + '">Изменить</a>, <input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
+        body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/golos/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' + interest_rate + '%</td><td>' +  min_delegation_datetime + '</td><td><a data-fancybox class="vesting_delegate_modal" data-src="#vesting_delegate_modal" href="javascript:;" data-to="' + item.delegatee + '">Изменить</a>, <input type="button" onclick="cancelDelegatedVestingShares(`' + item.delegatee + '`);" value="Отменить делегирование"></td></tr>';
             jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
-         
-            $('#cancel_delegated_vesting_shares_' + item.delegatee).click(async function(){
-        let q = window.confirm('Вы действительно хотите отменить делегирование?');
-        if (q == true) {
-          try {
-            let result = await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, item.delegatee, '0.000000 GESTS');
-            window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
-            $('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
-          } catch(e) {
-          window.alert('Ошибка: ' + JSON.stringify(e));
-          }
-        }
-        });
     }   
       }
       });

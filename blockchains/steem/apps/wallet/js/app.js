@@ -61,6 +61,17 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 	return datetime_str;
 }
 
+function cancelDelegatedVestingShares(delegatee) {
+  steem.broadcast.delegateVestingShares(active_key, steem_login, delegatee, '0.000000 VESTS', function(err, result) {
+    if (!err) {
+    window.alert('Делегирование пользователю ' + delegatee + ' отменено.');
+    $('#delegated_vesting_shares_' + delegatee).css("display", "none");
+    } else {
+    window.alert(err);
+    }
+    });
+}
+
 function load_balance() {
 	steem.api.getAccounts([steem_login], function(err, result){
  if (!err) {
@@ -119,18 +130,8 @@ vesting_shares_amount = vesting_shares_amount.toFixed(6);
 vesting_shares_amount = parseFloat(vesting_shares_amount);
 let min_delegation_time = Date.parse(item.min_delegation_time);
 let min_delegation_datetime = date_str(min_delegation_time - timezoneOffset, true, false, true);
-body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/steem/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' +  min_delegation_datetime + '</td><td><input type="button" id="cancel_delegated_vesting_shares_' + item.delegatee + '" value="Отменить делегирование"></td></tr>';
+body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.delegatee + '"><td><a href="/steem/profiles/' + item.delegatee + '" target="_blank">@' + item.delegatee + '</a></td><td>' + vesting_shares_amount + '</td><td>' +  min_delegation_datetime + '</td><td><input type="button" onclick="cancelDelegatedVestingShares(`' + item.delegatee + '`);" value="Отменить делегирование"></td></tr>';
 		jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
- $('#cancel_delegated_vesting_shares_' + item.delegatee).click(function(){
-steem.broadcast.delegateVestingShares(active_key, steem_login, item.delegatee, '0.000000 VESTS', function(err, result) {
-if (!err) {
-window.alert('Делегирование пользователю ' + item.delegatee + ' отменено.');
-$('#delegated_vesting_shares_' + item.delegatee).css("display", "none");
-} else {
-window.alert(err);
-}
-});
- });
  });
  }
   else console.error(err);
