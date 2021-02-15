@@ -176,7 +176,6 @@ let types = {
 13: 'Мультисенд (мульти-отправка)',
 14: 'Редактирование кандидата'
 };
-const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
 for (let tr of res) {
 let amount;
 let coin_str = 'coin';
@@ -208,7 +207,7 @@ let get_time = Date.parse(tr.timestamp);
 let memo = decodeURIComponent(escape(window.atob(tr.payload)));
 memo = prepareContent(memo);
 results += `
-<tr><td>${date_str(get_time - timezoneOffset, true, false, true)}</td>
+<tr><td>${date_str(get_time, true, false, true)}</td>
 <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
 <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
 <td>${type}</td>
@@ -248,7 +247,10 @@ if (coin !== 'BIP') {
   let price = (coin_info.volume / coin_info.reserve_balance) * (coin_info.crr / 100);
   fee = ((memo_bytes + type_fee) * price).toFixed(3);
   }
-$(`#${type}_fee`).html(fee);
+  let minGasPrice = await axios.get('/min_gas_price');
+  let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+  fee *= gasPrice;
+  $(`#${type}_fee`).html(fee);
 return fee;
 }
 

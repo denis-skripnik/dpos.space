@@ -58,6 +58,8 @@ $( document ).ready(function() {
         
         async function send(to, value, coin, memo) {
             let wif = sender.privateKey;
+            let minGasPrice = await axios.get('/min_gas_price');
+            let gasPrice = parseInt(minGasPrice.data.min_gas_price)
             const txParams = {
                 chainId: 1,
                 type: TX_TYPE.SEND,
@@ -67,7 +69,7 @@ $( document ).ready(function() {
                     coin,    
                 },
                 gasCoin: coin,
-                gasPrice: 1,
+                gasPrice,
                 payload: memo,
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
