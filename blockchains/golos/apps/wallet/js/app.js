@@ -1288,10 +1288,17 @@ $('#action_uia_withdraw_start').click(async function(){
     let token = $(this).attr('data-token');
 $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_main_' + token).html());
-if (token === 'GOLOS') {
-  $('#transfer_in').css('display', 'list-item');
+
+    if (token === 'GBG') {
+      $('#transfer_in').css('display', 'none');
+    } else {
+      $('#transfer_in').css('display', 'list-item');      
+    }
+    
+    if (token !== 'GOLOS') {
+      $('#transfer_in [value="to_vesting"]').css('display', 'none');
 } else {
-  $('#transfer_in').css('display', 'none');
+  $('#transfer_in [value="to_vesting"]').css('display', 'list-item');
 }
   });
 
@@ -1318,10 +1325,12 @@ if (q == true) {
   let token = $('.transfer_modal_token').html();
   let precision = 3;
  let assets = await golos.api.getAssetsAsync('', [token]);
+ let allow_override_transfer = false;
  if (assets && assets.length > 0) {
    let asset = assets[0];
    precision = asset.precision;
- }
+   allow_override_transfer = asset.allow_override_transfer;
+  }
  let action_transfer_to = $('#action_transfer_to').val();
   let action_transfer_amount = $('#action_transfer_amount').val();
   action_transfer_amount = parseFloat(action_transfer_amount);
@@ -1338,7 +1347,7 @@ $.fancybox.close();
 } catch(e) {
 window.alert('Ошибка' + JSON.stringify(e));
  }
-} else if (transfer_in === 'to_tip') {
+} else if (transfer_in === 'to_tip' && allow_override_transfer == false) {
    try {
     let result = await golos.broadcast.transferToTipAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo, []);
         window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' на баланс донатов.');
@@ -1347,7 +1356,7 @@ $.fancybox.close();
 } catch(e) {
     window.alert('Ошибка: ' + JSON.stringify(e));
    }
- } else {
+  } else if (transfer_in === 'to_balance') {
 try {
 let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
 window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + '.');
@@ -1356,6 +1365,8 @@ $.fancybox.close();
 } catch(e) {
 window.alert('Ошибка: ' + e);
 }
+ } else if (allow_override_transfer == true) {
+   window.alert('Вы не можете переводить на TIP-баланс этот токен.');
  }
 } else {
   window.alert('Вы отменили перевод.');
