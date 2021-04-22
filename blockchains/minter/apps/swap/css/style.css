@@ -1,0 +1,89 @@
+*:before,*:after,*{
+    box-sizing: border-box;
+}
+.container, .buttons, .container-before {
+    max-width: 1000px;
+    margin: 50px auto;
+}
+.textarea {
+    width: 100%;
+}
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    visibility: hidden;
+    overflow-y: auto;
+    overflow-y: scroll;
+}
+.modal.modal-visible {
+    overflow-y: auto;
+    visibility: visible;
+}
+.modal-overlay {
+    position: fixed;
+    background: rgba(0,0,0,.3);
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    opacity: 0;
+    transition: opacity .3s;
+}
+.modal-visible .modal-overlay {
+    opacity: 1;
+}
+.modal-content-inner {
+    max-width: 600px;
+    margin: -300px auto 100px;
+    background: #fff;
+    box-shadow: 0 0 100px #000;
+    padding: 50px 20px;
+    transition: margin-top .3s;
+    position: relative;
+}
+.modal-visible .modal-content-inner {
+    margin-top: 100px;
+}
+.modal textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.tab {
+    overflow: hidden;
+    border: 1px solid #4CAF50;
+    background-color: #C8E6C9;
+}
+
+
+.tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+}
+
+
+.tab button:hover {
+    background-color: #FFEB3B;
+}
+
+
+.tab button.active {
+    background-color: #4CAF50;
+  color: #fff;
+}
+
+
+.tabcontent {
+    display: none;
+    padding: 6px 12px;
+    border: 1px solid #4CAF50;
+    border-top: none;
+}

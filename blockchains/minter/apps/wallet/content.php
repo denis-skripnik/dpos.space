@@ -54,7 +54,8 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                 <p><input type="text" name="convert_amount" id="action_convert_amount" placeholder="Введите сумму в формате 1.000"></p>
 <p><strong>Комиссия: <span id="convert_fee">1</span> <span class="convert_modal_token"></span>
 Сумма покупки: <span id="buy_amount"></span></strong></p>
-                                                <p><input type="button" id="action_convert_start" value="Обменять"></p>
+                                                <span style="display: none;" id="convert_from"></span>
+<p><input type="button" id="action_convert_start" value="Обменять"></p>
                                                  </form>
                                                       </div>
                                                       </div>

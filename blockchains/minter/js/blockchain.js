@@ -90,17 +90,22 @@ $( document ).ready(function() {
                 });
         }
         
-        async function convert(coin, to, value) {
+        async function convert(coin, to, value, swap_from) {
+            let txParams = {};
+            txParams.chainId = 1;
+            txParams.type = TX_TYPE.SELL;
+            txParams.data = {};
+            
+            if (swap_from === 'pool') {
+                txParams.type = TX_TYPE.SELL_SWAP_POOL;
+            txParams.data.coins = [coin, to];
+            } else {
+                txParams.data.coinToSell = coin;
+                txParams.data.coinToBuy = to;
+            }
+            txParams.data.valueToSell = value;
+            txParams.gasCoin = coin;
             let wif = sender.privateKey;
-            const txParams = {
-                chainId: 1,
-                type: TX_TYPE.SELL,
-                data: {
-                    coinToSell: coin,
-                    coinToBuy: to,
-                    valueToSell: value,
-                },
-            };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             minter.postTx(idTxParams, {privateKey: wif})
@@ -242,12 +247,12 @@ $( document ).ready(function() {
 
         async function getBalance(address) {
             try {
-            let response = await axios.get('/address/' + address);
+            let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address);
             let balances = [];
-            for (let token of response.data.balance) {
-              let balance = parseFloat(token.value);
-              balance = balance.toFixed(2)
-              balances.push({coin: token.coin.symbol, amount: balance});
+            for (let token of response.data.data.balances) {
+              let balance = parseFloat(token.amount);
+              balance = balance.toFixed(3)
+              balances.push({coin: token.coin.symbol, amount: balance, type: token.coin.type});
             }
             return balances;
             } catch(e) {

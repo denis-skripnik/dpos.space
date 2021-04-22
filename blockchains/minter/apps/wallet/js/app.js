@@ -11,21 +11,25 @@ function compareCoins(a, b)
 
 
 
-async function links(token) {
+async function links(token, variant) {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 <li><a data-fancybox class="convert_modal" data-src="#convert_modal" href="javascript:;" data-token="${token}">Конвертировать ${token}</a></li>
-<li><a data-fancybox class="delegate_modal" data-src="#delegate_modal" href="javascript:;" data-token="${token}" onclick="getDelegateTemplates('${token}');">Делегировать ${token}</a></li>
 `);
+if (variant === 'coin') {
+  $('#actions').append(`<li><a data-fancybox class="delegate_modal" data-src="#delegate_modal" href="javascript:;" data-token="${token}" onclick="getDelegateTemplates('${token}');">Делегировать ${token}</a></li>
+  `);
+}
 }
 
 var link_state = {};
 async function actionsSpoiler(t) {
     let token = $(t).attr('data-token');
+    let variant = $(t).attr('data-variant');
     style = document.getElementById('actions').style;
     if (!link_state.display || link_state.token === token) {
       style.display = (style.display == 'block') ? 'none' : 'block';
       }
-      await links(token);
+      await links(token, variant);
     link_state.token = token;
     link_state.display = style.display;
   }
@@ -63,9 +67,9 @@ function bind_range(){
 let tokens = await getBalance(sender.address);
     let balances_list = '';
     for (let token of tokens) {
-        let amount = token.amount / (10 ** 18);
+        let amount = parseFloat(token.amount);
         amount = amount.toFixed(3);
-        balances_list += `<li><a class="spoiler" data-tipe="main_balance" data-token="${token.coin}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_${token.coin}">${amount}</span> ${token.coin}</a></li>`;
+        balances_list += `<li><a class="spoiler" data-tipe="main_balance" data-token="${token.coin}" data-variant="${token.type}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_${token.coin}">${amount}</span> ${token.coin}</a></li>`;
     }
 $('#balances').html(balances_list);
 }
@@ -174,7 +178,28 @@ let types = {
 11: 'Установка кандидата в статусе оффлайн',
 12: 'Создание мультисига',
 13: 'Мультисенд (мульти-отправка)',
-14: 'Редактирование кандидата'
+14: 'Редактирование кандидата',
+15: 'Установка блока остановки',
+16: 'Пересоздание монеты',
+17: 'Изменение владельца монеты',
+18: 'Редактирование мультисига',
+19: 'Голосование за цену',
+20: 'Изменение публичного ключа кандидата',
+21: 'Добавление ликвидности',
+22: 'Удаление ликвидности',
+23: 'Продажа через пул',
+24: 'Покупка через пул',
+25: 'Продажа всех монет через пул',
+26: 'Покупка всех монет через пул',
+27: 'Изменение комиссии кандидата',
+28: 'Перемещение стейка',
+29: 'Эмиссия токена',
+30: 'Сжигание токена',
+31: 'Создание токена',
+32: 'Пересоздание токена',
+33: 'Голосование за комиссию',
+34: 'Голосование за обновление',
+35: 'Создание пула ликвидности'
 };
 for (let tr of res) {
 let amount;
@@ -183,9 +208,12 @@ let value_str = 'value';
 let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === sender.address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 4) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
 coin_str = 'coin_to_sell'
 value_str = 'value_to_sell';
+} else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
+  coin_str = 'coin0'
+  value_str = 'volume0';
 }
 
 if (!tr.data.list) {
@@ -195,7 +223,7 @@ if (!tr.data.list) {
 let sum_amount = 0;
     let coin = '';
 for (let el of tr.data.list) {
-if (tr.from === sender.address || el.to === sender.address) {
+  if (tr.from === sender.address || el.to === sender.address) {
   sum_amount += parseFloat(el[value_str]);
   coin = el[coin_str].symbol;
 }
@@ -271,12 +299,15 @@ async function getConvertPrice() {
       coinToSell: coin,
       valueToSell: amount,
       coinToBuy: to,
+      swap_from: 'optimal'
     });
     $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
-  $('#convert_fee').html(parseFloat(to_buy.commission).toFixed(3));
-  } else {
+  $('#convert_fee').html(parseFloat(fee).toFixed(3));
+  $('#convert_from').html(to_buy.swap_from);
+} else {
     $('#buy_amount').html('');
     $('#convert_fee').html('');
+    $('#convert_from').html('');
   }
 }
 
@@ -418,10 +449,11 @@ $("#action_convert_start").click(async function(){
    let to = $('#action_convert_to').val().toUpperCase();
     let amount = $('#action_convert_amount').val();
     amount = parseFloat(amount);
+   let swap_from = $('#convert_from').html();
    
    try {
     $.fancybox.close(); 
-    await convert(coin, to, amount)
+    await convert(coin, to, amount, swap_from);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
