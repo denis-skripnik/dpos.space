@@ -2,6 +2,10 @@
 global $conf;
 return '<h2>Балансы</h2>
 <ul id="balances"></ul>
+<h2>HUB в других блокчейнах</h2>
+<ul><li>В Ethereum: <span id="ethereum_hub"></span></li>
+<li>В BSC: <span id="bsc_hub"></span></li>
+</ul>
 <h2>История транзакций</h2>
 <table><thead><tr><th>Дата</th>
 <th>Блок</th>

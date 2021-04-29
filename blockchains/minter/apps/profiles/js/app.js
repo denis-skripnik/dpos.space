@@ -13,7 +13,17 @@ async function main() {
     balances += `<li>${balance} ${token.coin}</li>`
   }
       $('#balances').html(balances);
-}
+
+// HUB в других БЧ.
+      let eth_address = 0 + address.slice(1);
+let ethereumHubBalanceRes = await axios.get(`https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=0x8e9a29e7ed21db7c5b2e1cd75e676da0236dfb45&address=${eth_address}&tag=latest`);
+let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
+    $('#ethereum_hub').html(ethereumHub);
+  
+    let bscHubBalanceRes = await axios.get(`https://api.bscscan.com/api?module=account&action=tokenbalance&contractaddress=0x8e9a29e7ed21db7c5b2e1cd75e676da0236dfb45&address=${eth_address}&tag=latest`);
+    let bscHub = parseFloat(bscHubBalanceRes.data.result) / (10 ** 18);
+        $('#bsc_hub').html(bscHub);
+  }
 
  function fast_str_replace(search,replace,str){
     return str.split(search).join(replace);
