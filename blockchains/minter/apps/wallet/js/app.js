@@ -313,7 +313,7 @@ async function getConvertPrice() {
 
 async function getDelegations() {
   try {
-    let result = await axios.get('https://explorer-api.minter.network/api/v2/addresses/Mxae30a08fae2cc95960c5055d1142fd676995e18b/delegations');
+    let result = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + sender.address + '/delegations');
 let res = result.data.data;
     if (res && res.length > 0) {
   $('#delegation_tbody').css('display', 'block');

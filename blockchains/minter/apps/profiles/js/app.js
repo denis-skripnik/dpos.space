@@ -8,8 +8,7 @@ async function main() {
   let acc = await getBalance(address);
   let balances = '';
   for (let token of acc) {
-    let balance = token.amount / (10**18);
-    balance = balance.toFixed(2)
+    let balance = token.amount;
     balances += `<li>${balance} ${token.coin}</li>`
   }
       $('#balances').html(balances);
@@ -83,74 +82,74 @@ let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
     }
    }
 
-  async function getHistory(page) {
-    try {
-      let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address + '/transactions?page=' + page);
-      let results = '';
-      let res = response.data.data;
+   async function getHistory(page) {
+    jQuery("#wallet_transfer_history").css("display", "block");try {
+    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + sender.address + '/transactions?page=' + page);
+    let results = '';
+    let res = response.data.data;
 let types = {
-  1: 'Отправка',
-  2: 'Продажа монеты',
-  3: 'Продажа всех монет',
-  4: 'Покупка монет',
-  5: 'Создание монеты',
-  6: 'Объявление кандидата в валидаторы',
-  7: 'Делегирование',
-  8: 'Анбонд',
-  9: 'Получение чека',
-  10: 'Установка кандидата в статусе онлайн',
-  11: 'Установка кандидата в статусе оффлайн',
-  12: 'Создание мультисига',
-  13: 'Мультисенд (мульти-отправка)',
-  14: 'Редактирование кандидата',
-  15: 'Установка блока остановки',
-  16: 'Пересоздание монеты',
-  17: 'Изменение владельца монеты',
-  18: 'Редактирование мультисига',
-  19: 'Голосование за цену',
-  20: 'Изменение публичного ключа кандидата',
-  21: 'Добавление ликвидности',
-  22: 'Удаление ликвидности',
-  23: 'Продажа через пул',
-  24: 'Покупка через пул',
-  25: 'Продажа всех монет через пул',
-  26: 'Покупка всех монет через пул',
-  27: 'Изменение комиссии кандидата',
-  28: 'Перемещение стейка',
-  29: 'Эмиссия токена',
-  30: 'Сжигание токена',
-  31: 'Создание токена',
-  32: 'Пересоздание токена',
-  33: 'Голосование за комиссию',
-  34: 'Голосование за обновление',
-  35: 'Создание пула ликвидности'
+1: 'Отправка',
+2: 'Продажа монеты',
+3: 'Продажа всех монет',
+4: 'Покупка монет',
+5: 'Создание монеты',
+6: 'Объявление кандидата в валидаторы',
+7: 'Делегирование',
+8: 'Анбонд',
+9: 'Получение чека',
+10: 'Установка кандидата в статусе онлайн',
+11: 'Установка кандидата в статусе оффлайн',
+12: 'Создание мультисига',
+13: 'Мультисенд (мульти-отправка)',
+14: 'Редактирование кандидата',
+15: 'Установка блока остановки',
+16: 'Пересоздание монеты',
+17: 'Изменение владельца монеты',
+18: 'Редактирование мультисига',
+19: 'Голосование за цену',
+20: 'Изменение публичного ключа кандидата',
+21: 'Добавление ликвидности',
+22: 'Удаление ликвидности',
+23: 'Продажа через пул',
+24: 'Покупка через пул',
+25: 'Продажа всех монет через пул',
+26: 'Покупка всех монет через пул',
+27: 'Изменение комиссии кандидата',
+28: 'Перемещение стейка',
+29: 'Эмиссия токена',
+30: 'Сжигание токена',
+31: 'Создание токена',
+32: 'Пересоздание токена',
+33: 'Голосование за комиссию',
+34: 'Голосование за обновление',
+35: 'Создание пула ликвидности'
 };
 for (let tr of res) {
-  let amount;
-  let coin_str = 'coin';
-  let value_str = 'value';
-  let type = types[tr.type];
-  if (tr.type === 1 && tr.data.to === address) {
+let amount;
+let coin_str = 'coin';
+let value_str = 'value';
+let type = types[tr.type];
+if (tr.type === 1 && tr.data.to === sender.address) {
 type = 'Получение';
-  } else if (tr.type === 2 || tr.type === 3 || tr.type === 4) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
 coin_str = 'coin_to_sell'
 value_str = 'value_to_sell';
-} else if (tr.type === 21 || tr.type === 22 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26 || tr.type === 35) {
+} else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
   coin_str = 'coin0'
   value_str = 'volume0';
 }
-  
-  if (!tr.data.list) {
-    amount = parseFloat(tr.data[value_str]);
-    amount += ' ' + tr.data[coin_str].symbol;
-    } else {
+
+if (!tr.data.list) {
+  amount = parseFloat(tr.data[value_str]);
+  amount += ' ' + tr.data[coin_str].symbol;
+  } else {
 let sum_amount = 0;
-      let coin = '';
+    let coin = '';
 for (let el of tr.data.list) {
-  if (tr.from === address || el.to === address) {
-    sum_amount += parseFloat(el[value_str]);
-    coin = el[coin_str].symbol;
-  }
+  if (tr.from === sender.address || el.to === sender.address) {
+  sum_amount += parseFloat(el[value_str]);
+  coin = el[coin_str].symbol;
+}
 }
 amount = sum_amount;
 amount += coin;
@@ -170,18 +169,18 @@ results += `
 let next_page = page + 1;
 let prev_page = page - 1;
 if (page === 1) {
-  $('#history_pages').html(`<a onclick="getHistory(${next_page});">Следующая</a>`);
+$('#history_pages').html(`<a onclick="getHistory(${next_page});">Следующая</a>`);
 } else if (page > 1 && res.length === 50) {
-  $('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>
+$('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>
 <a onclick="getHistory(${next_page});">Следующая</a>`);
 } else {
-  $('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>`);
+$('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыдущая</a>`);
 }
 $('#history_tbody').css('display', 'block');
 $('#history_tbody').html(results);
 } catch(e) {
-         console.log(JSON.stringify(e));
-       }
+       console.log(e);
+     }
 }
 
 $(document).ready(async function() {
