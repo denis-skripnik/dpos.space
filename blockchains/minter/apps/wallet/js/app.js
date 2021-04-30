@@ -208,14 +208,17 @@ let value_str = 'value';
 let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === sender.address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
-coin_str = 'coin_to_sell'
-value_str = 'value_to_sell';
-} else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
-  coin_str = 'coin0'
-  value_str = 'volume0';
-}
-
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 23 || tr.type === 25) {
+  coin_str = 'coin_to_buy'
+  value_str = 'value_to_sell';
+  } else if (tr.type === 4 || tr.type === 24 || tr.type === 26) {
+    coin_str = 'coin_to_sell'
+    value_str = 'value_to_buy';
+  } else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
+    coin_str = 'coin0'
+    value_str = 'volume0';
+  }
+  
 if (!tr.data.list) {
   amount = parseFloat(tr.data[value_str]);
   amount += ' ' + tr.data[coin_str].symbol;
