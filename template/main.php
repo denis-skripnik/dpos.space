@@ -70,6 +70,9 @@
 <?= ($data['breadCrumbs'] ?? $data['breadCrumbs'] ?? ""); ?>
 </ul></div>
 <div class="container margin-fix">
+<div id="ytWidget" align="right"></div><script src="https://translate.yandex.net/website-widget/v1/widget.js?widgetId=ytWidget&pageLang=ru&widgetTheme=light&autoMode=true" type="text/javascript"></script>
+</div>
+<div class="container margin-fix">
 <h1 class="h1-main"><?= $data['title']; ?></h1>
 <?= $data['content']; ?>
 <?php if (isset(pageUrl()[0]) && pageUrl()[0] === 'viz') { ?>

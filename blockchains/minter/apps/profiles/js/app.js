@@ -19,7 +19,7 @@ let ethereumHubBalanceRes = await axios.get(`https://api.etherscan.io/api?module
 let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
     $('#ethereum_hub').html(ethereumHub);
   
-    let bscHubBalanceRes = await axios.get(`https://api.bscscan.com/api?module=account&action=tokenbalance&contractaddress=0x8e9a29e7ed21db7c5b2e1cd75e676da0236dfb45&address=${eth_address}&tag=latest`);
+    let bscHubBalanceRes = await axios.get(`https://api.bscscan.com/api?module=account&action=tokenbalance&contractaddress=0x8ac0a467f878f3561d309cf9b0994b0530b0a9d2&address=${eth_address}&tag=latest`);
     let bscHub = parseFloat(bscHubBalanceRes.data.result) / (10 ** 18);
         $('#bsc_hub').html(bscHub);
   }
@@ -131,12 +131,9 @@ let value_str = 'value';
 let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === sender.address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 23 || tr.type === 25) {
-coin_str = 'coin_to_buy'
-value_str = 'value_to_sell';
-} else if (tr.type === 4 || tr.type === 24 || tr.type === 26) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
   coin_str = 'coin_to_sell'
-  value_str = 'value_to_buy';
+  value_str = 'value_to_sell';
 } else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
   coin_str = 'coin0'
   value_str = 'volume0';
@@ -145,7 +142,8 @@ value_str = 'value_to_sell';
 if (!tr.data.list) {
   amount = parseFloat(tr.data[value_str]);
   amount += ' ' + tr.data[coin_str].symbol;
-  } else {
+  amount = amount.toFixed(3);
+} else {
 let sum_amount = 0;
     let coin = '';
 for (let el of tr.data.list) {

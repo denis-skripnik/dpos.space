@@ -46,7 +46,7 @@ while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
 
     krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>История наград пользователя '.$user.'</h2>
+            $result['content'] = '<div id="ajax_content"><h2>Отправленные награды пользователя '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
                         <th>Инициатор награды</th>
