@@ -140,9 +140,8 @@ type = 'Получение';
 }
 
 if (!tr.data.list) {
-  amount = parseFloat(tr.data[value_str]);
+  amount = parseFloat(tr.data[value_str]).toFixed(3);
   amount += ' ' + tr.data[coin_str].symbol;
-  amount = amount.toFixed(3);
 } else {
 let sum_amount = 0;
     let coin = '';
