@@ -1,8 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function node($params) {
-  $html = file_get_contents('https://api.minter.one/'.$params);
+  $html = file_get_contents('https://api.minter.one/v2/'.$params);
   $data = json_decode($html, true);
-return $data['result'];
+  return $data;
 }
 
 $content = '<h2>Введите в поле ниже номер блока или хэш-сумму транзакции блокчейна Minter:</h2>
@@ -30,12 +30,11 @@ $content .= '</ul>
 <h2><a name="status">Статус</a></h2>
 <ul>';
 $status = node('status?');
-$content .= '<li>Сеть: '.$status['tm_status']['node_info']['network'].'</li>
+$content .= '<li>Сеть: '.$status['network'].'</li>
 <li>Хеш последнего блока: '.$status['latest_block_hash'].'</li>
 <li>Номер последнего блока: '.$status['latest_block_height'].'</li>
 <li>Дата и время последнего блока: '.$status['latest_block_time'].'</li>
-<li>Адрес валидатора: '.$status['tm_status']['validator_info']['address'].'</li>
-<li>тип публичного ключа: '.$status['tm_status']['validator_info']['pub_key']['type'].', ключ: '.$status['tm_status']['validator_info']['pub_key']['value'].'</li></ul>
+<li>Публичный ключ валидатора: '.$status['public_key'].'</li></ul>
 <p align="center"><a href="#contents">К оглавлению</a></p>';
 return $content;
 ?>

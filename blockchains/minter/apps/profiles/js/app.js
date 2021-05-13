@@ -84,7 +84,7 @@ let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
 
    async function getHistory(page) {
     jQuery("#wallet_transfer_history").css("display", "block");try {
-    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + sender.address + '/transactions?page=' + page);
+    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address + '/transactions?page=' + page);
     let results = '';
     let res = response.data.data;
 let types = {
@@ -129,7 +129,7 @@ let amount;
 let coin_str = 'coin';
 let value_str = 'value';
 let type = types[tr.type];
-if (tr.type === 1 && tr.data.to === sender.address) {
+if (tr.type === 1 && tr.data.to === address) {
 type = 'Получение';
 } else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
   coin_str = 'coin_to_sell'
@@ -146,7 +146,7 @@ if (!tr.data.list) {
 let sum_amount = 0;
     let coin = '';
 for (let el of tr.data.list) {
-  if (tr.from === sender.address || el.to === sender.address) {
+  if (tr.from === address || el.to === address) {
   sum_amount += parseFloat(el[value_str]);
   coin = el[coin_str].symbol;
 }

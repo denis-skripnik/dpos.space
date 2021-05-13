@@ -22,15 +22,21 @@ if (isset($url[4])) {
 if (isset($url[5])) {
 	$memo_array = explode('/', $_SERVER['REQUEST_URI'], 7);
 	$memo = urldecode($memo_array[6]);
+		$memo = explode('/', $memo)[0];
 	$content .= '<p><label for="memo">Заметка (memo):</label></p>
 	<p><input type="text" readonly name="memo" value="'.$memo.'" placeholder="Заметка к награде"></p>';
 } else {
 	$content .= '<p><label for="memo">Заметка (memo):</label></p>
 	<p><input type="text" name="memo" value="" placeholder="Введите заметку к награде"></p>';
 }
-$content .= '<p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
-<input type="text" name="energy" id="awarding_energy" value="" required placeholder="Введите процент энергии без знака %">%</p>
-<p><strong><input type="submit" value="Наградить"></strong></p>
+if (isset($url[6]) && (float)$url[6] <= 100) {
+	$content .= '<p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
+	<input type="text" name="energy" id="awarding_energy" value="'.$url[6].'" required placeholder="Введите процент энергии без знака %">%</p>';
+} else {
+	$content .= '<p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
+	<input type="text" name="energy" id="awarding_energy" value="" required placeholder="Введите процент энергии без знака %">%</p>';
+}
+$content .= '<p><strong><input type="submit" value="Наградить"></strong></p>
 </form>
 <script>
 accountData();
