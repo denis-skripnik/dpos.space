@@ -36,7 +36,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                 <p><input type="text" name="transfer_amount" id="action_transfer_amount" placeholder="Введите сумму в формате 1.000"></p>
                                                 <p><label for="transfer_memo">Заметка (описание) к платежу:</label></p>
                                                 <p><input type="text" name="transfer_memo" id="action_transfer_memo" placeholder="Введите memo"></p>
-<p><strong>Комиссия: <span id="transfer_fee">1</span> <span class="transfer_modal_token"></span></strong></p>
+<p><strong>Комиссия: <span id="transfer_fee"></span> <span class="transfer_modal_token"></span></strong></p>
                                                 <p><input type="button" id="action_transfer_start" value="Перевести"></p>
                                                 <hr>
                                                 <p><input type="button" id="action_save_transfer_template" value="Создать шаблон перевода"></p>
@@ -52,9 +52,9 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                 <p><input type="text" name="convert_to" id="action_convert_to" placeholder="BIP"></p>
                                                 <p><label for="convert_amount">Сумма конвертации (<span id="max_token_convert">Обменять все доступные <span id="max_convert_amount"></span> <span class="convert_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="convert_amount" id="action_convert_amount" placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="convert_fee">1</span> <span class="convert_modal_token"></span>
+<p><strong>Комиссия: <span id="convert_fee"></span> <span class="convert_modal_token"></span>
 Сумма покупки: <span id="buy_amount"></span></strong></p>
-                                                <span style="display: none;" id="convert_from"></span>
+<p id="swap_route_block"  style="display: none;">Путь (route) обмена: <span id="swap_route"></span></p>
 <p><input type="button" id="action_convert_start" value="Обменять"></p>
                                                  </form>
                                                       </div>
@@ -72,7 +72,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
                                                 <p><input type="text" name="delegate_to" id="action_delegate_key" placeholder="MP..."></p>
                                                  <p><label for="delegate_amount">Сумма делегирования (<span id="max_token_delegate">делегировать все доступные <span id="max_delegate_amount"></span> <span class="delegate_modal_token"></span></span>):</label></p>
                                                 <p><input type="text" name="delegate_amount" id="action_delegate_stake" placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="delegate_fee">1</span> <span class="delegate_modal_token"></span></strong></p>
+<p><strong>Комиссия: <span id="delegate_fee"></span> <span class="delegate_modal_token"></span></strong></p>
                                                 <p><input type="button" id="action_delegate_start" value="Делегировать"></p>
                                                 <hr>
                                                 <p><input type="button" id="action_save_delegate_template" value="Создать шаблон делегирования"></p> 

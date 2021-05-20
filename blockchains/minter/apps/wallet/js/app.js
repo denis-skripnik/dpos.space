@@ -12,7 +12,7 @@ function compareCoins(a, b)
 
 
 async function links(token, variant) {
-$('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
+  $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 <li><a data-fancybox class="convert_modal" data-src="#convert_modal" href="javascript:;" data-token="${token}">Конвертировать ${token}</a></li>
 `);
 if (variant === 'coin') {
@@ -190,16 +190,15 @@ let types = {
 23: 'Продажа через пул',
 24: 'Покупка через пул',
 25: 'Продажа всех монет через пул',
-26: 'Покупка всех монет через пул',
-27: 'Изменение комиссии кандидата',
-28: 'Перемещение стейка',
-29: 'Эмиссия токена',
-30: 'Сжигание токена',
-31: 'Создание токена',
-32: 'Пересоздание токена',
-33: 'Голосование за комиссию',
-34: 'Голосование за обновление',
-35: 'Создание пула ликвидности'
+26: 'Изменение комиссии кандидата',
+27: 'Перемещение стейка',
+28: 'Эмиссия токена',
+29: 'Сжигание токена',
+30: 'Создание токена',
+31: 'Пересоздание токена',
+32: 'Голосование за комиссию',
+33: 'Голосование за обновление',
+34: 'Создание пула ликвидности'
 };
 for (let tr of res) {
 let amount;
@@ -211,14 +210,17 @@ type = 'Получение';
 } else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
   coin_str = 'coin_to_sell'
   value_str = 'value_to_sell';
-} else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
+} else if (tr.type === 21 || tr.type === 22 || tr.type === 34) {
   coin_str = 'coin0'
   value_str = 'volume0';
 }
 
-if (!tr.data.list) {
+if (!tr.data.list && tr.type !== 5 && tr.type !== 16 && tr.type !== 30 && tr.type !== 31) {
   amount = parseFloat(tr.data[value_str]).toFixed(3);
   amount += ' ' + tr.data[coin_str].symbol;
+} else if (!tr.data.list && (tr.type === 5 || tr.type === 16 || tr.type === 30 || tr.type === 31)) {
+  amount = parseFloat(tr.data.initial_amount).toFixed(3);
+  amount += ' ' + tr.data.symbol;
   } else {
 let sum_amount = 0;
     let coin = '';
@@ -264,24 +266,6 @@ function byteCount(s) {
   return encodeURI(s).split(/%..|./).length - 1;
 }
 
-async function getFee(coin, type, memo) {
-  let memo_bytes = byteCount(memo) * 0.2;
-let type_fee = 1;
-if (type === 'convert') type_fee = 10;
-if (type === 'delegate' || type === 'anbond') type_fee = 20;  
-let fee = (memo_bytes + type_fee).toFixed(3);
-if (coin !== 'BIP') {
-  let coin_info = await minter.getCoinInfo(coin);
-  let price = (coin_info.volume / coin_info.reserve_balance) * (coin_info.crr / 100);
-  fee = ((memo_bytes + type_fee) * price).toFixed(3);
-  }
-  let minGasPrice = await axios.get('/min_gas_price');
-  let gasPrice = parseInt(minGasPrice.data.min_gas_price)
-  fee *= gasPrice;
-  $(`#${type}_fee`).html(fee);
-return fee;
-}
-
 async function getConvertPrice() {
   let coin = $('.convert_modal_token').html();
   let to = $('#action_convert_to').val().toUpperCase();
@@ -289,25 +273,56 @@ async function getConvertPrice() {
   amount = parseFloat(amount);
   let max_amount = $('#max_convert_amount').html();
   max_amount = parseFloat(max_amount);
-  let fee = parseFloat(await getFee(coin, 'convert', ''));
-  if (amount === max_amount) {
-    amount -= fee + 0.001;
-  }
-  $('#action_convert_amount').val(amount.toFixed(3));
-  if (amount > 0 && to !== '') {
-    let to_buy = await minter.estimateCoinSell({
+  if (amount && amount !== '' && amount > 0 && to !== '') {
+    try {
+      let response = await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/${coin}/${to}/route?amount=${amount * (10 ** 18)}&type=input`);
+      let coins = [];
+      let counter = 0;
+      let all_coins = response.data.coins.length;
+      for (let coin of response.data.coins) {
+if (counter > 0 && counter < all_coins - 1) {
+  coins.push(coin.id);
+}
+      counter++;
+        }
+        let coins_list = coins.join(',');
+        let fee = parseFloat(await convert(coin, to, amount, 0, coins_list, 'fee'));
+        if (amount === max_amount) {
+          amount -= fee;
+        }
+        let to_buy = await minter.estimateCoinSell({
       coinToSell: coin,
       valueToSell: amount,
       coinToBuy: to,
-      swap_from: 'optimal'
+      swap_from: 'optimal',
+      route: coins
     });
     $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
   $('#convert_fee').html(parseFloat(fee).toFixed(3));
-  $('#convert_from').html(to_buy.swap_from);
+  $('#swap_route_block').css('display', 'block');
+  $('#swap_route').html(coins_list);
+    } catch(e) {
+      let fee = parseFloat(await convert(coin, to, amount, 0, '', 'fee'));
+      if (amount === max_amount) {
+        amount -= fee;
+      }
+      let to_buy = await minter.estimateCoinSell({
+        coinToSell: coin,
+        valueToSell: amount,
+        coinToBuy: to,
+        swap_from: 'optimal'
+      });
+      $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
+    $('#convert_fee').html(parseFloat(fee).toFixed(3));
+    $('#swap_route_block').css('display', 'none');
+    $('#swap_route').html('');
+  }
+  $('#action_convert_amount').val(amount.toFixed(3));
 } else {
     $('#buy_amount').html('');
     $('#convert_fee').html('');
-    $('#convert_from').html('');
+    $('#swap_route_block').css('display', 'none');
+    $('#swap_route').html('');
   }
 }
 
@@ -369,14 +384,12 @@ $(document).ready(async function() {
     let token = $(this).attr('data-token');
 $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_' + token).html());
-  await getFee(token, 'transfer', '');
   });
 
   $(document).on('click', '.convert_modal', async function(e) {
     let token = $(this).attr('data-token');
 $('.convert_modal_token').html(token);
-    $('#max_convert_amount').html($('#max_' + token).html());
-  await getFee(token, 'convert', '');
+$('#max_convert_amount').html($('#max_' + token).html());
   });
   
   $(document).on('click', '.delegate_modal', async function(e) {
@@ -384,20 +397,39 @@ $('.convert_modal_token').html(token);
     let key = $(this).attr('data-pubkey');
     if (key) {
       $('#action_delegate_key').val(key);
+      let stake = $('#action_delegate_stake').val();
+      if (stake === '') stake = 1;
+        let max_amount = $('#max_delegate_amount').html();
+        max_amount = parseFloat(max_amount);
+        if (key !== '') {
+          let fee = parseFloat(await delegate(token, key, stake, 'fee'));
+          $('#delegate_fee').html(fee)
+          if (stake !== '' && stake + fee > max_amount) {
+            stake = parseFloat(stake);
+                  stake = stake - (stake + fee - max_amount);
+                  $('#action_delegate_stake').val(new Number(stake).toFixed(3));  
+                }
+        }
     }
     $('.delegate_modal_token').html(token);
     $('#max_delegate_amount').html($('#max_' + token).html());
-  await getFee(token, 'delegate');
   });
 
   $(document).on('click', '.anbond_modal', async function(e) {
     let token = $(this).attr('data-token');
     let key = $(this).attr('data-pubkey');
       $('#action_anbond_key').val(key);
+      if (key !== '') {
+        let stake = $('#action_anbond_stake').val();
+        if (stake === '') stake = 1;
+          let max_amount = $('#max_anbond_amount').html();
+          max_amount = parseFloat(max_amount);
+            let fee = parseFloat(await anbond(token, key, stake, 'fee'));
+            $('#anbond_fee').html(fee)
+          }
       let amount = $(this).attr('data-amount');
       $('.anbond_modal_token').html(token);
     $('#max_anbond_amount').html(amount);
-  await getFee(token, 'anbond');
   });
 
   $("#max_token_anbond").click(async function(){
@@ -428,16 +460,42 @@ window.alert('Ошибка: ' + e);
 }
   }); // end subform
 
-$('#action_transfer_memo').change(async function() {
+  $('#action_transfer_to').change(async function() {
+    let memo = $('#action_transfer_memo').val();
+    let coin = $('.transfer_modal_token').html();
+    let to = $('#action_transfer_to').val();
+    let amount = $('#action_transfer_amount').val();
+    if (amount === '') {
+      amount = 1;
+    } else {
+      amount = parseFloat(amount);
+    }
+    if (to !== '') {
+      let fee = parseFloat(await send(to, amount, coin, memo, 'fee'));
+      $('#transfer_fee').html(fee);
+      let max_amount = $('#max_transfer_amount').html();
+max_amount = parseFloat(max_amount);
+      if (amount + fee > max_amount) {
+        amount = amount - (amount + fee - max_amount);
+      }
+    $('#action_transfer_amount').val(amount.toFixed(3));
+    }
+  });
+
+  $('#action_transfer_memo').change(async function() {
 let memo = $('#action_transfer_memo').val();
 let coin = $('.transfer_modal_token').html();
-let fee = parseFloat(await getFee(coin, 'transfer', memo));
+let to = $('#action_transfer_to').val();
 let amount = $('#action_transfer_amount').val();
 amount = parseFloat(amount);
 let max_amount = $('#max_transfer_amount').html();
-max_amount = parseFloat(max_amount) - 0.001;
-if (amount + fee > max_amount) {
-  amount = amount - (amount + fee - max_amount);
+max_amount = parseFloat(max_amount);
+if (to !== '') {
+  let fee = parseFloat(await send(to, amount, coin, memo, 'fee'));
+  $('#transfer_fee').html(fee);
+  if (amount + fee > max_amount) {
+    amount = amount - (amount + fee - max_amount);
+  }
 }
 $('#action_transfer_amount').val(amount.toFixed(3));
 });
@@ -449,11 +507,13 @@ $("#action_convert_start").click(async function(){
    let to = $('#action_convert_to').val().toUpperCase();
     let amount = $('#action_convert_amount').val();
     amount = parseFloat(amount);
-   let swap_from = $('#convert_from').html();
+    let buy_amount = $('#buy_amount').val();
+    buy_amount = (buy_amount !== '' ? parseFloat(buy_amount) : 0);
+    let swap_route = $('#swap_route').html();
    
    try {
     $.fancybox.close(); 
-    await convert(coin, to, amount, swap_from);
+    await convert(coin, to, amount, buy_amount, swap_route);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -505,7 +565,26 @@ $("#action_delegate_start").click(async function(){
       }
         }); // end subform
     
-   $("#action_save_transfer_template").click(function(){
+
+        $('#action_anbond_key').change(async function() {
+          let publicKey = $('#action_anbond_key').val();
+          let coin = $('.anbond_modal_token').html();
+          let stake = $('#action_anbond_stake').val();
+        if (stake === '') stake = 1;
+          let max_amount = $('#max_anbond_amount').html();
+          max_amount = parseFloat(max_amount);
+          if (publicKey !== '') {
+            let fee = parseFloat(await anbond(coin, publicKey, stake, 'fee'));
+            $('#anbond_fee').html(fee)
+            if (stake !== '' && stake + fee > max_amount) {
+              stake = parseFloat(stake);
+                    stake = stake - (stake + fee - max_amount);
+                    $('#action_anbond_stake').val(new Number(stake).toFixed(3));  
+                  }
+          }
+        });        
+
+        $("#action_save_transfer_template").click(function(){
        let name = window.prompt('Введите название шаблона');
        if (name && name !== '') {
          try {
@@ -586,14 +665,29 @@ try {
   }
 }); // end action_remove_transfer_template
     
-      $('#select_delegate_template').change(function() {
+      $('#select_delegate_template').change(async function() {
         if ($('#select_delegate_template').val() === '') {
           $('#remove_delegate_template').css('display', 'none');
           $('#action_delegate_key').val('');
         } else {
           $('#remove_delegate_template').css('display', 'inline');
           $('#action_delegate_key').val(String($(':selected', this).data('key')));
-         }
+          let publicKey = $('#action_delegate_key').val();
+          let coin = $('.delegate_modal_token').html();
+          let stake = $('#action_delegate_stake').val();
+        if (stake === '') stake = 1;
+          let max_amount = $('#max_delegate_amount').html();
+          max_amount = parseFloat(max_amount);
+          if (publicKey !== '') {
+            let fee = parseFloat(await delegate(coin, publicKey, stake, 'fee'));
+            $('#delegate_fee').html(fee)
+            if (stake !== '' && stake + fee > max_amount) {
+              stake = parseFloat(stake);
+                    stake = stake - (stake + fee - max_amount);
+                    $('#action_delegate_stake').val(new Number(stake).toFixed(3));  
+                  }
+          }
+        }
         });
 
         $('#action_remove_delegate_template').click(function() {
@@ -646,6 +740,24 @@ try {
           $('#action_convert_amount').val(new Number(parseFloat($('#max_' + token).html())).toFixed(3));
           await getConvertPrice();   
         });
+
+$('#action_delegate_key').change(async function() {
+  let publicKey = $('#action_delegate_key').val();
+  let coin = $('.delegate_modal_token').html();
+  let stake = $('#action_delegate_stake').val();
+if (stake === '') stake = 1;
+  let max_amount = $('#max_delegate_amount').html();
+  max_amount = parseFloat(max_amount);
+  if (publicKey !== '') {
+    let fee = parseFloat(await delegate(coin, publicKey, stake, 'fee'));
+    $('#delegate_fee').html(fee)
+    if (stake !== '' && stake + fee > max_amount) {
+      stake = parseFloat(stake);
+            stake = stake - (stake + fee - max_amount);
+            $('#action_delegate_stake').val(new Number(stake).toFixed(3));  
+          }
+  }
+});
 
         $("#max_token_delegate").click(async function(){
           let coin = $('.delegate_modal_token').html();

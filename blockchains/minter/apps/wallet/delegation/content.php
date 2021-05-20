@@ -23,10 +23,6 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p><button data-fancybox-close class="btn">Закрыть</button></p>
 <div id="action_delegate">
 <form class="form" name="postForm">
-<p><label for="delegate_template">Выберите шаблон делегирования:</label></p>
-<p><select name="delegate_template" id="select_delegate_template">
-<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
-</select> <span style="display: none;" id="remove_delegate_template">(<input type="button" value="Удалить текущий шаблон" id="action_remove_delegate_template">)</span> </p>
 <p><label for="delegate_to">Публичный ключ валидатора (можно выбрать <a href="'.$conf['siteUrl'].'minter/validators" target="_blank">тут</a>):</label></p>
 <p><input type="text" name="delegate_to" id="action_delegate_key" placeholder="MP..."></p>
 <p><label for="delegate_amount">Сумма делегирования (<span id="max_token_delegate">делегировать все доступные <span id="max_delegate_amount"></span> <span class="delegate_modal_token"></span></span>):</label></p>
@@ -48,7 +44,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p><input type="text" readonly name="anbond_to" id="action_anbond_key"></p>
 <p><label for="anbond_amount">Сумма анбонда (<span id="max_token_anbond">все доступные <span id="max_anbond_amount"></span> <span class="anbond_modal_token"></span></span>):</label></p>
 <p><input type="text" name="anbond_amount" id="action_anbond_stake" placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="anbond_fee">10</span> <span class="anbond_modal_token"></span></strong></p>
+<p><strong>Комиссия: <span id="anbond_fee"></span> <span class="anbond_modal_token"></span></strong></p>
 <p><input type="button" id="action_anbond_start" value="Анбонднуть"></p>
 </form>
 </div>

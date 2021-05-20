@@ -76,7 +76,7 @@ function bind_range(){
 let tokens = await getBalance(sender.address);
     let balances_list = '';
     for (let token of tokens) {
-        let amount = token.amount / (10 ** 18);
+        let amount = parseFloat(token.amount);
         amount = amount.toFixed(3);
         balances_list += `<option value="${token.coin}" data-max="${amount}">${token.coin}</option>`;
     }
@@ -108,26 +108,62 @@ return fee;
 }
 
 async function getConvertPrice() {
-  let coin = $('[name=tokens]').val();
+  let coin = $('.convert_modal_token').html();
   let to = $('#action_convert_to').val().toUpperCase();
   let amount = $('#action_convert_amount').val();
   amount = parseFloat(amount);
   let max_amount = $('#max_convert_amount').html();
   max_amount = parseFloat(max_amount);
-  if (amount > 0 && to !== '') {
-    let to_buy = await minter.estimateCoinSell({
+  if (amount && amount !== '' && amount > 0 && to !== '') {
+    try {
+      let response = await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/${coin}/${to}/route?amount=${amount * (10 ** 18)}&type=input`);
+      let coins = [];
+      let counter = 0;
+      let all_coins = response.data.coins.length;
+      for (let coin of response.data.coins) {
+if (counter > 0 && counter < all_coins - 1) {
+  coins.push(coin.id);
+}
+      counter++;
+        }
+        let coins_list = coins.join(',');
+        let fee = parseFloat(await convert(coin, to, amount, 0, coins_list, 'fee'));
+        if (amount === max_amount) {
+          amount -= fee;
+        }
+        let to_buy = await minter.estimateCoinSell({
       coinToSell: coin,
       valueToSell: amount,
       coinToBuy: to,
-      swap_from: 'optimal'
+      swap_from: 'optimal',
+      route: coins
     });
     $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
+  $('#convert_fee').html(parseFloat(fee).toFixed(3));
+  $('#swap_route_block').css('display', 'block');
+  $('#swap_route').html(coins_list);
+    } catch(e) {
+      let fee = parseFloat(await convert(coin, to, amount, 0, '', 'fee'));
+      if (amount === max_amount) {
+        amount -= fee;
+      }
+      let to_buy = await minter.estimateCoinSell({
+        coinToSell: coin,
+        valueToSell: amount,
+        coinToBuy: to,
+        swap_from: 'optimal'
+      });
+      $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
     $('#convert_fee').html(parseFloat(fee).toFixed(3));
-    $('#convert_from').html(to_buy.swap_from);
+    $('#swap_route_block').css('display', 'none');
+    $('#swap_route').html('');
+  }
+  $('#action_convert_amount').val(amount.toFixed(3));
 } else {
     $('#buy_amount').html('');
     $('#convert_fee').html('');
-    $('#convert_from').html('');
+    $('#swap_route_block').css('display', 'none');
+    $('#swap_route').html('');
   }
 }
 
@@ -142,17 +178,46 @@ let max_amount = $('#max_pool_amount' + direction_z).html();
 max_amount = parseFloat(max_amount);
 
 if (amount > 0 && to !== '') {
-let to_buy = await minter.estimateCoinSell({
-  coinToSell: coin,
-  valueToSell: amount,
-  coinToBuy: to,
-});
-$('#action_pool_amount' + direction_z).val(parseFloat(to_buy.will_get).toFixed(3));
-$('#pool_fee').html(parseFloat(to_buy.commission).toFixed(3));
+let coin_ids = await minter.getCoinId([coin, to])
+try {
+  let pool_data = await axios.get(`/swap_pool/${coin_ids[0]}/${coin_ids[1]}`);
+  let res = pool_data.data;
+  let amounts = [];
+amounts[0] = res.amount0 / (10 ** 18);
+  amounts[1] = res.amount1 / (10 ** 18);
+let price = amounts[0] / amounts[1];
+  let will_get = amount / price;
+  let fee = await addToPool(coin, to, amount, will_get, 'fee');
+  let fee_amount = amount - fee;
+  will_get = fee_amount / price;
+  $('#action_pool_amount1').val(parseFloat(fee_amount).toFixed(3));
+  $('#action_pool_amount' + direction_z).val(parseFloat(will_get).toFixed(3));
+$('#pool_fee').html(parseFloat(fee).toFixed(3));
+$('#new_pool').css('display', 'none');
+} catch(pool_error) {
+  if (pool_error.message === 'Request failed with status code 404') {
+$('#new_pool').css('display', 'block');
+let fee = await addToPool(coin, to, amount, 1, 'fee', 'create_pool');
+$('#pool_fee').html(parseFloat(fee).toFixed(3));
+let fee_amount = amount - fee;
+$('#action_pool_amount1').val(parseFloat(fee_amount).toFixed(3));
+}
+}
 } else {
 $('#action_pool_amount' + direction_z).val('');
 $('#pool_fee').html('');
 }
+}
+
+async function addLiquidity(coin0, coin1) {
+  let max1 = $("select[name=tokens1] option[value=" + coin0 + "]").attr('selected', 'true').data('max');
+  let max2 = $("select[name=tokens2] option[value=" + coin1 + "]").attr('selected', 'true').data('max');
+  $('.convert_modal_token1').html(coin0);
+  $('.convert_modal_token2').html(coin1);
+  $('#max_pool_amount1').html(max1);
+  $('#max_pool_amount2').html(max2);
+  await getPoolPrice(1);
+  $("html, body").animate({ scrollTop: 0 }, "slow");
 }
 
 $(document).ready(async function() {
@@ -161,59 +226,79 @@ $(document).ready(async function() {
     await loadBalances();
   }
 
+  $(document).on('click', '.remove_liquidity_modal', async function(e) {
+    let token = $(this).attr('data-token');
+    let liquidity = $(this).attr('data-liquidity');
+    let coin0 = $(this).attr('data-coin0');
+    let coin1 = $(this).attr('data-coin1');
+$('#rl_modal_pool').html(`${coin0}/${coin1}`);
+$('#rl_modal_token').html(token);
+$('#rl_lp_balance').html(liquidity);
+let fee = await removeFromPool(coin0, coin1, liquidity, 'fee');
+$('#rl_fee').html(fee);
+});
+
+$('#action_rl_start').click(async function() {
+let q = window.confirm('Вы действительно хотите удалить ликвидность?');
+if (q === true) {
+  let coins = $('#rl_modal_pool').html().split('/');
+  let token = $('#rl_modal_token').html();
+let lp_balance = parseFloat($('#rl_lp_balance').html())
+let percent = parseFloat($('#action_rl_percent').val());
+let remove_balance = lp_balance / 100 * percent;
+await removeFromPool(coins[0], coins[1], remove_balance, '');
+}
+});
+
 let select = $("[name=tokens] option:selected");
 let token = $(select).val();
   let max = select.data('max');
-  let fee = parseFloat(await getFee(token, 'convert', ''));
-    max -= fee + 0.001;
-  if (max < 0) {
-    $('#max_convert_amount').html(0);
-  } else {
-    $('#max_convert_amount').html(max);
-  }
   $('.convert_modal_token').html(token);
+  $('#max_convert_amount').html(max);
+  await getConvertPrice();
 
 $('[name=tokens]').change(async function() {
   let token = $(this).val();
   let max = $("[name=tokens] option:selected").data('max');
-  $('#max_convert_amount').html(max);
-  let fee = parseFloat(await getFee(token, 'convert', ''));
-  max -= fee + 0.001;
-if (max < 0) {
-  $('#max_convert_amount').html(0);
-} else {
-  $('#max_convert_amount').html(max);
-}
   $('.convert_modal_token').html(token);
+  $('.convert_modal_token').html(token);
+  $('#max_convert_amount').html(max);
+  await getConvertPrice();
 });
 
 $('[name=tokens1]').change(async function() {
   let token = $(this).val();
   let max = $("[name=tokens1] option:selected").data('max');
+  $('.convert_modal_token1').html(token);
   $('#max_pool_amount1').html(max);
-  let fee = parseFloat(await getFee(token, 'convert', ''));
-  max -= fee + 0.001;
-if (max < 0) {
-  $('#max_pool_amount1').html(0);
-} else {
-  $('#max_pool_amount1').html(max);
-}
-  $('.convert_modal_token').html(token);
+  await getPoolPrice(1);
 });
 
 $('[name=tokens2]').change(async function() {
   let token = $(this).val();
   let max = $("[name=tokens2] option:selected").data('max');
+  $('.convert_modal_token2').html(token);
   $('#max_pool_amount2').html(max);
-  let fee = parseFloat(await getFee(token, 'convert', ''));
-  max -= fee + 0.002;
-if (max < 0) {
-  $('#max_pool_amount2').html(0);
-} else {
-  $('#max_pool_amount2').html(max);
-}
-  $('.convert_modal_token').html(token);
+  await getPoolPrice(2);
 });
+
+$("#action_pool_start").click(async function(){
+  let q = window.confirm('Вы действительно хотите добавить ликвидность?');
+  if (q == true) {
+    let coin = $('.convert_modal_token1').html();
+    let to = $('.convert_modal_token2').html();
+    let amount1 = parseFloat($('#action_pool_amount1').val());
+    let amount2 = parseFloat($('#action_pool_amount2').val());
+
+    try {
+    $.fancybox.close(); 
+  await addToPool(coin, to, amount1, amount2, '');
+   await loadBalances();
+  } catch(e) {
+  window.alert('Ошибка: ' + e);
+   }
+  }
+    }); // end subform
 
 $("#action_convert_start").click(async function(){
   let q = window.confirm('Вы действительно хотите сделать обмен средств?');
@@ -222,10 +307,13 @@ $("#action_convert_start").click(async function(){
    let to = $('#action_convert_to').val().toUpperCase();
     let amount = $('#action_convert_amount').val();
     amount = parseFloat(amount);
-   
-   try {
+    let buy_amount = $('#buy_amount').val();
+    buy_amount = parseFloat(buy_amount);
+    let swap_route = $('#swap_route').html();
+
+    try {
     $.fancybox.close(); 
-    await convert(coin, to, amount)
+    await convert(coin, to, amount, buy_amount, swap_route);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -277,6 +365,21 @@ $('#action_convert_amount').change(async function() {
        
 if(0<$('input[type=range]').length){
   bind_range();
+}
+
+// Получаем пулы.
+let pools_res = await axios.get(`https://explorer-api.minter.network/api/v2/pools/providers/${sender.address}`);
+let pools = pools_res.data.data;
+for (let pool of pools) {
+  $('#my_pools').append(`<tr>
+<td><a href="https://chainik.io/coin/${pool.token.symbol}" target="_blank">${pool.token.symbol}</a></td>
+  <td><a href="https://chainik.io/pool/${pool.coin0.symbol}/${pool.coin1.symbol}" target="_blank">${pool.coin0.symbol}/${pool.coin1.symbol}</a></td>
+<td>${parseFloat(pool.amount0).toFixed(3)} ${pool.coin0.symbol}</td>
+<td>${parseFloat(pool.amount1).toFixed(3)} ${pool.coin1.symbol}</td>
+<td>${parseFloat(pool.liquidity).toFixed(3)}</td>
+<td>${parseFloat(pool.liquidity_share).toFixed(2)}%</td>
+<td><a onclick="addLiquidity('${pool.coin0.symbol}', '${pool.coin1.symbol}')">Добавить ликвидность</a>, <a data-fancybox class="remove_liquidity_modal" data-src="#remove_liquidity_modal" href="javascript:;" data-token="${pool.token.symbol}" data-coin0="${pool.coin0.symbol}" data-coin1="${pool.coin1.symbol}" data-liquidity="${pool.liquidity}">Удалить ликвидность</a></td>
+</tr>`);
 }
 
 $(async function() {

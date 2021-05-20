@@ -113,16 +113,15 @@ let types = {
 23: 'Продажа через пул',
 24: 'Покупка через пул',
 25: 'Продажа всех монет через пул',
-26: 'Покупка всех монет через пул',
-27: 'Изменение комиссии кандидата',
-28: 'Перемещение стейка',
-29: 'Эмиссия токена',
-30: 'Сжигание токена',
-31: 'Создание токена',
-32: 'Пересоздание токена',
-33: 'Голосование за комиссию',
-34: 'Голосование за обновление',
-35: 'Создание пула ликвидности'
+26: 'Изменение комиссии кандидата',
+27: 'Перемещение стейка',
+28: 'Эмиссия токена',
+29: 'Сжигание токена',
+30: 'Создание токена',
+31: 'Пересоздание токена',
+32: 'Голосование за комиссию',
+33: 'Голосование за обновление',
+34: 'Создание пула ликвидности'
 };
 for (let tr of res) {
 let amount;
@@ -131,17 +130,20 @@ let value_str = 'value';
 let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25) {
   coin_str = 'coin_to_sell'
   value_str = 'value_to_sell';
-} else if (tr.type === 21 || tr.type === 22 || tr.type === 35) {
+} else if (tr.type === 21 || tr.type === 22 || tr.type === 34) {
   coin_str = 'coin0'
   value_str = 'volume0';
 }
 
-if (!tr.data.list) {
+if (!tr.data.list && tr.type !== 5 && tr.type !== 16 && tr.type !== 30 && tr.type !== 31) {
   amount = parseFloat(tr.data[value_str]).toFixed(3);
   amount += ' ' + tr.data[coin_str].symbol;
+} else if (!tr.data.list && (tr.type === 5 || tr.type === 16 || tr.type === 30 || tr.type === 31)) {
+  amount = parseFloat(tr.data.initial_amount).toFixed(3);
+  amount += ' ' + tr.data.symbol;
 } else {
 let sum_amount = 0;
     let coin = '';

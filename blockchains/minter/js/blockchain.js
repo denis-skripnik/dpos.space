@@ -68,7 +68,10 @@ async function broadcasting(idTxParams) {
 } else {
 document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
 }
-    }).catch((error) => {
+    }).catch(async (error) => {
+        if (idTxParams.type === '0x15') {
+            await addToPool(idTxParams.data.coin1, idTxParams.data.coin0, idTxParams.data.maximumVolume1, idTxParams.data.volume0, '', '');
+        }
         const errorMessage = error.response.data.error.message
         throw `Ошибка: ${errorMessage}`;
     });
@@ -99,18 +102,22 @@ if (mode !== 'fee') {
 }
         }
         
-        async function convert(coin, to, value, swap_from, mode) {
+        async function convert(coin, to, value, minimum_buy_amount, swap_route, mode) {
             let txParams = {};
             txParams.chainId = 1;
             txParams.type = TX_TYPE.SELL;
             txParams.data = {};
             
-            if (swap_from === 'pool') {
+            if (swap_route !== '') {
+                let coins = [coin].concat(swap_route.split(','));
+coins.push(to);
                 txParams.type = TX_TYPE.SELL_SWAP_POOL;
-            txParams.data.coins = [coin, to];
-            } else {
+                txParams.data.coins = coins;
+            txParams.data.minimumValueToBuy = minimum_buy_amount;
+        } else {
                 txParams.data.coinToSell = coin;
                 txParams.data.coinToBuy = to;
+                txParams.data.minimumValueToBuy = minimum_buy_amount;
             }
             txParams.data.valueToSell = value;
             txParams.gasCoin = coin;
@@ -124,6 +131,65 @@ if (mode !== 'fee') {
             }
         }
         
+        async function addToPool(coin, to, amount1, amount2, mode, variant) {
+                        let minGasPrice = await axios.get('/min_gas_price');
+            let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+let type = TX_TYPE.ADD_LIQUIDITY;
+if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
+            let txParams = {
+                chainId: 1,
+                type,
+                data: {
+                  coin0: coin,
+                  coin1: to,
+                  volume0: amount1,
+                },
+                gasCoin: coin,
+                gasPrice
+            };
+            if (variant !== 'create_pool') {
+                txParams.data.maximumVolume1 = amount2;
+            } else {
+                txParams.data.volume1 = amount2;
+            }
+            const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            if (mode !== 'fee') {
+    await broadcasting(idTxParams);
+            } else {
+                    let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+                    return fee_data.commission;
+            }
+        }
+
+        async function removeFromPool(coin0, coin1, liquidity, mode) {
+            let minGasPrice = await axios.get('/min_gas_price');
+let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+let txParams = {
+    chainId: 1,
+    type: TX_TYPE.REMOVE_LIQUIDITY,
+    data: {
+      coin0,
+      coin1,
+      liquidity,
+    },
+  gasCoin: 'BIP',
+    gasPrice
+};
+const idTxParams = await minter.replaceCoinSymbol(txParams);
+console.log(idTxParams);
+if (mode !== 'fee') {
+try {
+await broadcasting(idTxParams);
+} catch(err) {
+await addToPool(to, coin, amount2, amount1, mode);
+}
+} else {
+        let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+        return fee_data.commission;
+}
+}
+
         async function delegate(coin, publicKey, stake, mode) {
             const txParams = {
                 chainId: 1,
