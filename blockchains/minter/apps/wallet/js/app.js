@@ -724,15 +724,17 @@ try {
     }); // end action_remove_delegate_template
    
       $("#max_token_transfer").click(async function(){
-        let token = $('.transfer_modal_token').html();
-        let amount = parseFloat($('#max_' + token).html());
-        let max_amount = $('#max_transfer_amount').html();
-        max_amount = parseFloat(max_amount);
-        let fee = parseFloat($('#transfer_fee').html());
-      if (amount === max_amount) {
-        amount -= fee + 0.001;
-      }
-        $('#action_transfer_amount').val(new Number(amount).toFixed(3));
+        let coin = $('.transfer_modal_token').html();
+        let to = $('#action_transfer_to').val();
+        let max_amount = parseFloat($('#max_transfer_amount').html());
+        let memo = $('#action_transfer_memo').val();
+        
+        if (to !== '') {
+          let fee = parseFloat(await send(to, max_amount, coin, memo, 'fee'));
+          $('#transfer_fee').html(fee);
+            max_amount -= fee;
+        $('#action_transfer_amount').val(max_amount.toFixed(3));
+        }
       });
     
          $("#max_token_convert").click(async function(){
