@@ -686,6 +686,21 @@ $( document ).ready(function() {
       $('#action_viz_transfer_to').val('xchng');
       $('#action_viz_transfer_memo').val('log:');
      document.getElementById('transfer_to_vesting').checked = false;
+    } else if ($('#select_transfer_template').val() === 'golos_xchng_market') {
+      $('#remove_transfer_template').css('display', 'none');
+      $('#action_viz_transfer_to').val('gls.xchng');
+      $('#action_viz_transfer_memo').val('log:');
+     document.getElementById('transfer_to_vesting').checked = false;
+    } else if ($('#select_transfer_template').val() === 'gph_xchng_market') {
+      $('#remove_transfer_template').css('display', 'none');
+      $('#action_viz_transfer_to').val('gph.xchng');
+      $('#action_viz_transfer_memo').val('log:');
+     document.getElementById('transfer_to_vesting').checked = false;
+    } else if ($('#select_transfer_template').val() === 'vmp_market') {
+      $('#remove_transfer_template').css('display', 'none');
+      $('#action_viz_transfer_to').val('vmp');
+      $('#action_viz_transfer_memo').val('Mx');
+     document.getElementById('transfer_to_vesting').checked = false;
     } else {
       $('#remove_transfer_template').css('display', 'inline');
       $('#action_viz_transfer_to').val(String($(':selected', this).data('to')));

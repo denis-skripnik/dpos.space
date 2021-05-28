@@ -49,6 +49,9 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <p><select name="transfer_template" id="select_transfer_template">
 <option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
 <option value="xchng_market">Биржа, XCHNG.VIZ (В заметке введите логин после log:)</option>
+<option value="golos_xchng_market">VIZUIA на Голосе (В заметке введите Golos логин после log:)</option>
+<option value="gph_xchng_market">Graphene биржа, XCHNG.VIZ (В заметке введите GPH логин после log:)</option>
+<option value="vmp_market">Шлюз в Minter (введите адрес в Minter после Mx, не включая начальные символы, или просто скопируйте адрес и замените всё)</option>
 </select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" onclick="removeTransferTemplate(this.form.transfer_template.value)">)</span> </p>
 <p><label for="viz_transfer_to">Кому:</label></p>
                                                 <p><input type="text" name="viz_transfer_to" id="action_viz_transfer_to" placeholder="Введите получателя"></p>
