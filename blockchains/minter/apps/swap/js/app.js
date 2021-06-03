@@ -77,7 +77,6 @@ let tokens = await getBalance(sender.address);
     let balances_list = '';
     for (let token of tokens) {
         let amount = parseFloat(token.amount);
-        amount = amount.toFixed(3);
         balances_list += `<option value="${token.coin}" data-max="${amount}">${token.coin}</option>`;
     }
 $('[name=tokens]').html(balances_list);

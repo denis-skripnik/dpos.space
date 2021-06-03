@@ -231,27 +231,32 @@ await addToPool(to, coin, amount2, amount1, mode);
             }
         }
 
-        async function createCoin(type, name, symbol, initialAmount, constantReserveRatio, initialReserve, maxSupply, mode) {
-            const txParams = {
-                chainId: 1,
-                type: TX_TYPE[type],
-                data: {
-                    name,
-                    symbol,
-                    initialAmount,
-                    constantReserveRatio,
-                    initialReserve,
-                    maxSupply,
-                },
-            };
+        async function createCoin(type, name, symbol, initialAmount, maxSupply, options, mode) {
+    let txParams = {
+        chainId: 1,
+        type: TX_TYPE[type],
+        data: {
+            name,
+            symbol,
+            initialAmount,
+            maxSupply,
+        },
+    };
+
+if (type === 'CREATE_COIN' || type === 'RECREATE_COIN') {
+    txParams.data.constantReserveRatio = options.constantReserveRatio;
+    txParams.data.initialReserve = options.initialReserve;
+} else {
+    txParams.data.mintable = options.mintable;
+    txParams.data.burnable = options.burnable;
+}
             const idTxParams = await minter.replaceCoinSymbol(txParams);
-            console.log(idTxParams);
-            if (mode !== 'fee') {
-                await broadcasting(idTxParams);
-            } else {
-                let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-                return fee_data.commission;
-            }
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee = fee_data.commission;
+let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' BIP');
+if (q === true) {
+    await broadcasting(idTxParams);
+}
         }
         
         async function editCoinOwner(symbol, newOwner, mode) {
@@ -265,12 +270,52 @@ await addToPool(to, coin, amount2, amount1, mode);
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            if (mode !== 'fee') {
-                await broadcasting(idTxParams);
-            } else {
-                let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-                return fee_data.commission;
-            }
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee = fee_data.commission;
+let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' BIP');
+if (q === true) {
+    await broadcasting(idTxParams);
+}
+        }
+        
+        async function mintToken(coin, value) {
+            const txParams = {
+                chainId: 1,
+                    type: TX_TYPE.MINT_TOKEN,
+                    data: {
+                        coin,
+                        value,
+                    },
+                };
+            
+                const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee = fee_data.commission;
+let q = window.confirm('Вы действительно хотите провести эмиссию токенов? Комиссия составит ' + fee + ' BIP');
+if (q === true) {
+    await broadcasting(idTxParams);
+}
+        }
+
+        async function burnToken(coin, value) {
+            const txParams = {
+                chainId: 1,
+                type: TX_TYPE.BURN_TOKEN,
+                    data: {
+                        coin,
+                        value,
+                    },
+                };
+            
+                const idTxParams = await minter.replaceCoinSymbol(txParams);
+            console.log(idTxParams);
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee = fee_data.commission;
+let q = window.confirm('Вы действительно хотите сжечь токены? Комиссия составит ' + fee + ' BIP');
+if (q === true) {
+    await broadcasting(idTxParams);
+}
         }
 
         async function getBalance(address) {
@@ -279,7 +324,11 @@ await addToPool(to, coin, amount2, amount1, mode);
             let balances = [];
             for (let token of response.data.data.balances) {
               let balance = parseFloat(token.amount);
-              balance = balance.toFixed(3)
+if (balance < 0.001) {
+    balance = balance.toFixed(8);
+} else {
+    balance = balance.toFixed(3);
+}
               balances.push({coin: token.coin.symbol, amount: balance, type: token.coin.type});
             }
             return balances;
