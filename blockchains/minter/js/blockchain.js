@@ -72,8 +72,8 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
         if (idTxParams.type === '0x15') {
             await addToPool(idTxParams.data.coin1, idTxParams.data.coin0, idTxParams.data.maximumVolume1, idTxParams.data.volume0, '', '');
         }
-        const errorMessage = error.response.data.error.message
-        throw `Ошибка: ${errorMessage}`;
+            const errorMessage = (error.response.data.error.message ? error.response.data.error.message : error.response.error.message)
+            throw `Ошибка: ${errorMessage}`;
     });
 }
 
@@ -109,24 +109,22 @@ if (mode !== 'fee') {
             txParams.data = {};
             
             if (swap_route !== '') {
-                let coins = [coin].concat(swap_route.split(','));
-coins.push(to);
                 txParams.type = TX_TYPE.SELL_SWAP_POOL;
-                txParams.data.coins = coins;
-            txParams.data.minimumValueToBuy = minimum_buy_amount;
+                txParams.data.coins = swap_route.split(',');
+            txParams.data.minimumValueToBuy = parseFloat(minimum_buy_amount);
         } else {
                 txParams.data.coinToSell = coin;
                 txParams.data.coinToBuy = to;
-                txParams.data.minimumValueToBuy = minimum_buy_amount;
+                txParams.data.minimumValueToBuy = parseFloat(minimum_buy_amount);
             }
-            txParams.data.valueToSell = value;
+                        txParams.data.valueToSell = value;
             txParams.gasCoin = coin;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             if (mode !== 'fee') {
                 await broadcasting(idTxParams);
             } else {
-                let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+                let fee_data = await minter.estimateTxCommission(idTxParams, {direct: true,});
                 return fee_data.commission;
             }
         }

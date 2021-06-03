@@ -69,13 +69,13 @@ $mass = $res['result'];
                     $rowCount++;
                     $author = $op[1]['author'] ?? "";
                     $permlink = $op[1]['permlink'] ?? "";
-                    $sbd_payout = $op[1]['sbd_payout'] !== '0.000 HBD' ? $op[1]['sbd_payout'].', ' : "";
-                    $steem_payout = $op[1]['steem_payout'] !== '0.000 HIVE' ? $op[1]['steem_payout'].' и ' : "";
+                    $hbd_payout = $op[1]['hbd_payout'] !== '0.000 HBD' ? $op[1]['hbd_payout'].', ' : "";
+                    $hive_payout = $op[1]['hive_payout'] !== '0.000 HIVE' ? $op[1]['hive_payout'].' и ' : "";
                     $gp_payout = (float)$op[1]['vesting_payout']  / 1000000 * $hive_per_vests;
                     $gp_payout = round($gp_payout, 6).' HP';
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="https://hive.blog/@'.$author.'/'.$permlink.'" target="_blank">'.$author.'/'.$permlink.'</a></td>                    
-<td>'.$sbd_payout.$steem_payout.$gp_payout.'</td></tr>';
+<td>'.$hbd_payout.$hive_payout.$gp_payout.'</td></tr>';
                     }
                 }
             }            

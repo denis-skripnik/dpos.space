@@ -19,10 +19,8 @@ class HiveHttpJsonRpcConnector extends HttpJsonRpcConnectorAbstract
      * @var string
      */
     protected static $nodeURL = [
-        'https://steemd.privex.io',
-        'https://api.steemit.com',
-        'https://anyx.io',
-        'https://rpc.usesteem.com'
+        'https://hive.roelandp.nl',
+        'https://api.openhive.network'
 //        'https://steemd.pevo.science' //too often 503
 //        'https://steemd.minnowsupportproject.org' //not full answers, some fields are empty
     ];

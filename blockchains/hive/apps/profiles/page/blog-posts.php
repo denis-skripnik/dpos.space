@@ -35,12 +35,12 @@ $WLS_this_date = time();
 $base = (float)$feed_mass["current_median_history"]["base"];
     $quote = (float)$feed_mass["current_median_history"]["quote"];
    $median_price = round($base/$quote, 3);
-$total_vesting_fund_steem = (float)$mass3["total_vesting_fund_hive"];
-$total_reward_fund_steem = (float)$mass3["total_reward_fund_hive"];
+$total_vesting_fund_hive = (float)$mass3["total_vesting_fund_hive"];
+$total_reward_fund_hive = (float)$mass3["total_reward_fund_hive"];
 $total_reward_shares2 = (int)$mass3["total_reward_shares2"];
 $total_vesting_shares = (float)$mass3["total_vesting_shares"];
-    $hive_per_vests = $total_vesting_fund_steem / $total_vesting_shares;
-    $sbd_print_rate = $mass3['hbd_print_rate']/10000;
+    $hive_per_vests = $total_vesting_fund_hive / $total_vesting_shares;
+    $hbd_print_rate = $mass3['hbd_print_rate']/10000;
 $result = [];
     $result['content'] = "<h2>Свежие посты аккаунта $user</h2>
   <table><tr><th>№</th>
@@ -123,8 +123,8 @@ $author_HP = round($full_author_pending/1.1, 3);
 }
 $author_pending = round($full_author_pending - $author_HP, 3);
 
-$author_HBD = round($author_pending*$median_price*$sbd_print_rate, 3);
-$author_hive = round($author_pending - ($author_pending*$sbd_print_rate), 3);
+$author_HBD = round($author_pending*$median_price*$hbd_print_rate, 3);
+$author_hive = round($author_pending - ($author_pending*$hbd_print_rate), 3);
 $author_WLS = $author_HP*2;
 
   if (($post['percent_hbd'] ?? $post['percent_hbd'] ?? "") == '0') {

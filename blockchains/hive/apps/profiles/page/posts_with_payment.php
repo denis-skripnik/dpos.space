@@ -64,7 +64,7 @@ if (! $posts) {
     return $result['content'];
     }
 }
-$sbd_print_rate = $mass3['hbd_print_rate']/10000;
+$hbd_print_rate = $mass3['hbd_print_rate']/10000;
 date_default_timezone_set('UTC');
 $arr_shtraf_procent = [];
 $summ_beneficiaries_pending = 0;

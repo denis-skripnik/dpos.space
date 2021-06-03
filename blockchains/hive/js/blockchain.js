@@ -1,7 +1,7 @@
 function checkWorkingNode() {
     const NODES = [
         'https://anyx.io',
-        'https://rpc.usesteem.com'
+        'https://rpc.usehive.com'
     ];
     let node = localStorage.getItem("hive_node") || NODES[0];
     const idx = Math.max(NODES.indexOf(node), 0);

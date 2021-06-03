@@ -112,9 +112,9 @@ $last_post = date('d', $last_post2).' '.$month[$month4].' '.date('Y г. H:i:s', 
 $post_full_date = $server_time - strtotime($datas['last_post']);
 
  $chain_balance = $datas['balance'];
-$sbd_balance = $datas['hbd_balance'];
+$hbd_balance = $datas['hbd_balance'];
 $savings_balance = $datas['savings_balance'];
-$savings_sbd_balance = $datas['savings_hbd_balance']; 
+$savings_hbd_balance = $datas['savings_hbd_balance']; 
 $savings_withdraw_requests = $datas['savings_withdraw_requests'] === 0 ? 'да' : 'нет';
 $next_vesting_withdrawal1 = $datas['next_vesting_withdrawal'];
 $next_vesting_withdrawal2 = strtotime($next_vesting_withdrawal1);
@@ -291,16 +291,16 @@ if (isset($json_metadata['profile']['select_tags'])) {
 <td>'.$chain_balance.'</td>
 </tr>
 <tr><td>Баланс HBD</td>
-<td>'.$sbd_balance.'</td>
+<td>'.$hbd_balance.'</td>
 </tr>';
 if ($savings_balance !== '0.000 HIVE') {
 $content .= "<tr><td>HIVE в сейфе</td>
 <td>$savings_balance</td>
 </tr>";
 }
-if ($savings_sbd_balance !== '0.000 HBD') {
+if ($savings_hbd_balance !== '0.000 HBD') {
 $content .= "<tr><td>HBD в сейфе</td>
-<td>$savings_sbd_balance</td>
+<td>$savings_hbd_balance</td>
 </tr>";
 }
 if ($savings_withdraw_requests > 0) {

@@ -84,7 +84,7 @@ function load_balance(account, active_key) {
  result.forEach(function(acc) {
 hive.api.getDynamicGlobalProperties(function(error, res) {
 if (!error) {
-let tvfs = parseFloat(res.total_vesting_fund_steem);
+let tvfs = parseFloat(res.total_vesting_fund_hive);
 let tvsh = parseFloat(res.total_vesting_shares);
 let hive_per_vests = 1000000 * tvfs / tvsh;
 
@@ -100,7 +100,7 @@ delegated_sp = delegated_sp.toFixed(6);
 delegated_sp = parseFloat(delegated_sp);
  
 $(".hive_balance").html(new Number(parseFloat(acc.balance)).toFixed(3));
- $(".sbd_balance").html(new Number(parseFloat(acc.hbd_balance)).toFixed(3));
+ $(".hbd_balance").html(new Number(parseFloat(acc.hbd_balance)).toFixed(3));
  $(".hive_vesting_shares").html(sp);
 $(".received_vesting_shares_result").html(received_sp);
 $(".delegated_vesting_shares_result").html(delegated_sp);
@@ -437,7 +437,7 @@ items.forEach(item => {
     var from = 'пул hive';
     var author = op[1].author;
     var permlink = op[1].permlink;
-var sbd_payout = op[1].hbd_payout;
+var hbd_payout = op[1].hbd_payout;
 var hive_payout = op[1].hive_payout;
 var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
 vesting_payout = vesting_payout.toFixed(6) + ' HP';
@@ -445,14 +445,14 @@ vesting_payout = vesting_payout.toFixed(6) + ' HP';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_author_reward"><td>' + transfer_datetime + '</td>\
 <td>' + from + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
-<td>' + sbd_payout + ', ' + hive_payout + ' и ' + vesting_payout + '</td>\
+<td>' + hbd_payout + ', ' + hive_payout + ' и ' + vesting_payout + '</td>\
 <td>' + memo + '</td>\
 </tr>');
   } else if (op[0] === 'comment_benefactor_reward') {
     var author = op[1].author;
     var permlink = op[1].permlink;
     var benefactor = op[1].benefactor;
-    var sbd_payout = op[1].hbd_payout;
+    var hbd_payout = op[1].hbd_payout;
     var hive_payout = op[1].hive_payout;
     var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
     vesting_payout = vesting_payout.toFixed(6) + ' HP';
@@ -460,7 +460,7 @@ vesting_payout = vesting_payout.toFixed(6) + ' HP';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_content_benefactor_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/hive/profiles/' + benefactor + '" target="_blank">@' + benefactor + '</a></td>\
-<td>' + sbd_payout + ', ' + hive_payout + ' и ' + vesting_payout + '</td>\
+<td>' + hbd_payout + ', ' + hive_payout + ' и ' + vesting_payout + '</td>\
 <td>' + memo + '</td>\
 </tr>');
   } else if (op[0] === 'producer_reward') {

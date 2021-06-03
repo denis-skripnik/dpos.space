@@ -21,7 +21,7 @@ $limit = $from < 10000 ? $from : 10000;
 $command_data = [
 '0' => $user, //authors
         '1' => $from, //from
-        '2' => $limit //limit max 2000
+        '2' => $limit //limit max 1000
 ];
 
 $commandQuery->setParams($command_data);

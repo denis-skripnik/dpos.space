@@ -125,7 +125,8 @@ if (counter > 0 && counter < all_coins - 1) {
 }
       counter++;
         }
-        let coins_list = coins.join(',');
+        let coins_list = `${coin},${coins.join(',')},${to}`;
+        if (coins.length === 0) coins_list = `${coin},${to}`;
         let fee = parseFloat(await convert(coin, to, amount, 0, coins_list, 'fee'));
         if (amount === max_amount) {
           amount -= fee;
@@ -306,8 +307,8 @@ $("#action_convert_start").click(async function(){
    let to = $('#action_convert_to').val().toUpperCase();
     let amount = $('#action_convert_amount').val();
     amount = parseFloat(amount);
-    let buy_amount = $('#buy_amount').val();
-    buy_amount = parseFloat(buy_amount);
+    let buy_amount = $('#buy_amount').html();
+    buy_amount = parseFloat(buy_amount) * 0.8;
     let swap_route = $('#swap_route').html();
 
     try {

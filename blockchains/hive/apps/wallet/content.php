@@ -3,11 +3,11 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                         <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'hive/accounts" target="_blank">здесь</a></p></div>
 <div id="active_page">
                         <div id="main_wallet_info" style="display: none;">
-                                                    <p>Баланс: <span class="hive_balance"></span> HIVE, <span class="sbd_balance"></span> HBD и <span class="hive_vesting_shares"></span> HP</p>
+                                                    <p>Баланс: <span class="hive_balance"></span> HIVE, <span class="hbd_balance"></span> HBD и <span class="hive_vesting_shares"></span> HP</p>
                                                 <a class="tt" onclick="spoiler(`wallet_actions`); return false">(Действия)</a>
                                                 <ul id="wallet_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод HP в hive</a></li>
                                                 <li><a data-fancybox data-src="#hive_transfer_modal" href="javascript:;">Перевести hive</a></li>
-                                                <li><a data-fancybox data-src="#hive_sbd_transfer_modal" href="javascript:;">Перевести HBD</a></li>
+                                                <li><a data-fancybox data-src="#hive_hbd_transfer_modal" href="javascript:;">Перевести HBD</a></li>
                                                 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">hive в HP этого аккаунта</a></li>
                                                 <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать HP</a></li></ul>
                                                       <div style="display: none;" id="vesting_withdraw_modal">
@@ -38,18 +38,18 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                 </form>
                                                       </div>
                                                       </div>
-                                                      <div style="display: none;" id="hive_sbd_transfer_modal">
+                                                      <div style="display: none;" id="hive_hbd_transfer_modal">
                                                       <h4 class="modal-title">Перевод HBD на другой аккаунт</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
-                                                      <div id="action_hive_sbd_transfer">
+                                                      <div id="action_hive_hbd_transfer">
                                                 <form class="form" name="postForm">
-                                                <p><label for="hive_sbd_transfer_to">Кому:</label></p>
-                                                <p><input type="text" name="hive_sbd_transfer_to" id="action_hive_sbd_transfer_to" placeholder="Введите получателя"></p>
-                                                 <p><label for="hive_sbd_transfer_amount">Сумма перевода (<span id="max_sbd_transfer">Перевести все доступные <span class="sbd_balance"></span> HBD</span>):</label></p>
-                                                <p><input type="text" name="hive_sbd_transfer_amount" id="action_hive_sbd_transfer_amount" placeholder="1.000"></p>
-                                                <p><label for="hive_sbd_transfer_memo">Заметка (описание) к платежу:</label></p>
-                                                <p><input type="text" name="hive_sbd_transfer_memo" id="action_hive_sbd_transfer_memo" placeholder="Введите memo"></p>
-                                                 <p><input type="button" id="action_hive_sbd_transfer_start" value="Перевести"></p>
+                                                <p><label for="hive_hbd_transfer_to">Кому:</label></p>
+                                                <p><input type="text" name="hive_hbd_transfer_to" id="action_hive_hbd_transfer_to" placeholder="Введите получателя"></p>
+                                                 <p><label for="hive_hbd_transfer_amount">Сумма перевода (<span id="max_hbd_transfer">Перевести все доступные <span class="hbd_balance"></span> HBD</span>):</label></p>
+                                                <p><input type="text" name="hive_hbd_transfer_amount" id="action_hive_hbd_transfer_amount" placeholder="1.000"></p>
+                                                <p><label for="hive_hbd_transfer_memo">Заметка (описание) к платежу:</label></p>
+                                                <p><input type="text" name="hive_hbd_transfer_memo" id="action_hive_hbd_transfer_memo" placeholder="Введите memo"></p>
+                                                 <p><input type="button" id="action_hive_hbd_transfer_start" value="Перевести"></p>
                                                 </form>
                                                       </div>
                                                       </div>
