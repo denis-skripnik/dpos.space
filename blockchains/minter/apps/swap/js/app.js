@@ -88,24 +88,6 @@ function byteCount(s) {
   return encodeURI(s).split(/%..|./).length - 1;
 }
 
-async function getFee(coin, type, memo) {
-  let memo_bytes = byteCount(memo) * 0.2;
-let type_fee = 1;
-if (type === 'convert') type_fee = 10;
-if (type === 'delegate' || type === 'anbond') type_fee = 20;  
-let fee = (memo_bytes + type_fee).toFixed(3);
-if (coin !== 'BIP') {
-  let coin_info = await minter.getCoinInfo(coin);
-  let price = (coin_info.volume / coin_info.reserve_balance) * (coin_info.crr / 100);
-  fee = ((memo_bytes + type_fee) * price).toFixed(3);
-  }
-  let minGasPrice = await axios.get('/min_gas_price');
-  let gasPrice = parseInt(minGasPrice.data.min_gas_price)
-  fee *= gasPrice;
-  $(`#${type}_fee`).html(fee);
-return fee;
-}
-
 async function getConvertPrice() {
   let coin = $('.convert_modal_token').html();
   let to = $('#action_convert_to').val().toUpperCase();
