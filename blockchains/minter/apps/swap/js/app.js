@@ -308,7 +308,7 @@ $("#action_convert_start").click(async function(){
     let amount = $('#action_convert_amount').val();
     amount = parseFloat(amount);
     let buy_amount = $('#buy_amount').html();
-    buy_amount = parseFloat(buy_amount) * 0.8;
+    buy_amount = parseFloat(buy_amount) * 0.9;
     let swap_route = $('#swap_route').html();
 
     try {
