@@ -33,7 +33,7 @@ answers.push(a);
    updateText();
 
 function sendData(operations) {
-    var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 100 VIZ');
+    var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 1 VIZ');
     if (q === true) {
     viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
@@ -59,7 +59,7 @@ memo_array.contractPayload.end_date = endDate;
 memo_array.contractPayload.consider = parseFloat(consider);
 let memo = JSON.stringify(memo_array);
     let data_url = [];
-    data_url.push(["transfer",{"from":sender,"to":"committee","amount":"100.000 VIZ","memo":memo}]);
+    data_url.push(["transfer",{"from":sender,"to":"committee","amount":"1.000 VIZ","memo":memo}]);
     let str_data_url = JSON.stringify(data_url);
     if (answers.length > 0) {
     if (clients === "sign") {

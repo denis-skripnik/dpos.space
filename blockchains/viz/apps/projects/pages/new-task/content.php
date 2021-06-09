@@ -9,7 +9,7 @@ $content = '<h2>Страницы сервиса</h2>
 <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 <div id="active_page">
 <h2>Укажите информацию о задаче и отправьте в блокчейн</h2>
-<p><strong><font color="red">ВНИМАНИЕ: стоимость добавления новой задачи 100 VIZ. Она будет переведена аккаунту viz-projects. Но если она окажется не спамом, наградим вас на сумму больше ста Viz.</font></strong></p>
+<p><strong><font color="red">ВНИМАНИЕ: стоимость добавления новой задачи 1 VIZ. Она будет переведена аккаунту viz-projects. Но если она окажется не спамом, наградим вас на сумму больше ста Viz.</font></strong></p>
 <form class="form">';
 $fields = ['name' => 'Название', 'description' => 'Описание'];
 foreach($fields as $name => $description) {
