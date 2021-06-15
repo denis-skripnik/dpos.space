@@ -2,16 +2,15 @@
 return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'hive/accounts" target="_blank">здесь</a></p></div>                        
                         <div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'hive/accounts" target="_blank">здесь</a></p></div>
 <div id="active_page">
-<div id="main_wallet_info" style="display: none;">
-<p>Баланс: <a class="tt" onclick="spoiler(`hive_actions`, `walletSpoiler`); return false"><span class="hive_balance"></span> HIVE</a>, <a class="tt" onclick="spoiler(`hbd_actions`, `walletSpoiler`); return false"><span class="hbd_balance"></span> HBD</a> и <a class="tt" onclick="spoiler(`sp_actions`, `walletSpoiler`); return false"><span class="hive_vesting_shares"></span> HP</a></p>
-<ul id="hive_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#hive_transfer_modal" href="javascript:;">Перевести hive</a></li>
-<li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">hive в HP этого аккаунта</a></li>
-<li><a href="'.$conf['siteUrl'].'hive/swap">Обменять HIVE</a></li></ul>
-                                                <ul id="hbd_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#hive_hbd_transfer_modal" href="javascript:;">Перевести HBD</a></li>
-<li><a href="'.$conf['siteUrl'].'hive/swap/HBD">Обменять HBD</a></li></ul>
-<ul id="sp_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод HP в hive</a></li>
-<li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать HP</a></li></ul>
-<div style="display: none;" id="vesting_withdraw_modal">
+                        <div id="main_wallet_info" style="display: none;">
+                                                    <p>Баланс: <span class="hive_balance"></span> HIVE, <span class="hbd_balance"></span> HBD и <span class="hive_vesting_shares"></span> HP</p>
+                                                <a class="tt" onclick="spoiler(`wallet_actions`); return false">(Действия)</a>
+                                                <ul id="wallet_actions" class="terms" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод HP в hive</a></li>
+                                                <li><a data-fancybox data-src="#hive_transfer_modal" href="javascript:;">Перевести hive</a></li>
+                                                <li><a data-fancybox data-src="#hive_hbd_transfer_modal" href="javascript:;">Перевести HBD</a></li>
+                                                <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">hive в HP этого аккаунта</a></li>
+                                                <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать HP</a></li></ul>
+                                                      <div style="display: none;" id="vesting_withdraw_modal">
                                                       <h4 class="modal-title">Вывод HP в hive</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                 <div id="action_vesting_withdraw">
@@ -74,10 +73,7 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
                                                  <p><input type="button" id="action_vesting_delegate_start" value="делегировать"></p>
                                                 </form></div>
                                                       </div>
-<div id="claim" style="display: none;"><hr>
-<p>К получению: <span id="claim_balances"></span></p>
-<p><strong><input type="button" id="claim_action" value="Получить"></strong></p><hr></div>
-<div><p>Делегировали другие пользователи вам <span class="received_vesting_shares_result"></span></p>
+                                                <div><p>Делегировали другие пользователи вам <span class="received_vesting_shares_result"></span></p>
                                                 <p>Делегировано другим пользователям (Без учёта отменённого) <a data-fancybox data-src="#modal_delegated_vesting_shares" href="javascript:;"><span class="delegated_vesting_shares_result"></span></a></p>
                                                 <div style="display: none;" id="modal_delegated_vesting_shares">
                                                 <h4 class="modal-title">Список аккаунтов, которым вы делегировали Hive Power</h4>

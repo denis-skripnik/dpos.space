@@ -352,7 +352,7 @@ function fillContent(err, result) {
 function hasPost(Author, Permlink, callback)
 {
     hive.api.getContent(Author, Permlink, function(err, result) {
-        if (result.author !== '') {
+        if (!err && result.author !== '') {
          callback(true);
         } else {
         callback(false);
@@ -451,10 +451,10 @@ function postSender(isEdit) {
 window.alert('Вы отказались отправлять изменения. Проверьте пермлинк в расширенных настройках.');
          }
 } else {
- const extensions = [];
+    const extensions = [];
 extensions.push([0,{beneficiaries:benif}]);
 let operations = [
- ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':author,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':author,'permlink':permlink,'max_accepted_payout':'1000000.000 HBD','percent_hive_dollars':+percent_hive_dollars,'allow_votes':true,'allow_curation_rewards':true,extensions}]];
+ ['comment', {'parent_author':'','parent_permlink':parentPermlink,'author':hive_login,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':hive_login,'permlink':permlink,'max_accepted_payout':'1000000.000 HBD','percent_hbd':+percent_hive_dollars,'allow_votes':true,'allow_curation_rewards':true,extensions}]];
      hive.broadcast.send({extensions: [], operations}, [wif], function(err, res) {
          if(err) {
              if(err == 'RPCError: Assert Exception:( now - auth.last_root_post ) > HIVE_MIN_ROOT_COMMENT_INTERVAL: You may only post once every 5 minutes.') {
@@ -466,12 +466,12 @@ let operations = [
                              alert(err);
              }
              } else {
-           alert('Пост опубликован успешно! \n URL поста: \n@' + author + '/' + permlink);
+           alert('Пост опубликован успешно! \n URL поста: \n@' + hive_login + '/' + permlink);
          }
      })    
 }
 }
-hasPost(author, permlink, postSender);
+hasPost(hive_login, permlink, postSender);
 }
     function reset_button() {
     var reset_q = window.confirm('Вы действительно хотите очистить форму?');

@@ -6,6 +6,12 @@ function getUrlVars() {
   return vars;
 }
 
+function spoiler(elem)
+{
+    style = document.getElementById(elem).style;
+    style.display = (style.display == 'block') ? 'none' : 'block';
+}
+
 function accountHistoryCompareDate(a, b)
 {
 	if(a[1].timestamp > b[1].timestamp)
@@ -72,8 +78,8 @@ function cancelDelegatedVestingShares(delegatee) {
     });
 }
 
-function load_balance() {
-	hive.api.getAccounts([hive_login], function(err, result){
+function load_balance(account, active_key) {
+	hive.api.getAccounts([account], function(err, result){
  if (!err) {
  result.forEach(function(acc) {
 hive.api.getDynamicGlobalProperties(function(error, res) {
@@ -99,30 +105,8 @@ $(".hive_balance").html(new Number(parseFloat(acc.balance)).toFixed(3));
 $(".received_vesting_shares_result").html(received_sp);
 $(".delegated_vesting_shares_result").html(delegated_sp);
 
-  let claim_data = [];
-  if (acc.reward_hive_balance !== '0.000 HIVE') claim_data.push(acc.reward_hive_balance);
-  if (acc.reward_hbd_balance !== '0.000 HBD') claim_data.push(acc.reward_hbd_balance);
-  if (acc.reward_vesting_balance !== '0.000000 VESTS') claim_data.push(parseFloat(acc.reward_vesting_hive) + ' HP');
-if (claim_data.length > 0) {
-  $('#claim').css('display', 'block');
-  $('#claim_balances').html(claim_data.join(', '));
-}
-
-$('#claim_action').click(function() {
-  console.log(acc.reward_hive_balance, acc.reward_hbd_balance, acc.reward_vesting_balance);
-  hive.broadcast.claimRewardBalance(posting_key, hive_login, acc.reward_hive_balance, acc.reward_hbd_balance, acc.reward_vesting_balance, function(err, data) {
-if (!err) {
-  window.alert('Балансы получены');
-  $('#claim').css('display', 'none');
-load_balance();
-} else {
-  window.alert(JSON.stringify(err));
-}
-  });
-});
-
 const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-hive.api.getVestingDelegations(hive_login, '', 100, function(err, res) {
+hive.api.getVestingDelegations(account, '', 100, function(err, res) {
   //console.log(err, res);
   if ( ! err) {
 var vesting_shares_amount = '';
@@ -144,7 +128,7 @@ var full_vesting = (sp - delegated_sp + received_sp).toFixed(6);
 $("#full_vesting").html(full_vesting);
 
  $("#cancel_vesting_withdraw").click(function(){
-hive.broadcast.withdrawVesting(active_key, hive_login, '0.000000 VESTS', function(err, result) {
+hive.broadcast.withdrawVesting(active_key, account, '0.000000 VESTS', function(err, result) {
   if (!err) {
 window.alert('Вывод отменён.');
 $('#info_vesting_withdraw').css('display', 'none');
@@ -162,7 +146,7 @@ var nvwithdrawal = Date.parse(acc.next_vesting_withdrawal);
 $("#nvwithdrawal").html(nvwithdrawal);
 var next_vesting_withdrawal = date_str(nvwithdrawal-(new Date().getTimezoneOffset()*60000),true,false,true);
 $("#next_vesting_withdrawal").html(next_vesting_withdrawal);
-var full_vesting_withdraw = (vesting_withdraw_rate*4).toFixed(6) + ' HP';
+var full_vesting_withdraw = (vesting_withdraw_rate*13).toFixed(6) + ' HP';
 $("#full_vesting_withdraw").html(full_vesting_withdraw);
 if (full_vesting_withdraw !== '0.000000 HP') {
 jQuery("#info_vesting_withdraw").css("display", "block");
@@ -178,7 +162,7 @@ $("#max_vesting_withdraw_result").html(new Number(parseFloat(max_vesting_withdra
 var action_vesting_withdraw_amount = parseFloat($('#action_vesting_withdraw_amount').val());
 let withdraw_vests = action_vesting_withdraw_amount * 1000000 / hive_per_vests;
 withdraw_vests =  withdraw_vests.toFixed(6) + ' VESTS';
-hive.broadcast.withdrawVesting(active_key, hive_login, withdraw_vests, function(err, result) {
+hive.broadcast.withdrawVesting(active_key, account, withdraw_vests, function(err, result) {
 if (!err) {
 window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
 location.reload();
@@ -201,7 +185,7 @@ window.alert('Ошибка: ' + err);
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
 
 if (transfer_to_vesting.checked) {
-hive.broadcast.transferToVesting(active_key, hive_login, action_hive_transfer_to, action_hive_transfer_amount, function(err, result) {
+hive.broadcast.transferToVesting(active_key, account, action_hive_transfer_to, action_hive_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_hive_transfer_amount + ' пользователю ' + action_hive_transfer_to + ' в HP.');
 location.reload();
@@ -210,7 +194,7 @@ window.alert('Ошибка: ' + err);
 }
   });
 } else {
-	hive.broadcast.transfer(active_key, hive_login, action_hive_transfer_to, action_hive_transfer_amount, action_hive_transfer_memo, function(err, result) {
+	hive.broadcast.transfer(active_key, account, action_hive_transfer_to, action_hive_transfer_amount, action_hive_transfer_memo, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_hive_transfer_amount + ' пользователю ' + action_hive_transfer_to + '.');
 location.reload();
@@ -226,7 +210,7 @@ window.alert('Ошибка: ' + err);
  $("#action_to_shares_transfer_start").click(function(){
  var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
  action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' HIVE';
- hive.broadcast.transferToVesting(active_key, hive_login, hive_login, action_to_shares_transfer_amount, function(err, result) {
+ hive.broadcast.transferToVesting(active_key, account, account, action_to_shares_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' hive в HP своего аккаунта.');
 location.reload();
@@ -247,7 +231,7 @@ $("#max_vesting_deligate").html(max_vesting_deligate);
  var action_vesting_delegate_amount = parseFloat($('#action_vesting_delegate_amount').val());
  let delegate_vests = action_vesting_delegate_amount * 1000000 / hive_per_vests;
  delegate_vests = delegate_vests.toFixed(6) + ' VESTS';
- hive.broadcast.delegateVestingShares(active_key, hive_login, action_vesting_delegate_to, delegate_vests, function(err, result) {
+ hive.broadcast.delegateVestingShares(active_key, account, action_vesting_delegate_to, delegate_vests, function(err, result) {
 if (!err) {
 window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
 location.reload();
@@ -322,7 +306,7 @@ function prepareContent(text) {
  
 const walletDataSettings = {
 	limit: 100,
-	limit_max: 1000,
+	limit_max: 2000,
 	from: -1,
   get isFirstRequest() {
 		return this.from === -1;
@@ -333,7 +317,7 @@ const walletDataSettings = {
 async function walletData() {
   if (active_key) {
   jQuery("#main_wallet_info").css("display", "block");
-  load_balance();
+  load_balance(hive_login, active_key);
 
   // История переводов:
   jQuery("#wallet_transfer_history").css("display", "block");
@@ -442,7 +426,7 @@ items.forEach(item => {
     var curator = op[1].curator;
     var reward = parseFloat(op[1].reward) / 1000000 * hive_per_vests;
     reward = reward.toFixed(6) + ' HP';
-    var memo = 'Кураторская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Кураторская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_curation_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/hive/profiles/' + curator + '" target="_blank">@' + curator + '</a></td>\
@@ -457,7 +441,7 @@ var hbd_payout = op[1].hbd_payout;
 var hive_payout = op[1].hive_payout;
 var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
 vesting_payout = vesting_payout.toFixed(6) + ' HP';
-    var memo = 'Авторская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Авторская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_author_reward"><td>' + transfer_datetime + '</td>\
 <td>' + from + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
@@ -472,7 +456,7 @@ vesting_payout = vesting_payout.toFixed(6) + ' HP';
     var hive_payout = op[1].hive_payout;
     var vesting_payout = parseFloat(op[1].vesting_payout) / 1000000 * hive_per_vests;
     vesting_payout = vesting_payout.toFixed(6) + ' HP';
-    var memo = 'Бенефициарская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Бенефициарская награда за пост <a href="https://hive.blog/@' + author + '/' + permlink + '" target="_blank">https://hive.blog/@' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_content_benefactor_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/hive/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/hive/profiles/' + benefactor + '" target="_blank">@' + benefactor + '</a></td>\
