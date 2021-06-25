@@ -1,17 +1,3 @@
-php_flag display_startup_errors off
-php_flag display_errors off
-php_flag html_errors off
-php_flag log_errors on
-php_flag ignore_repeated_errors off
-php_flag ignore_repeated_source off
-php_flag report_memleaks on
-php_flag track_errors on
-php_value docref_root 0
-php_value docref_ext 0
-php_value error_log /home/s/scadens/dpos.space/public_html/PHP_errors.log
-php_value error_reporting 2047
-php_value log_errors_max_len 0
-
 
 <Files "PHP_errors.log">
     Require all denied
@@ -21,16 +7,6 @@ php_value log_errors_max_len 0
 #php_flag display_errors off
 #php_flag html_errors off
 #php_value max_execution_time 120000
-
-#редирект для поддомена api
-RewriteCond %{HTTP_HOST} ^(www\.)?api\.dpos\.space$ [NC]
-RewriteCond %{REQUEST_URI} !^/api/
-RewriteRule ^(.*)$ api/$1 [L]
-
-#редрект для поддомена viz
-RewriteCond %{HTTP_HOST} ^(www\.)?viz\.dpos\.space$ [NC]
-RewriteCond %{REQUEST_URI} !^/viz-manual/
-RewriteRule ^(.*)$ viz-manual/$1 [L]
 
 #Редирект на https
 RewriteCond %{HTTP:X-Forwarded-Proto} !https
@@ -56,22 +32,6 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.php [L]
 
 Options +FollowSymLinks
-RedirectPermanent /golos-top https://dpos.space/golos/top
-RedirectPermanent /golos-donates https://dpos.space/golos/donates
-RedirectPermanent /viz-top https://dpos.space/viz/top
-RedirectPermanent /golos-polls https://dpos.space/golos/polls
-RedirectPermanent /randomblockchain https://dpos.space/viz/randomblockchain
-RedirectPermanent /dev https://dpos.space
-RedirectMatch 301 ^/calc/(.*) https://dpos.space/$1/calc
-RedirectMatch 301 ^/post/(.*) https://dpos.space/$1/post
-RedirectMatch 301 ^/backup/(.*) https://dpos.space/$1/backup
-RedirectMatch 301 ^/profiles/(.*)/(.*) https://dpos.space/$2/profiles/$1/
-
-RewriteCond %{QUERY_STRING} chain=(.*) [NC]
-RewriteCond %{QUERY_STRING} block1=(.*) [NC]
-RewriteCond %{QUERY_STRING} block2=(.*) [NC]
-RewriteCond %{QUERY_STRING} participants=(.*) [NC]
-RewriteRule ^(.*)$ /(.*)/? [R=301,L]
 </IfModule>
 
 <IfModule mod_expires.c>

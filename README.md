@@ -1,8 +1,9 @@
 # dpos.space
 Сервисы для блокчейнов Steem, Golos, Viz и Hive.
 
-## Характеристики:
-1. Язык программирования - PHP;
+
+## Характеристики и системные требования:
+1. Язык программирования - PHP версии 7.0 и далее;
 2. Используемые библиотеки:
 php-graphene-node-client: https://github.com/t3ran13/php-graphene-node-client и используемые ею.
 parsedown: https://github.com/erusev/parsedown (Используется в backup и profiles).
