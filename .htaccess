@@ -30,8 +30,6 @@ RewriteBase /
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.php [L]
-
-Options +FollowSymLinks
 </IfModule>
 
 <IfModule mod_expires.c>

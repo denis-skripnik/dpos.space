@@ -11,6 +11,16 @@ parsedown: https://github.com/erusev/parsedown (Используется в back
 4. Используется Jquery и Ajax.
 5. Выбор блокчейна происходит на главной в меню.
 
+## Установка:
+1. Скопировать папку в корень сайта
+2. Удалить из htaccess код, касающийся https, если у вас нет его:
+```
+#Редирект на https
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule (.*) https://%{HTTP_HOST}/$1 [L,R=301]
+```
+3. Перейти по url.
+
 ## Структура
 ### blockchains
 Папка блокчейнов. В ней golos, viz, steem, minter и hive.
