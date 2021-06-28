@@ -37,7 +37,7 @@
 
 <header class="header">
 <div class="logo-container">
-<?= (!pageUrl() ? '<img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.jpg" alt="'.$conf['siteName'].'">' : '<a href="'.$conf['siteUrl'].'"><img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.jpg" alt="'.$conf['siteName'].'"></a>'); ?>
+<?= (!pageUrl() ? '<img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.png" alt="'.$conf['siteName'].'">' : '<a href="'.$conf['siteUrl'].'"><img class="logo_image" src="'.$conf['siteUrl'].'template/images/logo.png" alt="'.$conf['siteName'].'"></a>'); ?>
 </div>
     <ul class="nav-list hidden">
     <li class="nav-link"><a href="<?= $conf['siteUrl']; ?>" class="nav-item">ГЛАВНАЯ</a></li>
@@ -69,9 +69,7 @@
 <ul class="list">
 <?= ($data['breadCrumbs'] ?? $data['breadCrumbs'] ?? ""); ?>
 </ul></div>
-<div class="container margin-fix">
-<div id="ytWidget" align="right"></div><script src="https://translate.yandex.net/website-widget/v1/widget.js?widgetId=ytWidget&pageLang=ru&widgetTheme=light&autoMode=true" type="text/javascript"></script>
-</div>
+
 <div class="container margin-fix">
 <h1 class="h1-main"><?= $data['title']; ?></h1>
 <?= $data['content']; ?>
@@ -85,19 +83,34 @@
 </div>
 </main>
 
-<footer class="footer">
-  <p class="p-footer">© 2020 Dpos.space - Opensource проект для приложений, работающих с блокчейнами.</p>
-  <p class="p-footer">Создал данный клиент незрячий программист <span id="creator_login">Денис Скрипник</span>.</p>
-  <div class="profile">
-    <a href="/viz/profiles/denis-skripnik" class="a-footer">профиль в Viz</a>
-    <a href="/minter/profiles/Mxae30a08fae2cc95960c5055d1142fd676995e18b" class="a-footer">Адрес Minter кошелька</a>
-    <a href="/golos/profiles/denis-skripnik" class="a-footer">профиль в Golos.</a>
-  </div>
-  <div class="profile">
-    <a href="https://t.me/denis_skripnik" class="profile-social"><img src="<?= $conf['siteUrl']; ?>template/images/telegram.svg" alt="Telegram" width="30" height="30"> </a>
-    <a href="https://vk.com/denis_skripnik" class="profile-social"><img src="<?= $conf['siteUrl']; ?>template/images/vk.svg" alt="" width="30" height="30"> </a>
-    <a href="https://denis-skripnik.name/contacts" class="profile-social"><img src="<?= $conf['siteUrl']; ?>template/images/global.svg" alt="Обратная связь" width="30" height="30"> </a>
-  </div>
+<footer class="footer"> 
+    <div class="footer_row">
+        <div  class="footer_item" >
+           
+              <p><a href="/viz/profiles/denis-skripnik" class="a-footer">Профиль в Viz</a></p>
+              <p><a href="/minter/profiles/Mxae30a08fae2cc95960c5055d1142fd676995e18b" class="a-footer">Адрес Minter кошелька</a></p>
+              <p><a href="/golos/profiles/denis-skripnik" class="a-footer">Профиль в Golos.</a></p>
+        </div> 
+
+        <div  class="footer_item">
+          <div  class="container margin-fix">
+            <p class="p-footer"> © 2020 Dpos.space - Создал данный клиент незрячий программист <span id="creator_login">Денис Скрипник</span>.</p>
+            <div class="profile">
+              <a href="https://t.me/denis_skripnik" class="profile-social" target="_blank"><img src="<?= $conf['siteUrl']; ?>template/images/telegram.png" alt="Telegram" class="profile-social-item"> </a>
+              <a href="https://vk.com/denis_skripnik" class="profile-social" target="_blank"><img src="<?= $conf['siteUrl']; ?>template/images/vk.png" alt="" class="profile-social-item"> </a>
+              <a href="https://denis-skripnik.name/contact" class="profile-social" target="_blank"><img src="<?= $conf['siteUrl']; ?>template/images/personal_website.png" alt="Обратная связь" class="profile-social-item"> </a>
+            </div> 
+          </div> 
+        </div>  
+
+        <div  class="footer_item">
+          <div id="ytWidget" align="right"></div>
+          <script src="https://translate.yandex.net/website-widget/v1/widget.js?widgetId=ytWidget&pageLang=ru&widgetTheme=light&autoMode=true" type="text/javascript"></script>
+        </div> 
+
+    </div>
+
+
 </footer>
 </body>
 </html>
