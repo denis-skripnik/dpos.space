@@ -13,7 +13,7 @@
                 metadata.profile={};
             }
             if(typeof metadata.profile.about !== 'undefined'){
-                $('textarea[name=about]').html(metadata.profile.about);
+                $('textarea[name=about]').val(metadata.profile.about);
 }
 if(typeof metadata.profile.name !== 'undefined'){
                 $('input[name=nickname]').val(metadata.profile.name);
@@ -84,7 +84,7 @@ if (!metadata.profile) {
                 metadata.profile={};
 }
                 metadata.profile.name=$('input[name=nickname]').val().trim();
-metadata.profile.about=$('textarea[name=about]').html().trim();
+                metadata.profile.about=$('textarea[name=about]').val();
 metadata.profile.profile_image=$('input[name=avatar]').val().trim();
 metadata.profile.cover_image =$('input[name=cover_image]').val().trim();
 if ($('.profile-update select[name=gender]').val()) {
