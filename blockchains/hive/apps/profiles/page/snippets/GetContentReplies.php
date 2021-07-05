@@ -19,7 +19,7 @@ $comment_data = [
 ];
 
 if ($start !== false) {
-    $data[0]['start_permlink'] = $start;
+    $comment_data[0]['start_permlink'] = $start;
 }
 
 $commandQuery->setParams($comment_data);

@@ -14,7 +14,8 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
     } else if (isset($conf['siteUrl'])) {
         $site_url = $conf['siteUrl'];
     }
-require 'snippets/GetContentReplies.php';
+
+    require 'snippets/GetContentReplies.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/helpers.php';
 
 function generate_html_text($markdown_text){
