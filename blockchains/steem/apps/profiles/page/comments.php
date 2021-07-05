@@ -76,7 +76,7 @@ foreach ($mass as $datas) {
 <td><a href="'.$site_url.'steem/profiles/'.$parent_author.'" target="_blank">'.$parent_author.'</a></td>
 <td>'.$comment_created.'</td>
 <td>'.$markdown_text.'</td>
-<td><a href="https://steemit.com/@'.$op['author'].'/'.$permlink.'/#/@'.$parent_author.'/'.$parent_permlink.'" target="_blank">'.$permlink.'</a></td>
+<td><a href="https://steemit.com/@'.$op['author'].'/'.$permlink.'" target="_blank">'.$permlink.'</a></td>
 </tr>';
         }
     }
