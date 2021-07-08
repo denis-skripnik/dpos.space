@@ -2,6 +2,7 @@ var gates = {};
 gates.PRIZM = {};
 gates.YMRUB = {};
 gates.YMPZM = {};
+gates.YMDASH = {};
 gates.VIZUIA = {};
 gates.DOGECOIN = {};
 gates.PRIZM.withdraw = {
@@ -107,6 +108,28 @@ gates.YMPZM.deposit = {
   ]
   };
 
+  gates.YMDASH.withdraw = {
+    account: "ecurrex-dash",
+  get_max: {
+    allow: false,
+  login: "ecurrex-ru",
+    separator: " / ",
+  },
+    vars: [
+      {
+        name: "",
+        address: "Адрес кошелька DASH",
+      }
+      ],
+    separator: ""
+  };
+
+  gates.YMDASH.deposit = {
+    type: "get_address",
+    account: "ecurrex-dash",
+    memo: "deposit"
+      };
+
   gates.VIZUIA.withdraw = {
     account: "xchng",
   get_max: {
@@ -150,7 +173,13 @@ gates.YMPZM.deposit = {
     separator: ""
   };
 
-  async function links(tipe, token) {
+  gates.DOGECOIN.deposit = {
+type: "get_address",
+account: "golos.doge",
+memo: "deposit"
+  };
+  
+    async function links(tipe, token) {
   $('#actions').html('');
   if (token === 'GOLOS' && tipe === 'main_balance') {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
@@ -324,33 +353,20 @@ let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
   tokens.push({name: 'DELEGATED_GP', main_balance: parseFloat(delegated_gp)});
   tokens.push({name: 'RECEIVED_GP', main_balance: parseFloat(received_gp)});
   let accounts_balances = await golos.api.getAccountsBalancesAsync([golos_login]);
+  let yes_balances = [];
   if (accounts_balances && accounts_balances.length > 0) {
     let uias = accounts_balances[0];
-    let isYMRUB = false;
-    let isYMPZM = false;
-    let isVIZUIA = false;
     for (let name in uias) {
-if (name === 'YMRUB') {
-  isYMRUB = true;
-}
-if (name === 'YMPZM') {
-  isYMPZM = true;
-}      
-if (name === 'VIZUIA') {
-  isVIZUIA = true;
-}
-let token = uias[name];
+      yes_balances.push(name);
+      let token = uias[name];
 tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFloat(token.tip_balance)});
     }
-  if (isYMRUB == false) {
-    tokens.push({name: 'YMRUB', main_balance: 0, tip_balance: 0});
-  }
-  if (isYMPZM == false) {
-    tokens.push({name: 'YMPZM', main_balance: 0, tip_balance: 0});
-  }  
-  if (isVIZUIA == false) {
-    tokens.push({name: 'VIZUIA', main_balance: 0, tip_balance: 0});
-  }
+}
+
+for (let name in gates) {
+if (yes_balances.indexOf(name) === -1) {
+  tokens.push({name, main_balance: 0, tip_balance: 0});
+}
 }
 
 let balances_table = '';
@@ -857,6 +873,34 @@ async function cancelDelegatedVestingShares(delegatee) {
   }
 }
 
+async function getDepositAddress(token) {
+let deposit = gates[token].deposit;
+try {
+let accounts = await golos.api.getAccountsAsync([golos_login]);
+let acc = accounts[0];
+if (parseFloat(acc.balance) >= 0.001) {
+  let send = await golos.broadcast.transferAsync(active_key, golos_login, deposit.account, "0.001 GOLOS", deposit.memo);
+  setInterval(async function() {
+    let history = await golos.api.getAccountHistoryAsync(golos_login, -1, 1, {"select_ops":["transfer"]});
+    for (let el of history) {
+      let data = el[1].op[1];
+      if (data.from === deposit.account) {
+$('#uia_deposit_address').html(prepareContent(data.memo));
+        return;
+      } else {
+        $('#uia_deposit_address').html('Ждём получения адреса ' + token + '.');
+      }
+    }
+  }, 5000);
+} else {
+  window.alert('Ваш баланс < 0.001 GOLOS');
+}
+} catch(e) {
+  await getDepositAddress(token);
+  console.error(e);
+}
+}
+
 $(document).ready(async function() {
   let main_data =await mainData();
     if (main_data !== false) {
@@ -1172,7 +1216,13 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
     $('.uia_deposit_modal_token').html(token);
     if (gates[token] && gates[token].deposit) {
 let deposit = gates[token].deposit;
-let res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
+let res = '';
+if (deposit.type === 'get_address') {
+res = `<p>Нажмите на кнопку ниже, чтобы получить адрес пополнения.</p>
+<div id="uia_deposit_address"><button onclick="getDepositAddress('${token}')">Получить адрес</button></div>`;
+  
+} else {
+  res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
 `;
 let vars = deposit.vars;
 for (let method of vars) {
@@ -1181,6 +1231,7 @@ for (let el in method) {
 res += `<li>${method[el].name}: ${method[el].value} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${method[el].value.replace(/<[^>]*>/g, "")}').then(() => {console.log('Successfully copied to clipboard');}).catch(() => {console.log('Copy error');});">)</li>`;
 }
   res += `</ul>`;
+}
 }
 
 $('#uia_diposit_data').html(res);
