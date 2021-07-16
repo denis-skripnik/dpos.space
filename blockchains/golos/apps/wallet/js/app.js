@@ -3,6 +3,8 @@ gates.PRIZM = {};
 gates.YMRUB = {};
 gates.YMPZM = {};
 gates.YMDASH = {};
+gates.YMHIVE = {};
+gates.YMSTEEM = {};
 gates.VIZUIA = {};
 gates.DOGECOIN = {};
 gates.PRIZM.withdraw = {
@@ -128,6 +130,64 @@ gates.YMPZM.deposit = {
     type: "get_address",
     account: "ecurrex-dash",
     memo: "deposit"
+      };
+
+      gates.YMHIVE.withdraw = {
+        account: "ecurrex-hive",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "hive",
+            address: "Аккаунт в Hive",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMHIVE.deposit = {
+      vars: [
+        {
+          address: {
+            name: "Аккаунт в Hive",
+            value: `ecurrex-ru`,
+          },
+          memo: {
+            name: "Примечание к платежу",
+            value: "golos:" + golos_login
+          }
+          }
+      ]
+      };
+
+      gates.YMSTEEM.withdraw = {
+        account: "ecurrex-steem",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "steem",
+            address: "Аккаунт в Steem",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMSTEEM.deposit = {
+      vars: [
+        {
+          address: {
+            name: "Аккаунт в Steem",
+            value: `ecurrex-ru`,
+          },
+          memo: {
+            name: "Примечание к платежу",
+            value: "golos:" + golos_login
+          }
+          }
+      ]
       };
 
   gates.VIZUIA.withdraw = {
