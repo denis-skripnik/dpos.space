@@ -7,4 +7,6 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Parsedown' => array($vendorDir . '/erusev/parsedown'),
+    'Minter\\' => array($vendorDir . '/minter/minter-php-sdk/src'),
+    'BIP\\' => array($vendorDir . '/minter/minter-php-bip-44/src'),
 );

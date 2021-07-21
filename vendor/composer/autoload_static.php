@@ -6,22 +6,56 @@ namespace Composer\Autoload;
 
 class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
 {
+    public static $files = array (
+        '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
+        'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
+        '25072dd6e2470089de65ae7bf11d3109' => __DIR__ . '/..' . '/symfony/polyfill-php72/bootstrap.php',
+        'c964ee0ededf28c96ebd9db5099ef910' => __DIR__ . '/..' . '/guzzlehttp/promises/src/functions_include.php',
+        'a0edc8309cc5e1d60e3047b5df6b7052' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/functions_include.php',
+        'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
+        '37a3dc5111fe8f707ab4c132ef1dbc62' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/functions_include.php',
+        '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
+        '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
+    );
+
     public static $prefixLengthsPsr4 = array (
         't' => 
         array (
             't3ran13\\ByteBuffer\\' => 19,
         ),
+        'k' => 
+        array (
+            'kornrunner\\' => 11,
+        ),
         'W' => 
         array (
             'WebSocket\\' => 10,
+            'Web3p\\RLP\\' => 10,
         ),
         'S' => 
         array (
+            'Symfony\\Polyfill\\Php72\\' => 23,
+            'Symfony\\Polyfill\\Intl\\Normalizer\\' => 33,
+            'Symfony\\Polyfill\\Intl\\Idn\\' => 26,
+            'Symfony\\Polyfill\\Ctype\\' => 23,
+            'Symfony\\Component\\Yaml\\' => 23,
             'StephenHill\\Benchmarks\\' => 23,
             'StephenHill\\' => 12,
         ),
+        'P' => 
+        array (
+            'Psr\\Http\\Message\\' => 17,
+        ),
+        'M' => 
+        array (
+            'Mdanter\\Ecc\\Tests\\' => 18,
+            'Mdanter\\Ecc\\' => 12,
+        ),
         'G' => 
         array (
+            'GuzzleHttp\\Psr7\\' => 16,
+            'GuzzleHttp\\Promise\\' => 19,
+            'GuzzleHttp\\' => 11,
             'GrapheneNodeClient\\' => 19,
         ),
         'E' => 
@@ -30,6 +64,7 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
         ),
         'B' => 
         array (
+            'BitWasp\\BitcoinLib\\' => 19,
             'BN\\' => 3,
             'BI\\' => 3,
         ),
@@ -40,9 +75,37 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
         array (
             0 => __DIR__ . '/..' . '/t3ran13/bytebuffer/src/t3ran13/ByteBuffer',
         ),
+        'kornrunner\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/kornrunner/keccak/src',
+        ),
         'WebSocket\\' => 
         array (
             0 => __DIR__ . '/..' . '/textalk/websocket/lib',
+        ),
+        'Web3p\\RLP\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/minter/php-rlp/src',
+        ),
+        'Symfony\\Polyfill\\Php72\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-php72',
+        ),
+        'Symfony\\Polyfill\\Intl\\Normalizer\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer',
+        ),
+        'Symfony\\Polyfill\\Intl\\Idn\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-intl-idn',
+        ),
+        'Symfony\\Polyfill\\Ctype\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-ctype',
+        ),
+        'Symfony\\Component\\Yaml\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/yaml',
         ),
         'StephenHill\\Benchmarks\\' => 
         array (
@@ -52,6 +115,30 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
         array (
             0 => __DIR__ . '/..' . '/stephenhill/base58/src',
         ),
+        'Psr\\Http\\Message\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/psr/http-message/src',
+        ),
+        'Mdanter\\Ecc\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/mdanter/ecc/tests/unit',
+        ),
+        'Mdanter\\Ecc\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/mdanter/ecc/src',
+        ),
+        'GuzzleHttp\\Psr7\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/psr7/src',
+        ),
+        'GuzzleHttp\\Promise\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/promises/src',
+        ),
+        'GuzzleHttp\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/guzzle/src',
+        ),
         'GrapheneNodeClient\\' => 
         array (
             0 => __DIR__ . '/..' . '/t3ran13/php-graphene-node-client',
@@ -59,6 +146,10 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
         'Elliptic\\' => 
         array (
             0 => __DIR__ . '/..' . '/simplito/elliptic-php/lib',
+        ),
+        'BitWasp\\BitcoinLib\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/bitwasp/bitcoin-lib/src',
         ),
         'BN\\' => 
         array (
@@ -78,6 +169,24 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
                 0 => __DIR__ . '/..' . '/erusev/parsedown',
             ),
         ),
+        'M' => 
+        array (
+            'Minter\\' => 
+            array (
+                0 => __DIR__ . '/..' . '/minter/minter-php-sdk/src',
+            ),
+        ),
+        'B' => 
+        array (
+            'BIP\\' => 
+            array (
+                0 => __DIR__ . '/..' . '/minter/minter-php-bip-44/src',
+            ),
+        ),
+    );
+
+    public static $classMap = array (
+        'Normalizer' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/Resources/stubs/Normalizer.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
@@ -86,6 +195,7 @@ class ComposerStaticInit49b6f689ee4a2400383f23f18415af81
             $loader->prefixLengthsPsr4 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixLengthsPsr4;
             $loader->prefixDirsPsr4 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixDirsPsr4;
             $loader->prefixesPsr0 = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInit49b6f689ee4a2400383f23f18415af81::$classMap;
 
         }, null, ClassLoader::class);
     }

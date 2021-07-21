@@ -1,6 +1,8 @@
 {
     "require": {
         "t3ran13/php-graphene-node-client": "^6.0",
-        "erusev/parsedown": "^1.7"
+        "erusev/parsedown": "^1.7",
+        "minter/minter-php-sdk": "^3.0",
+        "symfony/yaml": "^5.2"
     }
 }

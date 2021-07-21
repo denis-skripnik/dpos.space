@@ -162,7 +162,7 @@ var nvwithdrawal = Date.parse(acc.next_vesting_withdrawal);
 $("#nvwithdrawal").html(nvwithdrawal);
 var next_vesting_withdrawal = date_str(nvwithdrawal-(new Date().getTimezoneOffset()*60000),true,false,true);
 $("#next_vesting_withdrawal").html(next_vesting_withdrawal);
-var full_vesting_withdraw = (vesting_withdraw_rate*4).toFixed(6) + ' HP';
+var full_vesting_withdraw = (vesting_withdraw_rate*13).toFixed(6) + ' HP';
 $("#full_vesting_withdraw").html(full_vesting_withdraw);
 if (full_vesting_withdraw !== '0.000000 HP') {
 jQuery("#info_vesting_withdraw").css("display", "block");

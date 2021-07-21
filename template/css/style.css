@@ -489,7 +489,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
 .container-banner1{
   position: absolute;
   right: 5%;
-  bottom: 35%;
+  top: 15%;
   width: 600px;
   height: 405px;  
   transform: rotate(0deg);  
@@ -498,16 +498,16 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
 .container-banner2{
   position: absolute;
   right: 18%;
-  bottom: 9%;
+  top: 39%;
   width: 500px;
   height: 375px;  
   transform: rotate(0deg);  
 }
 .container-banner3{
   position: absolute;
-  right: 1%;
-  bottom: 15%;
-  width: 380px;
+  right: 7%;
+  top: 35%;
+  width: 280px;
   height: 375px;  
   transform: rotate(0deg);  
 } 
@@ -526,7 +526,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
   right: 0%;
   top: 10%;
   width: 47%;
-  height: 70%;   
+  height: 68%;   
   border-radius: 21px;  
 }
 .container-text-content{  
@@ -560,34 +560,34 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     }
     .container-banner1{
       position: absolute;
-      right: 5%;
-      bottom: 35%;
-      width: 400px;
-      height: 405px;  
+      right: 13%;
+      top: 12%;
+      width: 450px;
+      height: 305px;  
       transform: rotate(0deg);  
     }
     
     .container-banner2{
       position: absolute;
-      right: 15%;
-      bottom: 7%;
+      right: 16%;
+      top: 40%;
       width: 400px;
-      height: 375px;  
+      height: 275px;  
       transform: rotate(0deg);  
     }
     .container-banner3{
       position: absolute;
-      right: 1%;
-      bottom: 20%;
+      right: 2%;
+      top: 30%;
       width: 370px;
-      height: 375px;  
+      height: 275px;  
       transform: rotate(0deg);  
     } 
   }
   
   
   /* для мобилок */
-  @media (max-width: 760px) {
+  @media (max-width: 820px) {
   
   .show{
     display: flex;
@@ -633,21 +633,21 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     width: 90%;  
     margin-top: 20px; 
     left: 5%;
+    margin-bottom: 20px;
+    margin-top: 20px;
   }
   
   .container-banner2{  
     position: absolute;
-    margin-top: 0px;
+    margin-top: 170px;
     width: 50%;  
-    left: 0%;
-    bottom: -20%;
+    left: 0%; 
   }
   .container-banner3{   
-    position: absolute;
-    margin-top: 0px;
-    width: 50%;  
+    position: absolute; 
+    width: 45%;  
     right: 1%;
-    bottom: 9%;
+    margin-top: 100px;
   } 
   .container-bg{ 
     background-color: white;
