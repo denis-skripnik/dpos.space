@@ -22,13 +22,18 @@ $percent = 0.2 + $change_k;
 <table>
 <thead><tr><th>Адрес</th>
 <th>Ликвидность (кол-во LP-токенов)</th>
-<th>Инвестиционных дней</th></tr></thead>
+<th>Инвестиционных дней</th>
+<th>Полученная в последний раз сумма</th>
+<th>Добавленная сумма (для бонуса к инвест. дням)</th>
+</tr></thead>
 <tbody>';
 foreach($res['providers'] as $provider) {
 $content .= '<tr>
 <td><a href="https://chainik.io/address/'.$provider['address'].'" target="_blank">'.$provider['address'].'</a></td>
 <td>'.round($provider['liquidity'], 5).'</td>
 <td>'.$provider['invest_days'].'</td>
+<td>'.round($provider['get_amount'], 5).' LONG</td>
+<td>'.round($provider['add_amount'], 5).' LONG</td>
 </tr>';
 }
 $content .= '</tbody></table>';
