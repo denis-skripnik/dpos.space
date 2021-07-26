@@ -1,10 +1,10 @@
-axios.defaults.baseURL = 'https://api.minter.one';
+axios.defaults.baseURL = 'https://api.minter.one/v2';
 
 function blocksData(start_block, end_block) {
-   axios.get('/block?height=' + start_block)
+   axios.get('/block/' + start_block)
   .then(function (response) {
     // handle success
-    document.getElementById("sig1").innerHTML = response.data.result.hash;
+    document.getElementById("sig1").innerHTML = response.data.hash;
     console.log(response);
   })
   .catch(function (error) {
@@ -14,10 +14,10 @@ function blocksData(start_block, end_block) {
   .then(function () {
     // always executed
   });
-  axios.get('/block?height=' + end_block)
+  axios.get('/block/' + end_block)
   .then(function (response) {
     // handle success
-    document.getElementById("sig2").innerHTML = response.data.result.hash;
+    document.getElementById("sig2").innerHTML = response.data.hash;
     console.log(response);
   })
   .catch(function (error) {
