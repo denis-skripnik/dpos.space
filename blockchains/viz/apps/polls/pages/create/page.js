@@ -35,7 +35,7 @@ answers.push(a);
 function sendData(operations) {
     var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 1 VIZ');
     if (q === true) {
-    viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+        viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
     window.alert('Опрос успешно создан.');
 } else {
@@ -60,12 +60,19 @@ memo_array.contractPayload.consider = parseFloat(consider);
 let memo = JSON.stringify(memo_array);
     let data_url = [];
     data_url.push(["transfer",{"from":sender,"to":"committee","amount":"1.000 VIZ","memo":memo}]);
-    let str_data_url = JSON.stringify(data_url);
+        let str_data_url = JSON.stringify(data_url);
     if (answers.length > 0) {
     if (clients === "sign") {
 window.open("https://viz.dpos.space/viz-sign/?user=" + sender + "&tr=" + str_data_url);
     } else if (clients === 'dpos.space') {
-sendData(data_url);
+            if(current_user.type && current_user.type === 'vizonator') {
+                var q = window.confirm('Вы действительно хотите создать опрос? Операция платная: стоит 1 VIZ');
+                if (q === true) {
+                        sendToVizonator('transfer', {"to":"committee","amount":"1.000 VIZ","memo":memo})
+              return;
+              }
+            }
+              sendData(data_url);
     }
 } else {
 window.alert('Нет добавленных вариантов ответа.');

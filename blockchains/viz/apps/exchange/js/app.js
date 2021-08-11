@@ -233,6 +233,10 @@ let address = window.prompt('Введите ваш Ethereum адрес, на к�
                 let viz_wallet = data.viz_wallet;
                 sell_amount = sell_amount.toFixed(3) + ' VIZ';
                 try {
+                    if(current_user.type && current_user.type === 'vizonator') {
+                                sendToVizonator('transfer', {"to":viz_wallet,"amount": sell_amount,"memo": address.trim()})
+                      return;
+                    }
                     await viz.broadcast.transferAsync(active_key, viz_login, viz_wallet, sell_amount, address.trim());
                 window.alert('Ваши Viz поступили в обменник viz+. Ожидайте получение USDT.');
                 } catch(e) {
@@ -255,12 +259,19 @@ try {
 			exchange_listen_from_block=response.head_block_number;
         }
     });			
+    if(current_user.type && current_user.type === 'vizonator') {
+        sendToVizonator('transfer', {"to": 'data.exch.bank.viz.plus',"amount": eth_wallet_cost,"memo": ''})
+        await loadBalance();
+
+        clearTimeout(exchange_listen_timer);
+        exchange_listen_timer=setTimeout(function(){exchange_start_listen();},3000);
+} else {
     await viz.broadcast.transferAsync(active_key, viz_login, 'data.exch.bank.viz.plus', eth_wallet_cost, '');
 await loadBalance();
 
     clearTimeout(exchange_listen_timer);
     exchange_listen_timer=setTimeout(function(){exchange_start_listen();},3000);
-
+}
 } catch(e) {
     $('.exchange-buy-error').html(`Ошибка: ${e}`);
 }

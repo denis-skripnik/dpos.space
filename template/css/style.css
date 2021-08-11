@@ -194,27 +194,23 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     width: 30%;
     display: flex;
     align-items: center;
-    padding-left: 30px;
+    padding-left: 20px;
     margin-right: auto;
   }
   
   /* Стили для списка меню */
   .nav-list{
     display: flex;
-    Width:55%;
+    Width:90%;
     height: 100%;
     align-items: center;
-    Padding-left:2Px;
-    Padding-right:2px;
-    Margin-right:5px;
-    Margin-left:-5px;
+    margin-right:5px;
   }
   
   /* стили для элементов списка меню */
   .nav-link{
     width:100%;
-    z-index:10;
-    padding-left:5px;
+    z-index:10; 
     padding-right:5px;
     height: 40px; 
     border-radius: 10px;
@@ -226,11 +222,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     z-index: 10;
     height: 40px;
     background-color: white; 
-    border-top: 1px solid rgb(209, 209, 209);
-    Padding-left:2Px;
-    Padding-right:2px;
-    Margin-right:5px;
-    Margin-left:-5px; 
+    border-top: 1px solid rgb(209, 209, 209);  
   }
   
 /* отступы кроме последнего элемента */
@@ -252,7 +244,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     display: flex;
     align-items: center;
     justify-content: center; 
-    font-size: 14px;
+    font-size: 12px;
     font-weight: bold;
     cursor:pointer;
     text-decoration: none; 
@@ -587,7 +579,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
   
   
   /* для мобилок */
-  @media (max-width: 820px) {
+  @media (max-width: 920px) {
   
   .show{
     display: flex;
@@ -630,16 +622,15 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
 
   .container-banner1{  
     position: inherit;
-    width: 90%;  
-    margin-top: 20px; 
+    width: 80%;   
     left: 5%;
-    margin-bottom: 20px;
-    margin-top: 20px;
+    margin-bottom: 25px;
+    margin-top: 10px;
   }
   
   .container-banner2{  
     position: absolute;
-    margin-top: 170px;
+    margin-top: 130px;
     width: 50%;  
     left: 0%; 
   }
@@ -653,7 +644,7 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
     background-color: white;
     position: absolute;
     left: 40%;
-    top: 37%;
+    top: 36%;
     width: 67%;
     height: 50%;   
     border-radius: 21px;  

@@ -119,7 +119,10 @@ custom_sequence = 0;
 			if (link.indexOf('://') > -1) link = link.split('://')[1];
 			if (inlink.indexOf('://') > -1) inlink = inlink.split('://')[1];
 		var memo = `${keyword},${link}${inlink}`;
-
+		if(current_user.type && current_user.type === 'vizonator') {
+			sendToVizonator('award', {receiver: target, energy, custom_sequence, memo})
+		  return;
+		  }
 		viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
 if (!err) {
 	jQuery("#main_award_info").css("display", "block");

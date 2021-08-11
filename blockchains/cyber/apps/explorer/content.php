@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function node($params) {
-  $html = file_get_contents('https://api.cyber.cybernode.ai/'.$params);
+  $html = file_get_contents('https://deimos.cybernode.ai/'.$params);
   $data = json_decode($html, true);
 return $data['result'];
 }

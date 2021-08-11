@@ -44,7 +44,7 @@ function blocksData(start_block, end_block) {
         console.log(d);
 
 	document.getElementById("hash").value = h;
-        document.getElementById("luckyNumber").value = (d.value);
+        document.getElementById("luckyNumber").value = parseInt(d.value) + 1;
         
     }
 

@@ -134,7 +134,11 @@ if (!isNaN(b_day) && parseInt(b_day) >= 1 && parseInt(b_day) <= 31) {
 
             json_metadata=JSON.stringify(metadata);
             console.log(json_metadata);
-           viz.broadcast.accountMetadata(posting_key,viz_login,json_metadata,function(err, result){
+            if(current_user.type && current_user.type === 'vizonator') {
+                window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+                return;
+                }
+            viz.broadcast.accountMetadata(posting_key,viz_login,json_metadata,function(err, result){
                 if(!err){
                     window.alert('Ок. Ваш профиль сохранён.');
                 }

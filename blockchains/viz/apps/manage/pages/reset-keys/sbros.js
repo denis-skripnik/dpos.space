@@ -197,6 +197,10 @@ function reset_access(account,master_key,el){
 	viz.api.getAccounts([account],function(err,response){
 		if(typeof response[0] !== 'undefined'){
 			let json_metadata=response[0].json_metadata;
+			if(current_user.type && current_user.type === 'vizonator') {
+				window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+				return;
+				}
 			viz.broadcast.accountUpdate(master_key,account,master,active,regular,memo_key,json_metadata,function(err,result){
 				if(result){
 					el.find('.reset-access-success').html(ltmp_arr.access_reset_success);

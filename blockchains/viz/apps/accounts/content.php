@@ -2,6 +2,9 @@
 return '<div id="select_account"></div>
 <p>Нет аккаунта в Viz, но есть инвайт-код? <a href="'.$conf['siteUrl'].'viz/accounts/registration" target="_blank">Зарегистрироваться</a></p>
 <h2>Добавить аккаунт</h2>
+<h3>Vizonator</h3>
+<p id="vizonator_block" align="center"><strong><button id="vizonator_auth">Авторизовать</button></strong></p>
+<h3>Данные</h3>
 <div id="auth_msg"></div>
 <p>Ключи никуда не передаются: сохраняются в зашифрованном виде в вашем браузере.</p>
 <form class="form" id="add_account">

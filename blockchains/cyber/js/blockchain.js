@@ -1,5 +1,5 @@
 const {builder, codec, crypto, constants, keypair} = window.bundle;
-// https://cyber.cybernode.ai
+// deimos.cybernode.ai
 axios.defaults.baseURL = 'https://dpos.space/blockchains/cyber/node.php';
 
 let current_user = JSON.parse(localStorage.getItem("cyber_current_user"));

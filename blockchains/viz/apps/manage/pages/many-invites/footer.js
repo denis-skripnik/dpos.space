@@ -22,7 +22,11 @@ invites[c] = pass_gen();
 let pub_wif = viz.auth.wifToPublic(invites[c]);
 operations.push(['create_invite', {'creator':viz_login,'balance':invites_amount,'invite_key':pub_wif}]);
 }
-    viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+if(current_user.type && current_user.type === 'vizonator') {
+    window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+    return;
+    }    
+viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
     window.alert('Чеки созданы.');
     $('#result_invites').append(invites.join('\r\n'));
@@ -42,7 +46,11 @@ if (invite !== '') {
     operations.push(['claim_invite_balance', {'initiator':viz_login,'receiver':viz_login,'invite_secret':invite}]);
 }
 }
-    viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+if(current_user.type && current_user.type === 'vizonator') {
+    window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+    return;
+    }    
+viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
 if (!err) {
 window.alert('Чеки использованы на баланс.');
 } else {
@@ -59,7 +67,11 @@ $('#use_invites_balance').click(function() {
         operations.push(['use_invite_balance', {'initiator':viz_login,'receiver':viz_login,'invite_secret':invite}]);
     }
     }
-        viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+    if(current_user.type && current_user.type === 'vizonator') {
+        window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+        return;
+        }    
+    viz.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
     if (!err) {
     window.alert('Чеки использованы в соц. капитал.');
     } else {

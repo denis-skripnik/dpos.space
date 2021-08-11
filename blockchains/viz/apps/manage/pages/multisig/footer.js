@@ -189,6 +189,10 @@ for (regular_account of maccs) {
 console.log(active_authority,regular_authority)
          var memo = account.memo_key;
 console.log(regular_authority)
+if(current_user.type && current_user.type === 'vizonator') {
+    window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+    return;
+    }
 viz.broadcast.accountUpdate(active_key, 
 viz_login, undefined, active_authority, 
 regular_authority, memo
@@ -214,7 +218,11 @@ viz.api.getAccounts([viz_login], function(e, data){
        var pAuth = {"weight_threshold": 1,"account_auths": [],"key_auths":account.regular_authority.key_auths};
        var active_authority = {"weight_threshold": 1,"account_auths": [],"key_auths":account.active_authority.key_auths};
          var memo = account.memo_key;
-viz.broadcast.accountUpdate(active_key, 
+         if(current_user.type && current_user.type === 'vizonator') {
+            window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+            return;
+            }
+         viz.broadcast.accountUpdate(active_key, 
 viz_login, undefined, active_authority, 
            pAuth, memo
                , account.json_metadata, function(err, result) {

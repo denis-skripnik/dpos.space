@@ -62,6 +62,10 @@ function create_account(account_login,token_amount,shares_amount){
                                 $('#account_create_error').html(`<p><strong><span style="color: red;">Аккаунт уже существует, попробуйте другой.</span></strong></p>`);
                             } else {
                                 $('#account_create_error').css('display', 'none');
+                                if(current_user.type && current_user.type === 'vizonator') {
+                                    window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+                                    return;
+                                    }
                                 viz.broadcast.accountCreate(active_key,fixed_token_amount,fixed_shares_amount,viz_login,account_login,master,active,regular,memo_key,json_metadata,referrer,[],function(err,result){
                     if(!err){
                         $('.btn btn-primary').css('display', 'none');

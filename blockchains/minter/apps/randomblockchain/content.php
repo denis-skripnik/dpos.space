@@ -1,8 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
 if (!empty($_GET)) {
-$start_block = $_GET['block1'];
-$end_block = $_GET['block2'];
+$start_block = $_GET['block2'];
+$end_block = $_GET['block1'];
 $participants = $_GET['participants'];
 $start_link = '<a href="https://explorer.minter.network/blocks/'.$start_block.'" target="_blank">'.$start_block.'</a>';
 $end_link = '<a href="https://explorer.minter.network/blocks/'.$end_block.'" target="_blank">'.$end_block.'</a>';

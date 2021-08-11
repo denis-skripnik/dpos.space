@@ -807,6 +807,10 @@
                         return;
                     }
                     console.log(xhr.responseText);
+                            if(current_user.type && current_user.type === 'vizonator') {
+			sendToVizonator('custom', {"protocol_id":document.querySelector(".generated-form").id,"json":xhr.responseText})
+  return;
+        }
                     viz.broadcast.custom(posting_key, [], [viz_login], document.querySelector(".generated-form").id, xhr.responseText, function(err, result) {
                         if (!err) {
                             alert('Ок. custom отправлен')

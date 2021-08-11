@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 try {
-    $html = file_get_contents('https://api.cyber.cybernode.ai/validators?page=1&per_page=100');
+    $html = file_get_contents('https://deimos.cybernode.ai/validators?page=1&per_page=100');
     $validators = json_decode($html, true)['result'];
     $list = $validators['validators'];
     $content = '<h2>Блок: <a href="'.$conf['siteUrl'].'cyber/explorer/block/'.$validators['block_height'].'" target="_blank">'.$validators['block_height'].'</a></h2>

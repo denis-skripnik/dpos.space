@@ -101,7 +101,11 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 
 function proxyVote() {
     let proxy_login = $('input[name=proxy_login]').val();
-    viz.broadcast.accountWitnessProxy(active_key, viz_login, proxy_login, function(err, result) {
+	if(current_user.type && current_user.type === 'vizonator') {
+		window.alert('Vizonator не поддерживает данный тип операций. Пожалуйста, выберите другой аккаунт, авторизованный на dpos.space при помощи ключей.');
+	return;
+	}
+	viz.broadcast.accountWitnessProxy(active_key, viz_login, proxy_login, function(err, result) {
 if (!err) {
     window.alert('Прокси ' + proxy_login + ' успешно установлен.')
 } else {
@@ -112,7 +116,11 @@ if (!err) {
 
 function oneWitnessVote() {
     let witness_login = $('input[name=witness_login]').val();
-    viz.broadcast.accountWitnessVote(active_key, viz_login, witness_login, true, function(err, result) {
+	if(current_user.type && current_user.type === 'vizonator') {
+		window.alert('Vizonator не поддерживает данный тип операций. Пожалуйста, выберите другой аккаунт, авторизованный на dpos.space при помощи ключей.');
+	return;
+	}
+	viz.broadcast.accountWitnessVote(active_key, viz_login, witness_login, true, function(err, result) {
 if (!err) {
     window.alert('Вы успешно проголосовали за делегата ' + witness_login + '.')
 } else {
@@ -158,7 +166,11 @@ return false;
             operations.push(op);  
     }
     }
-    viz.broadcast.send({extensions: [], operations}, [active_key], function(error, res) {
+	if(current_user.type && current_user.type === 'vizonator') {
+		window.alert('Vizonator не поддерживает данный тип операций. Пожалуйста, выберите другой аккаунт, авторизованный на dpos.space при помощи ключей.');
+	return;
+	}
+	viz.broadcast.send({extensions: [], operations}, [active_key], function(error, res) {
 if (!error) {
     window.alert('Голоса успешно установлены.');
 } else {

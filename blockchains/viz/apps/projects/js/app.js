@@ -5,7 +5,12 @@ function sendTransfer(name, data) {
 		arr[0] = name;
 		arr[1] = data;
 		let json = JSON.stringify(arr);
-	viz.broadcast.transfer(active_key, viz_login, 'viz-projects', '1.000 VIZ', json, function(err, result) {
+	
+		if(current_user.type && current_user.type === 'vizonator') {
+					sendToVizonator('transfer', {"to":'viz-projects',"amount":"1.000 VIZ","memo": json})
+		  return;
+		}
+		viz.broadcast.transfer(active_key, viz_login, 'viz-projects', '1.000 VIZ', json, function(err, result) {
 	  if (!err) {
 	window.alert('Операция произведена успешно.');
 	  }
@@ -22,6 +27,10 @@ function sendCustom(name, data) {
 		arr[0] = name;
 		arr[1] = data;
 		let json = JSON.stringify(arr);
+		if(current_user.type && current_user.type === 'vizonator') {
+			sendToVizonator('custom', {"protocol_id":'viz-projects',"json":json})
+  return;
+}
 		viz.broadcast.custom(posting_key,[],[viz_login],'viz-projects', json, function(err, result) {
 if (!err) {
 	window.alert('Успешно.');

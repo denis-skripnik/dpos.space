@@ -286,7 +286,10 @@ function manage_access_save(account,master_key,el){
 	el.find('.manage-access-save-action').attr('disabled','disabled');
 	el.find('.icon-check[rel=save]').css('display','none');
 	el.find('.submit-button-ring[rel=save]').css('display','inline-block');
-
+    if(current_user.type && current_user.type === 'vizonator') {
+		window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+		return;
+		}
 	viz.broadcast.accountUpdate(master_key,account,master,active,regular,memo_key,json_metadata,function(err,result){
 		if(result){
 			el.find('.manage-access-save-success').html(ltmp_arr.access_saved_successfully+(0<to_save.length?ltmp_arr.access_save_keys:''));

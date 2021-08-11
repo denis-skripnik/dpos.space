@@ -1,4 +1,4 @@
-axios.defaults.baseURL = 'https://api.cyber.cybernode.ai';
+axios.defaults.baseURL = 'https://deimos.cybernode.ai';
 
 function blocksData(start_block, end_block) {
    axios.get('/block?height=' + start_block)

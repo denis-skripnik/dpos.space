@@ -74,6 +74,10 @@ $('#witness_options').click(function() {
     if (blockSigningKey === '') {
         blockSigningKey = 'VIZ1111111111111111111111111111111114T1Anm';
     }
+    if(current_user.type && current_user.type === 'vizonator') {
+window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+return;
+}
     viz.broadcast.witnessUpdate(active_key, viz_login, url, blockSigningKey, function(err, result) {
 if (!err) {
     window.alert('Настройки делегата сохранены.');
@@ -106,7 +110,10 @@ prop_value *= 100;
 props[prop] = prop_value;
 }
 }
-
+if(current_user.type && current_user.type === 'vizonator') {
+    window.alert('Операция не поддерживается расширением Vizonator. Просьба выбрать аккаунт, авторизованный при помощи ключей на dpos.space.');
+    return;
+    }
 viz.broadcast.versionedChainPropertiesUpdate(active_key, viz_login, [3,props], function(err, result) {
 if (!err) {
     window.alert('Параметры сохранены успешно.');

@@ -33,6 +33,9 @@ let memo = JSON.stringify(memo_array);
         if (sender && answer) {
         if (viz_login && posting_key) {
             sendData(data_url, answer);
+        } else 		if(current_user.type && current_user.type === 'vizonator') {
+			sendToVizonator('custom', {"protocol_id":'viz-votes',"json":memo})
+  return;
         } else {
             window.open("https://viz.dpos.space/viz-sign/?user=" + sender + "&tr=" + str_data_url);
         }

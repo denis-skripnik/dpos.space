@@ -114,6 +114,10 @@ $('#create_request_now').click(function() {
     reward_amount_max = parseFloat(reward_amount_max);
     reward_amount_max = reward_amount_max.toFixed(3) + ' VIZ';    
     var duration= 60*60*24*parseFloat($('input[name=request_days]').val());
+    if(current_user.type && current_user.type === 'vizonator') {
+		window.alert('Vizonator не поддерживает данный тип операций. Пожалуйста, выберите другой аккаунт, авторизованный на dpos.space при помощи ключей.');
+	return;
+	}
     viz.broadcast.committeeWorkerCreateRequest(posting_key, viz_login, url, worker, reward_amount_min, reward_amount_max, duration, function(err, result) {
 if (!err) {
     window.alert('Заявка создана.');
@@ -136,6 +140,10 @@ $('#submit_request_vote').click(function() {
     let vote_percent = $('input[name=request_percent]').val();
 vote_percent = parseFloat(vote_percent) * 100;
 vote_percent = parseInt(vote_percent);
+if(current_user.type && current_user.type === 'vizonator') {
+    sendToVizonator('committee_vote_request', {request_id, vote_percent})
+return;
+}
 viz.broadcast.committeeVoteRequest(posting_key, viz_login, request_id, vote_percent, function(err, result) {
     if (!err) {
         window.alert('Вы успешно проголосовали за заявку.');
