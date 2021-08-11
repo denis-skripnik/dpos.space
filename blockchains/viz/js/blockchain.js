@@ -57,28 +57,28 @@ var posting_key = sjcl.decrypt('dpos.space_viz_' + viz_login + '_regularKey', cu
 var active_key = sjcl.decrypt('dpos.space_viz_' + viz_login + '_activeKey', current_user.active);
 $( document ).ready(function() {
     if (!posting_key) {
-        document.getElementById('auth_msg').style = 'display: block';
-        document.getElementById('posting_page').style = 'display: none';
+        if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: block';
+        if (document.getElementById('posting_page')) document.getElementById('posting_page').style = 'display: none';
        }
 if (!active_key) {
-    document.getElementById('active_auth_msg').style = 'display: block';
-    document.getElementById('active_page').style = 'display: none';
+    if (document.getElementById('active_auth_msg')) document.getElementById('active_auth_msg').style = 'display: block';
+    if (document.getElementById('active_page')) document.getElementById('active_page').style = 'display: none';
 }
 });    
 } else if (current_user && current_user.type === 'vizonator') {
     var viz_login = current_user.last_login;
 $( document ).ready(function() {
 if (current_user.isActive === false) {
-document.getElementById('active_auth_msg').style = 'display: block';
-document.getElementById('active_page').style = 'display: none';
+if(document.getElementById('active_auth_msg')) document.getElementById('active_auth_msg').style = 'display: block';
+if (document.getElementById('active_page')) document.getElementById('active_page').style = 'display: none';
 }
 });    
 } else {
     $( document ).ready(function() {
         if (!posting_key) {
-            document.getElementById('auth_msg').style = 'display: block';
-            document.getElementById('posting_page').style = 'display: none';
-            document.getElementById('active_page').style = 'display: none';   
+            if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: block';
+            if (document.getElementById('posting_page')) document.getElementById('posting_page').style = 'display: none';
+            if (document.getElementById('active_page')) document.getElementById('active_page').style = 'display: none';   
         }
         });
         }
@@ -423,27 +423,38 @@ var ajax_options = {};
 $( document ).ready(function() {
     $('#vizonator_auth').click(function() {
     if(typeof vizonator !== "undefined"){
-                if (current_user.type && current_user.type === 'vizonator') {
-    $('#vizonator_block').html('Авторизован. аккаунт ' + current_user.last_login);
-} else {
+        if (typeof current_user.type !== 'undefined') {
+            if (current_user.type && current_user.type === 'vizonator') {
+                $('#vizonator_block').html('Авторизован. аккаунт ' + current_user.last_login);
+            return;
+            }            
+        }
     vizonator.get_account(function(error,result){
         if(!error){
             let acc_data = {type: 'vizonator', last_login: result.login, isActive: result.active};
             localStorage.setItem("viz_current_user", JSON.stringify(acc_data));
+            if (!users) {
+                var users = [];
+            }
             users.push(acc_data);
             localStorage.setItem("viz_users", JSON.stringify(users));
         $('#vizonator_block').html('Авторизован. аккаунт ' + result.login);
         }
     });
 }
-    }
 });
 });
 
 setTimeout(function() {
     if(typeof vizonator !== "undefined"){
-        if (current_user.type && current_user.type === 'vizonator') {
+        if (typeof current_user.type !== 'undefined') {
+            if (current_user.type && current_user.type === 'vizonator') {
                 $('#vizonator_block').html('Авторизован. Вероятный аккаунт ' + current_user.last_login);
 }
+        }
 }
 }, 1000);
+
+document.addEventListener('DOMContentLoaded', function(){
+selectAccount();
+});
