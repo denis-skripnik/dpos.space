@@ -9,7 +9,7 @@ function compareCoins(a, b)
 	}
 }
 
-
+var bip_balance = 0;
 
 async function links(token, variant) {
   $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
@@ -69,7 +69,10 @@ let tokens = await getBalance(sender.address);
     for (let token of tokens) {
         let amount = parseFloat(token.amount);
         balances_list += `<li><a class="spoiler" data-tipe="main_balance" data-token="${token.coin}" data-variant="${token.type}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_${token.coin}">${amount}</span> ${token.coin}</a></li>`;
+    if (token.coin === 'BIP') {
+      bip_balance = amount;
     }
+      }
 $('#balances').html(balances_list);
 }
 
@@ -286,8 +289,8 @@ if (counter > 0 && counter < all_coins - 1) {
         }
         let coins_list = `${coin},${coins.join(',')},${to}`;
         if (coins.length === 0) coins_list = `${coin},${to}`;
-        let fee = parseFloat(await convert(coin, to, amount, 0, coins_list, 'fee'));
-        if (amount === max_amount) {
+        let {fee, bip_fee} = await convert(coin, to, amount, 0, coins_list, 'fee');
+        if (amount === max_amount && fee !== bip_fee || coin === 'BIP' && amount === max_amount && fee === bip_fee) {
           amount -= fee;
         }
         let to_buy = await minter.estimateCoinSell({
@@ -297,13 +300,15 @@ if (counter > 0 && counter < all_coins - 1) {
       swap_from: 'optimal',
       route: coins
     });
+    let coin_fee = coin;
+    if (fee === bip_fee) coin_fee = 'BIP';
     $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
-  $('#convert_fee').html(parseFloat(fee).toFixed(3));
+  $('#convert_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
   $('#swap_route_block').css('display', 'block');
   $('#swap_route').html(coins_list);
     } catch(e) {
-      let fee = parseFloat(await convert(coin, to, amount, 0, '', 'fee'));
-      if (amount === max_amount) {
+      let {fee, bip_fee} = await convert(coin, to, amount, 0, '', 'fee');
+      if (amount === max_amount && fee !== bip_fee || coin === 'BIP' && amount === max_amount && fee === bip_fee) {
         amount -= fee;
       }
       let to_buy = await minter.estimateCoinSell({
@@ -312,8 +317,10 @@ if (counter > 0 && counter < all_coins - 1) {
         coinToBuy: to,
         swap_from: 'optimal'
       });
+      let coin_fee = coin;
+      if (fee === bip_fee) coin_fee = 'BIP';
       $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
-    $('#convert_fee').html(parseFloat(fee).toFixed(3));
+      $('#convert_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
     $('#swap_route_block').css('display', 'none');
     $('#swap_route').html('');
   }
@@ -402,9 +409,11 @@ $('#max_convert_amount').html($('#max_' + token).html());
         let max_amount = $('#max_delegate_amount').html();
         max_amount = parseFloat(max_amount);
         if (key !== '') {
-          let fee = parseFloat(await delegate(token, key, stake, 'fee'));
-          $('#delegate_fee').html(fee)
-          if (stake !== '' && stake + fee > max_amount) {
+          let {fee, bip_fee} = await delegate(token, key, stake, 'fee');
+          let coin_fee = token;
+          if (fee === bip_fee) coin_fee = 'BIP';
+          $('#delegate_fee').html(fee + ` ${coin_fee}`)
+          if (stake !== '' && stake + fee > max_amount && (fee !== bip_fee || token === 'BIP')) {
             stake = parseFloat(stake);
                   stake = stake - (stake + fee - max_amount);
                   $('#action_delegate_stake').val(new Number(stake).toFixed(3));  
@@ -424,8 +433,10 @@ $('#max_convert_amount').html($('#max_' + token).html());
         if (stake === '') stake = 1;
           let max_amount = $('#max_anbond_amount').html();
           max_amount = parseFloat(max_amount);
-            let fee = parseFloat(await anbond(token, key, stake, 'fee'));
-            $('#anbond_fee').html(fee)
+          let {fee, bip_fee} = await anbond(token, key, stake, 'fee');
+          let coin_fee = token;
+          if (fee === bip_fee) coin_fee = 'BIP';
+          $('#anbond_fee').html(fee + ` ${coin_fee}`)
           }
       let amount = $(this).attr('data-amount');
       $('.anbond_modal_token').html(token);
@@ -437,7 +448,6 @@ $('#max_convert_amount').html($('#max_' + token).html());
     let max_amount = $('#max_anbond_amount').html();
     max_amount = parseFloat(max_amount);
     let fee = parseFloat($('#anbond_fee').html());
-      max_amount -= fee + 0.001;
       $('#action_anbond_stake').val(new Number(max_amount).toFixed(3));
       });
 
@@ -449,10 +459,11 @@ if (q == true) {
   let amount = $('#action_transfer_amount').val();
   amount = parseFloat(amount);
 let memo = $('#action_transfer_memo').val();
- 
+ let gasCoin = $('#transfer_fee').html().split(' ')[1];
+
  try {
   $.fancybox.close(); 
-  await send(to, amount, coin, memo)
+  await send(to, amount, coin, memo, gasCoin)
  await loadBalances();
 } catch(e) {
 window.alert('Ошибка: ' + e);
@@ -471,12 +482,16 @@ window.alert('Ошибка: ' + e);
       amount = parseFloat(amount);
     }
     if (to !== '') {
-      let fee = parseFloat(await send(to, amount, coin, memo, 'fee'));
-      $('#transfer_fee').html(fee);
+      let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee');
+      let coin_fee = coin;
+      if (fee === bip_fee) coin_fee = 'BIP';
+      $('#transfer_fee').html(fee + ` ${coin_fee}`);
       let max_amount = $('#max_transfer_amount').html();
 max_amount = parseFloat(max_amount);
-      if (amount + fee > max_amount) {
+      if (amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
         amount = amount - (amount + fee - max_amount);
+      } else if (amount > max_amount && fee === coin_fee && coin !== 'BIP') {
+          amount = amount - (amount - max_amount);
       }
     $('#action_transfer_amount').val(amount.toFixed(3));
     }
@@ -491,10 +506,17 @@ amount = parseFloat(amount);
 let max_amount = $('#max_transfer_amount').html();
 max_amount = parseFloat(max_amount);
 if (to !== '') {
-  let fee = parseFloat(await send(to, amount, coin, memo, 'fee'));
-  $('#transfer_fee').html(fee);
-  if (amount + fee > max_amount) {
+  let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee');
+  
+  let coin_fee = coin;
+  if (fee === bip_fee) coin_fee = 'BIP';
+  $('#transfer_fee').html(fee + ` ${coin_fee}`);
+  let max_amount = $('#max_transfer_amount').html();
+max_amount = parseFloat(max_amount);
+  if (amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
     amount = amount - (amount + fee - max_amount);
+  } else if (amount > max_amount && fee === coin_fee && coin !== 'BIP') {
+      amount = amount - (amount - max_amount);
   }
 }
 $('#action_transfer_amount').val(amount.toFixed(3));
@@ -510,10 +532,11 @@ $("#action_convert_start").click(async function(){
     let buy_amount = $('#buy_amount').html();
     buy_amount = (buy_amount !== '' ? parseFloat(buy_amount) : 0) * 0.9;
     let swap_route = $('#swap_route').html();
+    let gasCoin = $('#convert_fee').html().split(' ')[1];
    
-   try {
+    try {
     $.fancybox.close(); 
-    await convert(coin, to, amount, buy_amount, swap_route);
+    await convert(coin, to, amount, buy_amount, swap_route, gasCoin);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -536,10 +559,11 @@ $("#action_delegate_start").click(async function(){
    let publicKey = $('#action_delegate_key').val();
     let stake = $('#action_delegate_stake').val();
     stake = parseFloat(stake);
-   
+    let gasCoin = $('#delegate_fee').html().split(' ')[1];
+
    try {
     $.fancybox.close(); 
-    await delegate(coin, publicKey, stake)
+    await delegate(coin, publicKey, stake, gasCoin)
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -574,13 +598,16 @@ $("#action_delegate_start").click(async function(){
           let max_amount = $('#max_anbond_amount').html();
           max_amount = parseFloat(max_amount);
           if (publicKey !== '') {
-            let fee = parseFloat(await anbond(coin, publicKey, stake, 'fee'));
-            $('#anbond_fee').html(fee)
-            if (stake !== '' && stake + fee > max_amount) {
-              stake = parseFloat(stake);
-                    stake = stake - (stake + fee - max_amount);
-                    $('#action_anbond_stake').val(new Number(stake).toFixed(3));  
-                  }
+            let {fee, bip_fee} = await anbond(coin, publicKey, stake, 'fee');
+            let coin_fee = coin;
+            if (fee === bip_fee) coin_fee = 'BIP';
+if (bip_balance > fee && fee === bip_fee) {
+  $('#anbond_fee').html(fee + ` ${coin_fee}`)
+  stake = parseFloat(stake);
+  $('#action_anbond_stake').val(new Number(stake).toFixed(3));  
+} else {
+  window.alert('Баланс BIP < комиссии.');
+}
           }
         });        
 
@@ -679,9 +706,11 @@ try {
           let max_amount = $('#max_delegate_amount').html();
           max_amount = parseFloat(max_amount);
           if (publicKey !== '') {
-            let fee = parseFloat(await delegate(coin, publicKey, stake, 'fee'));
-            $('#delegate_fee').html(fee)
-            if (stake !== '' && stake + fee > max_amount) {
+            let {fee, bip_fee} = await delegate(coin, publicKey, stake, 'fee');
+            let coin_fee = coin;
+            if (fee === bip_fee) coin_fee = 'BIP';
+            $('#delegate_fee').html(fee + ` ${coin_fee}`)
+            if (stake !== '' && stake + fee > max_amount && (fee !== bip_fee || coin === 'BIP')) {  
               stake = parseFloat(stake);
                     stake = stake - (stake + fee - max_amount);
                     $('#action_delegate_stake').val(new Number(stake).toFixed(3));  
@@ -728,11 +757,15 @@ try {
         let to = $('#action_transfer_to').val();
         let max_amount = parseFloat($('#max_transfer_amount').html());
         let memo = $('#action_transfer_memo').val();
-        
+
         if (to !== '') {
-          let fee = parseFloat(await send(to, max_amount, coin, memo, 'fee'));
-          $('#transfer_fee').html(fee);
+          let {fee, bip_fee} = await send(to, max_amount, coin, memo, 'fee');
+          let coin_fee = coin;
+          if (fee === bip_fee) coin_fee = 'BIP';
+          $('#transfer_fee').html(fee + ` ${coin_fee}`);
+          if (max_amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
             max_amount -= fee;
+          }
         $('#action_transfer_amount').val(max_amount.toFixed(3));
         }
       });
@@ -751,9 +784,11 @@ if (stake === '') stake = 1;
   let max_amount = $('#max_delegate_amount').html();
   max_amount = parseFloat(max_amount);
   if (publicKey !== '') {
-    let fee = parseFloat(await delegate(coin, publicKey, stake, 'fee'));
-    $('#delegate_fee').html(fee)
-    if (stake !== '' && stake + fee > max_amount) {
+    let {fee, bip_fee} = await delegate(coin, publicKey, stake, 'fee');
+    let coin_fee = coin;
+    if (fee === bip_fee) coin_fee = 'BIP';
+    $('#delegate_fee').html(fee + ` ${coin_fee}`)
+    if (stake !== '' && stake + fee > max_amount && (fee !== bip_fee || coin === 'BIP')) {
       stake = parseFloat(stake);
             stake = stake - (stake + fee - max_amount);
             $('#action_delegate_stake').val(new Number(stake).toFixed(3));  

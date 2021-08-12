@@ -6,7 +6,9 @@ axios.defaults.baseURL = 'https://api.minter.one/v2';
 let current_user = JSON.parse(localStorage.getItem("minter_current_user"));
 if (current_user) {
 var minter_login = current_user.login;
-var seed = sjcl.decrypt('dpos.space_minter_' + minter_login + '_seed', current_user.seed);
+let chain = 'minter';
+if (current_user.importFrom) chain = current_user.importFrom;
+var seed = sjcl.decrypt(`dpos.space_${chain}_` + minter_login + '_seed', current_user.seed);
 $( document ).ready(function() {
     if (!seed) {
         document.getElementById('auth_msg').style = 'display: block';
@@ -33,7 +35,9 @@ $( document ).ready(function() {
         
         var sender = {};
         if (seed) {
-            const secret = sjcl.decrypt('dpos.space_minter_' + current_user.login + '_seed', current_user.seed);
+            let chain = 'minter';
+if (current_user.importFrom) chain = current_user.importFrom;
+            const secret = sjcl.decrypt(`dpos.space_${chain}_` + current_user.login + '_seed', current_user.seed);
             const import_data = minterWallet.walletFromMnemonic(secret);
             sender = {
                 'address': import_data.getAddressString(),
@@ -77,9 +81,10 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
     });
 }
 
-        async function send(to, value, coin, memo, mode) {
+        async function send(to, value, coin, memo, mode, gasCoin) {
             let minGasPrice = await axios.get('/min_gas_price');
             let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+            if (!gasCoin) gasCoin = coin;
             const txParams = {
                 chainId: 1,
                 type: TX_TYPE.SEND,
@@ -88,7 +93,7 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
                     value,
                     coin,    
                 },
-                gasCoin: coin,
+                gasCoin,
                 gasPrice,
                 payload: memo,
             };
@@ -97,12 +102,13 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
 if (mode !== 'fee') {
     await broadcasting(idTxParams);
 } else {
-    let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-    return fee_data.commission;
+    let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
+    return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
 }
         }
         
-        async function convert(coin, to, value, minimum_buy_amount, swap_route, mode) {
+        async function convert(coin, to, value, minimum_buy_amount, swap_route, mode, gasCoin) {
+            if (!gasCoin) gasCoin = coin;
             let txParams = {};
             txParams.chainId = 1;
             txParams.type = TX_TYPE.SELL;
@@ -118,21 +124,22 @@ if (mode !== 'fee') {
                 txParams.data.minimumValueToBuy = parseFloat(minimum_buy_amount);
             }
                         txParams.data.valueToSell = value;
-            txParams.gasCoin = coin;
+            txParams.gasCoin = gasCoin;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             if (mode !== 'fee') {
                 await broadcasting(idTxParams);
             } else {
-                let fee_data = await minter.estimateTxCommission(idTxParams, {direct: true,});
-                return fee_data.commission;
+                let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
+                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};;
             }
         }
         
-        async function addToPool(coin, to, amount1, amount2, mode, variant) {
+        async function addToPool(coin, to, amount1, amount2, mode, variant, gasCoin) {
                         let minGasPrice = await axios.get('/min_gas_price');
             let gasPrice = parseInt(minGasPrice.data.min_gas_price)
-let type = TX_TYPE.ADD_LIQUIDITY;
+            if (!gasCoin) gasCoin = coin;
+            let type = TX_TYPE.ADD_LIQUIDITY;
 if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
             let txParams = {
                 chainId: 1,
@@ -142,7 +149,7 @@ if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
                   coin1: to,
                   volume0: amount1,
                 },
-                gasCoin: coin,
+                gasCoin,
                 gasPrice
             };
             if (variant !== 'create_pool') {
@@ -155,8 +162,8 @@ if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
             if (mode !== 'fee') {
     await broadcasting(idTxParams);
             } else {
-                    let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-                    return fee_data.commission;
+                    let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
+                    return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
             }
         }
 
@@ -183,12 +190,13 @@ await broadcasting(idTxParams);
 await addToPool(to, coin, amount2, amount1, mode);
 }
 } else {
-        let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-        return fee_data.commission;
+        let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
+        return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
 }
 }
 
-        async function delegate(coin, publicKey, stake, mode) {
+        async function delegate(coin, publicKey, stake, mode, gasCoin) {
+            if (!gasCoin) gasCoin = coin;
             const txParams = {
                 chainId: 1,
                 type: TX_TYPE.DELEGATE,
@@ -197,15 +205,15 @@ await addToPool(to, coin, amount2, amount1, mode);
                     coin,
                     stake,
                 },
-                gasCoin: coin,
+                gasCoin,
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             if (mode !== 'fee') {
                 await broadcasting(idTxParams);
             } else {
-                let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-                return fee_data.commission;
+                let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
+                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
             }
         }
 
@@ -224,8 +232,8 @@ await addToPool(to, coin, amount2, amount1, mode);
             if (mode !== 'fee') {
                 await broadcasting(idTxParams);
             } else {
-                let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
-                return fee_data.commission;
+                let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
+                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};;
             }
         }
 
@@ -249,7 +257,7 @@ if (type === 'CREATE_COIN' || type === 'RECREATE_COIN') {
     txParams.data.burnable = options.burnable;
 }
             const idTxParams = await minter.replaceCoinSymbol(txParams);
-            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
             let fee = fee_data.commission;
 let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' BIP');
 if (q === true) {
@@ -268,7 +276,7 @@ if (q === true) {
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
             let fee = fee_data.commission;
 let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' BIP');
 if (q === true) {
@@ -288,7 +296,7 @@ if (q === true) {
             
                 const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
             let fee = fee_data.commission;
 let q = window.confirm('Вы действительно хотите провести эмиссию токенов? Комиссия составит ' + fee + ' BIP');
 if (q === true) {
@@ -308,7 +316,7 @@ if (q === true) {
             
                 const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            let fee_data = await minter.estimateTxCommission(txParams, {direct: true,});
+            let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
             let fee = fee_data.commission;
 let q = window.confirm('Вы действительно хотите сжечь токены? Комиссия составит ' + fee + ' BIP');
 if (q === true) {
@@ -400,8 +408,7 @@ function copyText(id) {
     if (users) {
     for (let user of users) {
     if (user.login === group[x].value) {
-        let acc_data = {login: user.login, seed: user.seed};
-        localStorage.setItem("minter_current_user", JSON.stringify(acc_data));
+        localStorage.setItem("minter_current_user", JSON.stringify(user));
     $('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
     }
     }

@@ -1,6 +1,7 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<div id="select_account"></div>
 <h2>Добавить аккаунт</h2>
+<h3>Вручную, используя имя и введённую seed фразу</h3>
 <div id="auth_msg"></div>
 <p class="p-main">Фраза никуда не передаётся: сохраняется в зашифрованном виде в вашем браузере.</p>
 <form class="form">
@@ -9,6 +10,18 @@ return '<div id="select_account"></div>
 <p><label for="seed">SEED фраза: </label></p>
 <p><textarea name="seed" id="seed" required></textarea></p>
 <p><input type="button" onclick="saveAccount()" value="Войти"></p>
+</form>
+<h3>Импорт из другого блокчейна на dpos.space</h3>
+<form>
+<p><label for="select_chain">Выберите блокчейн:<br>
+<select name="select_chain" id="chains_list">
+<option value="">Выберите блокчейн</option>
+</select></label></p>
+<p><label for="select_chain_account">Выберите аккаунт:<br>
+<select name="select_chain_accounts">
+<option value="">Выберите аккаунт</option>
+</select></label></p>
+<p align="center"><input type="button" id="import_chain_account" value="Импорт"></p>
 </form>
 <h2>Создать аккаунт</h2>
 <p><strong><a onclick="createAccount()">Получить данные</a></strong></p>

@@ -1,3 +1,5 @@
+const { getPackedSettings } = require("http2");
+
 function openMode(evt, modeName) {
   var i, tabcontent, tablinks;
 
@@ -41,7 +43,7 @@ function compareCoins(a, b)
 	}
 }
 
-
+var bip_balance = 0;
 
 function bind_range(){
 	$('input[type=range]').each(function(i){
@@ -78,7 +80,10 @@ let tokens = await getBalance(sender.address);
     for (let token of tokens) {
         let amount = parseFloat(token.amount);
         balances_list += `<option value="${token.coin}" data-max="${amount}">${token.coin}</option>`;
-    }
+        if (token.coin === 'BIP') {
+          bip_balance = amount;
+        }
+      }
 $('[name=tokens]').html(balances_list);
 $('[name=tokens1]').html('<option value="">Выберите токен №1</option>' + balances_list);
 $('[name=tokens2]').html('<option value="">Выберите токен №2</option>' + balances_list);
@@ -109,8 +114,8 @@ if (counter > 0 && counter < all_coins - 1) {
         }
         let coins_list = `${coin},${coins.join(',')},${to}`;
         if (coins.length === 0) coins_list = `${coin},${to}`;
-        let fee = parseFloat(await convert(coin, to, amount, 0, coins_list, 'fee'));
-        if (amount === max_amount) {
+        let {fee, bip_fee} = await convert(coin, to, amount, 0, coins_list, 'fee');
+        if (amount === max_amount && fee !== bip_fee || coin === 'BIP' && amount === max_amount && fee === bip_fee) {
           amount -= fee;
         }
         let to_buy = await minter.estimateCoinSell({
@@ -120,13 +125,15 @@ if (counter > 0 && counter < all_coins - 1) {
       swap_from: 'optimal',
       route: coins
     });
+    let coin_fee = coin;
+    if (fee === bip_fee) coin_fee = 'BIP';
     $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
-  $('#convert_fee').html(parseFloat(fee).toFixed(3));
+    $('#convert_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
   $('#swap_route_block').css('display', 'block');
   $('#swap_route').html(coins_list);
     } catch(e) {
-      let fee = parseFloat(await convert(coin, to, amount, 0, '', 'fee'));
-      if (amount === max_amount) {
+      let {fee, bip_fee} = await convert(coin, to, amount, 0, '', 'fee');
+      if (amount === max_amount && fee !== bip_fee || coin === 'BIP' && amount === max_amount && fee === bip_fee) {
         amount -= fee;
       }
       let to_buy = await minter.estimateCoinSell({
@@ -135,8 +142,10 @@ if (counter > 0 && counter < all_coins - 1) {
         coinToBuy: to,
         swap_from: 'optimal'
       });
+      let coin_fee = coin;
+      if (fee === bip_fee) coin_fee = 'BIP';
       $('#buy_amount').html(parseFloat(to_buy.will_get).toFixed(3));
-    $('#convert_fee').html(parseFloat(fee).toFixed(3));
+      $('#convert_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
     $('#swap_route_block').css('display', 'none');
     $('#swap_route').html('');
   }
@@ -169,19 +178,29 @@ amounts[0] = res.amount0 / (10 ** 18);
   amounts[1] = res.amount1 / (10 ** 18);
 let price = amounts[0] / amounts[1];
   let will_get = amount / price;
-  let fee = await addToPool(coin, to, amount, will_get, 'fee');
+  let {fee, bip_fee} = await addToPool(coin, to, amount, will_get, 'fee');
   let fee_amount = amount - fee;
+  if (fee === bip_fee && coin !== 'BIP') {
+    fee_amount = amount;
+  }
+  let coin_fee = coin;
+  if (fee === bip_fee) coin_fee = 'BIP';
   will_get = fee_amount / price;
   $('#action_pool_amount1').val(parseFloat(fee_amount).toFixed(3));
   $('#action_pool_amount' + direction_z).val(parseFloat(will_get).toFixed(3));
-$('#pool_fee').html(parseFloat(fee).toFixed(3));
+$('#pool_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
 $('#new_pool').css('display', 'none');
 } catch(pool_error) {
   if (pool_error.message === 'Request failed with status code 404') {
 $('#new_pool').css('display', 'block');
-let fee = await addToPool(coin, to, amount, 1, 'fee', 'create_pool');
-$('#pool_fee').html(parseFloat(fee).toFixed(3));
+let {fee, bip_fee} = await addToPool(coin, to, amount, 1, 'fee', 'create_pool');
 let fee_amount = amount - fee;
+if (fee === bip_fee && coin !== 'BIP') {
+  fee_amount = amount;
+}
+let coin_fee = coin;
+if (fee === bip_fee) coin_fee = 'BIP';
+$('#pool_fee').html(parseFloat(fee).toFixed(5) + ` ${coin_fee}`);
 $('#action_pool_amount1').val(parseFloat(fee_amount).toFixed(3));
 }
 }
@@ -216,8 +235,12 @@ $(document).ready(async function() {
 $('#rl_modal_pool').html(`${coin0}/${coin1}`);
 $('#rl_modal_token').html(token);
 $('#rl_lp_balance').html(liquidity);
-let fee = await removeFromPool(coin0, coin1, liquidity, 'fee');
-$('#rl_fee').html(fee);
+let {fee, bip_fee} = await removeFromPool(coin0, coin1, liquidity, 'fee');
+if (bip_balance >= fee && fee === bip_fee) {
+  $('#rl_fee').html(fee);
+} else {
+  window.alert('Комиссия больше баланса BIP.');
+}
 });
 
 $('#action_rl_start').click(async function() {
@@ -271,10 +294,11 @@ $("#action_pool_start").click(async function(){
     let to = $('.convert_modal_token2').html();
     let amount1 = parseFloat($('#action_pool_amount1').val());
     let amount2 = parseFloat($('#action_pool_amount2').val());
+let gasCoin = $('#pool_fee').html().split(' ')[1];
 
     try {
     $.fancybox.close(); 
-  await addToPool(coin, to, amount1, amount2, '');
+  await addToPool(coin, to, amount1, amount2, '', gasCoin);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -292,10 +316,11 @@ $("#action_convert_start").click(async function(){
     let buy_amount = $('#buy_amount').html();
     buy_amount = parseFloat(buy_amount) * 0.9;
     let swap_route = $('#swap_route').html();
+    let gasCoin = $('#convert_fee').html().split(' ')[1];
 
     try {
     $.fancybox.close(); 
-    await convert(coin, to, amount, buy_amount, swap_route);
+    await convert(coin, to, amount, buy_amount, swap_route, gasCoin);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);

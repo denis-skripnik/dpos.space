@@ -27,7 +27,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p><input type="text" name="delegate_to" id="action_delegate_key" placeholder="MP..."></p>
 <p><label for="delegate_amount">Сумма делегирования (<span id="max_token_delegate">делегировать все доступные <span id="max_delegate_amount"></span> <span class="delegate_modal_token"></span></span>):</label></p>
 <p><input type="text" name="delegate_amount" id="action_delegate_stake" placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="delegate_fee">1</span> <span class="delegate_modal_token"></span></strong></p>
+<p><strong>Комиссия: <span id="delegate_fee">1</span></strong></p>
 <p><input type="button" id="action_delegate_start" value="Делегировать"></p>
 <hr>
 <p><input type="button" id="action_save_delegate_template" value="Создать шаблон делегирования"></p> 
@@ -44,7 +44,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p><input type="text" readonly name="anbond_to" id="action_anbond_key"></p>
 <p><label for="anbond_amount">Сумма анбонда (<span id="max_token_anbond">все доступные <span id="max_anbond_amount"></span> <span class="anbond_modal_token"></span></span>):</label></p>
 <p><input type="text" name="anbond_amount" id="action_anbond_stake" placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="anbond_fee"></span> <span class="anbond_modal_token"></span></strong></p>
+<p><strong>Комиссия: <span id="anbond_fee"></span></strong></p>
 <p><input type="button" id="action_anbond_start" value="Анбонднуть"></p>
 </form>
 </div>

@@ -1,11 +1,17 @@
-const {builder, codec, crypto, constants, keypair} = window.bundle;
+const {builder, codec, crypto, constants, keypair, bip39} = window.bundle;
 // deimos.cybernode.ai
 axios.defaults.baseURL = 'https://dpos.space/blockchains/cyber/node.php';
+
+function isValidMnemonic(mnemonic) {
+    return typeof mnemonic === 'string' && mnemonic.trim().split(/\s+/g).length >= 12 && bip39.validateMnemonic(mnemonic);
+}
 
 let current_user = JSON.parse(localStorage.getItem("cyber_current_user"));
 if (current_user) {
 var cyber_login = current_user.login;
-var seed = sjcl.decrypt('dpos.space_cyber_' + cyber_login + '_seed', current_user.seed);
+let chain = 'cyber';
+if (current_user.importFrom) chain = current_user.importFrom;
+var seed = sjcl.decrypt(`dpos.space_${chain}_` + cyber_login + '_seed', current_user.seed);
 $( document ).ready(function() {
     if (!seed) {
         document.getElementById('auth_msg').style = 'display: block';
@@ -32,7 +38,9 @@ $( document ).ready(function() {
         
         var sender = {};
         if (seed) {
-            const secret = sjcl.decrypt('dpos.space_cyber_' + current_user.login + '_seed', current_user.seed);
+            let chain = 'cyber';
+            if (current_user.importFrom) chain = current_user.importFrom;
+            const secret = sjcl.decrypt(`dpos.space_${chain}_` + current_user.login + '_seed', current_user.seed);
             const import_data = crypto.recover(secret, 'en');
             sender = {
                 'address': import_data.address,

@@ -36838,10 +36838,11 @@ const codec = require('./codec');
 const crypto = require('./crypto');
 const constants = require('./constants');
 const keypair = require('./keypair');
+const bip39 = require('bip39');
 if (window) {
-    window.bundle = {builder, codec, crypto, constants, keypair} // сюда записать весь экспорт
+    window.bundle = {builder, codec, crypto, constants, keypair, bip39} // сюда записать весь экспорт
 }
-},{"./builder":33,"./codec":34,"./constants":35,"./crypto":36,"./keypair":37}],120:[function(require,module,exports){
+},{"./builder":33,"./codec":34,"./constants":35,"./crypto":36,"./keypair":37,"bip39":40}],120:[function(require,module,exports){
 module.exports = {
     sortObjectKeys(obj) {
         const sort = function(obj) {

@@ -14,7 +14,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p><input type="text" name="convert_amount" id="action_convert_amount" required placeholder="Введите сумму в формате 1.000"></p>
 <p><label for="convert_to">Монета получения:</label></p>
 <p><input type="text" name="convert_to" id="action_convert_to" placeholder="BIP"></p>
-<p><strong>Комиссия: <span id="convert_fee"></span> <span class="convert_modal_token"></span>
+<p><strong>Комиссия: <span id="convert_fee"></span>
 Сумма покупки: <span id="buy_amount"></span></strong></p>
 <span style="display: none;" id="swap_route"></span>
 <p><input type="button" id="action_convert_start" value="Обменять"></p>
@@ -32,7 +32,7 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 <p id="new_pool" style="display: none;"><strong>Пула такого нет или ошибка Ноды. Введите во второй сумме, сколько готовы передать в новый пул токенов.</strong></p>
       <p><label for="pool_amount2">Сумма в <span class="convert_modal_token2"></span> (<span id="max_token_pool2">Максимум - <span id="max_pool_amount2"></span></span>):</label></p>
       <p><input type="text" name="pool_amount2" id="action_pool_amount2" required placeholder="Введите сумму в формате 1.000"></p>
-<p><strong>Комиссия: <span id="pool_fee"></span> <span class="convert_modal_token1"></span></strong></p>
+<p><strong>Комиссия: <span id="pool_fee"></span></strong></p>
 <p><input type="button" id="action_pool_start" value="Вложить"></p>
  </form>
 <hr>

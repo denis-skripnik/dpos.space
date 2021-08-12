@@ -50,7 +50,10 @@ function checkWorkingNode() {
 }
 checkWorkingNode();
 
-let current_user = JSON.parse(localStorage.getItem("viz_current_user"));
+var current_user={};
+if(typeof localStorage.viz_current_user !=='undefined'){
+current_user = JSON.parse(localStorage.viz_current_user);
+}
 if (current_user && !current_user.type || current_user&& current_user.type && current_user.type !== 'vizonator') {
 var viz_login = current_user.login;
 var posting_key = sjcl.decrypt('dpos.space_viz_' + viz_login + '_regularKey', current_user.regular);
@@ -247,33 +250,39 @@ w += parseInt(beneficiarie.weight )/ 100;
     if (users.length === 1) {
         let message = users[0].login;
         let value = users[0].login;
+let type = 'standart';
         if (users[0].type && users[0].type ==='vizonator') {
             message = 'Vizonator ' + users[0].last_login;
             value = users[0].last_login;
+        let type = 'vizonator';
         }
-        radioButtons += '<input type="radio" name="users" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
+        radioButtons += '<input type="radio" name="users" data-type="' + type + '" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
     } else if (users.length > 1) {
         for (user of users) {
             if (current_user.login && user.login && current_user.login === user.login) {
                 let message = user.login;
             let value = user.login;
+            let type = 'standart';
             if (user.type  && user.type ==='vizonator') {
                 message = 'Vizonator аккаунт ' + user.last_login;
             value = user.last_login;
-            }
-            radioButtons += '<input type="radio" name="users" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
+            type = 'vizonator';
+        }
+            radioButtons += '<input type="radio" name="users" data-type="' + type + '" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
         } else         if (current_user.type && current_user.type === 'vizonator' && current_user.last_login === user.last_login) {
             let message = 'Vizonator ' + user.last_login;
             let value = user.last_login;
-            radioButtons += '<input type="radio" name="users" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + user.login + '`);">Удалить</a><br />';
+            radioButtons += '<input type="radio" name="users" data-type="vizonator" value="' + value + '" placeholder="' + message + '" checked> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
         }     else {
             let message = user.login;
             let value = user.login;
-            if (user.type  && user.type ==='vizonator') {
+let type = "standart";
+            if (user.type  && user.type === 'vizonator') {
                 message = 'Vizonator ' + user.last_login;
             value = user.last_login;
-            }
-            radioButtons += '<input type="radio" name="users" value="' + value + '" placeholder="' + message+ '"> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
+            type = 'vizonator';
+        }
+            radioButtons += '<input type="radio" name="users" data-type="' + type + '" value="' + value + '" placeholder="' + message+ '"> ' + message + ', <a onclick="deleteAccount(`' + value + '`);">Удалить</a><br />';
         }
     }
     }
@@ -310,15 +319,15 @@ function getRadioValue(radioboxGroupName)
         if (group[x].checked)
         {
 if (users) {
-for (let user of users) {
-if (user.login && user.login === group[x].value) {
+    for (let user of users) {
+if (group[x].getAttribute('data-type') !== 'vizonator' && user.login && user.login === group[x].value) {
     let acc_data = {login: user.login, regular: user.regular, active: user.active, memo: user.memo_key};
     localStorage.setItem("viz_current_user", JSON.stringify(acc_data));
 $('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
-} else if (user.type && user.type === 'vizonator' && user.last_login === group[x].value) {
+} else if (user.type && user.type === 'vizonator' && group[x].getAttribute('data-type') === user.type && user.last_login === group[x].value) {
     let acc_data = {type: 'vizonator', last_login: user.last_login, isActive: user.isActive};
     localStorage.setItem("viz_current_user", JSON.stringify(acc_data));
-$('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
+$('#select_msg').html('Аккаунт ' + user.last_login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
 }
 }
 }
