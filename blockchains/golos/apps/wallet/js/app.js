@@ -1381,6 +1381,11 @@ $('#action_uia_withdraw_start').click(async function(){
     action_transfer_amount = parseFloat(action_transfer_amount);
     action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
     let action_transfer_memo = $(".action_uia_withdraw_memo").map( (i,el) => $(el).val() ).get().join(gates[token].withdraw.separator);
+    let resultIsWif = golos.auth.isWif(action_transfer_memo);
+    if (resultIsWif === true) {
+    window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+    return;
+    }
 
     try {
   let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
@@ -1449,7 +1454,13 @@ if (q == true) {
 let action_transfer_memo = await createCryptMemo(action_transfer_to, $('#action_transfer_memo').val());
 let transfer_in = $('#transfer_in').val();
  
- if (transfer_in === 'to_vesting') {
+let resultIsWif = golos.auth.isWif(action_transfer_memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+}
+ 
+if (transfer_in === 'to_vesting') {
  try {
   let result = await golos.broadcast.transferToVestingAsync(active_key, golos_login, action_transfer_to, action_transfer_amount);
  window.alert('Вы перевели ' + action_transfer_amount + ' пользователю ' + action_transfer_to + ' в СГ.');
@@ -1499,6 +1510,11 @@ window.alert('Ошибка: ' + e);
      donate_amount = parseFloat(donate_amount);
      donate_amount = donate_amount.toFixed(precision) + ' ' + token;
      let donate_memo = await createCryptMemo(donate_to, $('#donate_memo').val());
+     let resultIsWif = golos.auth.isWif(donate_memo);
+     if (resultIsWif === true) {
+     window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+     return;
+     }
 
      try {
 let result = await golos.broadcast.donateAsync(posting_key, golos_login, donate_to, donate_amount, {app: 'dpos-space', version: 1, comment: donate_memo, target: {type: 'personal_donate'}}, []);
@@ -1749,7 +1765,13 @@ token_action = ' в СГ';
                   transfer_from_tip_amount = parseFloat(transfer_from_tip_amount);
                   transfer_from_tip_amount = transfer_from_tip_amount.toFixed(precision) + ' ' + token;
                   var transfer_from_tip_memo = $('#transfer_from_tip_memo').val();
-                   try {
+                  let resultIsWif = golos.auth.isWif(transfer_from_tip_memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+} 
+                  
+                  try {
                       let result = await golos.broadcast.transferFromTipAsync(active_key, golos_login, transfer_from_tip_to, transfer_from_tip_amount, transfer_from_tip_memo, []);
                       window.alert('Вы перевели ' + transfer_from_tip_amount + ' пользователю ' + transfer_from_tip_to + token_action + '.');
                       await loadBalances();

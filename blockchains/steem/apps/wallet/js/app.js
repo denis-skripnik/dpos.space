@@ -196,6 +196,11 @@ window.alert('Ошибка: ' + err);
  action_steem_transfer_amount = action_steem_transfer_amount.toFixed(3) + ' STEEM';
  var action_steem_transfer_memo = $('#action_steem_transfer_memo').val();
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
+let resultIsWif = steem.auth.isWif(action_steem_transfer_memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+}
 
 if (transfer_to_vesting.checked) {
 steem.broadcast.transferToVesting(active_key, steem_login, action_steem_transfer_to, action_steem_transfer_amount, function(err, result) {

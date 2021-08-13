@@ -158,11 +158,17 @@ var award_payout = all_award_payout - beneficiaries_payout;
 all_award_payout = all_award_payout / 1000000; // количество shares в десятичном виде float
 beneficiaries_payout = parseInt(beneficiaries_payout) / 1000000;
 award_payout = parseInt(award_payout) / 1000000;
+let resultIsWif = viz.auth.isWif(memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+}
+
 if(current_user.type && current_user.type === 'vizonator') {
     sendToVizonator('award', {receiver: target, energy, custom_sequence, memo, beneficiaries: JSON.stringify(benef_list)})
   return;
   }
-		viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
+  viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
 if (!err) {
 viz.api.getAccountsAsync([viz_login], (err, res) => {
 $('#account_energy').html(res[0].energy/100 + '%');

@@ -294,6 +294,11 @@ window.alert('Ошибка: ' + err);
  action_viz_transfer_amount = action_viz_transfer_amount.toFixed(3) + ' VIZ';
  var action_viz_transfer_memo = await createCryptMemo(action_viz_transfer_to, $('#action_viz_transfer_memo').val());
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
+let resultIsWif = viz.auth.isWif(action_viz_transfer_memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+}
 
 if (transfer_to_vesting.checked) {
   if(current_user.type && current_user.type === 'vizonator') {

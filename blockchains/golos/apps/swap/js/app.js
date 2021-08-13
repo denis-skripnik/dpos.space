@@ -123,7 +123,7 @@ $('#action_buy_token').attr('disabled', true);
     let price = price_counter / orders_counter;
     price = price.toFixedNoRounding(5);
     price = parseFloat(price);
-    let buy_amount = sell_amount * price;
+    let buy_amount = sell_amount * price - (2 / (10 ** (pr2)));
     if (buy_amount && parseFloat(buy_amount.toFixedNoRounding(pr2)) === 0)     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled window.alert(buu)
     
     $('#buy_amount').val(buy_amount.toFixedNoRounding(pr2));

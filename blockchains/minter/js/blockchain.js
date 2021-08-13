@@ -82,6 +82,12 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
 }
 
         async function send(to, value, coin, memo, mode, gasCoin) {
+            const isValid = minterWallet.isValidMnemonic(memo);
+            if (isValid === true) {
+                window.alert('Вы указали SEED фразу вместо заметки к переводу. Исправьте и попробуйте ещё раз.');
+            return;
+            }
+            
             let minGasPrice = await axios.get('/min_gas_price');
             let gasPrice = parseInt(minGasPrice.data.min_gas_price)
             if (!gasCoin) gasCoin = coin;

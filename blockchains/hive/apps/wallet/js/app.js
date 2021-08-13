@@ -199,6 +199,11 @@ window.alert('Ошибка: ' + err);
  action_hive_transfer_amount = action_hive_transfer_amount.toFixed(3) + ' HIVE';
  var action_hive_transfer_memo = $('#action_hive_transfer_memo').val();
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
+let resultIsWif = hive.auth.isWif(action_hive_transfer_memo);
+if (resultIsWif === true) {
+window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
+return;
+}
 
 if (transfer_to_vesting.checked) {
 hive.broadcast.transferToVesting(active_key, hive_login, action_hive_transfer_to, action_hive_transfer_amount, function(err, result) {

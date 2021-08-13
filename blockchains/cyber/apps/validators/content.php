@@ -7,7 +7,7 @@ try {
 <table><thead><tr><th>№</th><th>Адрес</th>
 <th>Публичный ключ</th>
 <th>Сила Голоса</th>
-<th>Преоритет претендента</th></tr></thead><tbody>';
+<th>Приоритет претендента</th></tr></thead><tbody>';
 foreach ($list as $num => $validator) {
 $num++;
   $content .= '<tr><td>'.$num.'</td>
