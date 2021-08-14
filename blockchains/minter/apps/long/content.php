@@ -13,6 +13,7 @@ $content = '<p align="center"><strong><a href="/minter/long/loto">К лотер�
 <p>Это токен с фармингом в LONG, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
 Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на 2.</p>
 <p>Пул <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a></p>
+<p><a href="https://t.me/long_project" target="_blank">Новости проекта в Telegram</a>, <a href="https://t.me/long_project_chat" target="_blank">Обсуждения и ответы на вопросы в Telegram</a></p>
 <div class="tt" onclick="spoiler(`formulas`); return false"><strong>Раскрыть формулы</strong></div>
 <div id="formulas" class="terms" style="display: none;">
 <h3>Формулы</h3>

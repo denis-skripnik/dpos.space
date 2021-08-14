@@ -15,6 +15,7 @@ $content = '<p align="center"><strong><a href="/minter/long/testnet-loto">К л�
 <p>Это токен с фармингом в SMARTFARM, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
 Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на 2.</p>
 <p>Пул <a href="https://explorer.testnet.minter.network/pools/MNT/SMARTFARM" target="_blank">MNT/SMARTFARM</a></p>
+<p><a href="https://t.me/long_project" target="_blank">Новости проекта в Telegram</a>, <a href="https://t.me/long_project_chat" target="_blank">Обсуждения и ответы на вопросы в Telegram</a></p>
 <div class="tt" onclick="spoiler(`formulas`); return false"><strong>Раскрыть формулы</strong></div>
 <div id="formulas" class="terms" style="display: none;">
 <h3>Формулы</h3>
@@ -71,7 +72,7 @@ $provider_percent = $percent * $k;
 
 $content .= '<tr>
 <td>'.$key.'</td>
-<td><a href="https://chainik.io/address/'.$provider['address'].'" target="_blank">'.$provider['address'].'</a></td>
+<td><a href="https://explorer.testnet.minter.network/address/'.$provider['address'].'" target="_blank">'.$provider['address'].'</a></td>
 <td>'.round($provider['liquidity'], 5).'</td>
 <td>'.$provider['invest_days'].'</td>
 <td>'.round($provider['get_amount'], 5).' SMARTFARM</td>
