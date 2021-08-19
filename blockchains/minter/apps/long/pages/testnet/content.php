@@ -47,8 +47,17 @@ $content = '<p align="center"><strong><a href="/minter/long/testnet-loto">К л�
 <th>Сумма выигрыша в лотерее</th>
 <th>Добавленная сумма (для бонуса к инвест. дням)</th>
 <th>Процент будущего фарминга</th>
+<th>Вероятность выигрыша в лотерее</th>
 </tr></thead>
 <tbody>';
+function ticketsSum($a, $b) {
+  $provider_tickets = (int)(($b['liquidity'] / 100) * (1 + ($b['invest_days'] / 300)));
+$a += $provider_tickets;
+return $a;
+}
+$top_providers = array_slice($res['providers'], 0, 49);
+$tickets = array_reduce($top_providers, "ticketsSum");
+
 foreach($res['providers'] as $key => $provider) {
 $key++;
 $get_loto = (isset($provider['get_loto']) && $provider['get_loto'] && $provider['get_loto'] >= 0 ? $provider['get_loto'] : 0);
@@ -70,6 +79,13 @@ if ($provider['add_amount'] && $provider['get_amount'] && $provider['get_amount'
 }
 $provider_percent = $percent * $k;
 
+if ($key <= 50) {
+  $provider_tickets = (int)(($provider['liquidity'] / 100) * (1 + ($provider['invest_days'] / 300)));
+} else {
+  $provider_tickets = 0;
+}
+$tickets_probability = $provider_tickets / $tickets * 100;
+
 $content .= '<tr>
 <td>'.$key.'</td>
 <td><a href="https://explorer.testnet.minter.network/address/'.$provider['address'].'" target="_blank">'.$provider['address'].'</a></td>
@@ -79,6 +95,7 @@ $content .= '<tr>
 <td>'.round($get_loto, 5).' SMARTFARM</td>
 <td>'.round($provider['add_amount'], 5).' SMARTFARM</td>
 <td>'.round($provider_percent, 5).'%</td>
+<td>'.round($tickets_probability, 5).'%</td>
 </tr>';
 }
 $content .= '</tbody></table>';
