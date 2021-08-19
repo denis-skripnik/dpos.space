@@ -8,11 +8,20 @@ $price_changed = ($current_price - 1) / 1 * 100;
 $change_k = (0.2 * ($price_changed / 100)) / 10;
 $percent = 2 * (0.2 + $change_k);
 
+$bip_prices = file_get_contents('https://api.coingecko.com/api/v3/simple/price?ids=bip&vs_currencies=usd,rub');
+$res_bip_prices = json_decode($bip_prices, true);
+$usd_bip_price = $res_bip_prices['bip']['usd'];
+$rub_bip_price = $res_bip_prices['bip']['rub'];
+$usd_price = $current_price * $usd_bip_price;
+
+$rub_price = $current_price * $rub_bip_price;
+
 $content = '<p align="center"><strong><a href="/minter/long/loto">К лотерее</a></strong></p>
 <h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Философия проекта</a>)</h2>
 <p>Это токен с фармингом в LONG, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
 Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на 2.</p>
 <p>Пул <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a></p>
+<p>Курс 1 LONG = '.round($current_price, 5).' BIP, $ '.round($usd_price, 5).', '.round($rub_price, 5).' Руб.</p>
 <p><a href="https://t.me/long_project" target="_blank">Новости проекта в Telegram</a>, <a href="https://t.me/long_project_chat" target="_blank">Обсуждения и ответы на вопросы в Telegram</a></p>
 <div class="tt" onclick="spoiler(`formulas`); return false"><strong>Раскрыть формулы</strong></div>
 <div id="formulas" class="terms" style="display: none;">
