@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-  $html = file_get_contents('http://138.201.91.11:3852/smartfarm/provider?address='.pageUrl()[3]);
+  $html = file_get_contents('http://138.201.91.11:3258/smartfarm/provider?address='.pageUrl()[3]);
   $provider = json_decode($html, true);
 $friends = '{}';
   if (isset($provider['friends']) && count($provider['friends']) > 0) $friends = json_encode($provider['friends'], true);
@@ -14,8 +14,6 @@ $friends = '{}';
 <p>Таким образом я куплю для Павла сам BIP, обменяю их на LONG и сам обеспечу ему фарминг, запомнив лишь итоговое количество токенов пула.<br />
 Я могу назначить Павлу заработок в 0.5%/день (из максимальных 0.8% на моём кошельке), а остальные 0.3%/день будут моей пассивной прибылью.<br />
 А Павлу я смогу просто скинуть ссылку на данную страницу, где в выпадающем списке он будет под кодовым именем "Друг 1".</p>
-<p><strong>Для изменения и добавления членов семьи и / или друзей необходимо авторизоваться <a href="/minter/accounts">в разделе аккаунтов</a>.<br />
-Если адрес совпадёт с адресом кошелька на странице, такая возможность появится.</strong></p>
 <span style="display: none" id="json_friends">'.$friends.'</span>';
 if (isset(pageUrl()[3]) && isset($provider)) {
   $get_amount = $provider['get_amount'] + $provider['get_loto'];
@@ -27,7 +25,7 @@ if (isset(pageUrl()[3]) && isset($provider)) {
 <select name="friends_templates">
 <option value="">Выберите друга</option>
 </select>
-</label><span id="delete_friend" style="display: none;"></span></p>
+</label> (<span id="delete_friend"></span>)</p>
 
 <p><label for="lp_tokens">Число LP-токенов:<br>
 <input type="text" name="lp_tokens" min="0" value="" placeholder="Введите число LP-токенов от 0"> (из <span id="max_lp">'.$provider['liquidity'].'</span>)
@@ -39,7 +37,8 @@ if (isset(pageUrl()[3]) && isset($provider)) {
 <input type="range" name="my_share" min="0" max="100" value="0" placeholder="Выберите процент"> <span id="self_percent"></span>%
 </label></p>
 <p align="center"><strong>Отправить <span id="send_amount">0</span></strong</p>
-<p align="center"><input type="button" value="Сохранить" id="save_friend" style="display: none;"></p>
+<p align="center"><input type="button" value="Сохранить" id="save_friend"></p>
+<p id="save_link"></p>
 </form>';
 }
 return $content;

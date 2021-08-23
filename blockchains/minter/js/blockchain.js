@@ -1,4 +1,5 @@
 const TX_TYPE = minterSDK.TX_TYPE;
+const prepareLink = minterSDK.prepareLink;
 const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one/v2'});
 
 axios.defaults.baseURL = 'https://api.minter.one/v2';

@@ -16,8 +16,7 @@ $usd_price = $current_price * $usd_bip_price;
 
 $rub_price = $current_price * $rub_bip_price;
 
-$content = '<p align="center"><strong><a href="/minter/long/loto">К лотерее</a></strong></p>
-<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Философия проекта</a>)</h2>
+$content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Философия проекта</a>)</h2>
 <p>Это токен с фармингом в LONG, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
 Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на 2.</p>
 <p>Пул <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a></p>
@@ -35,6 +34,8 @@ $content = '<p align="center"><strong><a href="/minter/long/loto">К лотер�
 Если от 0.5 до 1 - +0.005 - +0.01.</li>
 </ol>
 </div>
+<h2>Меню сервисов проекта</h2>
+<ol><li><a href="/minter/long/loto">Лотерея для участников топ 50 в пуле</a></li></ol>
 <h3>Основные данные</h3>
 <ul><li>Стартовая цена: '.$res['start_price'].' BIP</li>
 <li>Начальный процент, от которого идёт изменение в зависимости от курса токена: '.$res['start_percent'].'%</li>
@@ -54,20 +55,9 @@ $content = '<p align="center"><strong><a href="/minter/long/loto">К лотер�
 <th>Полученная в последний раз сумма</th>
 <th>Добавленная сумма (бонус за реинвест)</th>
 <th>Процент будущего фарминга</th>
-<th>Вероятность выигрыша в лотерее</th>
+<th>Действия</th>
 </tr></thead>
 <tbody>';
-function ticketsSum($a, $b) {
-  if ($b['address'] !== 'Mxae30a08fae2cc95960c5055d1142fd676995e18b') {
-    $provider_tickets = (int)(($b['liquidity'] / 100) * (1 + ($b['invest_days'] / 300)));
-    $a += $provider_tickets;
-  } else {
-    $a += 0;
-  }
-  return $a;
-}
-$top_providers = array_slice($res['providers'], 0, 50);
-$tickets = array_reduce($top_providers, "ticketsSum");
 
 foreach($res['providers'] as $key => $provider) {
 $key++;
@@ -92,13 +82,7 @@ $provider_percent = $percent * $k;
 
 $loto_amount = '';
 if ($key <= 51 && $provider['address'] !== 'Mxae30a08fae2cc95960c5055d1142fd676995e18b') {
-  $provider_tickets = (int)(($provider['liquidity'] / 100) * (1 + ($provider['invest_days'] / 300)));
-  $tickets_probability = $provider_tickets / $tickets * 100;
-  $tickets_probability = round($tickets_probability, 5).'%';
   if ($get_loto > 0) $loto_amount = ' + '.round($get_loto, 5);
-} else {
-  $provider_tickets = 0;
-$tickets_probability = 'Не участвует';
 }
 
 $content .= '<tr>
@@ -109,7 +93,7 @@ $content .= '<tr>
 <td>'.round($provider['get_amount'], 5).$loto_amount.' LONG</td>
 <td>'.round($provider['add_amount'], 5).' LONG</td>
 <td>'.round($provider_percent, 5).'%</td>
-<td>'.$tickets_probability.'</td>
+<td><a href="/minter/long/calc/'.$provider['address'].'" target="_blank">Семейный калькулятор</a></td>
 </tr>';
 }
 $content .= '</tbody></table>';
