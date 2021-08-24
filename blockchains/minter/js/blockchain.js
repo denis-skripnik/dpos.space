@@ -5,7 +5,7 @@ const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.mint
 axios.defaults.baseURL = 'https://api.minter.one/v2';
 
 let current_user = JSON.parse(localStorage.getItem("minter_current_user"));
-if (current_user) {
+if (current_user && !current_user.type  || current_user && current_user.type !== 'bip.to') {
 var minter_login = current_user.login;
 let chain = 'minter';
 if (current_user.importFrom) chain = current_user.importFrom;
@@ -16,6 +16,11 @@ $( document ).ready(function() {
         document.getElementById('seed_page').style = 'display: none';
        }
 });    
+} else if (current_user && current_user.type && current_user.type === 'bip.to') {
+    var minter_login = current_user.login;            
+    $( document ).ready(function() {
+            document.getElementById('seed_page').style = 'display: block';
+    });    
 } else {
     $( document ).ready(function() {
       if (!seed) {
@@ -23,7 +28,7 @@ $( document ).ready(function() {
         document.getElementById('seed_page').style = 'display: none';
        }
         });
-        }
+    }
         
 var users = JSON.parse(localStorage.getItem('minter_users'));
 $( document ).ready(function() {
@@ -45,6 +50,12 @@ if (current_user.importFrom) chain = current_user.importFrom;
                 'privateKey': import_data.getPrivateKeyString(),
                 'node': "https://api.minter.one/v2"
             }
+        } else if (current_user.type === 'bip.to') {
+            sender = {
+                'address': current_user.address,
+                'node': "https://api.minter.one/v2"
+            }
+
         }
 
         async function getTransaction(txHash) {
@@ -62,6 +73,12 @@ if (current_user.importFrom) chain = current_user.importFrom;
         }
         
 async function broadcasting(idTxParams) {
+    if (current_user.type === 'bip.to') {
+let link = prepareLink(idTxParams);
+$.fancybox.open(`<p id="message"><strong>Перейдите по ссылке ниже, чтобы отправить транзакцию. Не забудьте проверить, что не изменили адрес кошелька в BIP wallet: <a href="${link}" target="_blank">${link}</a><br>
+Не забудьте закрыть это всплывающее окно после отправки.</strong></p>`);
+        return;
+    }
     let wif = sender.privateKey;
     minter.postTx(idTxParams, {privateKey: wif})
     .then(async (txHash) => {

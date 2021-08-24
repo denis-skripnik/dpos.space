@@ -11,6 +11,14 @@ return '<div id="select_account"></div>
 <p><textarea name="seed" id="seed" required></textarea></p>
 <p><input type="button" onclick="saveAccount()" value="Войти"></p>
 </form>
+<h3>wallet.bip.to</h3>
+<form class="form">
+<p><label for="bip_to_login">Имя аккаунта: </label>
+<input type="text" name="bip_to_login" id="bip_to_login" value="" required placeholder="Введите произвольное имя аккаунта"></p>
+<p><label for="bip_to_address">Адрес аккаунта: </label>
+<input type="text" name="bip_to_address" id="bip_to_address" value="" required placeholder="Введите адрес Minter кошелька"></p>
+<p><strong><input type="button" value="Вход" onclick="bipToAuth(this.form.bip_to_login.value, this.form.bip_to_address.value)"></strong></p>
+</form>
 <h3>Импорт из другого блокчейна на dpos.space</h3>
 <form>
 <p><label for="select_chain">Выберите блокчейн:<br>

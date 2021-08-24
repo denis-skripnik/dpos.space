@@ -3,6 +3,7 @@ gates.PRIZM = {};
 gates.YMRUB = {};
 gates.YMPZM = {};
 gates.YMDASH = {};
+gates.YMTRX = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
 gates.VIZUIA = {};
@@ -131,6 +132,29 @@ gates.YMPZM.deposit = {
     account: "ecurrex-dash",
     memo: "deposit"
       };
+
+      gates.YMTRX.withdraw = {
+        account: "ecurrex-tron",
+      get_max: {
+        allow: false,
+      login: "ecurrex-ru",
+        separator: " / ",
+      },
+        vars: [
+          {
+            name: "",
+            address: "Адрес кошелька Tron",
+          }
+          ],
+        separator: ""
+      };
+    
+      gates.YMTRX.deposit = {
+        type: "get_address",
+        account: "ecurrex-tron",
+        memo: "deposit",
+        "text": "От 10 TRX",
+          };
 
       gates.YMHIVE.withdraw = {
         account: "ecurrex-hive",
@@ -1278,9 +1302,12 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
 let deposit = gates[token].deposit;
 let res = '';
 if (deposit.type === 'get_address') {
-res = `<p>Нажмите на кнопку ниже, чтобы получить адрес пополнения.</p>
-<div id="uia_deposit_address"><button onclick="getDepositAddress('${token}')">Получить адрес</button></div>`;
-  
+let notify_text = '';
+if (deposit.text) notify_text = `<p><strong>${deposit.text}</strong></p>`;
+  res = `<p>Нажмите на кнопку ниже, чтобы получить адрес пополнения.</p>
+<div id="uia_deposit_address"><button onclick="getDepositAddress('${token}')">Получить адрес</button></div>
+${notify_text}`;
+
 } else {
   res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
 `;

@@ -371,7 +371,7 @@ $('#delegation_tbody').html(table);
 }
 
 $(document).ready(async function() {
-  if (seed) {
+  if (seed || current_user.type === 'bip.to') {
     jQuery("#main_wallet_info").css("display", "block");
     await loadBalances();
     setInterval(async function() {await loadBalances();}, 5000);
