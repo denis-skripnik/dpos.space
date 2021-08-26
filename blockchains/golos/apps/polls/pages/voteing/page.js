@@ -8,7 +8,7 @@ function sendData(operations, variant) {
     variant = parseInt(variant) + 1;
     var q = window.confirm('Вы действительно хотите проголосовать за вариант №' + variant + '?');
     if (q === true) {
-    golos.broadcast.send({extensions: [], operations}, [active_key], function(err, res) {
+    golos.broadcast.send({extensions: [], operations}, [posting_key], function(err, res) {
 if (!err) {
     window.alert('Вы успешно проголосовали.');
 } else {
@@ -31,7 +31,7 @@ let memo = JSON.stringify(memo_array);
     data_url.push(["custom_json",{"required_auths":[],          "required_posting_auths": [sender],"id":"golos-votes","json":memo}]);
     let str_data_url = JSON.stringify(data_url);
         if (sender && answer) {
-        if (golos_login && posting_key) {
+        if (golos_login && posting_key && golos_login === sender) {
             sendData(data_url, answer);
         } else {
             window.open("https://gropox.github.io/sign/?user=" + sender + "&tr=" + str_data_url);

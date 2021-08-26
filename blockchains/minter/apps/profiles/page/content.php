@@ -47,7 +47,10 @@ return '<h2>Балансы</h2>
 <ul><li>В Ethereum: <span id="ethereum_hub"></span></li>
 <li>В BSC: <span id="bsc_hub"></span></li>
 </ul>
+<h2>Реворды с делегирования за вчера</h2>
+<p id="last_reward">Неизвестно...</p>
 '.$long_stats.'
+
 <h2>История транзакций</h2>
 <table><thead><tr><th>Дата</th>
 <th>Блок</th>

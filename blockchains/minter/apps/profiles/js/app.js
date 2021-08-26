@@ -22,7 +22,21 @@ let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
     let bscHubBalanceRes = await axios.get(`https://api.bscscan.com/api?module=account&action=tokenbalance&contractaddress=0x8ac0a467f878f3561d309cf9b0994b0530b0a9d2&address=${eth_address}&tag=latest`);
     let bscHub = parseFloat(bscHubBalanceRes.data.result) / (10 ** 18);
         $('#bsc_hub').html(bscHub);
-  }
+  
+  // Получаем сумму наград
+  var currentDate = new Date();
+  currentDate.setDate(currentDate.getDate() - 1);
+  let rewards_date = new Date(currentDate).toLocaleDateString('en-ca');
+try {
+  let rewards = await axios.get(`https://explorer-api.minter.network/api/v2/addresses/${address}/statistics/rewards?start_time=${rewards_date}&end_time=${rewards_date}`);
+if (typeof rewards.data.data[0]  !== 'undefined' && typeof rewards.data.data[0].amount !== 'undefined') {
+  let last_reward = parseFloat(rewards.data.data[0].amount).toFixed(3) + ' BIP';
+  $('#last_reward').html(last_reward);
+}
+} catch(e) {
+  console.error(e);
+}
+      }
 
  function fast_str_replace(search,replace,str){
     return str.split(search).join(replace);

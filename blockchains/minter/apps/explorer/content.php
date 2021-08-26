@@ -34,7 +34,16 @@ $content .= '<li>Сеть: '.$status['network'].'</li>
 <li>Хеш последнего блока: '.$status['latest_block_hash'].'</li>
 <li>Номер последнего блока: '.$status['latest_block_height'].'</li>
 <li>Дата и время последнего блока: '.$status['latest_block_time'].'</li>
-<li>Публичный ключ валидатора: '.$status['public_key'].'</li></ul>
+<li>Публичный ключ валидатора: '.$status['public_key'].'</li>';
+$html = file_get_contents('https://explorer-api.minter.network/api/v2/status-page');
+$explorer = json_decode($html, true)['data'];
+if (isset($explorer)) {
+$content .= '<li>Эмиссия BIP: '.$explorer['bip_emission'].'</li>
+<li>На руках (в ликвиде) '.$explorer['free_float_bip'].' BIP</li>
+<li>Средняя скорость выпуска блоков за 24 часа: '.round($explorer['block_speed_24h'], 2).' с</li>
+<li>Кол-во транзакций за 24 часа: '.$explorer['transaction_count_24h'].'</li>';
+}
+$content .= '</ul>
 <p align="center"><a href="#contents">К оглавлению</a></p>';
 return $content;
 ?>

@@ -47,21 +47,20 @@ const txParams = {
 let link = prepareLink(txParams);
 $.fancybox.open(`<p id="message"><strong>Пожалуйста, перейдите по этой ссылке для авторизации и подтвердите транзакцию: <a href="${link}" target="_blank">${link}</a>.</strong></p>`);
 var intervalID = setInterval(async function() {
-    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + sender.address + '/transactions?page=1');
-    let res = response.data.data;
-let tr = res[0];
-        if (tr.type === 1 && tr.data.to === 'Mx0000000000000000000000000000000000000000') {
-            let memo = decodeURIComponent(escape(window.atob(tr.payload)));
-            if (memo === auth_key) {
-    let user = {login, type: 'bip.to', address};
-    localStorage.setItem("minter_current_user", JSON.stringify(user));
-    
-    users.push(user);
-    localStorage.setItem("minter_users", JSON.stringify(users));
-    document.getElementById('message').innerHTML = (`<strong>Ok. Вы авторизованы.</strong>`);
-            clearInterval(intervalID);
-    return;
-        }
+    let from = sender.address.slice(2);
+    let response = await axios.get(`/transactions?query=tags.tx.coin_id%3D%270%27%20and%20tags.tx.from%3D%27${from}%27%20and%20tags.tx.to%3D%270000000000000000000000000000000000000000%27%20and%20tags.tx.type%3D%2701%27&page=1&per_page=30`);
+    let res = response.data.transactions;
+    for (let tr of res) {
+    let memo = decodeURIComponent(escape(window.atob(tr.payload)));
+    if (memo === auth_key) {
+let user = {login, type: 'bip.to', address};
+localStorage.setItem("minter_current_user", JSON.stringify(user));
+users.push(user);
+localStorage.setItem("minter_users", JSON.stringify(users));
+document.getElementById('message').innerHTML = (`<strong>Ok. Вы авторизованы.</strong>`);
+        clearInterval(intervalID);
+return;
+}
     }
 }, 5000)
 

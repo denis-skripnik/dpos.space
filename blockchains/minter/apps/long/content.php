@@ -20,7 +20,8 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <p>Это токен с фармингом в LONG, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
 Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на 2.</p>
 <p>Пул <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a></p>
-<p>Курс 1 LONG = '.round($current_price, 5).' BIP, $ '.round($usd_price, 5).', '.round($rub_price, 5).' Руб.</p>
+<p id="prices">Курс 1 LONG = <span id="current_price">'.round($current_price, 5).'</span> BIP, $ '.round($usd_price, 5).', '.round($rub_price, 5).' Руб.</p>
+<span style="display: none;" id="bip_usd_price">'.$usd_bip_price.'</span><span style="display: none;" id="bip_rub_price">'.$rub_bip_price.'</span>
 <p><a href="https://t.me/long_project" target="_blank">Новости проекта в Telegram</a>, <a href="https://t.me/long_project_chat" target="_blank">Обсуждения и ответы на вопросы в Telegram</a></p>
 <div class="tt" onclick="spoiler(`formulas`); return false"><strong>Раскрыть формулы</strong></div>
 <div id="formulas" class="terms" style="display: none;">
@@ -39,8 +40,21 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <h3>Основные данные</h3>
 <ul><li>Стартовая цена: '.$res['start_price'].' BIP</li>
 <li>Начальный процент, от которого идёт изменение в зависимости от курса токена: '.$res['start_percent'].'%</li>
-<li>Текущий процент на момент просмотра страницы: '.round($percent, 5).'%</li></ul>
+<li>Текущий процент на момент просмотра страницы: <span id="now_percent">'.round($percent, 5).'</span>%</li></ul>
 <h3>Провайдеры</h3>
+<h4>Калькулятор заработка</h4>
+<form class="form">
+<p><label for="long_amount">Количество LONG:<br>
+<input type="number" name="long_amount" min="0" placeholder="Введите сумму LONG">
+</label></p>
+<p>Вам надо будет добавить также <span id="bip_add_amount">0</span> BIP<br>
+Примерная сумма LP-токенов: <span id="adding_liquidity"></span></p>
+<p><label for="invest_days_calc">Кол-во инвест. дней:<br>
+<input type="number" name="invest_days_calc" min="0" max="365" value="0" placeholder="Выберите инвест. день">
+</label></p>
+<p>Ежедневная прибыль: <span id="result_profit">0</span> LONG *Курс действителен на <span id="page_date"></span></p>
+</form>
+<h4>Список</h4>
 <p>Чем больше инвест. дней, тем больше фарминг (если вы выводите из пула хоть сколько-то LONG, дни обнуляются. Тоже самое при переводе LP-токенов на другой адрес). Добавления в пул не обнуляют дни (это даже можно назвать реинвестом).</p>
 <p><strong>
 Если вы вкладываете всю полученную при последней рассылке или даже больше, получаете +1 доп. инвестиционный день. Если от половины до максимума - 0.5-1 инвест. день.<br>
@@ -54,7 +68,7 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <th>Инвестиционных дней</th>
 <th>Полученная в последний раз сумма</th>
 <th>Добавленная сумма (бонус за реинвест)</th>
-<th>Процент будущего фарминга</th>
+<th>Будущий фарминг, сумма (процент)</th>
 <th>Действия</th>
 </tr></thead>
 <tbody>';
@@ -79,6 +93,8 @@ if ($provider['add_amount'] && $provider['get_amount'] && $provider['get_amount'
   }
 }
 $provider_percent = $percent * $k;
+$farming_share = (float)$provider['liquidity'] * ($percent / 100);
+$farming_share *= $k;
 
 $loto_amount = '';
 if ($key <= 51 && $provider['address'] !== 'Mxae30a08fae2cc95960c5055d1142fd676995e18b') {
@@ -92,7 +108,7 @@ $content .= '<tr>
 <td>'.$provider['invest_days'].'</td>
 <td>'.round($provider['get_amount'], 5).$loto_amount.' LONG</td>
 <td>'.round($provider['add_amount'], 5).' LONG</td>
-<td>'.round($provider_percent, 5).'%</td>
+<td>'.round($farming_share, 5).' LONG ('.round($provider_percent, 5).'%)</td>
 <td><a href="/minter/long/calc/'.$provider['address'].'" target="_blank">Семейный калькулятор</a></td>
 </tr>';
 }
