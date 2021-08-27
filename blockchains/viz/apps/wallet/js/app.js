@@ -156,8 +156,8 @@ function cancelDelegatedVestingShares(delegatee) {
     });
 }
 
-function load_balance(account, active_key) {
-  viz.api.getAccounts([account], function(err, result){
+function load_balance() {
+  viz.api.getAccounts([viz_login], function(err, result){
  if (!err) {
  result.forEach(function(acc) {
 
@@ -168,7 +168,7 @@ $(".delegated_vesting_shares_result").html(parseFloat(acc.delegated_vesting_shar
 
 const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
 var type = 'received';
-viz.api.getVestingDelegations(account, '', 100, type, function(err, res) {
+viz.api.getVestingDelegations(viz_login, '', 100, type, function(err, res) {
   if ( ! err) {
     var vs_amount = '';
   var body_received_vesting_shares = '';
@@ -184,7 +184,7 @@ body_received_vesting_shares = '<tr><td><a href="/viz/profiles/' + item.delegato
 });
 
 var type = 'delegated';
-viz.api.getVestingDelegations(account, '', 100, type, function(err, res) {
+viz.api.getVestingDelegations(viz_login, '', 100, type, function(err, res) {
   //console.log(err, res);
   if ( ! err) {
     var vesting_shares_amount = '';
@@ -208,7 +208,7 @@ if(current_user.type && current_user.type === 'vizonator') {
   sendToVizonator('withdraw_vesting', {vesting_shares: '0.000000 SHARES'})
 return;
 }
-  viz.broadcast.withdrawVesting(active_key, account, '0.000000 SHARES', function(err, result) {
+  viz.broadcast.withdrawVesting(active_key, viz_login, '0.000000 SHARES', function(err, result) {
   if (!err) {
 window.alert('Вывод отменён.');
 $('#info_vesting_withdraw').css('display', 'none');
@@ -237,7 +237,7 @@ if (to_shares == true) {
 window.alert('Vizonator не поддерживает данный вид операций. Пожалуйста, смените аккаунт на другой.');
   return;
   }
-  viz.broadcast.useInviteBalance(active_key, account, account, invite_secret, function(err, result) {
+  viz.broadcast.useInviteBalance(active_key, viz_login, viz_login, invite_secret, function(err, result) {
     if (!err) {
     window.alert('Пополнение прошло успешно.');
     location.reload();
@@ -250,7 +250,7 @@ window.alert('Vizonator не поддерживает данный вид опе
     window.alert('Vizonator не поддерживает данный вид операций. Пожалуйста, смените аккаунт на другой.');
       return;
       }
-  viz.broadcast.claimInviteBalance(active_key, account, account, invite_secret, function(err, result) {
+  viz.broadcast.claimInviteBalance(active_key, viz_login, viz_login, invite_secret, function(err, result) {
 if (!err) {
 window.alert('Пополнение прошло успешно.');
 location.reload();
@@ -273,7 +273,7 @@ if(current_user.type && current_user.type === 'vizonator') {
   sendToVizonator('withdraw_vesting', {vesting_shares: action_vesting_withdraw_amount})
 return;
 }
-viz.broadcast.withdrawVesting(active_key, account, action_vesting_withdraw_amount, function(err, result) {
+viz.broadcast.withdrawVesting(active_key, viz_login, action_vesting_withdraw_amount, function(err, result) {
 if (!err) {
 window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
 location.reload();
@@ -305,7 +305,7 @@ if (transfer_to_vesting.checked) {
     sendToVizonator('transfer_to_vesting', {to:action_viz_transfer_to,amount: action_viz_transfer_amount})
   return;
   }
-  viz.broadcast.transferToVesting(active_key, account, action_viz_transfer_to, action_viz_transfer_amount, function(err, result) {
+  viz.broadcast.transferToVesting(active_key, viz_login, action_viz_transfer_to, action_viz_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_viz_transfer_amount + ' пользователю ' + action_viz_transfer_to + ' в SHARES.');
 location.reload();
@@ -319,7 +319,7 @@ window.alert('Ошибка: ' + err);
     sendToVizonator('transfer', {to: action_viz_transfer_to,amount: action_viz_transfer_amount, memo: action_viz_transfer_memo, force_memo_encoding: false})
   return;
   }
-  viz.broadcast.transfer(active_key, account, action_viz_transfer_to, action_viz_transfer_amount, action_viz_transfer_memo, function(err, result) {
+  viz.broadcast.transfer(active_key, viz_login, action_viz_transfer_to, action_viz_transfer_amount, action_viz_transfer_memo, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_viz_transfer_amount + ' пользователю ' + action_viz_transfer_to + '.');
 location.reload();
@@ -375,10 +375,10 @@ if (name && name !== '') {
  action_to_shares_transfer_amount = parseFloat(action_to_shares_transfer_amount);
  action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' VIZ';
  if(current_user.type && current_user.type === 'vizonator') {
-  sendToVizonator('transfer_to_vesting', {to: account,amount: action_to_shares_transfer_amount})
+  sendToVizonator('transfer_to_vesting', {to: viz_login,amount: action_to_shares_transfer_amount})
 return;
 }
- viz.broadcast.transferToVesting(active_key, account, account, action_to_shares_transfer_amount, function(err, result) {
+ viz.broadcast.transferToVesting(active_key, viz_login, viz_login, action_to_shares_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' viz в SHARES своего аккаунта.');
 location.reload();
@@ -401,7 +401,8 @@ $("#max_vesting_deligate").html(max_vesting_deligate);
   sendToVizonator('delegate_vesting_shares', {delegatee: action_vesting_delegate_to, vesting_shares: action_vesting_delegate_amount})
 return;
 }
- viz.broadcast.delegateVestingShares(active_key, account, action_vesting_delegate_to, action_vesting_delegate_amount, function(err, result) {
+
+viz.broadcast.delegateVestingShares(active_key, viz_login, action_vesting_delegate_to, action_vesting_delegate_amount, function(err, result) {
 if (!err) {
 window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
 location.reload();
@@ -447,7 +448,7 @@ $("#create_invite_result_amount").html(create_invite_amount);
       window.alert('Vizonator не поддерживает данный вид операций. Пожалуйста, смените аккаунт на другой.');
         return;
         }
-    viz.broadcast.createInvite(active_key, account, create_invite_amount, create_invite_key, function(err, result) {
+    viz.broadcast.createInvite(active_key, viz_login, create_invite_amount, create_invite_key, function(err, result) {
 if (!err) {
 $('#invite_created').css('display', 'block');
 } else {
@@ -471,7 +472,7 @@ $("#witnesses_vote_button").css("display", "inline");
       window.alert('Vizonator не поддерживает данный вид операций. Пожалуйста, смените аккаунт на другой.');
         return;
         }
-    viz.broadcast.accountWitnessVote(active_key, account, 'denis-skripnik', true, function(err, result) {
+    viz.broadcast.accountWitnessVote(active_key, viz_login, 'denis-skripnik', true, function(err, result) {
 if (!err) {
 window.alert('Благодарю вас за голос!');
 } else {
@@ -581,7 +582,7 @@ text = text.slice(1);
 async function walletData() {
   if (active_key || current_user.type && current_user.type === 'vizonator' && current_user.isActive === true) {
   jQuery("#main_wallet_info").css("display", "block");
-  load_balance(viz_login, '');
+  load_balance();
 
   // История переводов:
   jQuery("#wallet_transfer_history").css("display", "block");
