@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+return '<div id="auth_msg" style="display: none;"><p>Для работы с монетами необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
 <div id="seed_page">
 <p><strong>Для управления монетами важно, чтоб вы являлись их создателями.</strong></p>
 <h2><a name="contents">Оглавление</a></h2>

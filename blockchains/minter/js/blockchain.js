@@ -42,7 +42,7 @@ $( document ).ready(function() {
         var sender = {};
         if (seed) {
             let chain = 'minter';
-if (current_user.importFrom) chain = current_user.importFrom;
+if (current_user && current_user.importFrom) chain = current_user.importFrom;
             const secret = sjcl.decrypt(`dpos.space_${chain}_` + current_user.login + '_seed', current_user.seed);
             const import_data = minterWallet.walletFromMnemonic(secret);
             sender = {
@@ -50,7 +50,7 @@ if (current_user.importFrom) chain = current_user.importFrom;
                 'privateKey': import_data.getPrivateKeyString(),
                 'node': "https://api.minter.one/v2"
             }
-        } else if (current_user.type === 'bip.to') {
+        } else if (current_user && current_user.type === 'bip.to') {
             sender = {
                 'address': current_user.address,
                 'node': "https://api.minter.one/v2"
@@ -107,7 +107,7 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
             }
             
             let minGasPrice = await axios.get('/min_gas_price');
-            let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+        let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
             if (!gasCoin) gasCoin = coin;
             const txParams = {
                 chainId: 1,
@@ -122,7 +122,6 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
                 payload: memo,
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
-            console.log(idTxParams);
 if (mode !== 'fee') {
     await broadcasting(idTxParams);
 } else {
@@ -149,6 +148,9 @@ if (mode !== 'fee') {
             }
                         txParams.data.valueToSell = value;
             txParams.gasCoin = gasCoin;
+            let minGasPrice = await axios.get('/min_gas_price');
+            let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
+            txParams.gasPrice = gasPrice;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             if (mode !== 'fee') {
@@ -161,7 +163,7 @@ if (mode !== 'fee') {
         
         async function addToPool(coin, to, amount1, amount2, mode, variant, gasCoin) {
                         let minGasPrice = await axios.get('/min_gas_price');
-            let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+            let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
             if (!gasCoin) gasCoin = coin;
             let type = TX_TYPE.ADD_LIQUIDITY;
 if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
@@ -193,7 +195,7 @@ if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
 
         async function removeFromPool(coin0, coin1, liquidity, mode) {
             let minGasPrice = await axios.get('/min_gas_price');
-let gasPrice = parseInt(minGasPrice.data.min_gas_price)
+let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
 let txParams = {
     chainId: 1,
     type: TX_TYPE.REMOVE_LIQUIDITY,

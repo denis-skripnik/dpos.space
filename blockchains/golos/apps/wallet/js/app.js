@@ -1408,11 +1408,6 @@ $('#action_uia_withdraw_start').click(async function(){
     action_transfer_amount = parseFloat(action_transfer_amount);
     action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
     let action_transfer_memo = $(".action_uia_withdraw_memo").map( (i,el) => $(el).val() ).get().join(gates[token].withdraw.separator);
-    let resultIsWif = golos.auth.isWif(action_transfer_memo);
-    if (resultIsWif === true) {
-    window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
-    return;
-    }
 
     try {
   let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);

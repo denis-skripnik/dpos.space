@@ -37,15 +37,17 @@ function inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snipp
   $finde_no_load =   strpos($script, '_');
   if ($finde_files === false && $finde_no_load === false) {
     if ($script !== 'app.js') {
-    $data['scripts'] .= '
-  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script.'"></script>';
+    $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script);
+      $data['scripts'] .= '
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script.'?ver='.$version.'"></script>';
     }
   }
   }
   $search_script = array_search('app.js', $scripts);
   if ($search_script) {
+    $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js');
     $data['scripts'] .= '
-  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js"></script>';
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
   }
   }
   $data['styles'] = '';
@@ -56,8 +58,9 @@ function inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snipp
       $finde_files = strpos($style, '.js');
       $finde_no_load =   strpos($style, '_');
       if ($finde_files === false && $finde_no_load === false) {
-      $data['styles'] .= '
-  <link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style.'" rel="stylesheet">';
+        $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style);
+        $data['styles'] .= '
+  <link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style.'?ver='.$version.'" rel="stylesheet">';
       }  
   }
     }
@@ -81,15 +84,17 @@ $blockchain_snippet = '';
     $finde_no_load =   strpos($script, '_');
     if ($finde_files === false && $finde_no_load === false) {
       if ($script !== 'blockchain.js') {
-      $blockchain_scripts .= '<script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/js/'.$script.'"></script>
+        $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/js/'.$script);
+        $blockchain_scripts .= '<script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/js/'.$script.'?ver='.$version.'"></script>
     ';
       }  
   }
     }
     $search_script = array_search('blockchain.js', $scripts);
     if ($search_script) {
+      $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/js/blockchain.js');
       $blockchain_scripts .= '
-    <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/js/blockchain.js"></script>';
+    <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/js/blockchain.js?ver='.$version.'"></script>';
     }  
   }
     if (is_dir(__DIR__.'/blockchains/'.$url[0].'/css')) {
@@ -98,7 +103,8 @@ $blockchain_snippet = '';
         $finde_files = strpos($style, '.js');
         $finde_no_load =   strpos($style, '_');
         if ($finde_files === false && $finde_no_load === false) {
-                    $blockchain_styles .= '<link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/css/'.$style.'" rel="stylesheet">
+          $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/css/'.$style);
+          $blockchain_styles .= '<link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/css/'.$style.'?ver='.$version.'" rel="stylesheet">
     ';
         }  
     }
@@ -130,15 +136,17 @@ if (!isset($data)) {
   $finde_no_load =   strpos($script, '_');
   if ($finde_files === false && $finde_no_load === false) {
     if ($script !== 'app.js') {
-    $data['scripts'] .= '
-  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script.'"></script>';
+      $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script);
+      $data['scripts'] .= '
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/'.$script.'?ver='.$version.'"></script>';
     }
   }
   }
   $search_script = array_search('app.js', $scripts);
   if ($search_script) {
+    $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js');
     $data['scripts'] .= '
-  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js"></script>';
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
   }
   }
   $data['styles'] = '';
@@ -149,8 +157,9 @@ if (!isset($data)) {
       $finde_files = strpos($style, '.js');
       $finde_no_load =   strpos($style, '_');
       if ($finde_files === false && $finde_no_load === false) {
-      $data['styles'] .= '
-  <link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style.'" rel="stylesheet">';
+        $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style);
+        $data['styles'] .= '
+  <link href="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/css/'.$style.'?ver='.$version.'" rel="stylesheet">';
       }  
   }
     }

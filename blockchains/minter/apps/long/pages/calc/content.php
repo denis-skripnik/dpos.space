@@ -1,5 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-  $html = file_get_contents('http://138.201.91.11:3852/smartfarm/provider?address='.pageUrl()[3]);
+if (!isset(pageUrl()[3])) {
+  return 'Выберите адрес в таблице <a href="/minter/long" target="_blank">на странице фарминга</a> и нажмите на "Семейный калькулятор".';
+}
+$html = file_get_contents('http://138.201.91.11:3852/smartfarm/provider?address='.pageUrl()[3]);
   $provider = json_decode($html, true);
 $friends = '{}';
   if (isset($provider['friends']) && count($provider['friends']) > 0) $friends = json_encode($provider['friends'], true);

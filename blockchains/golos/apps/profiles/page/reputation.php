@@ -1,6 +1,7 @@
 <?php
 define('AUTHOR_REWARDS_LIMIT', 10);
 global $conf;
+use GrapheneNodeClient\Tools\Reputation;
 require 'snippets/get_account_history_chunk.php';
 
 if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяем существование элемента
@@ -20,11 +21,12 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $startWith = $_REQUEST['start'] ?? 300000000;
 
-$res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['vote']]);
+try {
+    $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['account_reputation']]);
     
 $mass = $res['result'];
 
-    if (! $mass) {
+    if (!$mass) {
         $result['content'] = '<p>Результатов нет. Возможно все подходящие операции в истории далеко или такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
         if (isset($_REQUEST['options']) || isset($_GET['options'])) {
             echo json_encode($result);
@@ -36,7 +38,7 @@ $mass = $res['result'];
 
     krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>Апвоуты и флаги, связанные с пользователем '.$user.'</h2>
+            $result['content'] = '<div id="ajax_content"><h2>Изменения репутации, связанные с пользователем '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
             <th>Голосующий аккаунт</th>
@@ -57,15 +59,17 @@ $mass = $res['result'];
         $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
         $timestamp = '<a href="'.$site_url.'golos/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
                 $op1 = $op[1];
-                if ($op[0] == 'vote') {
+                if ($op[0] == 'account_reputation') {
                     $rowCount++;
                     $voter = $op[1]['voter'] ?? "";
                     $author = $op[1]['author'] ?? "";
-                    $link = (isset($op[1]['permlink'] ?? "") ? '<a href="https://golos.id/@'.$author.'/'.$op[1]['permlink'].'" target="_blank">'.$author.'/'.$op[1]['permlink'].'</a>' : 'Нет');
-                    $weight = $op[1]['weight'] / 100;
+                    $reputation_before = Reputation::calculate($op[1]['reputation_before']);
+                    $reputation_after = Reputation::calculate($op[1]['reputation_after']);
+                    $change_reputation = $reputation_after - $reputation_before;
+                    $weight = $op[1]['vote_weight'] / 100;
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="'.$site_url.'golos/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
-                        <td>'.$link.'</td>                    
+                        <td>'.round($change_reputation, 2).' (было '.round($reputation_after, 2).', стало '.round($reputation_before).'</td>
 <td>'.$weight.'%</td></tr>';
                     }
                 }
@@ -81,4 +85,7 @@ $mass = $res['result'];
                 echo json_encode($result);
             } else {
             return $result['content'];
+        }
+        } catch(Exception $e) {
+return 'Ошибка: эта операция ещё не поддерживается Нодой, или иная ошибка.';
             }

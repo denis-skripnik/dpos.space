@@ -12,7 +12,73 @@ async function getPrices() {
     return {price, usd_bip_price, rub_bip_price};
 }
 
-$(document).ready(function() {
+async function calculate() {
+    let {price, usd_bip_price, rub_bip_price} = await getPrices();
+    let long_amount = parseFloat($('[name=long_amount]').val().replace(',', '.'));
+    let tec_long_amount = long_amount * (10 ** 18);
+    tec_long_amount = BigInt(tec_long_amount);
+    let pool_bip_amount = long_amount * price;
+    $('#bip_add_amount').html(pool_bip_amount.toFixed(5));
+    let liquidity = Math.sqrt(long_amount * pool_bip_amount);
+    try {
+    let get_bip_amount = (await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/LONG/BIP/route?amount=${tec_long_amount}&type=input`)).data.amount_out;
+if (get_bip_amount) {
+    let usd_adding_liquidity = ((get_bip_amount * 2) * usd_bip_price).toFixed(5);
+    let rub_adding_liquidity = ((get_bip_amount * 2) * rub_bip_price).toFixed(5);
+    $('#adding_liquidity').html(liquidity.toFixed(5) + `, в BIP: ${(get_bip_amount * 2).toFixed(5)}, в $: ${usd_adding_liquidity}, в руб.: ${rub_adding_liquidity}`);
+} else {
+    $('#adding_liquidity').html(liquidity.toFixed(5));    
+}
+} catch(e) {
+    $('#adding_liquidity').html(liquidity.toFixed(5));
+    window.alert('Explorer недоступен. Не можем рассчитать курс покупки.');
+    console.error(e);
+}
+    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
+    let percent = parseFloat($("#now_percent").text().replace(',', '.'));
+    let halving_k = parseFloat($("#halving_k").text().replace(',', '.'));
+    percent /= halving_k;
+    let new_hk = parseFloat($('[name=halving_settings]').val());
+    percent *= new_hk;
+    let farming_share = liquidity * (percent / 100);
+    let k = 1 + (invest_days / 100);
+    farming_share *= k;
+    let value = parseFloat(farming_share.toFixed(18));
+return value;
+}
+
+async function endRound() {
+    let api = (await axios.get('https://api.minter.one/v2/status')).data;
+    let block = (api.latest_block_height? api.latest_block_height : 0);
+if (block !== 0) {
+    let pl_block_interval = parseInt($('#pl_block_interval').html());
+    let plj_block_interval = parseInt($('#plj_block_interval').html());
+    let end_round_block = pl_block_interval - (block % pl_block_interval);
+let timestamp = parseInt(end_round_block * 5);
+var hours = Math.floor(timestamp / 60 / 60);
+var minutes = Math.floor(timestamp / 60) - (hours * 60);
+var seconds = timestamp % 60;
+var end_round_time = [
+    hours.toString().padStart(2, '0'),
+    minutes.toString().padStart(2, '0'),
+    seconds.toString().padStart(2, '0')
+  ].join(':');
+$('#end_round').html(`${end_round_block} блоков (Примерно ${end_round_time})`)
+let jackpot_end_round_block = plj_block_interval - (block % plj_block_interval);
+let j_timestamp = parseInt(jackpot_end_round_block * 5);
+var j_hours = Math.floor(j_timestamp / 60 / 60);
+var j_minutes = Math.floor(j_timestamp / 60) - (j_hours * 60);
+var j_seconds = j_timestamp % 60;
+var jackpot_end_round_time = [
+    j_hours.toString().padStart(2, '0'),
+    j_minutes.toString().padStart(2, '0'),
+    j_seconds.toString().padStart(2, '0')
+  ].join(':');
+$('#jackpot_end_round').html(`${jackpot_end_round_block} блоков (Примерно ${jackpot_end_round_time})`)
+}
+}
+
+$(document).ready(async function() {
     const date = new Date().toLocaleString();
     if (document.getElementById('page_date')) $('#page_date').html(date);
     
@@ -169,65 +235,78 @@ if (document.querySelector('[name=friends_templates]')) {
 
 // profit calc.
 $('[name=long_amount]').change(async function() {
-   let {price, usd_bip_price, rub_bip_price} = await getPrices();
-    let long_amount = parseFloat($('[name=long_amount]').val().replace(',', '.'));
-    let tec_long_amount = long_amount * (10 ** 18);
-    tec_long_amount = BigInt(tec_long_amount);
-    let pool_bip_amount = long_amount * price;
-    $('#bip_add_amount').html(pool_bip_amount.toFixed(5));
-    let liquidity = Math.sqrt(long_amount * pool_bip_amount);
-try {
-    let get_bip_amount = (await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/LONG/BIP/route?amount=${tec_long_amount}&type=input`)).data.amount_out;
-if (get_bip_amount) {
-    let usd_adding_liquidity = ((get_bip_amount * 2) * usd_bip_price).toFixed(5);
-    let rub_adding_liquidity = ((get_bip_amount * 2) * rub_bip_price).toFixed(5);
-    $('#adding_liquidity').html(liquidity.toFixed(5) + `, в BIP: ${(get_bip_amount * 2).toFixed(5)}, в $: ${usd_adding_liquidity}, в руб.: ${rub_adding_liquidity}`);
-} else {
-    $('#adding_liquidity').html(liquidity.toFixed(5));    
-}
-} catch(e) {
-    $('#adding_liquidity').html(liquidity.toFixed(5));
-    window.alert('Explorer недоступен. Не можем рассчитать курс покупки.');
-    console.error(e);
-}
-    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
-    let percent = parseFloat($("#now_percent").text().replace(',', '.'));
-    let farming_share = liquidity * (percent / 100);
-    let k = 1 + (invest_days / 100);
-    farming_share *= k;
-    let value = parseFloat(farming_share.toFixed(18));
+    let value = await calculate();
     $('#result_profit').html(value.toFixed(5));
     });
 
+$('[name=halving_settings]').change(async function() {
+    let value = await calculate();
+    $('#result_profit').html(value.toFixed(5));
+});
+
     $('[name=invest_days_calc]').change(async function() {
-        let {price, usd_bip_price, rub_bip_price} = await getPrices();
-        let long_amount = parseFloat($('[name=long_amount]').val().replace(',', '.'));
-        let tec_long_amount = long_amount * (10 ** 18);
-        tec_long_amount = BigInt(tec_long_amount);
-        let pool_bip_amount = long_amount * price;
-        $('#bip_add_amount').html(pool_bip_amount.toFixed(5));
-        let liquidity = Math.sqrt(long_amount * pool_bip_amount);
-        try {
-        let get_bip_amount = (await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/LONG/BIP/route?amount=${tec_long_amount}&type=input`)).data.amount_out;
-    if (get_bip_amount) {
-        let usd_adding_liquidity = ((get_bip_amount * 2) * usd_bip_price).toFixed(5);
-        let rub_adding_liquidity = ((get_bip_amount * 2) * rub_bip_price).toFixed(5);
-        $('#adding_liquidity').html(liquidity.toFixed(5) + `, в BIP: ${(get_bip_amount * 2).toFixed(5)}, в $: ${usd_adding_liquidity}, в руб.: ${rub_adding_liquidity}`);
-    } else {
-        $('#adding_liquidity').html(liquidity.toFixed(5));    
-    }
-    } catch(e) {
-        $('#adding_liquidity').html(liquidity.toFixed(5));
-        window.alert('Explorer недоступен. Не можем рассчитать курс покупки.');
-        console.error(e);
-    }
-        let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
-        let percent = parseFloat($("#now_percent").text().replace(',', '.'));
-        let farming_share = liquidity * (percent / 100);
-        let k = 1 + (invest_days / 100);
-        farming_share *= k;
-        let value = parseFloat(farming_share.toFixed(18));
+        let value = await calculate();
         $('#result_profit').html(value.toFixed(5));
         });
 // end profit calc.
+
+// Лотереи с покупкой билетов.
+$('#copy_address').click(async function() {
+    try {
+      let address = $('#send_to_address').html();
+        await navigator.clipboard.writeText(address);
+    } catch(e) {
+      console.log(e);
+    }
+  });    
+
+  $('#copy_memo').click(async function() {
+    try {
+      let memo = $('#send_with_memo').html();
+        await navigator.clipboard.writeText(memo);
+    } catch(e) {
+      console.log(e);
+    }
+  });
+
+  let memo = $('#send_with_memo').html();
+  let address = $('#send_to_address').html();
+  let long_balance = 0;
+  let bip_balance = 0;
+  if (seed || current_user && current_user.type === 'bip.to') {
+    let tokens = await getBalance(sender.address);
+    let fee =     await send(address, 100, "LONG", memo, 'fee', 'LONG');
+    let coin_fee = 'BIP';
+    let fee_amount = fee.bip_fee;
+    if (fee.fee !== fee.bip_fee) {
+        fee_amount = fee.fee;
+        coin_fee = 'LONG';
+    }
+    for (let token of tokens) {
+        if (token.coin === 'LONG') {
+            long_balance += parseFloat(token.amount);
+        } else if (token.coin === 'BIP') {
+            bip_balance += parseFloat(token.amount);
+        }
+    }
+let types = ['10', '50', '100', '500', '1000'];
+for (let type of types) {
+    if (long_balance > parseInt(type))  $('[name=loto_type]').append(`<option value="${parseInt(type)}">${parseInt(type)} LONG</option>`);
+}
+$('#action_buy_ticket').click(async function() {
+    let amount = parseFloat($('[name=loto_type]').val());
+var q = window.confirm(`Вы действительно хотите купить билет на ${amount} LONG?`);
+if (q === true && bip_balance >= fee.bip_fee) {
+    await send(address, amount, "LONG", memo, 0, 0);
+} else if (q === true && bip_balance < fee.bip_fee && amount + fee.fee <= long_balance) {
+        await send(address, amount, "LONG", memo, 0, 'LONG');
+    } else if (q === true && bip_balance < fee.bip_fee && amount + fee.fee < long_balance) {
+    window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
+    }
+});
+}
+
+await endRound();
+setInterval(endRound, 5000);
+// Конец блока кода лотерей с покупкой билетов.
 });

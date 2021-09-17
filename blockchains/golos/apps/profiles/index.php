@@ -25,7 +25,8 @@ $pages = '<h2>Страницы сервиса</h2>
 <option value="author-rewards">Авторские награды</option>
 <option value="curation-rewards">Кураторские награды</option>
 <option value="benefactor-rewards">Бенефициарские награды</option>
-<option value="votes">Апвоуты и флаги</option>
+<option value="votes">Апвоты и флаги</option>
+<option value="reputation">Изменения репутации</option>
 <option value="accounts">Аккаунты</option>
 <option value="new-posts">Новые посты</option>
 <option value="old-posts">Получившие выплаты посты</option>
@@ -112,8 +113,8 @@ $data['content'] .= require_once(__DIR__.'/page/curation_rewards.php');
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/benefactor_rewards.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'votes') {
-    $data['title'] .= ' - Апвоуты и флаги';
-    $data['description'] .= ' - Апвоуты и флаги';
+    $data['title'] .= ' - Апвоты и флаги';
+    $data['description'] .= ' - Апвоты и флаги';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
@@ -122,6 +123,17 @@ $data['content'] .= require_once(__DIR__.'/page/benefactor_rewards.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/votes.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'reputation') {
+    $data['title'] .= ' - Изменения репутации';
+    $data['description'] .= ' - Изменения репутации';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/reputation.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/reputation.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'dao') {
     $data['title'] .= ' - ДАО';
     $data['description'] .= ' - ДАО';

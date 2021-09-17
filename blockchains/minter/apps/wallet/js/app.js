@@ -277,7 +277,7 @@ async function getConvertPrice() {
   max_amount = parseFloat(max_amount);
   if (amount && amount !== '' && amount > 0 && to !== '') {
     try {
-      let response = await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/${coin}/${to}/route?amount=${amount * (10 ** 18)}&type=input`);
+      let response = await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/${coin}/${to}/route?amount=${BigInt(amount * (10 ** 18))}&type=input`);
       let coins = [];
       let counter = 0;
       let all_coins = response.data.coins.length;

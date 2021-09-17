@@ -17,9 +17,9 @@ foreach ($top as $key => $value) {
     $content .= '<tr>
 <td>'.$n.'</td>
 <td><a href="'.$conf['siteUrl'].'golos/profiles/'.$value['login'].'" target="_blank">'.$value['login'].'</a></td>
-<td>'.$value['summ_balance'].'</td>
-<td>'.$value['main_balance'].'</td>
-<td>'.$value['tip_balance'].'</td>
+<td>'.number_format($value['summ_balance'], 3, ',', '&nbsp;').'</td>
+<td>'.number_format($value['main_balance'], 3, ',', '&nbsp;').'</td>
+<td>'.number_format($value['tip_balance'], 3, ',', '&nbsp;').'</td>
 </tr>';
 }
 $content .= '</tbody></table>';

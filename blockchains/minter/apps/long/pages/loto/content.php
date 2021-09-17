@@ -1,5 +1,24 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-  $res = file_get_contents('http://138.201.91.11:3852/smartfarm/loto');
+$address = file_get_contents('https://api.minter.one/v2/addresses?addresses=Mx01029d73e128e2f53ff1fcc2d52a423283ad9439&addresses=Mx6b897dff137ba8e6847812ae09ad46d709da7ec4');
+$addresses = json_decode($address, true)['addresses'];
+$long_balance = 0;
+$halving_k = 2;
+if (isset($addresses) && count($addresses) > 0) {
+foreach($addresses as $balances) {
+  foreach($balances['balance'] as $token) {
+if ($token['coin']['symbol'] === 'LONG') {
+  $long_balance += (float)$token['value'] / (10 ** 18);
+}
+  }
+}
+if ($long_balance > 0) {
+  $n = ceil(($long_balance+2000000)/1000000);
+$halving_k = $n / 5;
+}
+} // end if addresses
+
+  
+    $res = file_get_contents('http://138.201.91.11:3852/smartfarm/loto');
   $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');
   $pool = json_decode($explorer, true);
 $current_price = ((float)$pool['amount0'] / (10 ** 18)) / ((float)$pool['amount1'] / (10 ** 18));
@@ -7,16 +26,16 @@ $price_changed = ($current_price - 1) / 1 * 100;
 $change_k = (0.2 * ($price_changed / 100)) / 10;
 $percent = 0.2 + $change_k;
 $l = (float)$pool['liquidity'] / (10 ** 18);
-$loto_amount = 2 * ($l / 100) * $percent;
+$loto_amount = $halving_k * ($l / 100) * $percent;
 $loto_percent = $loto_amount / $l * 100;
 
 $content = '<p align="center"><strong><a href="/minter/long">К фармингу</a></strong></p>
 <p>О LONG вы сможете узнать на странице фарминга. Здесь же про лотерею проекта.</p>
 <h2>О лотерее проекта LONG (<a href="/minter/long/phelosophy" target="_blank">философия проекта</a>)</h2>
 <p><strong>Проводится каждый день в случайное время.</strong></p>
-<ol><li>Сумма выигрыша = 2 * (сумма всех LP токенов / 100) * текущий процент провайдера (учитывает курс LONG и инвест. дни)<br>
-<strong>Сумма без учёта инвест. дней провайдера: '.round($loto_amount, 5).' LONG ('.round($loto_percent, 5).'%)</strong></li>
-<li>Собирается список топ 100 провайдеров пула</li>
+<ol><li>Сумма выигрыша = коэффициент халвинга '.$halving_k.' * (сумма всех LP токенов / 100) * текущий процент провайдера (учитывает курс LONG и инвест. дни / 300)<br>
+<strong>Сумма без учёта инвест. дней провайдера: '.number_format($loto_amount, 2, ',', '&nbsp;').' LONG ('.round($loto_percent, 2).'%)</strong></li>
+<li>Собирается список топ 50 провайдеров пула</li>
 <li>Каждому выдаются билеты. Количество = (LP-токены провайдера / 100) * (1 + (инвест_дни / 100)) с переводом в целое число,<br>
 Где<br>
 инвест_дни - число инвестиционных дней провайдера пула (СМ. страницу фарминга для подробностей).</li>
@@ -46,12 +65,13 @@ if (isset($txs_res) && count($txs_res) > 0) {
     foreach($txs_res as $tx) {
     if ($tx['from'] === 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439' && ($tx['type'] === 1 && $tx['data']['coin']['symbol'] === 'LONG' || $tx['type'] === 13 && $tx['data']['list'][0]['coin']['symbol'] === 'LONG')) {
       $memo = base64_decode($tx['payload']);
-if (strpos($memo, 'лотерее') === false) {
+if (strpos($memo, 'Вы победили в лотерее пула BIP-LONG') === false) {
   continue;
 }
       $to = (isset($tx['data']['to']) ? $tx['data']['to'] : $tx['data']['list'][0]['to']);
-    $amount = round((float)(isset($tx['data']['value']) ? $tx['data']['value'] : $tx['data']['list'][0]['value']), 5).' LONG';
-     $timestamp1 = $tx['timestamp'];
+    $amount = (float)(isset($tx['data']['value']) ? $tx['data']['value'] : $tx['data']['list'][0]['value']);
+     $amount = number_format($amount, 2, ',', '&nbsp;').' LONG';
+    $timestamp1 = $tx['timestamp'];
      $timestamp2 = strtotime($timestamp1);
 $month2 = date('m', $timestamp2);
 $datetime = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);

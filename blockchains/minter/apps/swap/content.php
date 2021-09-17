@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с Minter swap необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+return '<div id="auth_msg" style="display: none;"><p>Для работы с Minter swap необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
 <div id="seed_page">
 <div class="tab">
 <a class="tablinks" onclick="openMode(event, `Обмен`)">Обмен</a>
