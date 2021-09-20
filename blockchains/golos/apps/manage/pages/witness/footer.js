@@ -28,6 +28,8 @@ chf.allow_return_auction_reward_to_fund = "Распределение штраф
 chf.worker_reward_percent = "% от эмиссии в пул воркеров:";
 chf.witness_reward_percent = "% от эмиссии в пул делегатов:";
 chf.vesting_reward_percent = "% от эмиссии в пул вестинга/на СГ:";
+chf.worker_emission_percent = "процент эмиссии, поступающий на наполнение фонда воркеров";
+chf.vesting_of_remain_percent = "процент распределения оставшегося на пул вестинга и общий пул";
 chf.worker_request_creation_fee = "Размер платы за подачу заявки воркером:";
 chf.worker_request_approve_min_percent = "% от общей СГ, необ. для одобрения заявки воркера:";
 chf.sbd_debt_convert_rate = "% от общего кол-ва GBG для ежедневной конвертации в GOLOS при долге более 20%:";
@@ -39,6 +41,10 @@ chf.claim_idleness_time = 'Длительность окна/временног�
 chf['min_invite_balance'] = 'Минимальный баланс инвайта/чека для создания: ';
 chf['asset_creation_fee'] = 'Стоимость создания UIA актива:';
 chf['invite_transfer_interval_sec'] = 'Минимальный интервал для переводов с инвайт-кодов (секунды):';
+chf.convert_fee_percent = "Процент комиссии по конвертации";
+chf.min_golos_power_to_curate = "Мин. СГ для получения кураторских";
+chf.negrep_posting_window = "Время постинга аккаунтом с отрицательной репутацией (минут)";
+chf.negrep_posting_per_window = "Кол-во постов для публикации аккаунтами с отриц. репутацией";
 
     golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
@@ -55,7 +61,7 @@ prop_value = parseFloat(props[prop]);
 } else if (typeof props[prop] == 'string' && prop_value.indexOf('GBG') > -1) {
     prop_value = parseFloat(props[prop]);
     end_fild = ' GBG';
-} else if (prop.indexOf('percent') > -1 || prop.indexOf('rate') > -1) {
+} else if (prop.indexOf('percent') > -1 || prop.indexOf('min_golos_power_to_curate') === -1 && prop.indexOf('rate') > -1) {
         prop_value = parseFloat(props[prop]);
         prop_value /= 100;
         end_fild = '%';
@@ -68,7 +74,7 @@ end_fild = "";
     } else if (prop === 'create_account_delegation_time' || prop === 'witness_idleness_time' || prop === 'account_idleness_time' || prop === 'max_referral_term_sec') {
         prop_value /= 86400;
             prop_value = parseInt(prop_value);
-    } else if (prop === 'posts_window' || prop === 'comments_window' || prop === 'votes_window' || prop === 'witness_skipping_reset_time') {
+    } else if (prop === 'witness_skipping_reset_time') {
         prop_value /= 60;
     prop_value = prop_value.toFixed(2);
     prop_value = parseFloat(prop_value);
@@ -145,19 +151,19 @@ $('#save_props').click(function() {
 if (prop !== '') {
 let prop_value = elements[i].value;
 prop_value = parseFloat(prop_value);
-if (prop.indexOf('percent') > -1 || prop.indexOf('rate') > -1) {
+if (prop.indexOf('percent') > -1 || prop.indexOf('min_golos_power_to_curate') === -1 && prop.indexOf('rate') > -1) {
     prop_value *= 100;
         prop_value = parseInt(prop_value);
         } else if (prop === 'allow_distribute_auction_reward' || prop === 'allow_return_auction_reward_to_fund') {
             prop_value = elements[i].checked;
-    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance') {
+    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance' || prop === 'min_golos_power_to_curate') {
         prop_value = prop_value.toFixed(3) + ' GOLOS';
 } else if (prop === 'worker_request_creation_fee' || prop === 'asset_creation_fee') {
     prop_value = prop_value.toFixed(3) + ' GBG';
 } else if (prop === 'create_account_delegation_time' || prop === 'witness_idleness_time' || prop === 'account_idleness_time' || prop === 'max_referral_term_sec') {
     prop_value *= 86400;
         prop_value = parseInt(prop_value);
-    } else if (prop === 'posts_window' || prop === 'comments_window' || prop === 'votes_window' || prop === 'witness_skipping_reset_time') {
+    } else if (prop === 'witness_skipping_reset_time') {
     prop_value *= 60;
         prop_value = parseInt(prop_value);
     }
@@ -171,9 +177,9 @@ let op = [];
 op[0] = 'chain_properties_update';
 op[1] = {};
 op[1].owner = golos_login;
-op[1].props = [5, props];
+op[1].props = [6, props];
 operations.push(op);  
-
+console.log(JSON.stringify(operations));
 golos.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {
 if (!err) {
     window.alert('Параметры сохранены успешно.');
