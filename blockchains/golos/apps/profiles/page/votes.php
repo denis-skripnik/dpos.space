@@ -61,7 +61,7 @@ $mass = $res['result'];
                     $rowCount++;
                     $voter = $op[1]['voter'] ?? "";
                     $author = $op[1]['author'] ?? "";
-                    $link = (isset($op[1]['permlink'] ?? "") ? '<a href="https://golos.id/@'.$author.'/'.$op[1]['permlink'].'" target="_blank">'.$author.'/'.$op[1]['permlink'].'</a>' : 'Нет');
+                    $link = (isset($op[1]['permlink']) && $op[1]['permlink'] !== '' ? '<a href="https://golos.id/@'.$author.'/'.$op[1]['permlink'].'" target="_blank">'.$author.'/'.$op[1]['permlink'].'</a>' : 'Нет');
                     $weight = $op[1]['weight'] / 100;
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="'.$site_url.'golos/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>

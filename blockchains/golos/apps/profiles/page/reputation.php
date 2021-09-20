@@ -42,7 +42,7 @@ $mass = $res['result'];
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
             <th>Голосующий аккаунт</th>
-            <th>Ссылка на пост или комментарий</th>
+            <th>Изменение репутации</th>
             <th>Процент</th></tr>';
                     foreach ($mass as $datas) {
                 if ($rowCount === AUTHOR_REWARDS_LIMIT) {
@@ -69,7 +69,7 @@ $mass = $res['result'];
                     $weight = $op[1]['vote_weight'] / 100;
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="'.$site_url.'golos/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
-                        <td>'.round($change_reputation, 2).' (было '.round($reputation_after, 2).', стало '.round($reputation_before).'</td>
+                        <td>'.round($change_reputation, 5).' (было '.round($reputation_after, 5).', стало '.round($reputation_before, 5).'</td>
 <td>'.$weight.'%</td></tr>';
                     }
                 }
