@@ -75,7 +75,25 @@ var jackpot_end_round_time = [
     j_seconds.toString().padStart(2, '0')
   ].join(':');
 $('#jackpot_end_round').html(`${jackpot_end_round_block} блоков (Примерно ${jackpot_end_round_time})`)
+
+if (document.getElementById('rps_block_interval')) {
+    let rps_block_interval = parseInt($('#rps_block_interval').html());
+    let rps_end_round_block = rps_block_interval - (block % rps_block_interval);
+let rps_timestamp = parseInt(rps_end_round_block * 5);
+var rps_hours = Math.floor(rps_timestamp / 60 / 60);
+var rps_minutes = Math.floor(rps_timestamp / 60) - (rps_hours * 60);
+var rps_seconds = rps_timestamp % 60;
+var rps_end_round_time = [
+    rps_minutes.toString().padStart(2, '0'),
+    rps_seconds.toString().padStart(2, '0')
+  ].join(':');
+$('#end_rps_round').html(`${rps_end_round_block} блоков (Примерно ${rps_end_round_time})`)
 }
+}
+}
+
+function rpsResults() {
+    $('#rps_results').html(`<script async src="https://telegram.org/js/telegram-widget.js?15" data-telegram-post="long_have_fun/64" data-width="100%"></script>`);
 }
 
 $(document).ready(async function() {
@@ -250,7 +268,7 @@ $('[name=halving_settings]').change(async function() {
         });
 // end profit calc.
 
-// Лотереи с покупкой билетов.
+// Лотереи с покупкой билетов или "Камень, ножницы, бумага".
 $('#copy_address').click(async function() {
     try {
       let address = $('#send_to_address').html();
@@ -273,6 +291,8 @@ $('#copy_address').click(async function() {
   let address = $('#send_to_address').html();
   let long_balance = 0;
   let bip_balance = 0;
+  let bip_fee = 0;
+  let long_fee = 0;
   if (seed || current_user && current_user.type === 'bip.to') {
     let tokens = await getBalance(sender.address);
     let fee =     await send(address, 100, "LONG", memo, 'fee', 'LONG');
@@ -282,6 +302,8 @@ $('#copy_address').click(async function() {
         fee_amount = fee.fee;
         coin_fee = 'LONG';
     }
+    long_fee = fee.fee;
+    bip_fee = fee.bip_fee;
     for (let token of tokens) {
         if (token.coin === 'LONG') {
             long_balance += parseFloat(token.amount);
@@ -306,7 +328,41 @@ if (q === true && bip_balance >= fee.bip_fee) {
 });
 }
 
+// Камень, ножницы, бумага.
+let max_amount = 0;
+if (bip_balance >= bip_fee) {
+    max_amount = long_balance;
+} else if (bip_balance < bip_fee && amount + long_fee <= long_balance) {
+    max_amount = long_balance - long_fee;
+    }
+
+    $('#max_bid').html(max_amount);
+$('#max_bid').click(async function() {
+let max = parseFloat($('#max_bid').html());
+$('[name=amount]').val(max);
+});
+
+$('#action_rps_play').click(async function() {
+let amount = $('[name=amount]').val();
+let memo = "lrps";
+var q = window.confirm(`Вы действительно хотите играть со ставкой ${amount} LONG?`);
+if (q === true && bip_balance >= bip_fee) {
+    await send(address, amount, "LONG", memo, 0, 0);
+} else if (q === true && bip_balance < bip_fee && amount + long_fee <= long_balance) {
+        await send(address, amount, "LONG", memo, 0, 'LONG');
+    } else if (q === true && bip_balance < bip_fee && amount + long_fee < long_balance) {
+    window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
+    }
+    await new Promise(r => setTimeout(r, 5500));
+    location.reload();
+});
+if (document.getElementById('rps_results')) {
+    rpsResults();
+    setInterval(rpsResults, 60000);
+}
+// конец блока игры rps.
+
 await endRound();
 setInterval(endRound, 5000);
-// Конец блока кода лотерей с покупкой билетов.
+// Конец блока кода лотерей с покупкой билетов или игры rps.
 });
