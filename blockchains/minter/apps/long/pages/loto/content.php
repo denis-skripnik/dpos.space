@@ -48,7 +48,7 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 </ul>
 <hr>
 <h3><a name="tickets">Список билетов</a></h3>
-<p>'.$res.'</p>
+<p>'.nl2br($res, false).'</p>
 <hr>
 <p align="center"><a href="#contents">К оглавлению</a></p>
 <h3><a name="winners">История победителей</a></h3>

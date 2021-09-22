@@ -2,7 +2,7 @@
   global $conf;
     $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=stakebot&type=bids');
     $table = json_decode($html, true);
-    $content = '<p align="center"><a href="'.$conf['siteUrl'].'golos/stakebot/jackpot">Джекпот</a></p>
+    $content = '<p><strong><a align="left" href="'.$conf['siteUrl'].'golos/stakebot/jackpot">Джекпот</a> <a align="right" href="'.$conf['siteUrl'].'golos/stakebot/loto">Лотерея</a></strong></p>
 <p>Список сбрасывается в 18:00 по Москве.</p>
 <p>Вся <a href="'.$conf['siteUrl'].'golos/profiles/golos-stake-bot/donates" target="_blank">история донатов golos_stake_bot</a>.</p>
     <table id="table"><thead><tr><th>№</th><th>Логин</th><th>Сумма</th></tr></thead><tbody id="target">';
