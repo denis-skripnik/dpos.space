@@ -353,8 +353,6 @@ if (q === true && bip_balance >= bip_fee) {
     } else if (q === true && bip_balance < bip_fee && amount + long_fee < long_balance) {
     window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
     }
-    await new Promise(r => setTimeout(r, 5500));
-    location.reload();
 });
 if (document.getElementById('rps_results')) {
     rpsResults();

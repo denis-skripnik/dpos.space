@@ -38,10 +38,12 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 <p align="center"><a href="#contents">К оглавлению</a></p>
 <hr>
 <h3><a name="results">Результаты последнего раунда</a></h3>
+<p><strong><input type="button" onclick="location.reload()" value="Обновить"></strong></p>
 <div id="rps_results"></div>
 <p align="center"><a href="#contents">К оглавлению</a></p>
 <hr>
 <h3><a name="now_round">Участники сего раунда</a></h3>
+<p><strong><input type="button" onclick="location.reload()" value="Обновить"></strong></p>
 <table><thead><tr>
 <th>Адрес</th>
 <th>Ставка</th>
