@@ -1,22 +1,7 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 $address = file_get_contents('https://api.minter.one/v2/addresses?addresses=Mx01029d73e128e2f53ff1fcc2d52a423283ad9439&addresses=Mx6b897dff137ba8e6847812ae09ad46d709da7ec4');
 $addresses = json_decode($address, true)['addresses'];
-$long_balance = 0;
-$halving_k = 2;
-if (isset($addresses) && count($addresses) > 0) {
-foreach($addresses as $balances) {
-  foreach($balances['balance'] as $token) {
-if ($token['coin']['symbol'] === 'LONG') {
-  $long_balance += (float)$token['value'] / (10 ** 18);
-}
-  }
-}
-if ($long_balance > 0) {
-  $n = ceil(($long_balance+2000000)/1000000);
-$halving_k = $n / 5;
-}
-} // end if addresses
-
+$halving_k = 1;
   $html = file_get_contents('http://138.201.91.11:3852/smartfarm');
   $res = json_decode($html, true);
   $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');
@@ -45,7 +30,7 @@ $min_loto_long = number_format($min_loto_long, 2, ',', '&nbsp;');
 
 $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Философия проекта</a>)</h2>
 <p>Это токен с фармингом в LONG, процент которого зависит от курса токена. Растёт курс: растёт процент фарминга. Падает: падает процент.<br>
-Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов, умноженного на коэффициент халвинга, равный сейчас '.$halving_k.'.<br>
+Сумма фарминга для конкретного провайдера ликвидности берётся от количества LP-токенов.<br>
 <strong>Инвест. дни и отправка производится от суммы в 0.2 LONG (это сделано, чтоб сумма отправки не была меньше комиссии).</strong></p>
 <p>Пул <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a></p>
 <span style="display: none;" id="bip_usd_price">'.$usd_bip_price.'</span><span style="display: none;" id="bip_rub_price">'.$rub_bip_price.'</span>
@@ -54,7 +39,7 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <div id="formulas" class="terms" style="display: none;">
 <h3>Формулы</h3>
 <ol><li>Процент изменения курса LONG = (Текущий курс - стартовая в 1 BIP) / стартовая * 100;
-<li>Текущий процент (СМ. список в следующем блоке) = (Стартовый процент 0.2 + (0.2 * (процент изменения курса LONG в BIP / 100)) / 10)) * * коэффициент халвинга '.$halving_k.';</li>
+<li>Текущий процент (СМ. список в следующем блоке) = (Стартовый процент 0.2 + (0.2 * (процент изменения курса LONG в BIP / 100)) / 10));</li>
 <li>Коэффициент халвинга - это число, изменяемое в зависимости от кол-ва токенов LONG на ревордном кошельке.
 <ul><li>7 МЛН и больше - 2</li>
 <li>6 МЛН - 1.8</li>
@@ -82,8 +67,6 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <li>Текущий процент на момент просмотра страницы: <span id="now_percent">'.round($percent, 2).'</span>%</li>
 <li>Ликвидность ('.number_format($l, 2, ',', '&nbsp;').' LP-683, '.number_format($all_bip, 2, ',', '&nbsp;').' BIP и '.number_format($all_long, 2, ',', '&nbsp;').' LONG)</li>
 <li>Для участия в лотерею необходимо добавить больше '.$min_loto_bip.' BIP и '.$min_loto_long.' LONG</li>
-<li>Коэффициент халвинга (СМ. формулы): <span id="halving_k">'.$halving_k.'</span></li>
-<li>Баланс: '.number_format($long_balance, 2, ',', '&nbsp;').' LONG</li>
 <li id="prices">Курс 1 LONG = <span id="current_price">'.round($current_price, 2).'</span> BIP, $ '.round($usd_price, 2).', '.round($rub_price, 2).' Руб.</li></ul>
 <h3>Провайдеры</h3>
 <h4>Калькулятор заработка</h4>
@@ -95,9 +78,6 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 Примерная сумма LP-токенов: <span id="adding_liquidity"></span></p>
 <p><label for="invest_days_calc">Кол-во инвест. дней:<br>
 <input type="number" name="invest_days_calc" min=0 max=365 value="0" placeholder="Выберите инвест. день">
-</label></p>
-<p><label for="halving_settings">Укажите коэффициент халвинга (СМ. формулы). По умолчанию отображён текущий:<br>
-<input type="number" name="halving_settings" min=0.6 step=0.2 value="'.str_replace(',', '.', $halving_k).'">
 </label></p>
 <p>Ежедневная прибыль: <span id="result_profit">0</span> LONG *Курс действителен на <span id="page_date"></span></p>
 </form>
@@ -123,18 +103,34 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <tbody id="target">';
 function ticketsSum($a, $b) {
   $provider_tickets = (int)(($b['liquidity'] / 100) * (1 + ($b['invest_days'] / 100)));
-$a += $provider_tickets;
+  if ($b['add_amount'] / $b['get_amount'] >= 0.98 || $b['get_loto'] > 0 && $b['add_amount'] / $b['get_loto'] >= 0.49) {
+  $a += $provider_tickets;
+}
 return $a;
 }
 $top_providers = array_slice($res['providers'], 0, 49);
 $tickets = array_reduce($top_providers, "ticketsSum");
 
 foreach($res['providers'] as $key => $provider) {
-$key++;
+  $tickets_probability = '0%';
+
+  $key++;
 $get_loto = (isset($provider['get_loto']) && $provider['get_loto'] && $provider['get_loto'] >= 0 ? ($provider['get_loto'] + $provider['get_amount']) : 0);
 $k = 1 + ($provider['invest_days'] / 100);
 if ($provider['add_amount'] && $provider['get_amount'] && $provider['get_amount'] > 0) {
   $reinvest_bonus = $provider['add_amount'] / $provider['get_amount'];
+
+  if ($provider['add_amount'] / $provider['get_amount'] >= 0.98 || $provider['get_loto'] > 0 && $provider['add_amount'] / $provider['get_loto'] >= 0.49) {
+  if ($key <= 50) {
+    $provider_tickets = (int)(($provider['liquidity'] / 100) * (1 + ($provider['invest_days'] / 100)));
+  } else {
+    $provider_tickets = 0;
+  }
+  $tickets_probability = $provider_tickets / $tickets * 100;
+  $tickets_probability = round($tickets_probability, 3).'%';
+  
+}
+
   if ($reinvest_bonus >= 1) {
     $k += 0.01;
   } else if ($reinvest_bonus >= 0.5 && $reinvest_bonus < 1) {
@@ -162,14 +158,6 @@ if ($key <= 50) {
 $liquidity_share = $provider['liquidity'] / $l;
 $provider_bip = $all_bip * $liquidity_share;
 $provider_long = $all_long * $liquidity_share;
-
-if ($key <= 50) {
-  $provider_tickets = (int)(($provider['liquidity'] / 100) * (1 + ($provider['invest_days'] / 100)));
-} else {
-  $provider_tickets = 0;
-}
-$tickets_probability = $provider_tickets / $tickets * 100;
-$tickets_probability = round($tickets_probability, 3).'%';
 
 $content .= '<tr>
 <td>'.$key.'</td>

@@ -36,10 +36,6 @@ if (get_bip_amount) {
 }
     let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
     let percent = parseFloat($("#now_percent").text().replace(',', '.'));
-    let halving_k = parseFloat($("#halving_k").text().replace(',', '.'));
-    percent /= halving_k;
-    let new_hk = parseFloat($('[name=halving_settings]').val());
-    percent *= new_hk;
     let farming_share = liquidity * (percent / 100);
     let k = 1 + (invest_days / 100);
     farming_share *= k;
@@ -256,11 +252,6 @@ $('[name=long_amount]').change(async function() {
     let value = await calculate();
     $('#result_profit').html(value.toFixed(5));
     });
-
-$('[name=halving_settings]').change(async function() {
-    let value = await calculate();
-    $('#result_profit').html(value.toFixed(5));
-});
 
     $('[name=invest_days_calc]').change(async function() {
         let value = await calculate();
