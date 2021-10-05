@@ -4,10 +4,12 @@ gates.YMRUB = {};
 gates.YMPZM = {};
 gates.YMDASH = {};
 gates.YMTRX = {};
+gates.YMUSDT = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
 gates.VIZUIA = {};
 gates.DOGECOIN = {};
+
 gates.PRIZM.withdraw = {
   account: "exprizm",
   
@@ -155,6 +157,29 @@ gates.YMPZM.deposit = {
         memo: "deposit",
         "text": "От 10 TRX",
           };
+
+          gates.YMUSDT.withdraw = {
+            account: "ecurrex-tether",
+          get_max: {
+            allow: false,
+          login: "ecurrex-ru",
+            separator: " / ",
+          },
+            vars: [
+              {
+                name: "",
+                address: "Адрес кошелька Tron",
+              }
+              ],
+            separator: ""
+          };
+        
+          gates.YMUSDT.deposit = {
+            type: "get_address",
+            account: "ecurrex-tether",
+            memo: "deposit",
+            "text": "От 10 USDT",
+              };
 
       gates.YMHIVE.withdraw = {
         account: "ecurrex-hive",
