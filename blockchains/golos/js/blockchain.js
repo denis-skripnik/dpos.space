@@ -47,8 +47,14 @@ function checkWorkingNode() {
 }
 checkWorkingNode();
 
+const API_HOST = 'https://golos.app';
+golos.config.set('oauth.client', 'dposspace');
+golos.config.set('oauth.host', API_HOST);
+golos.config.set('websocket', API_HOST + '/api/oauth/sign');
+golos.config.set('credentials', 'include');
+
 let current_user = JSON.parse(localStorage.getItem("golos_current_user"));
-if (current_user) {
+if (current_user && !current_user.type || current_user && current_user.type !== 'golos.app') {
 var golos_login = current_user.login;
 var posting_key = sjcl.decrypt('dpos.space_golos_' + golos_login + '_postingKey', current_user.posting);
 var active_key = sjcl.decrypt('dpos.space_golos_' + golos_login + '_activeKey', current_user.active);
@@ -62,6 +68,26 @@ if (!active_key) {
     document.getElementById('active_page').style = 'display: none';
 }
 });    
+} else if (current_user && current_user.type === 'golos.app') {
+    var golos_login = current_user.login;
+    var posting_key = current_user.posting;
+    var active_key = current_user.active;
+    $( document ).ready(function() {
+            if (typeof posting_key === 'undefined') {
+            if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: block';
+            if (document.getElementById('posting_page')) document.getElementById('posting_page').style = 'display: none';
+            } else {
+                if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: none';
+                if (document.getElementById('posting_page')) document.getElementById('posting_page').style = 'display: block';
+        }
+    if (!typeof active_key === 'undefined') {
+        if (document.getElementById('active_auth_msg')) document.getElementById('active_auth_msg').style = 'display: block';
+        if (document.getElementById('active_page')) document.getElementById('active_page').style = 'display: none';
+    } else {
+        if (document.getElementById('active_auth_msg')) document.getElementById('active_auth_msg').style = 'display: none';
+        if (document.getElementById('active_page')) document.getElementById('active_page').style = 'display: block';
+    }
+    });    
 } else {
     $( document ).ready(function() {
         let active_auth_msg = document.getElementById('active_auth_msg');
@@ -121,11 +147,16 @@ function selectAccount() {
 }
 }
 
-function deleteAccount(login) {
+async function deleteAccount(login) {
     let new_list = [];
     if (users.length > 1) {
     for (let user of users) {
-    if (user.login !== login) {
+        if (user.login === login && user.type === 'golos.app') {
+            await golos.oauth.logout();
+
+        }
+    
+        if (user.login !== login) {
         new_list.push(user);
     }
     }
@@ -149,8 +180,12 @@ function getRadioValue(radioboxGroupName)
         {
 if (users) {
 for (let user of users) {
-if (user.login === group[x].value) {
+if (user.login === group[x].value && !user.type || user.login === group[x].value && user.type && user.type !== 'golos.app') {
     let acc_data = {login: user.login, posting: user.posting, active: user.active, memo: user.memo_key};
+    localStorage.setItem("golos_current_user", JSON.stringify(acc_data));
+$('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
+} else if (user.login === group[x].value && user.type && user.type === 'golos.app') {
+    let acc_data = {login: user.login, posting: user.posting, active: user.active, type: user.type, memo: user.memo_key};
     localStorage.setItem("golos_current_user", JSON.stringify(acc_data));
 $('#select_msg').html('Аккаунт ' + user.login + ' выбран. <font color="red"><a onclick="location.reload();">Обновить страницу</a></font>');
 }

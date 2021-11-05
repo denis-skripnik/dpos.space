@@ -1,5 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-  $res = file_get_contents('http://138.201.91.11:3258/smartfarm/loto');
+  $url = pageUrl();
+  $loto_date = date("Y-m-d");
+  if (isset($url[3])) $loto_date = $url[3];
+  $res = file_get_contents('http://138.201.91.11:3258/smartfarm/loto?date='.$loto_date);
   $explorer = file_get_contents('https://node-api.testnet.minter.network/v2/swap_pool/0/1957');
   $pool = json_decode($explorer, true);
 $current_price = ((float)$pool['amount0'] / (10 ** 18)) / ((float)$pool['amount1'] / (10 ** 18));

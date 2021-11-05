@@ -467,7 +467,7 @@ window.alert('Вы отказались отправлять изменения.
 extensions.push([0,{beneficiaries:benif}]);
  extensions.push([2,{percent:+curator_rewards_percent}]);
 let operations;
-if (content_datetime && active_key !== '') {
+if (content_datetime && active_key !== '' || content_datetime && current_user.type === 'golos.app' && active_key === '') {
 var wif = active_key;
     var resultWifToPublic = golos.auth.wifToPublic(wif);
  operations = [
@@ -497,7 +497,7 @@ var wif = active_key;
 "extensions": []
 }
 ]];
-} else if (content_datetime && active_key === '') {
+} else if (content_datetime && active_key === '' && current_user.type !== 'golos.app') {
 $('#auth_msg').html('<p>Вы не указали на странице авторизации активный ключ, который необходим для отложенного постинга. Просьба перейти по ссылке "войти" в меню, удалить аккаунт из списка и ввести данные заново.</p>');
 } else {
     var wif = posting_key;

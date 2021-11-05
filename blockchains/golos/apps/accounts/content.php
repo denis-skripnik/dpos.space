@@ -12,4 +12,16 @@ return '<div id="select_account"></div>
 <input type="password" name="active_key" id="active_key" value="" placeholder="Введите активный ключ"></p>
 <p><input type="button" onclick="saveAccount()" value="Войти"></p>
 </form>
+<h2>OAuth</h2>
+<div class="loading">
+Загрузка...
+</div>
+
+<div class="oauth_login-form" style="display: none;">
+<button class="oauth_login">Войти</button>
+</div>
+
+<div class="oauth_actions" style="display: none;">
+<span class="oauth_username"></span>
+<button class="oauth_logout">Выйти</button>
 '; ?>

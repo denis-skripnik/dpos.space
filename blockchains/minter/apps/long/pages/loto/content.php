@@ -1,40 +1,46 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-    $res = file_get_contents('http://138.201.91.11:3852/smartfarm/loto');
-  $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');
-  $pool = json_decode($explorer, true);
-$current_price = ((float)$pool['amount0'] / (10 ** 18)) / ((float)$pool['amount1'] / (10 ** 18));
-$price_changed = ($current_price - 1) / 1 * 100;
-$change_k = (0.2 * ($price_changed / 100)) / 10;
-$percent = 0.2 + $change_k;
-$l = (float)$pool['liquidity'] / (10 ** 18);
-$loto_amount = 1 * ($l / 100) * $percent;
-$loto_percent = $loto_amount / $l * 100;
+      $url = pageUrl();
+      $loto_date = gmdate("Y-m-d");
+      if (isset($url[3])) $loto_date = $url[3];
+   $res = file_get_contents('http://138.201.91.11:3852/smartfarm/loto?date='.$loto_date);
 
 $content = '<p align="center"><strong><a href="/minter/long">К фармингу</a></strong></p>
 <p>О LONG вы сможете узнать на странице фарминга. Здесь же про лотерею проекта.</p>
 <h2>О лотерее проекта LONG (<a href="/minter/long/phelosophy" target="_blank">философия проекта</a>)</h2>
 <p><strong>Проводится каждый день в случайное время.</strong></p>
-<ol><li>Сумма выигрыша = (сумма всех LP токенов / 100) * текущий процент провайдера (учитывает курс LONG и инвест. дни / 300)<br>
-<strong>Сумма без учёта инвест. дней провайдера: '.number_format($loto_amount, 2, ',', '&nbsp;').' LONG ('.round($loto_percent, 2).'%)</strong></li>
-<li>Собирается список топ 50 провайдеров пула</li>
-<li>Проверяется, сдклали ли реинвест:<br>
-<strong>Если выиграли, >= 50% от суммы получения, если не выиграли - >= 98% фарминга.</strong></li>
-<li>Соответствующим условиям выше выдаются билеты. Количество = (LP-токены провайдера / 100) * (1 + (инвест_дни / 100)) с переводом в целое число,<br>
-Где<br>
-инвест_дни - число инвестиционных дней провайдера пула (СМ. страницу фарминга для подробностей).</li>
-<li>После этого билеты случайным образом перемешиваются. После чего выбирается случайный победитель на основе ГСЧ с использованием Minter блокчейна (СМ. <a href="/minter/randomblockchain" target="_blank">сервис</a>).</li>
+<ol><li>Сумма выигрыша = (сумма LP токенов провайдера / 2) * текущий процент провайдера (учитывает курс LONG и инвест. дни / 100), но не более 50000 LONG</li>
+<li>Собирается список топ 100 провайдеров пула</li>
+<li>Проверяется, сделали ли реинвест:<br>
+<strong>Если выиграли вчера, >= 50% от суммы получения, если не выиграли - >= 49% фарминга.</strong></li>
+<li>Основное смотрите в подробностях лотереи.</li>
 </ol>
 <hr>
-<h3><a name="contents">Оглавление</a></h3>
-<ul><li><a href="#tickets">Билеты</a></li>
-<li><a href="#winners">История победителей</a></li>
+<h2><a name="contents">Оглавление</a></h2>
+<ul><li><a href="#info">Подробности</a></li>
+<li><a href="#history">Предыдущие лотереи</a></li>
 </ul>
 <hr>
-<h3><a name="tickets">Список билетов</a></h3>
-<p>'.nl2br($res, false).'</p>
+<h2><a name="info">Подробности</a></h2>
+<p>'.$res.'</p>
 <hr>
 <p align="center"><a href="#contents">К оглавлению</a></p>
-<h3><a name="winners">История победителей</a></h3>
+<h2><a name="history">Предыдущие лотереи</a></h2>';
+$start = strtotime('2021-10-29 GMT');
+$finish = time();
+$date_line = $finish - $start;
+if ($date_line >= 86400) {
+  $content .= '<ul>';
+  for($i=$start; $i < $finish; $i+=86400){
+    $now_date = gmdate("Y-m-d", $i);
+    if ($now_date === gmdate("Y-m-d")) continue;
+    $content .= '<li><a href="/minter/long/loto/'.$now_date.'" target="_blank">'.$now_date.'</a></li>
+';
+}
+$content .= '</ul>';
+}
+$content .= '<hr>
+<p align="center"><a href="#contents">К оглавлению</a></p>
+<h2><a name="winners">История победителей</a></h2>
 <table><thead><tr>
 <th>Дата и время</th>
 <th>Адрес</th>
@@ -48,7 +54,7 @@ if (isset($txs_res) && count($txs_res) > 0) {
     foreach($txs_res as $tx) {
     if ($tx['from'] === 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439' && ($tx['type'] === 1 && $tx['data']['coin']['symbol'] === 'LONG' || $tx['type'] === 13 && $tx['data']['list'][0]['coin']['symbol'] === 'LONG')) {
       $memo = base64_decode($tx['payload']);
-if (strpos($memo, 'Вы победили в лотерее пула BIP-LONG') === false) {
+if (strpos($memo, 'Вы победили в лотерее пула BIP-LONG') === false || strpos($memo, 'билет') === false) {
   continue;
 }
       $to = (isset($tx['data']['to']) ? $tx['data']['to'] : $tx['data']['list'][0]['to']);
@@ -56,8 +62,8 @@ if (strpos($memo, 'Вы победили в лотерее пула BIP-LONG') =
      $amount = number_format($amount, 2, ',', '&nbsp;').' LONG';
     $timestamp1 = $tx['timestamp'];
      $timestamp2 = strtotime($timestamp1);
-$month2 = date('m', $timestamp2);
-$datetime = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
+$month2 = gmdate('m', $timestamp2);
+$datetime = gmdate('j', $timestamp2).' '.$month[$month2].' '.gmdate('Y г. H:i:s', $timestamp2);
 $memo2 = explode("номером ", $memo)[1];
 $ticker_number = explode('.', $memo2)[0];
      $content .= '<tr>

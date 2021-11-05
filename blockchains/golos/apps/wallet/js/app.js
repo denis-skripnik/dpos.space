@@ -594,7 +594,7 @@ template_count++;
 function getDonateTemplates(token) {
   $('#select_donate_template').html('<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>');
   if (token === 'GOLOS') {
-    $('#select_donate_template').append(`<option value="ecurrex-t2g" data-to="ecurrex-t2g" data-memo="">Перевод с TIP-баланса в ликвид (не относится к создателю dpos.space)</option>
+    $('#select_donate_template').append(`<option value="tiptok" data-to="tiptok" data-memo="">Перевод с TIP-баланса в ликвид (не относится к создателю dpos.space)</option>
     `);
   }
   
@@ -610,6 +610,7 @@ template_count++;
 }
 
 var memo_key = current_user.memo;
+var memo_window = true;
 function prepareContent(text) {
   try {
     if (text && text.length > 0 && text[0] === '#') {
@@ -617,8 +618,10 @@ try {
   text = golos.memo.decode(active_key,text);
   text = text.slice(1);
 } catch(e) {
-  if (!memo_key) memo_key = window.prompt('Введите Memo ключ. Он будет сохранён.');
-if (memo_key && memo_key !== '') {
+  if (!memo_key && memo_window === true) memo_key = window.prompt('Введите Memo ключ. Он будет сохранён.');
+  if (!memo_key) {
+  memo_window = false;
+} else if (memo_key && memo_key !== '') {
 current_user.memo = memo_key;
 localStorage.setItem('golos_current_user', JSON.stringify(current_user));
   for (let user of users) {
@@ -1314,7 +1317,7 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
     
   }
   
-  if (active_key) {
+  if (typeof active_key !== 'undefined') {
     jQuery("#main_wallet_info").css("display", "block");
   await loadBalances();
   await thisAccountHistory();
@@ -1677,9 +1680,9 @@ try {
           $('#remove_donate_template').css('display', 'none');
           $('#donate_to').val('');
           $('#donate_memo').val('');
-        } else         if ($('#select_donate_template').val() === 'ecurrex-t2g') {
+        } else         if ($('#select_donate_template').val() === 'tiptok') {
           $('#remove_donate_template').css('display', 'none');
-          $('#donate_to').val('ecurrex-t2g');
+          $('#donate_to').val('tiptok');
           $('#donate_memo').val('');
         } else {
           $('#remove_donate_template').css('display', 'inline');

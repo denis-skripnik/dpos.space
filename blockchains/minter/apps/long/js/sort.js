@@ -9,10 +9,27 @@ $(document).ready(function() {
       "order": [[ 0, "asc" ]],
             "aoColumns": [
       { "orderSequence": [ "asc" ] },
-                                null, null, null, null, null, null, null, null
+                                null, null, null, null, null, null, null, null, null
 ],
     "aoColumnDefs": [
 { 'bSortable': false, 'aTargets': [ 0 ] }
 ],
     } );
-});
+
+    $('#bids_table').DataTable( {
+                  "language": {
+        "decimal": ",",
+        "thousands": ".",
+                        "url": "//cdn.datatables.net/plug-ins/1.10.20/i18n/Russian.json"
+                    },
+        "iDisplayLength" : 50,
+        "order": [[ 0, "asc" ]],
+              "aoColumns": [
+        null, null,
+        { "orderSequence": [ "asc" ] }, null
+  ],
+      "aoColumnDefs": [
+  { 'bSortable': false, 'aTargets': [ 0 ] }
+  ],
+      } );
+  });

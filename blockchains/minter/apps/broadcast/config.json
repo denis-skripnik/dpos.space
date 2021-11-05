@@ -1,0 +1,6 @@
+{
+"title": "Minter Broadcast",
+"description": "Minter Broadcast - сервис, позволяющий отправлять готовые транзакции с просмотром информации по ним перед отправкой.",
+"in_menu": "Broadcast",
+"category": "tools"
+}

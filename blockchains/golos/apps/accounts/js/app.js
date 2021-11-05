@@ -70,3 +70,59 @@ function pass_gen(){
 	let wif=golos.auth.toWif('',ret,'')
 	return wif;
 }
+
+async function OAuthInit() {
+    const oauth_res = await golos.oauth.checkReliable();
+if (oauth_res.authorized) {
+    $('.oauth_login-form').hide();
+    $('.oauth_actions').show();
+    $('.oauth_username').text(golos_login);
+} else {
+    $('.oauth_login-form').show();
+    $('.oauth_actions').hide();
+}
+$('.loading').hide();
+}
+
+$(document).ready(async function() {
+    $('.oauth_login').click(e => {
+    golos.oauth.login(['transfer', 'account_metadata', 'claim', 'donate', 'comment', 'comment_options', 'worker_request_vote', 'transfer_to_tip', 'transfer_to_vesting', 'account_update', 'transfer_from_tip', 'custom_json', 'limit_order_create', 'delete_comment', 'withdraw_vesting', '', 'account_witness_vote', 'worker_request', 'limit_order_cancel', 'witness_update', 'asset_issue', 'delegate_vesting_shares', 'escrow_release', 'chain_properties_update', 'escrow_transfer', 'escrow_dispute', 'escrow_approve', 'account_create_with_delegation', '', 'delegate_vesting_shares_with_interest', 'account_witness_proxy', 'proposal_create', 'proposal_update', 'proposal_delete', 'invite_claim', 'invite', 'account_create', 'convert', 'transfer_to_savings', 'transfer_from_savings', 'limit_order_cancel_ex', 'cancel_transfer_from_savings', 'asset_update', 'asset_create', 'change_recovery_account']);
+    golos.oauth.waitForLogin(async (res) => {
+        if (localStorage.getItem('golos_users') && JSON.stringify(localStorage.getItem('golos_users')).indexOf(res.account) > -1) {
+            await golos.oauth.logout();            
+        window.alert('Аккаунт с таким-же логином уже добавлен. Просьба удалить его, если хотите использовать OAuth авторизацию.');
+            return;
+        }
+        let acc_data = {login: res.account, posting: '', active: '', type: 'golos.app'};
+        localStorage.setItem("golos_current_user", JSON.stringify(acc_data));
+        if (!users) users = [];
+        users.push(acc_data);
+        localStorage.setItem("golos_users", JSON.stringify(users));
+        window.location.reload();
+    }, () => {
+        alert('Waiting for login is timeouted. Try again please.');
+    });
+});
+
+$('.oauth_logout').click(async (e) => {
+    await golos.oauth.logout();
+    let new_list = [];
+    if (users.length > 1) {
+    for (let user of users) {
+    if (user.type !== 'golos.app') {
+        new_list.push(user);
+    }
+    }
+    localStorage.setItem("golos_users", JSON.stringify(new_list));
+    selectAccount()
+    $('#delete_msg').html('OAuth авторизация удалена из списка.');
+    } else if (users.length === 1) {
+        selectAccount()
+        $('#delete_msg').html('OAuth авторизация удалена из списка.');
+            localStorage.removeItem('golos_users');
+            localStorage.removeItem('golos_current_user');
+        }
+    window.location.reload();
+});
+OAuthInit()
+});

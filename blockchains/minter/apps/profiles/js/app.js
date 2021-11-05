@@ -36,7 +36,13 @@ if (typeof rewards.data.data[0]  !== 'undefined' && typeof rewards.data.data[0].
 } catch(e) {
   console.error(e);
 }
-      }
+      
+minter.getNonce(address)
+    .then((nonce) => {
+$('#nonce').html(nonce);
+        // 123
+    });
+}
 
  function fast_str_replace(search,replace,str){
     return str.split(search).join(replace);
@@ -201,5 +207,16 @@ $('#history_tbody').html(results);
 
 $(document).ready(async function() {
   await main();
+  
+  $('[name=copy_nonce]').click(function() {
+    let nonce = parseInt($('#nonce').html());
+    navigator.clipboard.writeText(nonce)
+  .then(() => {
+    // Получилось!
+  })
+  .catch(err => {
+    console.log('Something went wrong', err);
+  });
+  })
   await getHistory(1);
 });

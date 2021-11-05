@@ -14,14 +14,14 @@ $validators[1] = '<h2><a name="1">Кандидаты</a></h2>
 <table><thead><tr><th>№</th>
 <th>Публичный ключ</th>
 <th>Название</th>
-<th>Стек</th>
+<th>Stake</th>
 <th>Комиссия</th>
 </tr></thead><tbody>';
 $validators[2] = '<h2><a name="2">Активные валидаторы</a></h2>
 <table><thead><tr><th>№</th>
 <th>Публичный ключ</th>
 <th>Название</th>
-<th>Стек</th>
+<th>Stake</th>
 <th>Комиссия</th>
 </tr></thead><tbody>';
 

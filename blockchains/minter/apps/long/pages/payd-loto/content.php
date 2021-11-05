@@ -10,7 +10,7 @@ $types = ['10', '50', '100', '500', '1000'];
 $contents = '';
     $tickets_lists = '';
 foreach($types as $type) {
-$jackpot_list .= '<li>Лотерея '.$type.' LONG: '.$jackpot[$type].' билетов, '.number_format((10 * $jackpot[$type] * 0.05), 2, ',', '&nbsp;').' LONG получат победители</li>';
+$jackpot_list .= '<li>Лотерея '.$type.' LONG: '.$jackpot[$type].' билетов, '.number_format(($type * $jackpot[$type] * 0.05), 2, ',', '&nbsp;').' LONG получат победители</li>';
 $contents .= '<li><a href="#tickets'.$type.'">Билеты лотереи '.$type.' LONG</a></li>';
 $tickets_lists .= '<hr>
 <h3><a name="tickets'.$type.'">Список билетов лотереи '.$type.' LONG</a></h3>

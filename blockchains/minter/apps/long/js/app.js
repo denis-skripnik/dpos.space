@@ -35,10 +35,15 @@ if (get_bip_amount) {
     console.error(e);
 }
     let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
-    let percent = parseFloat($("#now_percent").text().replace(',', '.'));
-    let farming_share = liquidity * (percent / 100);
-    let k = 1 + (invest_days / 100);
-    farming_share *= k;
+    let best_invest_day = parseFloat($('#best_invest_day').html().replace(',', '.'));
+    let all_liquidity = parseFloat($('#lp_liquidity').html().replace(',', '.'));
+    let all_bip_liquidity = parseFloat($('#bip_liquidity').html().replace(',', '.'));
+    let min_percent = parseFloat($("#min_percent").text().replace(',', '.'));
+    let max_percent = parseFloat($("#max_percent").text().replace(',', '.'));
+        let share = liquidity / all_liquidity;
+    let bip_liquidity = all_bip_liquidity * share;
+    let provider_percent = min_percent + ((max_percent - min_percent) * (invest_days / best_invest_day));
+    let farming_share = (bip_liquidity / 100 * provider_percent) / price;
     let value = parseFloat(farming_share.toFixed(18));
 return value;
 }
@@ -93,9 +98,18 @@ function rpsResults() {
 }
 
 $(document).ready(async function() {
+    var url = document.location.pathname;
     const date = new Date().toLocaleString();
     if (document.getElementById('page_date')) $('#page_date').html(date);
     
+if (url.indexOf('surveys') > -1 && url.indexOf('voteing') > -1) {
+    $.getJSON('https://dpos.space/blockchains/minter/apps/long/api.php/provider?address=' + sender.address, function(data) {
+    if (Object.keys(data).length == 0) {
+$('#is_provider').html('<p><strong>К сожалению вы не являетесь провайдером пула, поэтому не можете голосовать. Ну или произошла ошибка: если это так, <a href="https://t.me/long_project_chat" target="_blank">пишите в чат</a></strong></p>')
+    }
+});
+}
+
     $('#max_lp').click(function() {
     let amount = $('#max_lp').html();
     $('[name=lp_tokens]').val(amount);
@@ -240,7 +254,7 @@ if (document.querySelector('[name=friends_templates]')) {
         return;
         }
         }
-        await send('Mx01029d73e128e2f53ff1fcc2d52a423283ad9439', 0, 0, JSON.stringify(data), 0);
+        await send('Mx01029d73e128e2f53ff1fcc2d52a423283ad9439', 0, 0, JSON.stringify(data), '', 0);
         }
         }); // end click save friend.
     
@@ -308,11 +322,11 @@ for (let type of types) {
 }
 $('#action_buy_ticket').click(async function() {
     let amount = parseFloat($('[name=loto_type]').val());
-var q = window.confirm(`Вы действительно хотите купить билет на ${amount} LONG?`);
-if (q === true && bip_balance >= fee.bip_fee) {
-    await send(address, amount, "LONG", memo, 0, 0);
-} else if (q === true && bip_balance < fee.bip_fee && amount + fee.fee <= long_balance) {
-        await send(address, amount, "LONG", memo, 0, 'LONG');
+    var q = window.confirm(`Вы действительно хотите купить билет на ${amount} LONG?`);
+    if (q === true && bip_balance >= bip_fee) {
+        await send(address, amount, "LONG", memo, '', 0);
+    } else if (q === true && bip_balance < bip_fee && amount + long_fee <= long_balance) {
+        await send(address, amount, "LONG", memo, '', 'LONG');
     } else if (q === true && bip_balance < fee.bip_fee && amount + fee.fee < long_balance) {
     window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
     }
@@ -323,7 +337,7 @@ if (q === true && bip_balance >= fee.bip_fee) {
 let max_amount = 0;
 if (bip_balance >= bip_fee) {
     max_amount = long_balance;
-} else if (bip_balance < bip_fee && amount + long_fee <= long_balance) {
+} else if (bip_balance < bip_fee && 1 + long_fee <= long_balance) {
     max_amount = long_balance - long_fee;
     }
 
@@ -338,9 +352,9 @@ let amount = $('[name=amount]').val();
 let memo = "lrps";
 var q = window.confirm(`Вы действительно хотите играть со ставкой ${amount} LONG?`);
 if (q === true && bip_balance >= bip_fee) {
-    await send(address, amount, "LONG", memo, 0, 0);
+    await send(address, amount, "LONG", memo, '', 0);
 } else if (q === true && bip_balance < bip_fee && amount + long_fee <= long_balance) {
-        await send(address, amount, "LONG", memo, 0, 'LONG');
+        await send(address, amount, "LONG", memo, '', 'LONG');
     } else if (q === true && bip_balance < bip_fee && amount + long_fee < long_balance) {
     window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
     }
@@ -354,4 +368,19 @@ if (document.getElementById('rps_results')) {
 await endRound();
 setInterval(endRound, 5000);
 // Конец блока кода лотерей с покупкой билетов или игры rps.
+
+$('#action_send_bid').click(async function() {
+    let amount = parseFloat($('[name=amount]').val());
+    let token = $('[name=bids_tokens]').val();
+    let direction = $('[name=bids_direction]').val();
+    let memo = `lbid ${token} ${direction}`;
+    var q = window.confirm(`Вы действительно хотите сделать ставку в ${token} на ${amount} LONG?`);
+    if (q === true && bip_balance >= bip_fee) {
+        await send(address, amount, "LONG", memo, '', 0);
+    } else if (q === true && bip_balance < bip_fee && amount + long_fee <= long_balance) {
+            await send(address, amount, "LONG", memo, '', 'LONG');
+        } else if (q === true && bip_balance < bip_fee && amount + long_fee < long_balance) {
+        window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
+        }
+    });
 });

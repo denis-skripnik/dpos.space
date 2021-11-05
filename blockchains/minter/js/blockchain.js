@@ -1,5 +1,4 @@
-const TX_TYPE = minterSDK.TX_TYPE;
-const prepareLink = minterSDK.prepareLink;
+const {TX_TYPE, prepareLink, prepareTx, prepareSignedTx, getTxData} = minterSDK;
 const minter = new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one/v2'});
 
 axios.defaults.baseURL = 'https://api.minter.one/v2';
@@ -12,20 +11,20 @@ if (current_user.importFrom) chain = current_user.importFrom;
 var seed = sjcl.decrypt(`dpos.space_${chain}_` + minter_login + '_seed', current_user.seed);
 $( document ).ready(function() {
     if (!seed) {
-        document.getElementById('auth_msg').style = 'display: block';
-        document.getElementById('seed_page').style = 'display: none';
+        if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: block';
+        if (document.getElementById('seed_page')) document.getElementById('seed_page').style = 'display: none';
        }
 });    
 } else if (current_user && current_user.type && current_user.type === 'bip.to') {
     var minter_login = current_user.login;            
     $( document ).ready(function() {
-            document.getElementById('seed_page').style = 'display: block';
+        if (document.getElementById('seed_page')) document.getElementById('seed_page').style = 'display: block';
     });    
 } else {
     $( document ).ready(function() {
       if (!seed) {
-        document.getElementById('auth_msg').style = 'display: block';
-        document.getElementById('seed_page').style = 'display: none';
+        if (document.getElementById('auth_msg')) document.getElementById('auth_msg').style = 'display: block';
+        if (document.getElementById('seed_page')) document.getElementById('seed_page').style = 'display: none';
        }
         });
     }
@@ -99,6 +98,15 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
     });
 }
 
+async function getSignedTX(idTxParams) {
+    if (current_user.type === 'bip.to') {
+window.alert('Для получения подписанной транзакции необходимо быть авторизованным seed фразой.');
+        return;
+    }
+    let tx = prepareSignedTx(idTxParams, {seedPhrase: seed});
+    $.fancybox.open(`<p id="message"><strong>Код вашей готовой транзакции: ${tx}</strong></p>`);
+}
+
         async function send(to, value, coin, memo, mode, gasCoin) {
             const isValid = minterWallet.isValidMnemonic(memo);
             if (isValid === true) {
@@ -108,7 +116,7 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
             
             let minGasPrice = await axios.get('/min_gas_price');
         let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
-            if (!gasCoin) gasCoin = coin;
+            if (typeof gasCoin === "undefined") gasCoin = coin;
             const txParams = {
                 chainId: 1,
                 type: TX_TYPE.SEND,
@@ -122,9 +130,12 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
                 payload: memo,
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
-if (mode !== 'fee') {
+            if (mode === '') {
     await broadcasting(idTxParams);
-} else {
+} else if (mode === 'get_signed_tx') {
+        let res = await getSignedTX(idTxParams);
+return res;
+    } else {
     let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
     return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
 }
@@ -153,7 +164,7 @@ if (mode !== 'fee') {
             txParams.gasPrice = gasPrice;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            if (mode !== 'fee') {
+            if (mode === '') {
                 await broadcasting(idTxParams);
             } else {
                 let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
@@ -185,7 +196,7 @@ if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
             }
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            if (mode !== 'fee') {
+            if (mode === '') {
     await broadcasting(idTxParams);
             } else {
                     let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
@@ -209,7 +220,7 @@ let txParams = {
 };
 const idTxParams = await minter.replaceCoinSymbol(txParams);
 console.log(idTxParams);
-if (mode !== 'fee') {
+if (mode === '') {
 try {
 await broadcasting(idTxParams);
 } catch(err) {
@@ -235,7 +246,7 @@ await addToPool(to, coin, amount2, amount1, mode);
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            if (mode !== 'fee') {
+            if (mode === '') {
                 await broadcasting(idTxParams);
             } else {
                 let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});
@@ -255,7 +266,7 @@ await addToPool(to, coin, amount2, amount1, mode);
             };
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
-            if (mode !== 'fee') {
+            if (mode === '') {
                 await broadcasting(idTxParams);
             } else {
                 let fee_data = await minter.estimateTxCommission(txParams, {direct: false,});

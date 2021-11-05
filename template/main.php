@@ -86,7 +86,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div  class="footer_item" >
            
               <p><a href="/viz/profiles/denis-skripnik" class="a-footer">Профиль в Viz</a></p>
-              <p><a href="/minter/profiles/Mxae30a08fae2cc95960c5055d1142fd676995e18b" class="a-footer">Адрес Minter кошелька</a></p>
+              <p><a href="/minter/profiles/Mxf85ceccfe2112e88be58162c43f5ec959672ab54" class="a-footer">Адрес Minter кошелька</a></p>
+              <p><a href="/decimal/profiles/dx18a46ny5gq7pjhejap8xaahmjwmzgwan92ag2wq" class="a-footer">Адрес Decimal кошелька</a></p>
               <p><a href="/golos/profiles/denis-skripnik" class="a-footer">Профиль в Golos.</a></p>
         </div> 
 
