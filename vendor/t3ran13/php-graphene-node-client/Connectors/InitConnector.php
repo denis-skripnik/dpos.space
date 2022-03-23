@@ -6,6 +6,7 @@ namespace GrapheneNodeClient\Connectors;
 
 use GrapheneNodeClient\Connectors\Http\SteemitHttpJsonRpcConnector;
 use GrapheneNodeClient\Connectors\Http\HiveHttpJsonRpcConnector;
+use GrapheneNodeClient\Connectors\Http\SereyHttpJsonRpcConnector;
 use GrapheneNodeClient\Connectors\Http\VizHttpJsonRpcConnector;
 use GrapheneNodeClient\Connectors\WebSocket\GolosWSConnector;
 use GrapheneNodeClient\Connectors\WebSocket\VizWSConnector;
@@ -21,6 +22,7 @@ class InitConnector
         ConnectorInterface::PLATFORM_GOLOS,
         ConnectorInterface::PLATFORM_STEEMIT,
         ConnectorInterface::PLATFORM_HIVE,
+        ConnectorInterface::PLATFORM_SEREY,
         ConnectorInterface::PLATFORM_WHALESHARES
     ];
 
@@ -38,6 +40,8 @@ class InitConnector
                 self::$connectors[$platform] = new SteemitHttpJsonRpcConnector();
             } elseif ($platform === ConnectorInterface::PLATFORM_HIVE) {
                 self::$connectors[$platform] = new HiveHttpJsonRpcConnector();
+            } elseif ($platform === ConnectorInterface::PLATFORM_SEREY) {
+                self::$connectors[$platform] = new SereyHttpJsonRpcConnector();
             }
         }
 

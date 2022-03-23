@@ -2,8 +2,8 @@
 $url = pageUrl();
 if (!isset($url[3])) {
     return '<h2>Меню</h2>
-    <ul><li><a href="'.$conf['siteUrl'].'minter/long/survays/create">Создать новый</a></li>
-    <li><a href="'.$conf['siteUrl'].'minter/long/survays/list">Список</a></li></ul>
+    <ul><li><a href="'.$conf['siteUrl'].'minter/long/surveys/create">Создать новый</a></li>
+    <li><a href="'.$conf['siteUrl'].'minter/long/surveys/list">Список</a></li></ul>
     ';
 } else {
     if (is_dir(__DIR__.'/pages/'.$url[3])) {

@@ -19,6 +19,7 @@ class HiveHttpJsonRpcConnector extends HttpJsonRpcConnectorAbstract
      * @var string
      */
     protected static $nodeURL = [
+        'https://rpc.ecency.com',
         'https://hive.roelandp.nl',
         'https://api.openhive.network'
 //        'https://steemd.pevo.science' //too often 503

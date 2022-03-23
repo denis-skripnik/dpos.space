@@ -1,0 +1,104 @@
+{
+    "/start": {
+        "text": "Добро пожаловать в бот обратной связи Дениса Скрипника.",
+        "buttons": [[{"callback_data": "contact", "text": "Написать"}, {"callback_data": "projects", "text": "Проекты"}, {"callback_data": "services", "text": "Услуги"}],
+        [{"callback_data": "sites", "text": "Сайты"}, {"callback_data": "githubs", "text": "Мой Git"}, {"callback_data": "reviews", "text": "Отзывы"}]]
+    },
+    "contact": {
+        "text": "Напишите мне сообщение",
+        "buttons": [[{"callback_data": "/start", "text": "Отмена"}]]
+    },
+    "projects": {
+        "text": "Выберите проект",
+        "buttons": [[{"callback_data": "dpos.space", "text": "dpos.space"}, {"callback_data": "viz.dpos.space", "text": "viz.dpos.space"}, {"callback_data": "viz-node.dpos.space", "text": "viz-node.dpos.space"}],
+[{"callback_data": "viz_awards_bot", "text": "@viz_awards_bot"}, {"callback_data": "viz_committee_bot", "text": "@viz_committee_bot"}, {"callback_data": "readdle_bot", "text": "@readdle_bot"}],
+[{"callback_data": "golos_feed_bot", "text": "@golos_feed_bot"}, {"callback_data": "golos_stake_bot", "text": "@golos_stake_bot"}, {"callback_data": "golos_witness_monitor_bot", "text": "@golos_witness_monitor_bot"}],
+[{"callback_data": "/start", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "dpos.space": {
+        "text": "Это проект, поддерживающий несколько блокчейнов. Для каждого созданы сервисы: аккаунты (с возможностью выбора других, кошелёк, просмотр профилей. Но есть и другие: не буду всё перечислять. Скажу лишь, что поддерживаются Golos, Steem, Viz, Minter, Cyber и Hive блокчейны.",
+        "buttons": [[{"url": "https://dpos.space", "text": "Сайт"}, {"url": "https://github.com/denis-skripnik/dpos.space", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "viz.dpos.space": {
+        "text": "Сайт, созданный для изучения блокчейна Viz и его экосистемы в удобном пошаговом формате.",
+        "buttons": [[{"url": "https://viz.dpos.space", "text": "Сайт"}, {"url": "https://github.com/denis-skripnik/dpos.space/tree/master/viz-manual", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "viz-node.dpos.space": {
+        "text": "Моя публичная api нода блокчейна Viz. По кнопке открытия Github откроется репозиторий viz-cpp-node, что используется для работы ноды.",
+        "buttons": [[{"url": "https://viz-node.dpos.space", "text": "Нода"}, {"url": "https://github.com/viz-blockchain/viz-cpp-node", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "viz_awards_bot": {
+        "text": "@viz_awards_bot - это Telegram бот, уведомляющий о полученных наградах и бенефициарских в блокчейне Viz.",
+        "buttons": [[{"url": "https://t.me/viz_awards_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/viz-apps/tree/master/js_modules/awards_bot", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "viz_committee_bot": {
+        "text": "@viz_committee_bot уведомляет о новых заявках в комитет блокчейна Viz. Комитет - фонд развития блокчейна, откуда пользователи при согласии сообщества могут брать токены.",
+        "buttons": [[{"url": "https://t.me/viz_committee_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/viz-apps/tree/master/js_modules/committee_bot", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "readdle_bot": {
+        "text": "@readdle_bot - бот, отправляющий уведомления о новых постах, комментариях и репостах в readdle.me. Есть возможность подписки на пользователей, но они независимы от подписок на сайте. Также бот позволяет публиковать заметки и посты (без картинок)",
+        "buttons": [[{"url": "https://t.me/readdle_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/viz-apps/tree/master/js_modules/readdle_bot", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "golos_stake_bot": {
+        "text": "@golos_stake_bot - бот, позволяющий автоматически получать CLAIM в блокчейне Golos. Также есть партнёрская программа.",
+        "buttons": [[{"url": "https://t.me/golos_stake_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/golos-apps/tree/master/js_modules/stake_bot", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "golos_feed_bot": {
+        "text": "@golos_feed_bot позволяет получать последние новости ленты подписок (feed ленты) на Голосе. Вводите аккаунты, и получаете дайджест по ним раз в 6 часов.",
+        "buttons": [[{"url": "https://t.me/golos_feed_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/golos-apps/tree/master/js_modules/feed_bot", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+    "golos_witness_monitor_bot": {
+        "text": "@golos_witness_monitor_bot - уведомляющий о пропусках блоков делегатами Голоса, а также сообщающий об активации / деактивации, смене ключей и обновлении. Также позволяет подписаться только на конкретного делегата путём ввода логина. Является форком аналогичного бота для Viz с моей адаптацией под Голос.",
+        "buttons": [[{"url": "https://t.me/golos_witness_monitor_bot", "text": "Запуск"}, {"url": "https://github.com/denis-skripnik/goloswatchdog", "text": "Github"}],
+        [{"callback_data": "projects", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "sites": {
+        "text": "Здесь представленные созданные мной под заказ сайты. Нажмите на кнопку, чтоб открыть в браузере любой из них.",
+        "buttons": [[{"url": "https://denis-skripnik.name", "text": "Основной"}, {"url": "https://velkam.ru", "text": "ВелКам"}, {"url": "https://dpos.space", "text": "БЧ сайт"}],
+[{"url": "https://tamarakuk.ru", "text": "Вокал"}, {"url": "https://ogmdmitriykuk.ru/", "text": "ОГМ и КО"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+   
+    "githubs": {
+        "text": "Представляю основные репозитории в Github с проектами, код которых открыт. Нажимайте на кнопки, чтоб посмотреть в браузере.",
+        "buttons": [[{"url": "https://github.com/denis-skripnik/dpos.space", "text": "Dpos.space"}, {"url": "https://github.com/denis-skripnik/golos-apps", "text": "Golos apps"}],
+[{"url": "https://github.com/denis-skripnik/viz-apps", "text": "Viz apps"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "services": {
+        "text": "Если вам не особо важна визуальная составляющая, если вы хотите сделать что-то довольно быстро (за день или два), мои услуги для вас. Нажимайте на кнопки, чтоб изучить подробнее.",
+        "buttons": [[{"callback_data": "creating_sites", "text": "Сайты"}, {"callback_data": "creating_telegram_bots", "text": "ТГ боты"}],
+[{"callback_data": "creating_backand_scripts", "text": "Backand"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "creating_sites": {
+        "text": "Создаю сайты под заказ без уникальных визуальных моментов на основе имеющихся шаблонов. Выбираем адрес, регистрирую место хранения сайта, устанавливаю движок (программу), настраиваю, загружая изображение для шапки сайта от вас, загружаю тексты, создаю страницы и всё.\nДля кого: для тех, кто не парится по поводу внешнего вида, кому важна простота и привычность сайта для пользователей. Для тех, кому надоело долго ждать выполнения работ, а также составлять тех. задания. Просто скиньте данные по сайту и всё.\nСтоимость: 5000 руб. + 100 руб. за страницу",
+        "buttons": [[{"callback_data": "contact", "text": "Написать"}, {"callback_data": "services", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "creating_telegram_bots": {
+        "text": "Создаю Telegram ботов. Примеры можете посмотреть в разделе проектов главного меню данного бота. Боты простые, без визуальных излишеств. Кнопки клавиатуры только формируемые вручную (кнопки клавиатуры - это как в этом боте).\nДля кого: для тех, кому не хочется делать тех. задания, а также кто не циклится на визуальном.\nСтоимость: от 5000 руб.",
+        "buttons": [[{"callback_data": "contact", "text": "Написать"}, {"callback_data": "services", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "creating_backand_scripts": {
+        "text": "Создаю backand скрипты, в том числе api для ваших сервисов на node.js и php. Примеры можете посмотреть в разделе репозиториев главного меню данного бота (viz apps и golos apps).\nДля кого: для тех, кому нужен api, кто уже создал свой проект.\nСтоимость: от 7000 руб.",
+        "buttons": [[{"callback_data": "contact", "text": "Написать"}, {"callback_data": "services", "text": "Назад"}, {"callback_data": "/start", "text": "Главная"}]]
+    },
+
+    "reviews": {
+        "text": "Предлагаю почитать отзывы обо мне. Для выбора нажимайте на кнопку с заинтересовавшим числом:\n1. Отзыв об ускорении блога;\n2. Отзыв по форме постинга dpos.space/golos/post;\n3. Отзыв по созданию сайта ogmdmitriykuk.ru;\n4. Отзыв по моему проекту dpos.space в виде поста. Там есть и не касающееся меня, но и сам отзыв;\n5. Отзыв с интервью, когда мне было 15 лет.",
+        "buttons": [[{"url": "http://web.archive.org/web/20160815130448/http://sovuskino.ru/intervyu-s-blogerami/denis-skripnik-chelovek-unikum/", "text": "1"}, {"url": "https://golos.id/ladyzarulem/@ladyzarulem/ru-test-saijta-denisa-denis-skripnik-dposspace", "text": "2"}],
+        [{"url": "https://vk.com/wall103088086_690?reply=702", "text": "3"}, {"url": "https://golos.id/ru--megagalxyan/@kudesnikaltay/proga-denisa-zdorovo-pomogaet", "text": "4"}],
+        [{"url": "http://tivskazke.ru/future-millioners-skripnik/", "text": "5"}],
+        [{"callback_data": "projects", "text": "Проекты"}, {"callback_data": "/start", "text": "Главная"}]]
+    }
+}

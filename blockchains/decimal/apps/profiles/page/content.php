@@ -2,6 +2,8 @@
 global $conf;
 return '<h2>Балансы</h2>
 <ul id="balances"></ul>
+<h2>Реворды за сутки</h2>
+<ul id="daily_rewards"></ul>
 <h2>Доп. информация</h2>
 <ul><li>NONCE (для создания транзакций): <span id="nonce"></span><br>
 <input type="button" name="copy_nonce" value="Копировать"></li>

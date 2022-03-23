@@ -8,7 +8,6 @@ gates.YMUSDT = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
 gates.VIZUIA = {};
-gates.DOGECOIN = {};
 
 gates.PRIZM.withdraw = {
   account: "exprizm",
@@ -268,26 +267,6 @@ gates.YMPZM.deposit = {
   ]
   };
 
-  gates.DOGECOIN.withdraw = {
-    account: "golos.doge",
-  get_max: {
-    allow: false
-  },
-    vars: [
-      {
-        name: "",
-        address: "Адрес DOGE кошелька",
-      }
-      ],
-    separator: ""
-  };
-
-  gates.DOGECOIN.deposit = {
-type: "get_address",
-account: "golos.doge",
-memo: "deposit"
-  };
-  
     async function links(tipe, token) {
   $('#actions').html('');
   if (token === 'GOLOS' && tipe === 'main_balance') {
@@ -594,7 +573,8 @@ template_count++;
 function getDonateTemplates(token) {
   $('#select_donate_template').html('<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>');
   if (token === 'GOLOS') {
-    $('#select_donate_template').append(`<option value="tiptok" data-to="tiptok" data-memo="">Перевод с TIP-баланса в ликвид (не относится к создателю dpos.space)</option>
+    $('#select_donate_template').append(`<option value="tiptok" data-to="tiptok" data-memo="">Перевод с TIP-баланса в ликвид через tiptok (не относится к создателю dpos.space)</option>
+    <option value="ecurrex-t2g" data-to="ecurrex-t2g" data-memo="">Перевод с TIP-баланса в ликвид через ecurrex-t2g (не относится к создателю dpos.space)</option>
     `);
   }
   
@@ -1478,9 +1458,9 @@ $('#max_donate_amount').html($('#max_tip_' + token).html());
     let token = $(this).attr('data-token');
 $('.transfer_from_tip_modal_token').html(token);
 if (token === 'GOLOS') {
-  $('#transfer_from_tip_to').html(' в СГ');
+  $('#transfer_from_tip_to_info').html(' в СГ');
 } else {
-  $('#transfer_from_tip_to').html(' на основной баланс');
+  $('#transfer_from_tip_to_info').html(' на основной баланс');
 }
 $('#max_transfer_from_tip_amount').html($('#max_tip_' + token).html());
   });
@@ -1684,6 +1664,10 @@ try {
           $('#remove_donate_template').css('display', 'none');
           $('#donate_to').val('tiptok');
           $('#donate_memo').val('');
+        } else         if ($('#select_donate_template').val() === 'ecurrex-t2g') {
+          $('#remove_donate_template').css('display', 'none');
+          $('#donate_to').val('ecurrex-t2g');
+          $('#donate_memo').val('');
         } else {
           $('#remove_donate_template').css('display', 'inline');
           $('#donate_to').val(String($(':selected', this).data('to')));
@@ -1810,7 +1794,7 @@ token_action = ' в СГ';
                    precision = asset.precision;
                  }
               
-                      var transfer_from_tip_to = $('#transfer_from_tip_to').val();
+                      var transfer_from_tip_to = $('[name=transfer_from_tip_to]').val();
                   var transfer_from_tip_amount = $('#transfer_from_tip_amount').val();
                   transfer_from_tip_amount = parseFloat(transfer_from_tip_amount);
                   transfer_from_tip_amount = transfer_from_tip_amount.toFixed(precision) + ' ' + token;
@@ -1822,12 +1806,12 @@ return;
 } 
                   
                   try {
-                      let result = await golos.broadcast.transferFromTipAsync(active_key, golos_login, transfer_from_tip_to, transfer_from_tip_amount, transfer_from_tip_memo, []);
+                    let result = await golos.broadcast.transferFromTipAsync(active_key, golos_login, transfer_from_tip_to, transfer_from_tip_amount, transfer_from_tip_memo, []);
                       window.alert('Вы перевели ' + transfer_from_tip_amount + ' пользователю ' + transfer_from_tip_to + token_action + '.');
                       await loadBalances();
                       $.fancybox.close();
                     } catch(err) {
-                      window.alert('Ошибка: ' + JSON.stringify(err));
+                      window.alert('Ошибка: ' + err);
                    }
                 } else {
                   window.alert('Вы отменили перевод токенов из TIP-баланса' + token_action);

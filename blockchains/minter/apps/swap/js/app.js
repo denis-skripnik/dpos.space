@@ -246,9 +246,11 @@ let q = window.confirm('Вы действительно хотите удали�
 if (q === true) {
   let coins = $('#rl_modal_pool').html().split('/');
   let token = $('#rl_modal_token').html();
-let lp_balance = parseFloat($('#rl_lp_balance').html())
-let percent = parseFloat($('#action_rl_percent').val());
-let remove_balance = lp_balance / 100 * percent;
+  let lp_balance = $('#rl_lp_balance').html();
+let percent = $('#action_rl_percent').val();
+let percent_balance = bigDecimal.divide(lp_balance, '100', 20);
+let remove_balance = bigDecimal.multiply(percent_balance, percent);
+console.log(remove_balance);
 await removeFromPool(coins[0], coins[1], remove_balance, '');
 }
 });

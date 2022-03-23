@@ -39,7 +39,8 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 <strong>Отправка другой суммы или без указания сообщения является донатом.</strong><br>
 В сообщении (В консоли надо нажать "Расширенный режим") указываем<br>
 <strong><span id="send_with_memo">lpl</span></strong><br>
-(<input type="button" id="copy_memo" value="Копировать">)</li>
+(<input type="button" id="copy_memo" value="Копировать">)<br>
+<strong>В случае ошибки в сообщении к транзакции будет возврат 80% суммы вклада.</strong></li>
 <li>Раз в <span id="pl_block_interval">'.$tickets['options']['pl_block_interval'].'</span> блоков будут определяться победители в каждой из лотерей:
 Кол-во выигрывающих = кол-во билетов / 10 с математическим округлением,<br>
 т. е., если билетов 15, будет 2 победителя, если 14 - 1. Если меньше 5, будет тоже один победитель</li>

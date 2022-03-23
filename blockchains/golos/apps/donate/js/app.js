@@ -8,7 +8,6 @@ gates.YMUSDT = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
 gates.VIZUIA = {};
-gates.DOGECOIN = {};
 
 gates.YMRUB.deposit = {
 vars: [
@@ -125,12 +124,6 @@ gates.YMPZM.deposit = {
   ]
   };
 
-  gates.DOGECOIN.deposit = {
-type: "get_address",
-account: "golos.doge",
-memo: "deposit"
-  };
-  
   async function getDepositAddress(token) {
     let deposit = gates[token].deposit;
     try {

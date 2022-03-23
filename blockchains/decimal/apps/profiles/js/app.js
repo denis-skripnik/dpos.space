@@ -40,6 +40,23 @@ if (url.endsWith("/") === true) {
   address = url.slice(-42, -1)
 }
 
+async function getRewards() {
+  let rewards_amounts = {};
+  let responce = await axios.get('https://mainnet-explorer-api.decimalchain.com/api/address/' + address + '/rewards?limit=200&offset=0&order[date]=DESC');
+  let rewards = responce.data.result.rewards;
+if (rewards && rewards.length > 0) {
+let end_date = new Date(rewards[0].date).getTime() - 86400000;
+  for (let reward of rewards) {
+    let date = new Date(reward.date).getTime();
+    if (date < end_date) break;
+    let amount = parseFloat(reward.value) / (10 ** 18);
+  if (!rewards_amounts[reward.currency]) rewards_amounts[reward.currency] = 0;
+  rewards_amounts[reward.currency] += amount;
+  }
+}
+return rewards_amounts;
+}
+
 async function main() {
   let acc = (await decimal.getAddress(address)).address;
   $('#nonce').html(acc.nonce);
@@ -50,6 +67,16 @@ async function main() {
     balances += `<li>${balance} ${token}</li>`
   }
       $('#balances').html(balances);
+    
+      let rewards_text = '';
+      let rewards_amounts = await getRewards();
+      if (Object.keys(rewards_amounts).length > 0) {
+for (let coin in rewards_amounts) {
+  rewards_text += `<li>${rewards_amounts[coin].toFixed(5)} ${coin}</li>
+`;
+}
+      }
+      $('#daily_rewards').html(rewards_text);
     }
 
  function fast_str_replace(search,replace,str){
@@ -114,7 +141,7 @@ async function main() {
     jQuery("#wallet_transfer_history").css("display", "block");try {
     let offset = (page * 10) - 10;
      
-    let response = await axios.get('https://mainnet-gate.decimalchain.com/api/address/dx1elwraultusruzcpszpyyv5hufm4j6y2zpk6mjn/txs?limit=10&offset=' + offset);
+    let response = await axios.get('https://mainnet-gate.decimalchain.com/api/address/' + address + '/txs?limit=10&offset=' + offset);
     let results = '';
     let res = response.data.result.txs;
     
@@ -159,12 +186,32 @@ type = 'Получение';
   type = 'Конвертация';
   coin_str = 'sellCoin'
   value_str = 'amount';
+} else if (tr.type === 'transfer_nft') {
+  type = 'Передача NFT';
+  coin_str = 'transfer_nft'
+  value_str = 'nft';
+} else if (tr.type === 'mint_nft') {
+  type = 'Создание NFT';
+  coin_str = 'mint_nft';
+  value_str = 'nft';
+} else if (tr.type === 'delegate_nft') {
+  type = 'Делегирование NFT';
+  coin_str = 'delegate_nft'
+  value_str = 'nft';
+} else if (tr.type === 'unbond_nft') {
+  type = 'Анбонд NFT';
+  coin_str = 'unbond_nft'
+  value_str = 'nft';
 }
 
 if (!tr.data.list && tr.type !== 'COIN_CREATE') {
-  amount = parseFloat(tr.data[value_str]) / (10 ** 18);
-  amount = amount.toFixed(3);
-  amount += ' ' + tr.data[coin_str];
+  if (value_str !== 'nft') {
+    amount = parseFloat(tr.data[value_str]) / (10 ** 18);
+    amount = amount.toFixed(3);
+    amount += ' ' + tr.data[coin_str];
+  } else {
+    amount = parseFloat(tr.data[value_str]['quantity']) + tr.data[value_str].nftCollection;
+  }
 } else if (!tr.data.list && (tr.type === 'COIN_CREATE')) {
   amount = parseFloat(tr.data.initSupply) / (10 ** 18);
   amount = amount.toFixed(3);

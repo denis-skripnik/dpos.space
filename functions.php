@@ -122,7 +122,7 @@ $data['content'] = $blockchain_snippet;
 $data['content'] .= file_get_contents(__DIR__.'/blockchains/'.$url[0].'/content.html');
 } else if (count($url) == 2 && file_exists(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/index.php')) {
   $data = inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snippet);
-} else if (count($url) >= 3) {
+} else if (count($url) >= 3 && file_exists(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/'.pageUrl()[1].'/index.php')) {
   require_once(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/'.pageUrl()[1].'/index.php');
 if (!isset($data)) {
   $data = inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snippet);
@@ -188,7 +188,7 @@ if (!pageUrl()) {
     $val['name'] = mb_strtoupper($val['name']);
     $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].$key.'" class="nav-item">'.$val['name'].'</a></li>';
   }
-} else {
+} else if (isset($menu[pageUrl()[0]])) {
   $services = $menu[pageUrl()[0]]['services'];
 foreach ($services as $key => $val) {
   if ($key == 'no_category' || $key == '') {
@@ -259,5 +259,14 @@ if ($blockchain == $permlink) {
 file_put_contents(__DIR__.'/menu.json', json_encode($taskList, JSON_UNESCAPED_UNICODE));
 unset($taskList);
 }
+}
+
+function get404Page() {
+  global $conf;
+  header("HTTP/1.0 404 Not Found");
+  $data = [];
+  $data['menu'] = generateMenu();
+  require_once 'template/404.php';
+return $data;
 }
 ?>

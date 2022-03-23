@@ -8,6 +8,7 @@ interface ConnectorInterface
     const PLATFORM_GOLOS       = 'golos';
     const PLATFORM_STEEMIT     = 'steemit';
     const PLATFORM_HIVE     = 'hive';
+    const PLATFORM_SEREY = 'serey';
     const PLATFORM_VIZ         = 'viz';
     const PLATFORM_WHALESHARES = 'whaleshares';
 

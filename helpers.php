@@ -2,10 +2,12 @@
 
 use GrapheneNodeClient\Connectors\Http\SteemitHttpJsonRpcConnector as Steemit;
 use GrapheneNodeClient\Connectors\Http\HiveHttpJsonRpcConnector as Hive;
-use GrapheneNodeClient\Connectors\Http\VizHttpJsonRpcConnector as Viz;
+
+use GrapheneNodeClient\Connectors\Http\SereyHttpJsonRpcConnector as Serey;use GrapheneNodeClient\Connectors\Http\VizHttpJsonRpcConnector as Viz;
 use GrapheneNodeClient\Connectors\Http\GolosHttpJsonRpcConnector as Golos;
 define('CONNECTORS_MAP', [
     'hive' => Hive::class,
+    'serey' => Serey::class,
     'golos' => Golos::class,
     'viz' => Viz::class,
     'steem' => Steemit::class,

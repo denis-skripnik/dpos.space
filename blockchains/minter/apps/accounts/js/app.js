@@ -48,7 +48,7 @@ let link = prepareLink(txParams);
 $.fancybox.open(`<p id="message"><strong>Пожалуйста, перейдите по этой ссылке для авторизации и подтвердите транзакцию: <a href="${link}" target="_blank">${link}</a>.</strong></p>`);
 var intervalID = setInterval(async function() {
     let from = address.slice(2);
-    let users = [];
+    if (!users) users = [];
     let response = await axios.get(`/transactions?query=tags.tx.coin_id%3D%270%27%20and%20tags.tx.from%3D%27${from}%27%20and%20tags.tx.to%3D%270000000000000000000000000000000000000000%27%20and%20tags.tx.type%3D%2701%27&page=1&per_page=30`);
     let res = response.data.transactions;
     for (let tr of res) {

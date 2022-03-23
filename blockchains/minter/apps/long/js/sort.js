@@ -9,7 +9,7 @@ $(document).ready(function() {
       "order": [[ 0, "asc" ]],
             "aoColumns": [
       { "orderSequence": [ "asc" ] },
-                                null, null, null, null, null, null, null, null, null
+                                null, null, null, null, null, null, null
 ],
     "aoColumnDefs": [
 { 'bSortable': false, 'aTargets': [ 0 ] }

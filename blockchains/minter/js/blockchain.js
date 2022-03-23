@@ -91,9 +91,9 @@ document.getElementById('message').innerHTML = ('Ошибка. Транзакц�
 }
     }).catch(async (error) => {
         if (idTxParams.type === '0x15') {
-            await addToPool(idTxParams.data.coin1, idTxParams.data.coin0, idTxParams.data.maximumVolume1, idTxParams.data.volume0, '', '');
+            await addToPool(idTxParams.data.coin1, idTxParams.data.coin0, idTxParams.data.maximumVolume1, idTxParams.data.volume0, '', '', idTxParams.gasCoin, idTxParams.payload);
         }
-            const errorMessage = (error.response.data.error.message ? error.response.data.error.message : error.response.error.message)
+        const errorMessage = (error.response.data.error.message ? error.response.data.error.message : error.response.error.message)
             throw `Ошибка: ${errorMessage}`;
     });
 }
@@ -136,8 +136,15 @@ window.alert('Для получения подписанной транзакц�
         let res = await getSignedTX(idTxParams);
 return res;
     } else {
+try {
     let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
     return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
+} catch(e) {
+    txParams.gasCoin = 'BIP';
+    const newIdTxParams = await minter.replaceCoinSymbol(txParams);
+    let fee_data = await minter.estimateTxCommission(newIdTxParams, {direct: false,});
+    return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
+}
 }
         }
         
@@ -163,7 +170,6 @@ return res;
             let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
             txParams.gasPrice = gasPrice;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
-            console.log(idTxParams);
             if (mode === '') {
                 await broadcasting(idTxParams);
             } else {
@@ -172,7 +178,7 @@ return res;
             }
         }
         
-        async function addToPool(coin, to, amount1, amount2, mode, variant, gasCoin) {
+        async function addToPool(coin, to, amount1, amount2, mode, variant, gasCoin, payload) {
                         let minGasPrice = await axios.get('/min_gas_price');
             let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
             if (!gasCoin) gasCoin = coin;
@@ -194,6 +200,7 @@ if (variant === 'create_pool') type = TX_TYPE.CREATE_SWAP_POOL;
             } else {
                 txParams.data.volume1 = amount2;
             }
+            if (payload) txParams.payload = payload;
             const idTxParams = await minter.replaceCoinSymbol(txParams);
             console.log(idTxParams);
             if (mode === '') {
@@ -456,6 +463,30 @@ function copyText(id) {
         return (false);
     }
     
+function copyOnClick(element) {
+          var range, selection;
+        
+          if (document.body.createTextRange) {
+               range = document.body.createTextRange();
+               range.moveToElementText(element);
+               range.select();
+          } else if (window.getSelection) {
+               selection = window.getSelection();
+               range = document.createRange();
+               range.selectNodeContents(element);
+               selection.removeAllRanges();
+               selection.addRange(range);
+          }
+          console.log(range);
+        try {
+               document.execCommand("copy");
+               alert("Скопировано: " + selection );
+          }
+          catch (err) {
+             alert("unable to copy text");
+          }
+}
+
     function sendAjax(url, id) {
         const request = new XMLHttpRequest();
     

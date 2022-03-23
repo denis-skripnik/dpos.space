@@ -42,7 +42,6 @@ $_POST = array_map('trim', $_POST);
 header("Location: " .$conf['siteUrl'] . $post_queries);
 }
 $data = generatePage();
-
 if (isset($data) && $data != '' && count($data) > 0) {
     if (isset(pageUrl()[0]) && !isset(pageUrl()[1])) to_menu(pageUrl()[0], pageUrl()[0], $data['in_menu']);
 if (isset(pageUrl()[1]) && !isset(pageUrl()[2])) to_menu(pageUrl()[0], pageUrl()[1], $data['in_menu'], $data['category']);
@@ -50,9 +49,6 @@ if (isset(pageUrl()[1]) && !isset(pageUrl()[2])) to_menu(pageUrl()[0], pageUrl()
     $data['breadCrumbs'] = generateBreadCrumbs();
     require_once 'template/main.php';
 } else {
-    header("HTTP/1.0 404 Not Found");
-    $data = [];
-    $data['menu'] = generateMenu();
-    require_once 'template/404.php';
+$data = get404Page();
 }
 ?>

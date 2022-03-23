@@ -14,6 +14,7 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 В сообщении (В консоли надо нажать "Расширенный режим") указываем<br>
 <strong><span id="send_with_memo">lrps</span></strong><br>
 (<input type="button" id="copy_memo" value="Копировать">)<br>
+<strong>В случае ошибки в сообщении к транзакции будет возврат 80% суммы вклада.</strong><br>
 <strong>В случае выпадания одинаковых предметов побеждает тот, у кого больше сумма. Если суммы ставок одинаковые, выигрыш делится на число победителей.</strong></li>
 <li>Раз в <span id="rps_block_interval">'.$res['block_interval'].'</span> блоков будут определяться победитель:
 Если в конце не остаётся одинаковое количество предметов, победитель один. Если 2 - 2.</li>
@@ -31,7 +32,7 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 <h3><a name="play">Играть</a></h3>
 <div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
 <div id="seed_page"><form>
-<p><label for="amount">Сумма ставки (максимум <span id="max_bid"></span> LONG) <br>
+<p><label for="amount">Сумма ставки (максимум <span id="max_rps"></span> LONG) <br>
 <input type="number" min=1 name="amount"></p>
 <p><strong><input type="button" id="action_rps_play" value="Поехали!"></strong></p>
 </form></div>

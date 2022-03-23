@@ -463,7 +463,7 @@ let memo = $('#action_transfer_memo').val();
 
  try {
   $.fancybox.close(); 
-  await send(to, amount, coin, memo, gasCoin)
+  await send(to, amount, coin, memo, '', gasCoin)
  await loadBalances();
 } catch(e) {
 window.alert('Ошибка: ' + e);
@@ -482,7 +482,7 @@ window.alert('Ошибка: ' + e);
       amount = parseFloat(amount);
     }
     if (to !== '') {
-      let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee');
+      let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee', coin);
       let coin_fee = coin;
       if (fee === bip_fee) coin_fee = 'BIP';
       $('#transfer_fee').html(fee + ` ${coin_fee}`);
@@ -506,7 +506,7 @@ amount = parseFloat(amount);
 let max_amount = $('#max_transfer_amount').html();
 max_amount = parseFloat(max_amount);
 if (to !== '') {
-  let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee');
+  let {fee, bip_fee} = await send(to, amount, coin, memo, 'fee', coin);
   
   let coin_fee = coin;
   if (fee === bip_fee) coin_fee = 'BIP';
@@ -536,7 +536,7 @@ $("#action_convert_start").click(async function(){
    
     try {
     $.fancybox.close(); 
-    await convert(coin, to, amount, buy_amount, swap_route, gasCoin);
+    await convert(coin, to, amount, buy_amount, swap_route, '', gasCoin);
    await loadBalances();
   } catch(e) {
   window.alert('Ошибка: ' + e);
@@ -759,7 +759,7 @@ try {
         let memo = $('#action_transfer_memo').val();
 
         if (to !== '') {
-          let {fee, bip_fee} = await send(to, max_amount, coin, memo, 'fee');
+          let {fee, bip_fee} = await send(to, max_amount, coin, memo, 'fee', coin);
           let coin_fee = coin;
           if (fee === bip_fee) coin_fee = 'BIP';
           $('#transfer_fee').html(fee + ` ${coin_fee}`);

@@ -107,7 +107,7 @@ return '<div id="active_auth_msg" style="display: none;"><p>Для работы 
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="transfer_from_tip_modal">
-                                                      <h4 class="modal-title">Перевод <span class="transfer_from_tip_modal_token"></span> <span id="transfer_from_tip_to"></span> с баланса донатов</h4>
+                                                      <h4 class="modal-title">Перевод <span class="transfer_from_tip_modal_token"></span> <span id="transfer_from_tip_to_info"></span> с баланса донатов</h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_golos_transfer_from_tip">
                                                 <form class="form" name="postForm">

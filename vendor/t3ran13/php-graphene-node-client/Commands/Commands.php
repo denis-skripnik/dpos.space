@@ -157,6 +157,8 @@ class Commands implements CommandInterface
                 $api = SteemitApiMethods::$map;
             } elseif ($platform === ConnectorInterface::PLATFORM_HIVE) {
                 $api = HiveApiMethods::$map;
+            } elseif ($platform === ConnectorInterface::PLATFORM_SEREY) {
+                $api = SereyApiMethods::$map;
             } elseif ($platform === ConnectorInterface::PLATFORM_VIZ) {
                 $api = VizApiMethods::$map;
             } elseif ($platform === ConnectorInterface::PLATFORM_WHALESHARES) {

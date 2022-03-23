@@ -10,7 +10,7 @@ $top = json_decode($html, true);
 $next_page = true;
 if ($top && count($top) > 0) {
     $content = '<table><thead><tr>
-<th>№</th><th>Логин</th><th>Суммарный баланс аккаунта</th><th>Основной баланс (ликвид)</th><th>TIP баланс (донаты)</th>
+<th>№</th><th>Логин</th><th>Суммарный баланс аккаунта</th><th>Основной баланс (ликвид)</th><th>TIP баланс (донаты)</th><th>Market-баланс</th>
 </tr></thead><tbody>';
 foreach ($top as $key => $value) {
     $n = $key + 1;
@@ -20,6 +20,7 @@ foreach ($top as $key => $value) {
 <td>'.number_format($value['summ_balance'], 3, ',', '&nbsp;').'</td>
 <td>'.number_format($value['main_balance'], 3, ',', '&nbsp;').'</td>
 <td>'.number_format($value['tip_balance'], 3, ',', '&nbsp;').'</td>
+<td>'.number_format($value['market_balance'], 3, ',', '&nbsp;').'</td>
 </tr>';
 }
 $content .= '</tbody></table>';

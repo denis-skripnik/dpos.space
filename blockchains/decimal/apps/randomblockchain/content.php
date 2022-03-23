@@ -1,5 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
+if (isset($_GET)) {
+    $data['title'] .= ' | Блоки '.$_GET['block1'].' и '.$_GET['block2'].', участников '.$_GET['participants'];
+}
 if (!empty($_GET)) {
 $start_block = $_GET['block2'];
 $end_block = $_GET['block1'];

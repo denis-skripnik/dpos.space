@@ -27,7 +27,7 @@ let ethereumHub = parseFloat(ethereumHubBalanceRes.data.result) / (10 ** 18);
   var currentDate = new Date();
   currentDate.setDate(currentDate.getDate() - 1);
   let rewards_date = new Date(currentDate).toLocaleDateString('en-ca');
-try {
+  try {
   let rewards = await axios.get(`https://explorer-api.minter.network/api/v2/addresses/${address}/statistics/rewards?start_time=${rewards_date}&end_time=${rewards_date}`);
 if (typeof rewards.data.data[0]  !== 'undefined' && typeof rewards.data.data[0].amount !== 'undefined') {
   let last_reward = parseFloat(rewards.data.data[0].amount).toFixed(3) + ' BIP';
@@ -103,8 +103,8 @@ $('#nonce').html(nonce);
    }
 
    async function getHistory(page) {
-    jQuery("#wallet_transfer_history").css("display", "block");try {
-    let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address + '/transactions?page=' + page);
+    jQuery("#wallet_transfer_history").css("display", "block");
+      let response = await axios.get('https://explorer-api.minter.network/api/v2/addresses/' + address + '/transactions?page=' + page);
     let results = '';
     let res = response.data.data;
 let types = {
@@ -141,16 +141,18 @@ let types = {
 31: 'Пересоздание токена',
 32: 'Голосование за комиссию',
 33: 'Голосование за обновление',
-34: 'Создание пула ликвидности'
+34: 'Создание пула ликвидности',
+35: 'Создание лимитного ордера'
 };
 for (let tr of res) {
-let amount;
+  if (tr.type === 36) continue;
+  let amount;
 let coin_str = 'coin';
 let value_str = 'value';
 let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 35) {
   coin_str = 'coin_to_sell'
   value_str = 'value_to_sell';
 } else if (tr.type === 21 || tr.type === 22 || tr.type === 34) {
@@ -179,14 +181,14 @@ amount += coin;
 let get_time = Date.parse(tr.timestamp);
 let memo = decodeURIComponent(escape(window.atob(tr.payload)));
 memo = prepareContent(memo);
-results += `
-<tr><td>${date_str(get_time, true, false, true)}</td>
-<td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
-<td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
-<td>${type}</td>
-<td>${amount}</td>
-<td>${memo}</td>
-</tr>`;
+  results += `
+  <tr><td>${date_str(get_time, true, false, true)}</td>
+  <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+  <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+  <td>${type}</td>
+  <td>${amount}</td>
+  <td>${memo}</td>
+  </tr>`;
 }
 let next_page = page + 1;
 let prev_page = page - 1;
@@ -200,9 +202,6 @@ $('#history_pages').html(`<a onclick="getHistory(${prev_page});">Предыду�
 }
 $('#history_tbody').css('display', 'block');
 $('#history_tbody').html(results);
-} catch(e) {
-       console.log(e);
-     }
 }
 
 $(document).ready(async function() {

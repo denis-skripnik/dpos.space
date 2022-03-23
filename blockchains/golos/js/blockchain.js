@@ -48,14 +48,17 @@ function checkWorkingNode() {
 checkWorkingNode();
 
 const API_HOST = 'https://golos.app';
-golos.config.set('oauth.client', 'dposspace');
-golos.config.set('oauth.host', API_HOST);
-golos.config.set('websocket', API_HOST + '/api/oauth/sign');
-golos.config.set('credentials', 'include');
 
 let current_user = JSON.parse(localStorage.getItem("golos_current_user"));
 if (current_user && !current_user.type || current_user && current_user.type !== 'golos.app') {
-var golos_login = current_user.login;
+    if (document.querySelector('.oauth_login')) {
+        golos.config.set('oauth.client', 'dposspace');
+        golos.config.set('oauth.host', API_HOST);
+        golos.config.set('websocket', API_HOST + '/api/oauth/sign');
+        golos.config.set('credentials', 'include');
+    }
+    
+    var golos_login = current_user.login;
 var posting_key = sjcl.decrypt('dpos.space_golos_' + golos_login + '_postingKey', current_user.posting);
 var active_key = sjcl.decrypt('dpos.space_golos_' + golos_login + '_activeKey', current_user.active);
 $( document ).ready(function() {
@@ -69,6 +72,11 @@ if (!active_key) {
 }
 });    
 } else if (current_user && current_user.type === 'golos.app') {
+        golos.config.set('oauth.client', 'dposspace');
+        golos.config.set('oauth.host', API_HOST);
+        golos.config.set('websocket', API_HOST + '/api/oauth/sign');
+        golos.config.set('credentials', 'include');
+    
     var golos_login = current_user.login;
     var posting_key = current_user.posting;
     var active_key = current_user.active;
@@ -89,6 +97,11 @@ if (!active_key) {
     }
     });    
 } else {
+        golos.config.set('oauth.client', 'dposspace');
+        golos.config.set('oauth.host', API_HOST);
+        golos.config.set('websocket', API_HOST + '/api/oauth/sign');
+        golos.config.set('credentials', 'include');
+    
     $( document ).ready(function() {
         let active_auth_msg = document.getElementById('active_auth_msg');
         let auth_msg = document.getElementById('auth_msg');

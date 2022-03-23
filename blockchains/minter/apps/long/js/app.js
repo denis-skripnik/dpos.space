@@ -6,10 +6,10 @@ async function getPrices() {
     let rub_bip_price = res_bip_prices['bip']['rub'];
     let usd_price = price * usd_bip_price;
         let rub_price = price * rub_bip_price;
-    $('#prices').html(`Курс 1 LONG = <span id="current_price">${price.toFixed(5)}</span> BIP, $ ${usd_price.toFixed(5)}, ${rub_price.toFixed(5)} Руб.`);
+        if (document.getElementById('prices')) $('#prices').html(`Курс 1 LONG = <span id="current_price">${price.toFixed(5)}</span> BIP, $ ${usd_price.toFixed(5)}, ${rub_price.toFixed(5)} Руб.`);
     const date = new Date().toLocaleString();
     if (document.getElementById('page_date')) $('#page_date').html(date);
-    return {price, usd_bip_price, rub_bip_price};
+   return {price, usd_bip_price, rub_bip_price};
 }
 
 async function calculate() {
@@ -97,11 +97,50 @@ function rpsResults() {
     $('#rps_results').html(`<script async src="https://telegram.org/js/telegram-widget.js?15" data-telegram-post="long_have_fun/64" data-width="100%"></script>`);
 }
 
+async function selectedSendCoin(address, memo, symbol) {
+    let symbol_balance = 0;
+    let bip_balance = 0;
+    let bip_fee = 0;
+    let symbol_fee = 0;
+    if (seed || current_user && current_user.type === 'bip.to') {
+      let tokens = await getBalance(sender.address);
+      let fee =     await send(address, 100, "LONG", memo, 'fee', symbol);
+      let coin_fee = 'BIP';
+      let fee_amount = fee.bip_fee;
+      if (fee.fee !== fee.bip_fee) {
+          fee_amount = fee.fee;
+          coin_fee = symbol;
+      }
+      symbol_fee = fee.fee;
+      bip_fee = fee.bip_fee;
+      for (let token of tokens) {
+          if (token.coin === symbol) {
+            symbol_balance += parseFloat(token.amount);
+          } else if (token.coin === 'BIP') {
+              bip_balance += parseFloat(token.amount);
+          }
+      }
+  
+    let max_amount = 0;
+if (bip_balance >= bip_fee) {
+    max_amount = symbol_balance;
+} else if (bip_balance < bip_fee && 1 + symbol_fee <= symbol_balance) {
+    max_amount = symbol_balance - symbol_fee;
+    }
+
+    $('#max_bid').html(max_amount);
+$('#selected_symbol').html(symbol);
+    return {bid_bip_balance: bip_balance, bid_bip_fee: bip_fee, bid_symbol_balance: symbol_balance, bid_symbol_fee: symbol_fee};
+}
+}
+
 $(document).ready(async function() {
     var url = document.location.pathname;
     const date = new Date().toLocaleString();
     if (document.getElementById('page_date')) $('#page_date').html(date);
     
+await getPrices();
+
 if (url.indexOf('surveys') > -1 && url.indexOf('voteing') > -1) {
     $.getJSON('https://dpos.space/blockchains/minter/apps/long/api.php/provider?address=' + sender.address, function(data) {
     if (Object.keys(data).length == 0) {
@@ -161,16 +200,24 @@ if (document.querySelector('[name=friends_templates]')) {
     let friends = JSON.parse($('#json_friends').html());
     let fcount = 0;
     if (Object.keys(friends).length > 0) {
-        for (let el in friends) {
-            $('[name=friends_templates]').append(`<option value="${el}">${el}</option>`);
-            fcount += friends[el].lp_tokens;
+        for (let friend of friends) {
+            $('[name=friends_templates]').append(`<option value="${friend.name}">${friend.name}</option>`);
+            fcount += friend.lp_tokens;
         }
     }
     $('[name=friends_templates]').change(function() {
     let friend = $('[name=friends_templates]').val();
     if(friend !== '') {
-        let fd = friends[friend];
-    if (sender.address === page_address) {
+        let friend_object = friends.reduce(function (acc, elem, index) {
+            if (acc < 0) acc = -1;
+            if( elem.name === friend) {
+                acc = index;
+            }
+            return acc;
+        }, []);
+          if (friend_object === -1) return;
+        let fd = friends[friend_object];
+        if (sender.address === page_address) {
         $('#delete_friend').css('display', 'inline');
         $('#delete_friend').html(`(<input type="button" value="Удалить" id="delete_friend">)`);
     }
@@ -201,14 +248,27 @@ if (document.querySelector('[name=friends_templates]')) {
     if (sender.address === page_address) {
         $('#save_friend').css('display', 'inline');
         
-        $('#delete_friend').click(function() {
+        $('#delete_friend').click(async function() {
             let friend = $('[name=friends_templates]').val();
             var q = window.confirm('Вы действительно хотите удалить?');
             if (q == false) return;
             if(friend !== '') {
-                delete friends[friend];
-                $('[name=friends_templates] :selected').remove(); // будет удален Новосибирск
-                fcount -= friends[friend].lp_tokens;
+                let friend_object = friends.reduce(function (acc, elem, index) {
+                    if (acc < 0) acc = -1;
+                    if( elem.name === friend) {
+                        acc = index;
+                    }
+                    return acc;
+                }, []);
+                if (friend_object === -1) return;
+                let fd = friends[friend_object];
+                let data = [];
+                data[0] = "delete_friend";
+                    data[1] = {name: friend};
+                    await send('Mx01029d73e128e2f53ff1fcc2d52a423283ad9439', 0, 0, JSON.stringify(data), '', 0);
+                delete friends[friend_object];
+                $('[name=friends_templates] :selected').remove();
+                fcount -= fd.lp_tokens;
                 $('#delete_friend').css('display', 'none');
                 $('#delete_friend').html(``);
                 $('[name=lp_tokens]').val('');
@@ -221,10 +281,6 @@ if (document.querySelector('[name=friends_templates]')) {
         });
         
         $('#save_friend').click(async function() {
-            if (Object.keys(friends).length === 5) {
-                window.alert('Вы не можете добавить больше пяти друзей.');
-                return;
-            }
             let max = parseFloat($('#max_lp').html().replace(',', '.'));
             let friend = $('[name=friends_templates]').val();
             let send_amount = parseFloat($('#send_amount').html().replace(',', '.'));
@@ -232,30 +288,40 @@ if (document.querySelector('[name=friends_templates]')) {
                         var name = window.prompt('Введите имя, по которому идентифицировать будете друга');
                 if (!name || typeof name == 'undefined' || name === '') return;
             } else {
-                if (Object.keys(friends).length === 0) friends = {};
             if (friend && friend !== '') {
                 name = friend;
             }
             }
-        var q = window.confirm('Отправить?');
+            var q = window.confirm('Сохранить друга?');
         if (q == true) {
-            let amount = parseFloat($('[name=lp_tokens]').val().replace(',', '.'));
+  let amount = parseFloat($('[name=lp_tokens]').val().replace(',', '.'));
             let my_share = parseFloat($('[name=my_share]').val().replace(',', '.'));
             let data = [];
-        data[0] = "friends";
-        data[1] = friends;
-        if (typeof name !== 'undefined' || name && name !== '') {
-            data[1][name] = {lp_tokens: amount, my_share};
-            $('[name=friends_templates]').append(`<option value="${name}">${name}</option>`);
-        friends[name] = {lp_tokens: amount, my_share};
-        fcount += amount;
-        if (fcount > max) {
+        data[0] = "update_friend";
+            data[1] = {name, lp_tokens: amount, my_share};
+            let friend_object = friends.reduce(function (acc, elem, index) {
+                if (acc < 0) acc = -1;
+                if( elem.name === friend) {
+                    acc = index;
+                }
+                return acc;
+            }, []);
+            if (friend_object === -1) {
+                $('[name=friends_templates]').append(`<option value="${name}">${name}</option>`);
+                friends.push({name, lp_tokens: amount, my_share});
+                fcount += amount;
+            } else {
+                let fd = friends[friend_object];
+                friends[friend_object] = {name, lp_tokens: amount, my_share};
+                fcount -= fd.lp_tokens;
+                fcount += amount;
+            }
+            if (fcount > max) {
             window.alert('Общая сумма LP-токенов больше максимума.');
         return;
         }
-        }
         await send('Mx01029d73e128e2f53ff1fcc2d52a423283ad9439', 0, 0, JSON.stringify(data), '', 0);
-        }
+       }
         }); // end click save friend.
     
     }
@@ -294,6 +360,7 @@ $('#copy_address').click(async function() {
 
   let memo = $('#send_with_memo').html();
   let address = $('#send_to_address').html();
+  if (!address) address = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   let long_balance = 0;
   let bip_balance = 0;
   let bip_fee = 0;
@@ -341,9 +408,9 @@ if (bip_balance >= bip_fee) {
     max_amount = long_balance - long_fee;
     }
 
-    $('#max_bid').html(max_amount);
-$('#max_bid').click(async function() {
-let max = parseFloat($('#max_bid').html());
+    $('#max_rps').html(max_amount);
+$('#max_rps').click(async function() {
+let max = parseFloat($('#max_rps').html());
 $('[name=amount]').val(max);
 });
 
@@ -369,18 +436,189 @@ await endRound();
 setInterval(endRound, 5000);
 // Конец блока кода лотерей с покупкой билетов или игры rps.
 
+// Ставки на курс крипты и пулов.
+let {bid_bip_balance, bid_bip_fee, bid_symbol_balance, bid_symbol_fee} = await selectedSendCoin(address, memo, 'LONG');
+
+$('#bid_send_coin').change(async function() {
+    let symbol = $('#bid_send_coin').val();
+    let selected_coin = await selectedSendCoin(address, memo, symbol);
+    bid_bip_balance = selected_coin.bid_bip_balance;
+    bid_bip_fee = selected_coin.bid_bip_fee;
+    bid_symbol_balance = selected_coin.bid_symbol_balance;
+    bid_symbol_fee = selected_coin.bid_symbol_fee;
+});
+
+$('#max_bid').click(async function() {
+    let max = parseFloat($('#max_bid').html());
+    $('[name=bid_amount]').val(max);
+    });
+    
 $('#action_send_bid').click(async function() {
-    let amount = parseFloat($('[name=amount]').val());
+    let symbol = $('#bid_send_coin').val();
+    let amount = parseFloat($('[name=bid_amount]').val());
+    let min_amount = parseFloat($('[name=bid_amount]').attr('min'));
     let token = $('[name=bids_tokens]').val();
-    let direction = $('[name=bids_direction]').val();
+    let direction = document.querySelector('input[name="bids_direction"]:checked').value;
     let memo = `lbid ${token} ${direction}`;
+    if (min_amount > amount) {
+        window.alert('Для данного токена минимум ' + min_amount + '. Укажите верную сумму ставки');
+    return;
+    }
+
     var q = window.confirm(`Вы действительно хотите сделать ставку в ${token} на ${amount} LONG?`);
-    if (q === true && bip_balance >= bip_fee) {
-        await send(address, amount, "LONG", memo, '', 0);
-    } else if (q === true && bip_balance < bip_fee && amount + long_fee <= long_balance) {
-            await send(address, amount, "LONG", memo, '', 'LONG');
-        } else if (q === true && bip_balance < bip_fee && amount + long_fee < long_balance) {
+    if (q === true && bid_bip_balance >= bid_bip_fee) {
+        await send(address, amount, symbol, memo, '', 0);
+    } else if (q === true && bid_bip_balance < bid_bip_fee && amount + bid_symbol_fee <= bid_symbol_balance) {
+            await send(address, amount, symbol, memo, '', symbol);
+        } else if (q === true && bid_bip_balance < bid_bip_fee && amount + bid_symbol_fee < bid_symbol_balance) {
         window.alert('Вам не хватает BIP или LONG для оплаты комиссии.');
         }
     });
+
+    // Конец блока сервиса со ставками на курс крипты и пулов.
+
+// Добавление ликвидности:
+let add_gasCoin = 'BIP';
+if (document.getElementById('current_price')) {
+let max_add_amount = long_balance;
+    $('#max_add').html(max_add_amount);
+        let max_add_bip_amount = bip_balance;
+    $('#max_add_bip').html(max_add_bip_amount);
+    
+    $('#max_add').click(async function() {
+let max = parseFloat($('#max_add').html());
+let price = (await getPrices()).price;
+let tokens = $('[name=add_tokens]').val();
+let bip_amount = max / price;
+
+let add_fee =     await addToPool('LONG', 'BIP', max, bip_amount, 'fee', '', 'LONG', tokens);
+let add_long_fee = add_fee.fee;
+let add_bip_fee = add_fee.bip_fee;
+if (long_balance - add_long_fee >= 0) {
+    max -= add_long_fee;
+    add_gasCoin = 'LONG';
+}
+bip_amount = max * price;
+
+$('[name=add_bip_amount]').val(bip_amount);
+$('[name=add_amount]').val(max);
+});
+
+$('#max_add_bip').click(async function() {
+    let max = parseFloat($('#max_add_bip').html().replace(',', '.'));
+    let tokens = $('[name=add_tokens]').val();
+    let price = (await getPrices()).price;
+let long_amount = max * price;
+
+let add_fee =     await addToPool('LONG', 'BIP', long_amount, max, 'fee', '', 'LONG', tokens);
+let add_long_fee = add_fee.fee;
+let add_bip_fee = add_fee.bip_fee;
+if (bip_balance - add_bip_fee >= 0) {
+    max -= add_bip_fee;
+    add_gasCoin = 'BIP';
+}
+long_amount = max / price;
+
+$('[name=add_amount]').val(long_amount);
+$('[name=add_bip_amount]').val(max);
+});
+
+$('[name=add_amount]').change(async function() {
+    let amount = parseFloat($('[name=add_amount]').val().replace(',', '.'));
+    let tokens = $('[name=add_tokens]').val();
+    let price = (await getPrices()).price;
+    let bip_amount = amount / price;
+    
+    let add_fee =     await addToPool('LONG', 'BIP', amount, bip_amount, 'fee', '', 'LONG', tokens);
+let add_long_fee = add_fee.fee;
+let add_bip_fee = add_fee.bip_fee;
+if (long_balance - add_long_fee >= 0 && amount + add_long_fee >= long_balance) {
+    amount -= add_long_fee;
+    add_gasCoin = 'LONG';
+}
+bip_amount = amount * price;
+
+    $('[name=add_bip_amount]').val(bip_amount);
+});
+
+$('[name=add_bip_amount]').change(async function() {
+    let amount = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));
+    let tokens = $('[name=add_tokens]').val();
+    let price = (await getPrices()).price;
+    let long_amount = amount * price;
+    
+    let add_fee =     await addToPool('LONG', 'BIP', long_amount, amount, 'fee', '', 'LONG', tokens);
+let add_long_fee = add_fee.fee;
+let add_bip_fee = add_fee.bip_fee;
+    if (bip_balance - add_bip_fee >= 0 && amount + add_bip_fee >= bip_balance) {
+    amount -= add_bip_fee;
+    add_gasCoin = 'BIP';
+}
+long_amount = amount / price;
+
+    $('[name=add_amount]').val(long_amount);
+});
+
+$('[name=add_tokens]').change(async function() {
+    let amount1 = parseFloat($('[name=add_amount]').val().replace(',', '.'));
+    let amount2 = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));    
+    let tokens = $('[name=add_tokens]').val();
+
+    let add_fee =     await addToPool('LONG', 'BIP', amount1, amount2, 'fee', '', 'LONG', tokens);
+let add_long_fee = add_fee.fee;
+let add_bip_fee = add_fee.bip_fee;
+    if (add_gasCoin === 'BIP' && bip_balance - add_bip_fee >= 0 && amount2 + add_bip_fee >= bip_balance) {
+    amount2 -= add_bip_fee;
+    $('[name=add_bip_amount]').val(amount2);
+amount1 = amount2 / price;
+$('[name=add_amount]').val(amount1);
+} else     if (add_gasCoin === 'LONG' && long_balance - add_long_fee >= 0 && amount1 + add_long_fee >= long_balance) {
+        amount1 -= add_long_fee;
+        $('[name=add_amount]').val(amount1);
+    amount2 = amount1 * price;
+    $('[name=add_bip_amount]').val(amount2);}
+long_amount = amount * price;
+
+    $('[name=add_amount]').val(long_amount);
+
+});
+
+$('#action_add_liquidity').click(async function() {
+    let amount1 = parseFloat($('[name=add_amount]').val().replace(',', '.'));
+    let amount2 = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));    
+    let tokens = $('[name=add_tokens]').val();
+var q = window.confirm('Вы действительно хотите добавить ликвидность?');
+if (q === true) {
+    await addToPool('LONG', 'BIP', amount1, amount2, '', '', add_gasCoin, tokens);
+}
+});
+}
+// Конец блока добавления ликвидности.
+
+$(async function() {
+    try {
+    let coins = $('#allowedCoins').html().split(',');
+    let minAmountsAllowedCoins = [];
+if (document.getElementById('minAmountsAllowedCoins')) minAmountsAllowedCoins = $('#minAmountsAllowedCoins').html().split(',');
+
+    $("#bid_send_coin").autocomplete({ //на какой input:text назначить результаты списка
+        source: function(request, response) {
+            var term = request.term;
+            var pattern = new RegExp("^" + term, "i");
+  
+            var results = $.map(coins, function(elem, i) {                       
+                if (pattern.test(elem)) {
+                  $('[name=bid_amount]').attr('min', parseFloat(minAmountsAllowedCoins[i]));
+                    let token = $('[name=tokens]').val();
+  if (elem !== token) return elem;
+}
+            })                    
+            response(results);
+  }
+  })
+  } catch(e) {
+    console.log(e);
+  }
+  });
+
 });
