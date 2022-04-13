@@ -55,16 +55,16 @@ $mass = $res['result'];
          $timestamp2 = strtotime($timestamp1);
         $month2 = date('m', $timestamp2);
         $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', $timestamp2);
-        $timestamp = '<a href="'.$site_url.'golos/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
+        $timestamp = '<a href="'.$site_url.'steem/explorer/tx/'.$datas[1]['trx_id'].'" target="_blank">'.$timestamp.'</a>';
                 $op1 = $op[1];
                 if ($op[0] == 'vote') {
                     $rowCount++;
                     $voter = $op[1]['voter'] ?? "";
                     $author = $op[1]['author'] ?? "";
-                    $link = (isset($op[1]['permlink']) && $op[1]['permlink'] !== '' ? '<a href="https://golos.id/@'.$author.'/'.$op[1]['permlink'].'" target="_blank">'.$author.'/'.$op[1]['permlink'].'</a>' : '<a href="https://golos.id/@'.$author.'" target="_blank">@'.$author.'</a>');
+                    $link = (isset($op[1]['permlink']) && $op[1]['permlink'] !== '' ? '<a href="https://steemit.com/@'.$author.'/'.$op[1]['permlink'].'" target="_blank">'.$author.'/'.$op[1]['permlink'].'</a>' : 'Нет');
                     $weight = $op[1]['weight'] / 100;
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
-    <td><a href="'.$site_url.'golos/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
+    <td><a href="'.$site_url.'steem/profiles/'.$voter.'" target="_blank">'.$voter.'</a></td>
                         <td>'.$link.'</td>                    
 <td>'.$weight.'%</td></tr>';
                     }

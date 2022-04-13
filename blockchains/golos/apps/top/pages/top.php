@@ -31,7 +31,7 @@ $pagenum = 1;
 if (isset(pageUrl()[3])) {
     $pagenum = pageUrl()[3];
 }
-$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
+$html = file_get_contents('http://178.20.43.121:3000/golos-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
 $top = json_decode($html, true);
 $next_page = true;
 if ($top && count($top) > 0) {

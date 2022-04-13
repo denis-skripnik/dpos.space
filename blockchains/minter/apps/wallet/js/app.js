@@ -200,16 +200,45 @@ let types = {
 31: 'Пересоздание токена',
 32: 'Голосование за комиссию',
 33: 'Голосование за обновление',
-34: 'Создание пула ликвидности'
+34: 'Создание пула ликвидности',
+35: 'Добавление лимитного ордера',
+36: 'Удаление лимитного ордера',
+37: 'Блокировка стейка',
+38: 'Блокировка токенов',
+39: 'Перенос стейка'
 };
 for (let tr of res) {
-let amount;
+  let get_time = Date.parse(tr.timestamp);
+let memo = decodeURIComponent(escape(window.atob(tr.payload)));
+memo = prepareContent(memo);
+let type = types[tr.type];  
+if (tr.type === 36) {
+  results += `
+    <tr><td>${date_str(get_time, true, false, true)}</td>
+    <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+    <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+    <td>${type}</td>
+    <td>ордер ${tr.data.id}</td>
+    <td>${memo}</td>
+    </tr>`;
+    continue;
+  } else if (tr.type === 37) {
+    results += `
+    <tr><td>${date_str(get_time, true, false, true)}</td>
+    <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+    <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+    <td>${type}</td>
+    <td></td>
+    <td>${memo}</td>
+    </tr>`;
+  continue;
+  }
+  let amount;
 let coin_str = 'coin';
 let value_str = 'value';
-let type = types[tr.type];
-if (tr.type === 1 && tr.data.to === sender.address) {
+if (tr.type === 1 && tr.data.to === address) {
 type = 'Получение';
-} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 26) {
+} else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 35) {
   coin_str = 'coin_to_sell'
   value_str = 'value_to_sell';
 } else if (tr.type === 21 || tr.type === 22 || tr.type === 34) {
@@ -223,11 +252,11 @@ if (!tr.data.list && tr.type !== 5 && tr.type !== 16 && tr.type !== 30 && tr.typ
 } else if (!tr.data.list && (tr.type === 5 || tr.type === 16 || tr.type === 30 || tr.type === 31)) {
   amount = parseFloat(tr.data.initial_amount).toFixed(3);
   amount += ' ' + tr.data.symbol;
-  } else {
+} else {
 let sum_amount = 0;
     let coin = '';
 for (let el of tr.data.list) {
-  if (tr.from === sender.address || el.to === sender.address) {
+  if (tr.from === address || el.to === address) {
   sum_amount += parseFloat(el[value_str]);
   coin = el[coin_str].symbol;
 }
@@ -235,17 +264,14 @@ for (let el of tr.data.list) {
 amount = sum_amount;
 amount += coin;
 }
-let get_time = Date.parse(tr.timestamp);
-let memo = decodeURIComponent(escape(window.atob(tr.payload)));
-memo = prepareContent(memo);
-results += `
-<tr><td>${date_str(get_time, true, false, true)}</td>
-<td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
-<td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
-<td>${type}</td>
-<td>${amount}</td>
-<td>${memo}</td>
-</tr>`;
+  results += `
+  <tr><td>${date_str(get_time, true, false, true)}</td>
+  <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+  <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+  <td>${type}</td>
+  <td>${amount}</td>
+  <td>${memo}</td>
+  </tr>`;
 }
 let next_page = page + 1;
 let prev_page = page - 1;

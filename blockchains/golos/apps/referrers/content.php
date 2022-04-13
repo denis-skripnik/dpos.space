@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=referrers&type=list');
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=referrers&type=list');
     $table = json_decode($html, true);
     $content = '<table id="table"><thead><tr><th>Логин</th><th>Количество приглашённых</th></tr></thead><tbody id="target">';
     if ($table) {

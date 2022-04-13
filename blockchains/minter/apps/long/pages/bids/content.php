@@ -2,7 +2,7 @@
       $url = pageUrl();
       $bids_date = gmdate("Y-m-d");
       if (isset($url[3])) $bids_date = $url[3];
-   $res = file_get_contents('http://138.201.91.11:3852/smartfarm/bids?date='.$bids_date);
+   $res = file_get_contents('http://178.20.43.121:3852/smartfarm/bids?date='.$bids_date);
    $for_page = json_decode($res, true);
 $allowedCoins = $for_page['allowedCoins'];
 $minAmountsAllowedCoins = $for_page['minAmountsAllowedCoins'];
@@ -51,7 +51,7 @@ if ($date_line >= 86400) {
 $content .= '</ul>';
 }
 if (!isset($url[3])) {
-  $get_active_bids = file_get_contents('http://138.201.91.11:3852/smartfarm/bids/active');
+  $get_active_bids = file_get_contents('http://178.20.43.121:3852/smartfarm/bids/active');
 $active_bids = json_decode($get_active_bids, true);
 $content .= '<h2>Активные ставки</h2>
 <table id="bids_table"><thead><tr>

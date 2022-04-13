@@ -1,5 +1,5 @@
 <?php
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=prices');
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=prices');
 $data = json_decode($html, true)['result'];
 
 echo '<hr>

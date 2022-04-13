@@ -23,6 +23,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'hive/profiles/'.$user.'/feed">Посты подписчиков</a></th>
 <th><a href="'.$conf['siteUrl'].'hive/profiles/'.$user.'/comments">Комментарии</a></th>
 <th><a href="'.$conf['siteUrl'].'hive/profiles/'.$user.'/witness">Делегат</a></th>
+<th><a href="'.$conf['siteUrl'].'hive/profiles/'.$user.'/votes">Апы и флаги</a></th>
 </tr></table>';
 if (!isset(pageUrl()[3])) {
 $data['title'] .= ' - основное';

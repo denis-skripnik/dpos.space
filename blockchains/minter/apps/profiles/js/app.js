@@ -142,14 +142,41 @@ let types = {
 32: 'Голосование за комиссию',
 33: 'Голосование за обновление',
 34: 'Создание пула ликвидности',
-35: 'Создание лимитного ордера'
+35: 'Создание лимитного ордера',
+36: 'Удаление лимитного ордера',
+37: 'Блокировка стейка',
+38: 'Блокировка токенов',
+39: 'Перенос стейка'
 };
 for (let tr of res) {
-  if (tr.type === 36) continue;
+  let get_time = Date.parse(tr.timestamp);
+let memo = decodeURIComponent(escape(window.atob(tr.payload)));
+memo = prepareContent(memo);
+let type = types[tr.type];  
+if (tr.type === 36) {
+  results += `
+    <tr><td>${date_str(get_time, true, false, true)}</td>
+    <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+    <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+    <td>${type}</td>
+    <td>ордер ${tr.data.id}</td>
+    <td>${memo}</td>
+    </tr>`;
+    continue;
+  } else if (tr.type === 37) {
+    results += `
+    <tr><td>${date_str(get_time, true, false, true)}</td>
+    <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>
+    <td><a href="/minter/explorer/tx/${tr.hash}" target="_blank">${tr.hash}</a></td>
+    <td>${type}</td>
+    <td></td>
+    <td>${memo}</td>
+    </tr>`;
+  continue;
+  }
   let amount;
 let coin_str = 'coin';
 let value_str = 'value';
-let type = types[tr.type];
 if (tr.type === 1 && tr.data.to === address) {
 type = 'Получение';
 } else if (tr.type === 2 || tr.type === 3 || tr.type === 4 || tr.type === 23 || tr.type === 24 || tr.type === 25 || tr.type === 35) {
@@ -178,9 +205,6 @@ for (let el of tr.data.list) {
 amount = sum_amount;
 amount += coin;
 }
-let get_time = Date.parse(tr.timestamp);
-let memo = decodeURIComponent(escape(window.atob(tr.payload)));
-memo = prepareContent(memo);
   results += `
   <tr><td>${date_str(get_time, true, false, true)}</td>
   <td><a href="/minter/explorer/block/${tr.height}" target="_blank">${tr.height}</a></td>

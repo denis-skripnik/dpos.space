@@ -28,7 +28,7 @@ $selected[$_GET['month']] = 'selected ';
     <option value="2020">2020</option>
     </select></p>
     <p><input type="submit" value="Посмотреть"></p></form>';
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=posts&token='.pageUrl()[3].'&date='.$_GET['month'].'_'.$_GET['year']);
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=donates&type=posts&token='.pageUrl()[3].'&date='.$_GET['month'].'_'.$_GET['year']);
     $table = json_decode($html, true);
     $content .= '<table id="table"><thead><tr><th>Ссылка на пост</th><th><a id="golos_amount">Сумма донатов</a></th></tr></thead><tbody id="target">';
     if ($table) {
@@ -43,7 +43,7 @@ $selected[$_GET['month']] = 'selected ';
     $content = '<p>Выберите токен</p>
 <ul><li><a href="'.$conf['siteUrl'].'golos/donates/posts/golos" target="_blank">GOLOS</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/donates/posts/gbg" target="_blank">GBG</a></li>';
-$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=tokens');
+$html = file_get_contents('http://178.20.43.121:3000/golos-api?service=donates&type=tokens');
 $tokens = json_decode($html, true);
 if (isset($tokens) && count($tokens) > 0) {
   foreach ($tokens as $token) {

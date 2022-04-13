@@ -17,7 +17,7 @@ $end_page_url = end($url);
 if (isset($end_page_url) && is_numeric($end_page_url)) {
     $pagenum = end(pageUrl());
 }
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=working_tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=working_tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $wt = json_decode($html, true);
 if ($wt && isset($_GET['mamber'])) {
 $content .= '<div class="wt_author"><h2>Добавить отчёт по ходу работы</h2>
@@ -56,7 +56,7 @@ $(`.wt_author`).css(`display`, `block`);
 	$filter = array();
 	$filter['creator'] = $_GET['task_creator'];
     $filter['name'] = urlencode($_GET['task_name']);
-    $tasks_html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
+    $tasks_html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
     $tasks = json_decode($tasks_html, true);
 if ($tasks && count($tasks) > 0) {
 	$content .= '<p style="display: none;" id="whitelist_users">'.implode($tasks[0]['mambers']).'</p>

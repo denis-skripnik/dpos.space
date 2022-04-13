@@ -20,6 +20,9 @@ async function calculate() {
     let pool_bip_amount = long_amount * price;
     $('#bip_add_amount').html(pool_bip_amount.toFixed(5));
     let liquidity = Math.sqrt(long_amount * pool_bip_amount);
+    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
+    let power = liquidity * ( 1 + (invest_days / 100))
+let farming_amount = parseFloat($('#farming_amount').html().replace(',', '.'));
     try {
     let get_bip_amount = (await axios.get(`https://explorer-api.minter.network/api/v2/pools/coins/LONG/BIP/route?amount=${tec_long_amount}&type=input`)).data.amount_out;
 if (get_bip_amount) {
@@ -34,16 +37,10 @@ if (get_bip_amount) {
     window.alert('Explorer недоступен. Не можем рассчитать курс покупки.');
     console.error(e);
 }
-    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
-    let best_invest_day = parseFloat($('#best_invest_day').html().replace(',', '.'));
     let all_liquidity = parseFloat($('#lp_liquidity').html().replace(',', '.'));
-    let all_bip_liquidity = parseFloat($('#bip_liquidity').html().replace(',', '.'));
-    let min_percent = parseFloat($("#min_percent").text().replace(',', '.'));
-    let max_percent = parseFloat($("#max_percent").text().replace(',', '.'));
-        let share = liquidity / all_liquidity;
-    let bip_liquidity = all_bip_liquidity * share;
-    let provider_percent = min_percent + ((max_percent - min_percent) * (invest_days / best_invest_day));
-    let farming_share = (bip_liquidity / 100 * provider_percent) / price;
+    let all_power = parseFloat($('#all_power').html().replace(',', '.'));
+        let share = power / all_power;
+    let farming_share = farming_amount * share;
     let value = parseFloat(farming_share.toFixed(18));
 return value;
 }

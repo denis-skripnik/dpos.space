@@ -12,7 +12,7 @@ $filter = array();
 		$filter['user'] = $_GET['user'];
 		$filter['date'] = $_GET['date'];
 	}
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
 $news = json_decode($html, true);
 if (isset($news) && count($news) > 0) {
 	$el = $news[0];

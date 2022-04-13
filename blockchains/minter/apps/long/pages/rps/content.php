@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-    $api = file_get_contents('http://138.201.91.11:3852/smartfarm/rps');
+    $api = file_get_contents('http://178.20.43.121:3852/smartfarm/rps');
     $res = json_decode($api, true);  
     $block_intevral = $res['block_interval'];
     $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');

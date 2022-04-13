@@ -15,7 +15,7 @@ $content = '<h2>Страницы сервиса</h2>
 <select name="type">
     <option value="false" selected>Выберите тип проекта</option>
 ';
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=types');
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=types');
 $types = json_decode($html, true);
 if ($types && count($types) > 0) {
 	foreach($types as $type) {
@@ -28,7 +28,7 @@ $content .= '</select>
 <select name="category">
     <option value="false" selected>Выберите категорию проекта</option>
 ';
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=categories');
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=categories');
 $categories = json_decode($html, true);
 if ($categories && count($categories) > 0) {
 	foreach($categories as $category) {
@@ -58,7 +58,7 @@ if (isset($url[3])) {
 		if ($url[6] !== 'false') $filter['category'] = urlencode($url[6]);
 		if ($url[8] !== 'false') $filter['dev_status'] = urlencode($url[8]);
 		}
-		$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
+		$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $projects = json_decode($html, true);
 if ($projects && count($projects) > 0) {
 	$fields = ['creator' => 'Создатель', 'name' => 'Название', 'description' => 'Описание', 'image_link' => 'Изображение', 'type' => 'Тип', 'category' => 'Категория', 'dev_status' => 'Статус разработки', 'command' => 'Команда', 'site' => 'Сайт', 'github' => 'Github'];

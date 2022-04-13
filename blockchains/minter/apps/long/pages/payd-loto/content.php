@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-    $res = file_get_contents('http://138.201.91.11:3852/smartfarm/payd-loto');
+    $res = file_get_contents('http://178.20.43.121:3852/smartfarm/payd-loto');
     $tickets = json_decode($res, true);  
     $jackpot = $tickets['jackpot'];
     $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');

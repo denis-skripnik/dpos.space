@@ -15,7 +15,7 @@ $filter = array();
         $filter['project_name'] = urlencode($_GET['project_name']);
         $filter['user'] = $_GET['user'];
         $filter['date'] = $_GET['date'];
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
 $news = json_decode($html, true);
 if (isset($news) && count($news) > 0) {
 	$el = $news[0];
@@ -52,7 +52,7 @@ if ($(`#news_login`).html() === viz_login) {
     } else if (isset($_GET) && isset($_GET['project_creator']) && isset($_GET['project_name']) && !isset($_GET['user']) && !isset($_GET['date'])) {
         $filter['creator'] = $_GET['project_creator'];
         $filter['name'] = urlencode($_GET['project_name']);
-        $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
+        $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=projects&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
         $projects = json_decode($html, true);
 if ($projects && count($projects) > 0) {
     $project = $projects[0];

@@ -4,7 +4,7 @@ global $conf;
 $page = [];
 $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/viz/apps/polls/pages/voteing/page.js"></script>
 <p><span align="left">Голосование</span> <span align="center"><a href="'.$conf['siteUrl'].'viz/polls/results/'.pageUrl()[3].'">Предварительные или окончательные результаты</a></span> <span align="right"><a href="'.$conf['siteUrl'].'viz/polls/list">Список опросов</a></span></p>';
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=votes&type=voteing&permlink='.pageUrl()[3]);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=votes&type=voteing&permlink='.pageUrl()[3]);
 if (pageUrl()[3] && $html) {
 $table = json_decode($html, true);
 $answers = $table['answers'];

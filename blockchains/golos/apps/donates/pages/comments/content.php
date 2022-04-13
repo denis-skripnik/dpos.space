@@ -32,7 +32,7 @@ $selected[$_GET['month']] = 'selected ';
     if (!isset(pageUrl()[3])) {
       $token = 'GOLOS';
     }
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=comments&token='.pageUrl()[3].'&date='.$_GET['month'].'_'.$_GET['year']);
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=donates&type=comments&token='.pageUrl()[3].'&date='.$_GET['month'].'_'.$_GET['year']);
     $table = json_decode($html, true);
     $content .= '<table id="table"><thead><tr><th>Ссылка на комментарий</th><th><a id="golos_amount">Сумма донатов</a></th></tr></thead><tbody id="target">';
     if ($table) {

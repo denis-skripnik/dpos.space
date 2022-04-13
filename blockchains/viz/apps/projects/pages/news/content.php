@@ -24,7 +24,7 @@ $end_page_url = end($url);
 if (isset($end_page_url) && is_numeric($end_page_url)) {
     $pagenum = end(pageUrl());
 }
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=news&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $news = json_decode($html, true);
 if (isset($news) && count($news) > 0) {
 	foreach ($news as $num => $el) {

@@ -12,7 +12,7 @@ $content = '<h2>Страницы сервиса</h2>
 if (isset($_GET)) {
     $filter['creator'] = $_GET['creator'];
     $filter['name'] = urlencode($_GET['name']);
-    $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
+    $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page=1');
     $tasks = json_decode($html, true);
     if ($tasks && count($tasks) > 0) {
     $task = $tasks[0];

@@ -32,7 +32,7 @@
       if (!isset(pageUrl()[3])) {
         $token = 'GOLOS';
       }
-      $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=donators&token='.$token.'&date='.$_GET['month'].'_'.$_GET['year']);
+      $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=donates&type=donators&token='.$token.'&date='.$_GET['month'].'_'.$_GET['year']);
       $table = json_decode($html, true);
       $content .= '<table id="table"><thead><tr><th>Логин</th><th>Сумма донатов</th></tr></thead><tbody id="target">';
       if ($table) {
@@ -47,7 +47,7 @@
     $content = '<p>Выберите токен</p>
 <ul><li><a href="'.$conf['siteUrl'].'golos/donates/donators/golos" target="_blank">GOLOS</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/donates/donators/gbg" target="_blank">GBG</a></li>';
-$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=donates&type=tokens');
+$html = file_get_contents('http://178.20.43.121:3000/golos-api?service=donates&type=tokens');
 $tokens = json_decode($html, true);
 if (isset($tokens) && count($tokens) > 0) {
   foreach ($tokens as $token) {

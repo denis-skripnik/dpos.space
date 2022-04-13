@@ -7,7 +7,7 @@ if (pageUrl()[4]) {
     
     $page = [];
     $page['content'] = '<p><span align="left">Результаты</span> <span align="center"><a href="'.$conf['siteUrl'].'minter/long/surveys/voteing/'.pageUrl()[4].'">голосование</a></span> <span align="right"><a href="'.$conf['siteUrl'].'minter/long/surveys/list">Список опросов</a></span></p>';
-    $html = file_get_contents('http://138.201.91.11:3852/smartfarm/surveys?type=survey&id='.pageUrl()[4]);
+    $html = file_get_contents('http://178.20.43.121:3852/smartfarm/surveys?type=survey&id='.pageUrl()[4]);
 if (isset($html)) {
 $table = json_decode($html, true);
 $d = new DateTime();

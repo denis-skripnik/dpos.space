@@ -17,7 +17,7 @@ if ($name === 'type') {
     $content .= '<p><select name="type" placeholder="Тип проекта">
         <option value="" disabled selected>Выберите тип проекта</option>
     ';
-    $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=types');
+    $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=types');
     $types = json_decode($html, true);
     if ($types && count($types) > 0) {
         foreach($types as $type) {
@@ -30,7 +30,7 @@ if ($name === 'type') {
     $content .= '<p><select name="category" placeholder="Категория">
         <option value="" disabled selected>Выберите категорию проекта</option>
 ';
-    $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=categories');
+    $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=categories');
     $categories = json_decode($html, true);
     if ($categories && count($categories) > 0) {
         foreach($categories as $category) {

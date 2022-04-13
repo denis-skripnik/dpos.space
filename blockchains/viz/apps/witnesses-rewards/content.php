@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $html = file_get_contents('http://138.201.91.11:3100/viz-api?service=witnesses');
+    $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=witnesses');
     $table = json_decode($html, true);
     $content = '<p><strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong></p>
 <table id="table"><thead><tr><th>Логин</th><th>за вчерашний день</th><th>за сегодня</th><th>за прошлый месяц</th><th>за текущий месяц</th></tr></thead><tbody id="target">';

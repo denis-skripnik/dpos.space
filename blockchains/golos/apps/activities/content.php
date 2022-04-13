@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=activity_stats');
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=activity_stats');
     $table = json_decode($html, true);
     $content = '<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
 <script type="text/javascript" src="//cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>

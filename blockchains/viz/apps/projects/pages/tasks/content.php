@@ -30,7 +30,7 @@ $filter = array();
 			if ($url[4] !== 'false') $filter['status'] = $url[4];
 			}
 	
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=viz-projects&type=tasks&filter='.json_encode($filter, JSON_FORCE_OBJECT).'&page='.$pagenum);
 $tasks = json_decode($html, true);
 if ($tasks && count($tasks) > 0) {
 $fields = ['creator' => 'Создатель', 'name' => 'Название', 'description' => 'Описание', 'mambers' => 'Участники', 'status' => 'Статус'];

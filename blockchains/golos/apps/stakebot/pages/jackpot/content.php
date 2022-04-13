@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=stakebot&type=jackpot');
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=stakebot&type=jackpot');
     $result = json_decode($html, true);
     $amount = 0;
     if (isset($result['amount'])) {

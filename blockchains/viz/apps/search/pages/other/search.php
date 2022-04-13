@@ -7,7 +7,7 @@ $pagenum = 1;
 if (isset(pageUrl()[4])) {
     $pagenum = pageUrl()[4];
 }
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=links&type='.$type.'&query='.$query.'&page='.$pagenum);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=links&type='.$type.'&query='.$query.'&page='.$pagenum);
 $results = json_decode($html, true);
 if ($results && count($results) > 0) {
 $content .= '<h2>Результаты поиска</h2>

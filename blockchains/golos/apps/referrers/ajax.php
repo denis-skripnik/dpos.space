@@ -2,7 +2,7 @@
 <?php
 $r = $_GET['referrer'];
 $s = $_GET['siteUrl'];
-$html = file_get_contents('http://138.201.91.11:3000/golos-api?service=referrers&type=one&login='.$r);
+$html = file_get_contents('http://178.20.43.121:3000/golos-api?service=referrers&type=one&login='.$r);
 $data = json_decode($html, true);
 echo '<h2>Рефералы пригласителя <a href="'.$s.'golos/profiles/'.$data['login'].'" target="_blank">'.$data['login'].'</a></h2>
 <ul>';

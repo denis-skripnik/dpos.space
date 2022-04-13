@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $html = file_get_contents('http://138.201.91.11:3000/golos-api?service=stakebot&type=bids');
+    $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=stakebot&type=bids');
     $table = json_decode($html, true);
     $content = '<p><strong><a align="left" href="'.$conf['siteUrl'].'golos/stakebot/jackpot">Джекпот</a> <a align="right" href="'.$conf['siteUrl'].'golos/stakebot/loto">Лотерея</a></strong></p>
 <p>Список сбрасывается в 18:00 по Москве.</p>

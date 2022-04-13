@@ -72,7 +72,7 @@ if (current_user && current_user.importFrom) chain = current_user.importFrom;
         }
         
 async function broadcasting(idTxParams) {
-    if (current_user.type === 'bip.to') {
+    if (!current_user || current_user.type === 'bip.to') {
 let link = prepareLink(idTxParams);
 $.fancybox.open(`<p id="message"><strong>Перейдите по ссылке ниже, чтобы отправить транзакцию. Не забудьте проверить, что не изменили адрес кошелька в BIP wallet: <a href="${link}" target="_blank">${link}</a><br>
 Не забудьте закрыть это всплывающее окно после отправки.</strong></p>`);
@@ -138,6 +138,8 @@ return res;
     } else {
 try {
     let fee_data = await minter.estimateTxCommission(idTxParams, {direct: false,});
+if (typeof fee_data.commission === 'undefined') fee_data.commission = 0;
+if (typeof fee_data.baseCoinCommission === 'undefined') fee_data.baseCoinCommission = 0;
     return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
 } catch(e) {
     txParams.gasCoin = 'BIP';

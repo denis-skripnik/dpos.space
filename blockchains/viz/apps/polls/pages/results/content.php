@@ -7,7 +7,7 @@ $mass3 = $res3['result'];
     global $conf;
     $page = [];
     $page['content'] = '<p><span align="left">Результаты</span> <span align="center"><a href="'.$conf['siteUrl'].'viz/polls/voteing/'.pageUrl()[3].'">голосование</a></span> <span align="right"><a href="'.$conf['siteUrl'].'viz/polls/list">Список опросов</a></span></p>';
-$html = file_get_contents('http://138.201.91.11:3100/viz-api?service=votes&type=vote&permlink='.pageUrl()[3]);
+$html = file_get_contents('http://178.20.43.121:3100/viz-api?service=votes&type=vote&permlink='.pageUrl()[3]);
 if (pageUrl()[3] && $html) {
 $table = json_decode($html, true);
 $d = new DateTime();

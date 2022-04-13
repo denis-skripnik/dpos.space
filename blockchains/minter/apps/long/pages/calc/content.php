@@ -2,7 +2,7 @@
 if (!isset(pageUrl()[3])) {
   return 'Выберите адрес в таблице <a href="/minter/long" target="_blank">на странице фарминга</a> и нажмите на "Семейный калькулятор".';
 }
-$html = file_get_contents('http://138.201.91.11:3852/smartfarm/provider?address='.pageUrl()[3]);
+$html = file_get_contents('http://178.20.43.121:3852/smartfarm/provider?address='.pageUrl()[3]);
 $provider = json_decode($html, true);
 if (!isset($provider['liquidity'])) {
   return '<p align="center"><strong><a href="/minter/long">Фарминг</a> <a href="/minter/long/loto">Лотерея</a></strong></p>

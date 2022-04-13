@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
   global $conf;
-    $result = file_get_contents('http://138.201.91.11:3000/golos-api?service=stakebot&type=loto');
+    $result = file_get_contents('http://178.20.43.121:3000/golos-api?service=stakebot&type=loto');
     $text = nl2br($result, false);
     $content = '<p align="center"><a href="'.$conf['siteUrl'].'golos/stakebot">К списку текущих ставок</a></p>
 <h2>Лотерея среди получающих CLAIM</h2>

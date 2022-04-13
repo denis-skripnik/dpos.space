@@ -26,7 +26,8 @@ $validators[2] = '<h2><a name="2">Активные валидаторы</a></h2>
 </tr></thead><tbody>';
 
 foreach ($list as $validator) {
-$num[$validator['status']]++;
+  if (!isset($validator['status'])) continue;
+  $num[$validator['status']]++;
   if ($validator['status'] === 2 || $validator['status'] === 1) {
     $validators[$validator['status']] .= '<tr><td>'.$num[$validator['status']].'</td>
     <td><input type="text" readonly id="validator_'.$num[$validator['status']].'_key" value="'.$validator['public_key'].'"> (<input type="button" onclick="copyText(`validator_'.$num[$validator['status']].'_key`);" value="копировать">)</td>';
