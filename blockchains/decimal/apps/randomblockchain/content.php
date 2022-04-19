@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
-if (isset($_GET)) {
+if (isset($_GET) && count($_GET) > 0) {
     $data['title'] .= ' | Блоки '.$_GET['block1'].' и '.$_GET['block2'].', участников '.$_GET['participants'];
 }
 if (!empty($_GET)) {
