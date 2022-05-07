@@ -40,21 +40,35 @@ if (url.endsWith("/") === true) {
   address = url.slice(-42, -1)
 }
 
-async function getRewards() {
-  let rewards_amounts = {};
-  let responce = await axios.get('https://mainnet-explorer-api.decimalchain.com/api/address/' + address + '/rewards?limit=200&offset=0&order[date]=DESC');
+async function rewardsHistory(rewards_amounts, offset, end_date) {
+  let isEndDate = false;
+  let responce = await axios.get('https://mainnet-explorer-api.decimalchain.com/api/address/' + address + '/rewards?limit=200&offset=' + offset + '&order[date]=DESC');
   let rewards = responce.data.result.rewards;
-if (rewards && rewards.length > 0) {
-let end_date = new Date(rewards[0].date).getTime() - 86400000;
+  // window.alert(end_date);
+  if (rewards && rewards.length > 0) {
   for (let reward of rewards) {
     let date = new Date(reward.date).getTime();
-    if (date < end_date) break;
+    if (date < end_date) {
+      isEndDate = true;
+      break;
+    }
     let amount = parseFloat(reward.value) / (10 ** 18);
   if (!rewards_amounts[reward.currency]) rewards_amounts[reward.currency] = 0;
   rewards_amounts[reward.currency] += amount;
   }
+// window.alert(isEndDate);
+  if (isEndDate === false) {
+  rewards_amounts = await rewardsHistory(rewards_amounts, offset + 200, end_date)
+}
 }
 return rewards_amounts;
+}
+
+async function getRewards(days) {
+  let end_date = new Date().getTime() - (86400000 * days);
+  let rewards_amounts = {};
+  rewards_amounts = await rewardsHistory(rewards_amounts, 0, end_date);
+  return rewards_amounts;
 }
 
 async function main() {
@@ -67,16 +81,6 @@ async function main() {
     balances += `<li>${balance} ${token}</li>`
   }
       $('#balances').html(balances);
-    
-      let rewards_text = '';
-      let rewards_amounts = await getRewards();
-      if (Object.keys(rewards_amounts).length > 0) {
-for (let coin in rewards_amounts) {
-  rewards_text += `<li>${rewards_amounts[coin].toFixed(5)} ${coin}</li>
-`;
-}
-      }
-      $('#daily_rewards').html(rewards_text);
     }
 
  function fast_str_replace(search,replace,str){
@@ -229,9 +233,7 @@ amount = sum_amount;
 amount += coin;
 }
 let get_time = Date.parse(tr.timestamp);
-console.log(tr);
-let memo = decodeURIComponent(escape(window.atob(tr.message)));
-memo = prepareContent(memo);
+let memo = tr.message;
 results += `
 <tr><td>${date_str(get_time, true, false, true)}</td>
 <td><a href="/decimal/explorer/block/${tr.blockId}" target="_blank">${tr.blockId}</a></td>
@@ -261,6 +263,19 @@ $('#history_tbody').html(results);
 $(document).ready(async function() {
   await main();
   
+$('[name=calc_rewards]').click(async function() {
+let days = parseInt($('[name=days_counter]').val());
+let rewards_text = ``;
+let rewards_amounts = await getRewards(days);
+if (Object.keys(rewards_amounts).length > 0) {
+for (let coin in rewards_amounts) {
+rewards_text += `<li>${rewards_amounts[coin].toFixed(5)} ${coin}</li>
+`;
+}
+}
+$('#calculated_rewards').html(rewards_text);
+});
+
   $('[name=copy_nonce]').click(function() {
     let nonce = parseInt($('#nonce').html());
     navigator.clipboard.writeText(nonce)

@@ -9,7 +9,7 @@ $res3 = $command3->execute($commandQuery3);
 $mass3 = $res3['result'];
 
 // Расчет hive_per_SEREY
-    $tvfs = (float)$mass3['total_vesting_fund_steem'];
+$tvfs = (float)$mass3['total_vesting_fund_steem'];
 $tvsh = (float)$mass3['total_vesting_shares'];
 $hive_per_SEREY = 1000000 * $tvfs / $tvsh;
 
@@ -30,35 +30,34 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $startWith = $_REQUEST['start'] ?? 300000000;
 while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
-$res = getAccountHistoryChunk($user, $startWith);
+    if ($startWith === 0) break;
+    $res = getAccountHistoryChunk($user, $startWith);
+    
+$mass = $res['result'];
 
-    $mass = $res['result'];
-
-    if (! $mass) {
-        $result['content'] = '<p>Результатов нет. Возможно все подходящие операции в истории далеко или такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
-        if (isset($_REQUEST['options']) || isset($_GET['options'])) {
-            echo json_encode($result);
-        return;
-        } else {
-        return $result['content'];
-        }
+if (! $mass) {
+    $result['content'] = '<p>Результатов нет. Возможно все подходящие операции в истории далеко или такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
+    if (isset($_REQUEST['options']) || isset($_GET['options'])) {
+        echo json_encode($result);
+    return;
+    } else {
+    return $result['content'];
     }
+}
 
-    krsort($mass);
+krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>Бенефициарские награды пользователя '.$user.'</h2>
+        $result['content'] = '<div id="ajax_content"><h2>Бенефициарские награды пользователя '.$user.'</h2>
     <table id="rewards-ol">
             <tr><th>Дата и время получения</th>
             <th>Автор</th>
             <th>Ссылка на пост или комментарий</th>
             <th>Награда</th></tr>';
-                    foreach ($mass as $datas) {
+            foreach ($mass as $datas) {
                 if ($rowCount === AUTHOR_REWARDS_LIMIT) {
                     break;
                 }
                 $startWith = $datas[0] - 1;
-    
-    
                 $op = $datas[1]['op'];
                 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
                 $timestamp1 = $datas[1]['timestamp'];
