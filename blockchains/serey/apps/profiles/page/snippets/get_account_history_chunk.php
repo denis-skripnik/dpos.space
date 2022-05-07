@@ -12,7 +12,7 @@ function getAccountHistoryChunk($author, $startWith = -1)
         static $limitMax = 1000;
     
     $startWith = (int) $startWith;
-
+if ($startWith === 0) return;
     $limit = $startWith < $limitMax ? $startWith : $limitMax;
 
     $query = [

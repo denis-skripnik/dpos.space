@@ -11,13 +11,13 @@ $data['title'] = $page_config['title'].' '.$user;
 $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'">Основное</a></th>
-<!-- <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/transfers">Переводы средств</a></th>
-<th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/hp">Serey Power</a></th>
+<th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/transfers">Переводы средств</a></th>
+<th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/sp">Serey Power</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/dao">ДАО</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/author-rewards">Авторские награды</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/curation-rewards">Кураторские награды</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/benefactor-rewards">Бенефициарские</a></th>
-<th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/accounts">Аккаунты</a></th> -->
+<th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/accounts">Аккаунты</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/new-posts">Новые посты</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/old-posts">Получившие выплаты посты</a></th>
 <th><a href="'.$conf['siteUrl'].'serey/profiles/'.$user.'/feed">Посты подписчиков</a></th>
@@ -41,28 +41,17 @@ $data['content'] .= require_once(__DIR__.'/page/userinfo.php');
 $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/transfers.php');
-} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'hp') {
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'sp') {
     $data['title'] .= ' - SP';
     $data['description'] .= ' - SP';
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/serey/apps/profiles/page/hp.php`, `transfers_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/serey/apps/profiles/page/sp.php`, `transfers_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
     </script>';
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
-$data['content'] .= require_once(__DIR__.'/page/hp.php');
-} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'donates') {
-    $data['title'] .= ' - Донаты';
-    $data['description'] .= ' - Донаты';
-    $data['content'] = '<script>
-    ajax_options.user = `'.$user.'`;
-    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/serey/apps/profiles/page/donates.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
-    </script>';
-    $data['content'] .= $blockchain_snippet;
-    $data['content'] .= $pages;
-$data['content'] .= require_once(__DIR__.'/page/donates.php');
+$data['content'] .= require_once(__DIR__.'/page/sp.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'author-rewards') {
     $data['title'] .= ' - Авторские награды';
     $data['description'] .= ' - Авторские награды';

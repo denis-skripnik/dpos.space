@@ -69,13 +69,11 @@ $mass = $res['result'];
                     $rowCount++;
                     $author = $op[1]['author'] ?? "";
                     $permlink = $op[1]['permlink'] ?? "";
-                    $hbd_payout = $op[1]['hbd_payout'] !== '0.000 HBD' ? $op[1]['hbd_payout'].', ' : "";
-                    $hive_payout = $op[1]['hive_payout'] !== '0.000 SEREY' ? $op[1]['hive_payout'].' и ' : "";
                     $gp_payout = (float)$op[1]['vesting_payout']  / 1000000 * $hive_per_SEREY;
                     $gp_payout = round($gp_payout, 6).' SP';
-                        $result['content'] .= '<tr><td>' . $timestamp . '</td>
+                    $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="https://serey.io/authors/'.$author.'/'.$permlink.'" target="_blank">'.$author.'/'.$permlink.'</a></td>                    
-<td>'.$hbd_payout.$hive_payout.$gp_payout.'</td></tr>';
+<td>'.$gp_payout.'</td></tr>';
                     }
                 }
             }            
