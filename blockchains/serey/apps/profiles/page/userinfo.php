@@ -262,7 +262,7 @@ if ($account_shares_progress < 0.0001) {
 $content .=  "<tr><td>Доля аккаунта от всей SP в блокчейне</td>
 <td>< 0.00001% из ".round($full_HP, 3)."</td></tr>";
 } else {
-$content .=  "<tr><td>Доля аккаунта от всего соц. капитала в блокчейне</td>
+$content .=  "<tr><td>Доля аккаунта от всей Serey power в блокчейне</td>
 <td>".round($account_shares_progress, 5)."% из ".round($full_HP, 3)."</td></tr>";
  }
 if (isset($json_metadata['profile']['select_tags'])) {

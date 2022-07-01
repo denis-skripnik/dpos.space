@@ -15,9 +15,9 @@ function checkWorkingNode() {
         }
         node = NODES[idx];
         console.log("check", idx, node);
-        hive.api.setOptions({url: node});
+        steem.api.setOptions({url: node});
         try {
-            hive.api.stop();
+            steem.api.stop();
         } catch(e) {
         }
         
@@ -27,7 +27,7 @@ function checkWorkingNode() {
             timeout = true;
             find(idx + 1);
         }, 3000);
-        hive.api.getDynamicGlobalPropertiesAsync()
+        steem.api.getDynamicGlobalPropertiesAsync()
             .then(props => {
                 if(!timeout) {
                     check = props.head_block_number;

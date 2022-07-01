@@ -6,7 +6,7 @@ chf.hbd_interest_rate = "% начисляемый на HBD:";
 chf.account_subsidy_budget = "Субсидии аккаунта, которые будут добавлены к субсидии аккаунта за блок. Это максимальная ставка, которую можно создать с помощью субсидий:";
 chf.account_subsidy_decay = ":";
 
-    hive.api.getWitnessByAccount('dlike', function(err, res) {
+    steem.api.getWitnessByAccount('dlike', function(err, res) {
         if (!err && !$.isEmptyObject(res)) {
         let props = res.props;
 $('input[name=witness_url]').val(res.url);
@@ -36,7 +36,7 @@ prop_value = parseFloat(props[prop]);
 main();
 
 $('#witness_options').click(function() {
-    hive.api.getWitnessByAccount(serey_login, function(error, res) {
+    steem.api.getWitnessByAccount(serey_login, function(error, res) {
         if (!error && !$.isEmptyObject(res)) {
     let props = {};
 props.account_creation_fee = res.props.account_creation_fee;
@@ -45,11 +45,11 @@ props.hbd_interest_rate = res.props.hbd_interest_rate;
     let url = $('input[name=witness_url]').val();
     let blockSigningKey = $('input[name=witness_key]').val();
     if (blockSigningKey === '') {
-        blockSigningKey = 'STM1111111111111111111111111111111114T1Anm';
+        blockSigningKey = 'SRY1111111111111111111111111111111114T1Anm';
     }
 
     let fee = "0.000 SEREY";
-    hive.broadcast.witnessUpdate(active_key, serey_login, url, blockSigningKey, props, fee, function(err, result) {
+    steem.broadcast.witnessUpdate(active_key, serey_login, url, blockSigningKey, props, fee, function(err, result) {
 if (!err) {
     window.alert('Настройки делегата сохранены.');
 } else {
@@ -63,7 +63,7 @@ if (!err) {
 });
 
 $('#save_props').click(function() {
-    hive.api.getWitnessByAccount(serey_login, function(error, res) {
+    steem.api.getWitnessByAccount(serey_login, function(error, res) {
         if (!error && !$.isEmptyObject(res)) {
     let url = res.url;
     let blockSigningKey = res.signing_key;
@@ -93,7 +93,7 @@ op[1].owner = serey_login;
 op[1].props = [3, props];
 operations.push(op);  
 console.log(JSON.stringify(operations));
-hive.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {
+steem.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {
 if (!err) {
     window.alert('Параметры сохранены успешно.');
 } else {

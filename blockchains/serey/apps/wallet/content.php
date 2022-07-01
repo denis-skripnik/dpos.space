@@ -4,10 +4,9 @@ return '<div id="auth_msg" style="display: none;"><p>Вы не авторизо�
 <div id="active_page">
 <div id="main_wallet_info" style="display: none;">
 <p>Баланс: <a class="tt" onclick="spoiler(`hive_actions`, `walletSpoiler`); return false"><span class="hive_balance"></span> SEREY</a> и <a class="tt" onclick="spoiler(`sp_actions`, `walletSpoiler`); return false"><span class="hive_vesting_shares"></span> SP</a></p>
-<ul id="hive_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#hive_transfer_modal" href="javascript:;">Перевести hive</a></li>
-<li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">SEREY в SP этого аккаунта</a></li>
-<li><a href="'.$conf['siteUrl'].'serey/swap">Обменять SEREY</a></li></ul>
-<ul id="sp_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод SP в hive</a></li>
+<ul id="hive_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#hive_transfer_modal" href="javascript:;">Перевести SEREY</a></li>
+<li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">SEREY в SP этого аккаунта</a></li></ul>
+<ul id="sp_actions" class="terms walletSpoiler" style="display: none;"><li><a data-fancybox data-src="#vesting_withdraw_modal" href="javascript:;">Вывод SP в SEREY</a></li>
 <li><a data-fancybox data-src="#vesting_delegate_modal" href="javascript:;">Делегировать SP</a></li></ul>
 <div style="display: none;" id="vesting_withdraw_modal">
                                                       <h4 class="modal-title">Вывод SP в hive</h4>

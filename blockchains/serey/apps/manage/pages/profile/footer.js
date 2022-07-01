@@ -1,5 +1,5 @@
 if(0<$('.profile-update').length){
-    hive.api.getAccounts([serey_login],function(err,response){
+    steem.api.getAccounts([serey_login],function(err,response){
         if(!err){
             let json_metadata=response[0].json_metadata;
             let metadata;
@@ -72,7 +72,7 @@ console.log(err);
 }
 
 function profile_save(){
-    hive.api.getAccounts([serey_login],function(err,response){
+    steem.api.getAccounts([serey_login],function(err,response){
         if(!err){
             let json_metadata=response[0].json_metadata;
             let metadata;
@@ -85,11 +85,11 @@ function profile_save(){
 if (!metadata.profile) {
                 metadata.profile={};
 }
-                metadata.profile.name=$('input[name=nickname]').val().trim();
+                metadata.profile.name= $('input[name=nickname]').val().trim();
 metadata.profile.about=$('textarea[name=about]').html().trim();
 metadata.profile.profile_image=$('input[name=avatar]').val().trim();
 metadata.profile.cover_image =$('input[name=cover_image]').val().trim();
-metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
+metadata.profile.gender=$('.profile-update select[name=gender]').val();
             metadata.profile.location=$('input[name=location]').val().trim();
             var fullInterests = $('input[name=Interests]').val().trim();
             var i = fullInterests.split(',');
@@ -101,7 +101,7 @@ metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
             i2 = unique(i2);
             metadata.profile.interests = i2;
             metadata.profile.website=$('input[name=site]').val().trim();
-                        metadata.profile.mail=$('input[name=mail]').val().trim().trim();
+                        metadata.profile.mail=$('input[name=mail]').val().trim();
             metadata.profile.facebook=$('input[name=facebook]').val().trim();
             metadata.profile.instagram=$('input[name=instagram]').val().trim();
             metadata.profile.twitter=$('input[name=twitter]').val().trim();
@@ -113,7 +113,7 @@ metadata.profile.gender=$('.profile-update select[name=gender]').val().trim();
 
             json_metadata=JSON.stringify(metadata);
 var memo = response[0].memo_key;
-            hive.broadcast.accountUpdate(active_key, serey_login, undefined, undefined, undefined, memo, json_metadata, function(err, result){
+            steem.broadcast.accountUpdate(active_key, serey_login, undefined, undefined, undefined, memo, json_metadata, function(err, result){
                 if(!err){
                     window.alert('Ок. Ваш профиль сохранён.');
                 }

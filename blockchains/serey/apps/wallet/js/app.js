@@ -62,7 +62,7 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 }
 
 function cancelDelegatedVestingShares(delegatee) {
-  hive.broadcast.delegateVestingShares(active_key, serey_login, delegatee, '0.000000 SEREY', function(err, result) {
+  steem.broadcast.delegateVestingShares(active_key, serey_login, delegatee, '0.000000 VESTS', function(err, result) {
     if (!err) {
     window.alert('Делегирование пользователю ' + delegatee + ' отменено.');
     $('#delegated_vesting_shares_' + delegatee).css("display", "none");
@@ -73,10 +73,10 @@ function cancelDelegatedVestingShares(delegatee) {
 }
 
 function load_balance() {
-	hive.api.getAccounts([serey_login], function(err, result){
+	steem.api.getAccounts([serey_login], function(err, result){
  if (!err) {
  result.forEach(function(acc) {
-hive.api.getDynamicGlobalProperties(function(error, res) {
+steem.api.getDynamicGlobalProperties(function(error, res) {
 if (!error) {
 let tvfs = parseFloat(res.total_vesting_fund_steem);
 let tvsh = parseFloat(res.total_vesting_shares);
@@ -100,7 +100,7 @@ $(".delegated_vesting_shares_result").html(delegated_sp);
 
   let claim_data = [];
   if (acc.reward_steem_balance !== '0.000 SEREY') claim_data.push(acc.reward_steem_balance);
-  if (acc.reward_vesting_balance !== '0.000000 SEREY') claim_data.push(parseFloat(acc.reward_vesting_steem) + ' SP');
+  if (acc.reward_vesting_balance !== '0.000000 VESTS') claim_data.push(parseFloat(acc.reward_vesting_steem) + ' SP');
 if (claim_data.length > 0) {
   $('#claim').css('display', 'block');
   $('#claim_balances').html(claim_data.join(', '));
@@ -108,7 +108,7 @@ if (claim_data.length > 0) {
 
 $('#claim_action').click(function() {
   console.log(acc.reward_steem_balance, acc.reward_vesting_balance);
-  hive.broadcast.claimRewardBalance(posting_key, serey_login, acc.reward_steem_balance, acc.reward_vesting_balance, function(err, data) {
+  steem.broadcast.claimRewardBalance(posting_key, serey_login, acc.reward_steem_balance, acc.reward_vesting_balance, function(err, data) {
 if (!err) {
   window.alert('Балансы получены');
   $('#claim').css('display', 'none');
@@ -120,7 +120,7 @@ load_balance();
 });
 
 const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
-hive.api.getVestingDelegations(serey_login, '', 100, function(err, res) {
+steem.api.getVestingDelegations(serey_login, '', 100, function(err, res) {
   //console.log(err, res);
   if ( ! err) {
 var vesting_shares_amount = '';
@@ -142,7 +142,7 @@ var full_vesting = (sp - delegated_sp + received_sp).toFixed(6);
 $("#full_vesting").html(full_vesting);
 
  $("#cancel_vesting_withdraw").click(function(){
-hive.broadcast.withdrawVesting(active_key, serey_login, '0.000000 SEREY', function(err, result) {
+steem.broadcast.withdrawVesting(active_key, serey_login, '0.000000 VESTS', function(err, result) {
   if (!err) {
 window.alert('Вывод отменён.');
 $('#info_vesting_withdraw').css('display', 'none');
@@ -175,8 +175,8 @@ $("#max_vesting_withdraw_result").html(new Number(parseFloat(max_vesting_withdra
  $("#action_vesting_withdraw_start").click(function(){
 var action_vesting_withdraw_amount = parseFloat($('#action_vesting_withdraw_amount').val());
 let withdraw_SEREY = action_vesting_withdraw_amount * 1000000 / hive_per_SEREY;
-withdraw_SEREY =  withdraw_SEREY.toFixed(6) + ' SEREY';
-hive.broadcast.withdrawVesting(active_key, serey_login, withdraw_SEREY, function(err, result) {
+withdraw_SEREY =  withdraw_SEREY.toFixed(6) + ' VESTS';
+steem.broadcast.withdrawVesting(active_key, serey_login, withdraw_SEREY, function(err, result) {
 if (!err) {
 window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
 location.reload();
@@ -197,14 +197,14 @@ window.alert('Ошибка: ' + err);
  action_hive_transfer_amount = action_hive_transfer_amount.toFixed(3) + ' SEREY';
  var action_hive_transfer_memo = $('#action_hive_transfer_memo').val();
 var transfer_to_vesting = document.getElementById('transfer_to_vesting');
-let resultIsWif = hive.auth.isWif(action_hive_transfer_memo);
+let resultIsWif = steem.auth.isWif(action_hive_transfer_memo);
 if (resultIsWif === true) {
 window.alert('Вы указали в memo приватный ключ. Будьте осторожны! Проверьте введённые данные и пробуйте ещё раз.');
 return;
 }
 
 if (transfer_to_vesting.checked) {
-hive.broadcast.transferToVesting(active_key, serey_login, action_hive_transfer_to, action_hive_transfer_amount, function(err, result) {
+steem.broadcast.transferToVesting(active_key, serey_login, action_hive_transfer_to, action_hive_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_hive_transfer_amount + ' пользователю ' + action_hive_transfer_to + ' в SP.');
 location.reload();
@@ -213,7 +213,7 @@ window.alert('Ошибка: ' + err);
 }
   });
 } else {
-	hive.broadcast.transfer(active_key, serey_login, action_hive_transfer_to, action_hive_transfer_amount, action_hive_transfer_memo, function(err, result) {
+	steem.broadcast.transfer(active_key, serey_login, action_hive_transfer_to, action_hive_transfer_amount, action_hive_transfer_memo, function(err, result) {
 if (!err) {
 window.alert('Вы перевели ' + action_hive_transfer_amount + ' пользователю ' + action_hive_transfer_to + '.');
 location.reload();
@@ -229,7 +229,7 @@ window.alert('Ошибка: ' + err);
  $("#action_to_shares_transfer_start").click(function(){
  var action_to_shares_transfer_amount = parseFloat($('#action_to_shares_transfer_amount').val());
  action_to_shares_transfer_amount = action_to_shares_transfer_amount.toFixed(3) + ' SEREY';
- hive.broadcast.transferToVesting(active_key, serey_login, serey_login, action_to_shares_transfer_amount, function(err, result) {
+ steem.broadcast.transferToVesting(active_key, serey_login, serey_login, action_to_shares_transfer_amount, function(err, result) {
 if (!err) {
 window.alert('Вы успешно перевели ' + action_to_shares_transfer_amount + ' SEREY в SP своего аккаунта.');
 location.reload();
@@ -249,13 +249,13 @@ $("#max_vesting_deligate").html(max_vesting_deligate);
  var action_vesting_delegate_to = $('#action_vesting_delegate_to').val();
  var action_vesting_delegate_amount = parseFloat($('#action_vesting_delegate_amount').val());
  let delegate_SEREY = action_vesting_delegate_amount * 1000000 / hive_per_SEREY;
- delegate_SEREY = delegate_SEREY.toFixed(6) + ' SEREY';
- hive.broadcast.delegateVestingShares(active_key, serey_login, action_vesting_delegate_to, delegate_SEREY, function(err, result) {
+ delegate_SEREY = delegate_SEREY.toFixed(6) + ' VESTS';
+ steem.broadcast.delegateVestingShares(active_key, serey_login, action_vesting_delegate_to, delegate_SEREY, function(err, result) {
 if (!err) {
 window.alert('Вы делегировали ' + action_vesting_delegate_amount + '.');
 location.reload();
 } else {
-window.alert('Ошибка: ' + err);
+window.alert('Ошибка: ' + JSON.stringify(err));
 }
   });
 
@@ -353,7 +353,7 @@ async function walletData() {
 
     const limitReal = (isFirstRequest || limit_max <= from) ? limit_max : from;
 
-    const data = await hive.api.getAccountHistoryAsync(serey_login, from, limitReal);
+    const data = await steem.api.getAccountHistoryAsync(serey_login, from, limitReal);
 
     data.sort(accountHistoryCompareDate);
 
@@ -408,7 +408,7 @@ appendWalletData(result);
 }
 
 function appendWalletData(items) {
-  hive.api.getDynamicGlobalProperties(function(error, res) {
+  steem.api.getDynamicGlobalProperties(function(error, res) {
     if (!error) {
     let tvfs = parseFloat(res.total_vesting_fund_steem);
     let tvsh = parseFloat(res.total_vesting_shares);
@@ -445,7 +445,7 @@ items.forEach(item => {
     var curator = op[1].curator;
     var reward = parseFloat(op[1].reward) / 1000000 * hive_per_SEREY;
     reward = reward.toFixed(6) + ' SP';
-    var memo = 'Кураторская награда за пост <a href="https://hiveit.com/@' + author + '/' + permlink + '" target="_blank">https://hiveit.com/@' + author + '/' + permlink + '</a>';
+    var memo = 'Кураторская награда за пост <a href="https://serey.io/authors/' + author + '/' + permlink + '" target="_blank">https://serey.io/authors/' + author + '/' + permlink + '</a>';
     jQuery("#transfer_history_tbody").append('<tr class="filtered_curation_reward"><td>' + transfer_datetime + '</td>\
 <td><a href="/serey/profiles/' + author + '" target="_blank">@' + author + '</a></td>\
 <td><a href="/serey/profiles/' + curator + '" target="_blank">@' + curator + '</a></td>\

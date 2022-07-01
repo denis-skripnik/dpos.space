@@ -1,7 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-$amount_account = 'denis-skripnik';
-return '<h2>Список действий</h2>
-<ol><li>Перейдите на страницу своего аккаунта в <a href="https://hive.blog" target="_blank">hive.blog</a>;</li>
+$amount_account = 'blinddev';
+return '
+<!-- <h2>Список действий</h2>
+<ol><li>Перейдите на страницу своего аккаунта в <a href="https://serey.io" target="_blank">serey.io</a>;</li>
 <li>Отправьте 0.5 HBD или 1 SEREY на аккаунт @'.$amount_account.'. Заметка (memo):<br />
 posts;<br></li>
 <li>Введите логин в форме ниже</li>
@@ -12,7 +13,7 @@ posts;<br></li>
 <li><strong>Если вы оплатили услуги сервиса, но отображается по-прежнему сообщение о требующейся оплате, просьба пробовать несколько раз: возможно проблемы с публичной Нодой, к которой производится подключение. Если же сообщение очень долго, просьба написать в Telegram чат <a href="https://t.me/dpos_space" target="_blank">@dpos_space</a></strong></li></ol>
 
 <form class="form" action="" method="post">
-<input type="hidden" name="chain" value="hive">
+<input type="hidden" name="chain" value="serey">
 <input type="hidden" name="service" value="backup">
 <p><label for="user">Имя пользователя (логин) на  (Без "@"):</label>
 <input type="text" name="user" value=""></p>
@@ -26,5 +27,6 @@ posts;<br></li>
 <option value="HTML">HTML (Скорее всего, понадобится только если у вас есть свой сайт, не поддерживающий MD, куда надо закинуть посты)</option>
 </select></p>
 <p align="center"><input type="submit" value="Запуск"></p>
-</form>';
+</form> -->
+<p>Сервис не работает из-за отсутствия в ответе заголовков и текстов постов.</p>';
 ?>
