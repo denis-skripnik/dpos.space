@@ -1,8 +1,8 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-$amount_account = 'denis-skripnik';
+$amount_account = 'blinddev';
 $content = '<h2>Список действий</h2>
-<ol><li>Перейдите на страницу своего аккаунта в <a href="https://hive.blog" target="_blank">hive.blog</a>;</li>
-<li>Отправьте 1 SEREY или 0.5 HBD на аккаунт @'.$amount_account.'. Заметка (memo):<br />
+<ol><li>Перейдите на страницу своего аккаунта в <a href="https://serey.io" target="_blank">serey.io</a>;</li>
+<li>Отправьте 1 SEREY на аккаунт @'.$amount_account.'. Заметка (memo):<br />
 posts;<br></li>
 <li>Введите логин в форме ниже</li>
 <li>Выберите вариант получения репостов в списке материалов.</li></ol>
@@ -59,8 +59,7 @@ $res = $command->execute($commandQuery);
  $mass = $res['result'];
  foreach ($mass as $datas) {
 $op = $datas[1]['op'];
-$tokens3 = "0.500 HBD";
-if ($op['0'] === 'transfer' && $op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === $tokens3 or ($op['1']['amount'] ?? $op['1']['amount'] ?? "") === "1.000 SEREY") && $op['1']['memo'] === "posts") {
+if ($op['0'] === 'transfer' && $op['1']['from'] === pageUrl()[2] && $op['1']['to'] === $amount_account && (($op['1']['amount'] ?? $op['1']['amount'] ?? "") === "1.000 SEREY") && $op['1']['memo'] === "posts") {
 if (isset($op) ){
 $contentformat = pageUrl()[4];
 if ($contentformat == 'Markdown') {
@@ -76,8 +75,8 @@ $op_trx = ($op ?? $op ?? null);
  } 
 
 if (!isset($op_trx) ){
-$content .= '<p>Пользователь <a href="https://hiveitwallet.com/@'.pageUrl()[2].'/" target="_blank">@'.pageUrl()[2].'</a> не произвёл платёж<br />
-Перейдите в кошелёк, нажав на свой логин в строке выше.</p>';
+$content .= '<p>Пользователь <a href="https://dpos.space/serey/wallet" target="_blank">@'.pageUrl()[2].'</a> не произвёл платёж<br />
+Перейдите в кошелёк, нажав на свой логин в строке выше, и переведите 1 SEREY.</p>';
 }
 
 return $content;

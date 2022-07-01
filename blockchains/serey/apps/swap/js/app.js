@@ -16,7 +16,7 @@ Number.prototype.toFixedNoRounding = function(n) {
     let q = window.confirm('Вы действительно хотите удалить этот ордер?');
     if (q == true) {
       try {
-        await hive.broadcast.limitOrderCancelAsync(active_key, serey_login, orderid);
+        await steem.broadcast.limitOrderCancelAsync(active_key, serey_login, orderid);
     window.alert('Ордер удалён.');
       await myOrders();
     await getSelectedToken();
@@ -75,7 +75,7 @@ Number.prototype.toFixedNoRounding = function(n) {
     let sell_token = $('#sell_token').val();
     let buy_token = $('#buy_token').html();
     try {
-let orders = await hive.api.getOpenOrdersAsync(serey_login);
+let orders = await steem.api.getOpenOrdersAsync(serey_login);
 const timezoneOffset = (new Date()).getTimezoneOffset() * 60000;
   let table = '';
     for (let order of orders) {
@@ -101,7 +101,7 @@ async function creationOrder(sell_amount, selected_sell_token, selected_buy_toke
     $('#market_price').html('');
     $('#action_buy_token').attr('disabled', true);
     
-    let get_orders = await hive.api.getOrderBookAsync(100);
+    let get_orders = await steem.api.getOrderBookAsync(100);
     let orders = get_orders.bids;
     if (selected_sell_token === 'HBD') {
         orders = get_orders.asks;
@@ -140,7 +140,7 @@ $('#action_buy_token').attr('disabled', true);
 }
 
 async function getSelectedToken() {
-let accounts = await hive.api.getAccountsAsync([serey_login]);
+let accounts = await steem.api.getAccountsAsync([serey_login]);
 if (accounts && accounts.length > 0) {
     let acc = accounts[0];
     let selected = $('#sell_token').val();
@@ -198,7 +198,7 @@ $('#action_buy_token').click(async function() {
         expiration = expiration.toISOString().substr(0, 19); // i.e. 2020-09-07T11:33:00
         let moment_swap = JSON.parse($('#change_mode').attr('data-mode'));
         try {
-        let res = await hive.broadcast.limitOrderCreateAsync(active_key, serey_login, orderid, sell_amount.toFixedNoRounding(3) + ' ' + selected_sell_token, buy_amount.toFixedNoRounding(3) + ' ' + selected_buy_token, moment_swap, expiration);
+        let res = await steem.broadcast.limitOrderCreateAsync(active_key, serey_login, orderid, sell_amount.toFixedNoRounding(3) + ' ' + selected_sell_token, buy_amount.toFixedNoRounding(3) + ' ' + selected_buy_token, moment_swap, expiration);
 if (res) {
 if (moment_swap === true) {
     window.alert('Обмен произведён');

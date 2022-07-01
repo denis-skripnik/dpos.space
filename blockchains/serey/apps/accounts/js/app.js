@@ -2,12 +2,12 @@ function saveAccount() {
     let login = $('#login').val();
     let posting_key = $('#posting_key').val();
     let active_key = $('#active_key').val();
-    hive.api.getAccounts([login], function(err, res) {
+    steem.api.getAccounts([login], function(err, res) {
     if (!err && res.length > 0) {
         let acc = res[0];
 let posting = '';
         if (posting_key) {
-    const public_wif = hive.auth.wifToPublic(posting_key);
+    const public_wif = steem.auth.wifToPublic(posting_key);
 let posting_public_keys = [];
 for (key of acc.posting.key_auths) {
 posting_public_keys.push(key[0]);
@@ -18,7 +18,7 @@ posting = sjcl.encrypt('dpos.space_serey_' + login + '_postingKey', posting_key)
 }
 let active = '';
 if (active_key) {
-    const public_wif = hive.auth.wifToPublic(active_key);
+    const public_wif = steem.auth.wifToPublic(active_key);
 let active_public_keys = [];
 for (key of acc.active.key_auths) {
 active_public_keys.push(key[0]);

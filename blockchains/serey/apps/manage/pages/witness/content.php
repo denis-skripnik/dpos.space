@@ -14,7 +14,7 @@ return '<h2>Страницы сервиса</h2>
 <p><label for="witness_url">Url делегата (Страница с подробной информацией о делегате и его деятельности): 
 <input type="text" name="witness_url" value="" placeholder="Url делегата"></label></p>
 <p><label for="witness_key">Публичный ключ делегата: 
-    <input type="text" name="witness_key" value="" placeholder="STM..."></label></p>
+    <input type="text" name="witness_key" value="" placeholder="SRY..."></label></p>
 <p><input type="button" id="witness_options" value="Сохранить"></p>
 </form>
 </div>

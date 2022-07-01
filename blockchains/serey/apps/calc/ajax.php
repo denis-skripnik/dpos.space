@@ -6,8 +6,6 @@ $charge = $_REQUEST['charge'];
 $vote_weight = $_REQUEST['vote_weight'];
 require __DIR__.'/snippets/get_dynamic_global_properties.php';
   require __DIR__.'/snippets/get_chain_properties.php';
-  require __DIR__.'/snippets/get_feed_history.php';
-
 require __DIR__.'/snippets/get_config.php';
 require __DIR__.'/snippets/getRewardFund.php';
 
@@ -17,11 +15,6 @@ require __DIR__.'/snippets/getRewardFund.php';
  $chain_res = $chain_command->execute($chain_commandQuery); 
  $chain_mass = $chain_res['result'];
 
- $feed_res = $feed_command->execute($feed_commandQuery); 
- $feed_mass = $feed_res['result'];
-  
- 
- 
  $RewardFund_res = $RewardFund_command->execute($RewardFund_commandQuery);
  $RewardFund_mass = $RewardFund_res['result'];
   $config_res = $config_command->execute($config_commandQuery); 
@@ -45,12 +38,8 @@ $rewa = (float)$RewardFund_mass['reward_balance'];
 $recent = (float)$RewardFund_mass['recent_claims'];
 
 $hive_i = $rewa / $recent;
-$base = (float)$feed_mass["current_median_history"]["base"];
-    $quote = (float)$feed_mass["current_median_history"]["quote"];
-$median_price = round($base/$quote, 2);
 $dasdas_golos = round($hive_r * $hive_m * 100 * $hive_i, 3)*($vote_weight/100);
-$dasdas_gbg = round($hive_r * $hive_m * 100 * $hive_i * $median_price, 3)*($vote_weight/100);
-echo "<p>Стоимость апвота: $dasdas_golos SEREY, $dasdas_gbg HBD</p>";
+echo "<p>Стоимость апвота: $dasdas_golos SEREY</p>";
 } else if ($type == 'result_SEREY') {
     $sptec = $_REQUEST['sp-tec'];
     require __DIR__.'/snippets/get_dynamic_global_properties.php';

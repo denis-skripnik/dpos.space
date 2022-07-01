@@ -1,12 +1,12 @@
 function blocksData(start_block, end_block) {
-    hive.api.getBlock(start_block, function (err, res) {
+    steem.api.getBlock(start_block, function (err, res) {
     if (!err) {
         document.getElementById("sig1").innerHTML = res.witness_signature;
     } else {
         blocksData();
     }
         });
-        hive.api.getBlock(end_block, function (error, result) {
+        steem.api.getBlock(end_block, function (error, result) {
     if (!error) {
         document.getElementById("sig2").innerHTML = result.witness_signature;
     } else {

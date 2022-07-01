@@ -1,5 +1,5 @@
 function witnesses(from, witness_votes) {
-    hive.api.getWitnessesByVote(from, 100, function(err, res) {
+    steem.api.getWitnessesByVote(from, 100, function(err, res) {
           if (!err && res.length > 1) {
    var end_witness = '';
    for (let i = 0; i <= res.length; i++) {
@@ -12,7 +12,7 @@ if (witness.signing_key === "SRY1111111111111111111111111111111114T1Anm") {
     status = "активный";
 }
 let url_text = 'url';
-if (witness.url.indexOf('hive.blog') > -1 || witness.url.indexOf('hive.blog') > -1) {
+if (witness.url.indexOf('serey.io') > -1 || witness.url.indexOf('serey.io') > -1) {
     url_text = 'пост';
 } else {
     url_text = 'сайт';
@@ -32,7 +32,7 @@ if (witness.signing_key === "SRY1111111111111111111111111111111114T1Anm") {
     status = "активный";
 }
 let url_text = 'url';
-if (witness.url.indexOf('hive.blog') > -1 || witness.url.indexOf('hive.blog') > -1) {
+if (witness.url.indexOf('serey.io') > -1 || witness.url.indexOf('serey.io') > -1) {
     url_text = 'пост';
 } else {
     url_text = 'сайт';
@@ -47,7 +47,7 @@ witnesses(end_witness)
 }
 
 function main() {
-hive.api.getAccounts([serey_login], function(err, res) {
+steem.api.getAccounts([serey_login], function(err, res) {
     if (res[0].proxy !== '') {
         $('#proxy').html('<p>Аккаунт <a href="https://dpos.space/serey/profiles/' + serey_login + '" target="_blank">' + serey_login + '</a> установил в качестве прокси <a href="https://dpos.space/serey/profiles/' + res[0].proxy + '" target="_blank">' + res[0].proxy + '</a></p>');
     $('input[name=proxy_login]').val(res[0].proxy);

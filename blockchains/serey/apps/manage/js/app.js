@@ -84,7 +84,7 @@ function date_str(timestamp,add_time,add_seconds,remove_today=false){
 
 function proxyVote(field_name) {
     let proxy_login = $('input[name=' + field_name + ']').val();
-    hive.broadcast.accountWitnessProxy(active_key, serey_login, proxy_login, function(err, result) {
+    steem.broadcast.accountWitnessProxy(active_key, serey_login, proxy_login, function(err, result) {
 if (!err) {
     if (field_name === 'proxy_login') {
     window.alert('Прокси ' + proxy_login + ' успешно установлен.')
@@ -99,7 +99,7 @@ if (!err) {
 
 function oneWitnessVote() {
     let witness_login = $('input[name=witness_login]').val();
-    hive.broadcast.accountWitnessVote(active_key, serey_login, witness_login, true, function(err, result) {
+    steem.broadcast.accountWitnessVote(active_key, serey_login, witness_login, true, function(err, result) {
 if (!err) {
     window.alert('Вы успешно проголосовали за делегата ' + witness_login + '. Обновите страницу, чтоб увидеть, что он отмечен в списке.')
 } else {
@@ -115,7 +115,7 @@ if (err.payload.error.message.indexOf('Vote currently exists, user must indicate
 }
 
   function witnessesVote() {
-hive.api.getAccounts([serey_login], function(err, result) {
+steem.api.getAccounts([serey_login], function(err, result) {
 if (!err) {
 if (result[0].proxy !== "") {
     var q = window.confirm('Вы ранее установили прокси голосования за делегатов. Вы действительно хотите проголосовать за делегатов, отменив его?')
@@ -145,7 +145,7 @@ var operations = [];
             operations.push(op);  
     }
     }
-    hive.broadcast.send({extensions: [], operations}, [active_key], function(error, res) {
+    steem.broadcast.send({extensions: [], operations}, [active_key], function(error, res) {
 if (!error) {
     window.alert('Голоса успешно установлены.');
 } else {
