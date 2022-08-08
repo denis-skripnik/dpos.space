@@ -37,7 +37,7 @@ $( document ).ready(function() {
         });
 
 const options = {
-    gateURL: 'https://mainnet-gate.decimalchain.com/api/',
+    gateUrl: 'https://mainnet-gate.decimalchain.com/api/',
 }
 
         var sender = {};
@@ -67,8 +67,8 @@ const options = {
 
         async function getTransaction(txHash) {
                 try {
-                    let response = await axios.get('/transaction/' + txHash);
-                    if (response.data.code !== "0") {
+                    let response = await axios.get('/tx/' + txHash);
+                    if (response.data.ok !== true) {
                     return false;
                 } else {
                     return true;
@@ -79,142 +79,99 @@ const options = {
                     }
         }
         
-async function broadcasting(txParams) {
-    const type = txParams.type;
-    delete txParams.type;
-    const tx_options = {
-        feeCoin: txParams.gasCoin, // The coin that pays commission
-        message: txParams.payload, // Any additional information about the transaction
-        mode: 'sync', // broadcast mode {sync | async | block}
-    };
-    delete txParams.payload;
-    delete txParams.gasCoin;
-    const broadcastTx = await decimalJS.getTransaction(type, txParams.data, tx_options);
-        decimalJS.postTx(broadcastTx)
-    .then(async (txHash) => {
-        $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-        await new Promise(r => setTimeout(r, 5500));
-        let res = await getTransaction(txHash.hash);
-        if (res === true) {
-            document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/decimal/explorer/tx/${txHash.hash}" target="_blank">${txHash.hash}</a></strong>`);
-} else {
-document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
-}
-    }).catch(async (error) => {
-            const errorMessage = (error.response.data.error.message ? error.response.data.error.message : error.response.error.message)
+async function broadcasting(type, data) {
+    const broadcastTx = await decimal.getTransaction(type, data, options);
+    const result = await decimal.postTx(broadcastTx);
+
+        if (result.success === true) {
+            $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+            await new Promise(r => setTimeout(r, 12000));
+            let res = await decimal.getTransactionByHash(result.hash);
+            console.log(JSON.stringify(res));
+            if (res.status === 'Success') {
+                document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/decimal/explorer/tx/${result.hash}" target="_blank">${result.hash}</a></strong>`);
+    } else {
+    document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+    }
+            } else {
+            const errorMessage = result.error;
             throw `Ошибка: ${errorMessage}`;
-    });
+        }
 }
 
 
-        async function send(to, amount, coin, memo, mode, gasCoin) {
-            const isValid = decimalJS.isValidMnemonic(memo);
-            if (isValid === true) {
-                window.alert('Вы указали SEED фразу вместо заметки к переводу. Исправьте и попробуйте ещё раз.');
-            return;
-            }
-            
-            let minGasPrice = await axios.get('/min_gas_price');
-        let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
-            if (!gasCoin) gasCoin = coin;
-            const txParams = {
-                type: TX_TYPE.COIN_SEND,
-                data: {
-                    to,
-                    amount,
-                    coin,    
-                },
-                gasCoin,
-                gasPrice,
-                payload: memo,
-            };
-
+        async function send(to, amount, coin, memo, mode) {
+            const data = {
+                to: to.toString(),
+                coin: coin.toString(),
+                amount: amount.toString(),
+              }
+              
 if (mode !== 'fee') {
-    await broadcasting(txParams);
+    await broadcasting(TX_TYPE.COIN_SEND, data);
 } else {
-    let fee_data = await decimalJS.estimateTxCommission(txParams);
-    return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
+    const fee = await decimal.estimateTxFee(TX_TYPE.COIN_SEND, data, options);
+    return fee;
 }
         }
         
-        async function convert(coin, to, value, minimum_buy_amount, mode, gasCoin) {
-            if (!gasCoin) gasCoin = coin;
-            let txParams = {};
-            txParams.type = TX_TYPE.COIN_SELL;
-            txParams.data = {};
-            
-                txParams.data.sellCoin = coin;
-                txParams.data.getCoin = to;
-                txParams.data.minBuyLimit = parseFloat(minimum_buy_amount);
-                        txParams.data.amount = value;
-            txParams.gasCoin = gasCoin;
-            let minGasPrice = await axios.get('/min_gas_price');
-            let gasPrice = parseInt(minGasPrice.data.min_gas_price) + 1;
-            txParams.gasPrice = gasPrice;
-
-            console.log(txParams);
+        async function convert(coin, to, value, minimum_buy_amount, mode) {
+            const data = {
+                sellCoin: coin.toString(),
+                amount: value.toString(),
+                getCoin: to.toString(),
+                minBuyLimit: minimum_buy_amount.toString(),
+              }
             if (mode !== 'fee') {
-                await broadcasting(txParams);
+                await broadcasting(TX_TYPE.COIN_SELL, data);
             } else {
-                let fee_data = await decimalJS.estimateTxCommission(txParams);
-                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};;
+                let fee_data = await decimal.estimateTxFee(TX_TYPE.COIN_SELL, data, options);
+                return fee_data;;
             }
         }
         
-        async function delegate(coin, publicKey, stake, mode, gasCoin) {
-            if (!gasCoin) gasCoin = coin;
-            const txParams = {
-                type: TX_TYPE.VALIDATOR_DELEGATE,
-                data: {
-                    publicKey,
-                    coin,
-                    stake,
-                },
-                gasCoin,
-            };
+        async function delegate(coin, address, stake, mode) {
+            const data = {
+                address: address.toString(),
+                coin: coin.toString(),
+                stake: stake.toString(),
+              }
 
-            console.log(txParams);
             if (mode !== 'fee') {
-                await broadcasting(txParams);
+                await broadcasting(TX_TYPE.VALIDATOR_DELEGATE, data);
             } else {
-                let fee_data = await decimalJS.estimateTxCommission(txParams);
-                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};
+               let fee_data = await decimal.estimateTxFee(TX_TYPE.VALIDATOR_DELEGATE, data, options);
+                return fee_data;;
             }
         }
 
-        async function anbond(coin, publicKey, stake, mode) {
-            const txParams = {
-                type: TX_TYPE.VALIDATOR_UNBOND,
-                data: {
-                    publicKey,
-                    coin,
-                    stake,
-                },
-            };
-
-            console.log(txParams);
+        async function anbond(coin, address, stake, mode) {
+            const data = {
+                address: address.toString(),
+                coin: coin.toString(),
+                stake: stake.toString(),
+              }
+              
             if (mode !== 'fee') {
-                await broadcasting(txParams);
+                await broadcasting(TX_TYPE.VALIDATOR_UNBOND, data);
             } else {
-                let fee_data = await decimalJS.estimateTxCommission(txParams);
-                return {fee: fee_data.commission * gasPrice, bip_fee: fee_data.baseCoinCommission * gasPrice};;
+                let fee_data = await decimal.estimateTxFee(TX_TYPE.VALIDATOR_UNBOND, data, options);
+                return fee_data;;
             }
         }
 
-        async function createCoin(name, symbol, initialAmount, maxSupply, options, mode) {
-    let txParams = {
-        type: TX_TYPE[type],
-        data: {
-            title: name,
-            ticker: symbol,
-            initSupply: initialAmount,
-            maxSupply,
-        },
-    };
-    txParams.data.crr = options.constantReserveRatio;
-    txParams.data.reserve = options.initialReserve;
-            let fee = await decimalJS.estimateTxCommission(txParams);
-let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' ');
+        async function createCoin(title, ticker, initSupply, maxSupply, options, mode) {
+            const data = {
+                title,
+                ticker,
+                initSupply: initSupply.toString(),
+                maxSupply: maxSupply.toString(),
+                reserve: options.initialReserve,
+                crr: options.constantReserveRatio
+              }
+
+              let fee = await decimal.estimateTxFee(TX_TYPE.CREATE_COIN, data, options);
+let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' DEL');
 if (q === true) {
     await broadcasting(txParams);
 }

@@ -1,9 +1,18 @@
+var ref_address = window.location.search.split('r=')[1];
+var referer = '';
+if (localStorage.getItem('minter_long_referer') !== null) {
+    referer = localStorage.getItem('minter_long_referer');
+    } else if (typeof ref_address !== 'undefined') {
+        localStorage.setItem('minter_long_referer', ref_address);
+        referer = ref_address;
+    }
+
 async function getPrices() {
     let get_price = (await axios.get('/swap_pool/0/2782')).data;
     let price = parseFloat(get_price.amount0) / parseFloat(get_price.amount1);
-    let res_bip_prices = (await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bip&vs_currencies=usd,rub')).data;
-    let usd_bip_price = res_bip_prices['bip']['usd'];
-    let rub_bip_price = res_bip_prices['bip']['rub'];
+    let res_bip_prices = (await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=minter-network&vs_currencies=usd,rub')).data;
+    let usd_bip_price = res_bip_prices['minter-network']['usd'];
+    let rub_bip_price = res_bip_prices['minter-network']['rub'];
     let usd_price = price * usd_bip_price;
         let rub_price = price * rub_bip_price;
         if (document.getElementById('prices')) $('#prices').html(`Курс 1 LONG = <span id="current_price">${price.toFixed(5)}</span> BIP, $ ${usd_price.toFixed(5)}, ${rub_price.toFixed(5)} Руб.`);
@@ -485,10 +494,9 @@ let max_add_amount = long_balance;
     $('#max_add').click(async function() {
 let max = parseFloat($('#max_add').html());
 let price = (await getPrices()).price;
-let tokens = $('[name=add_tokens]').val();
 let bip_amount = max / price;
 
-let add_fee =     await addToPool('LONG', 'BIP', max, bip_amount, 'fee', '', 'LONG', tokens);
+let add_fee =     await addToPool('LONG', 'BIP', max, bip_amount, 'fee', '', 'LONG', referer);
 let add_long_fee = add_fee.fee;
 let add_bip_fee = add_fee.bip_fee;
 if (long_balance - add_long_fee >= 0) {
@@ -503,11 +511,10 @@ $('[name=add_amount]').val(max);
 
 $('#max_add_bip').click(async function() {
     let max = parseFloat($('#max_add_bip').html().replace(',', '.'));
-    let tokens = $('[name=add_tokens]').val();
     let price = (await getPrices()).price;
 let long_amount = max * price;
 
-let add_fee =     await addToPool('LONG', 'BIP', long_amount, max, 'fee', '', 'LONG', tokens);
+let add_fee =     await addToPool('LONG', 'BIP', long_amount, max, 'fee', '', 'LONG', referer);
 let add_long_fee = add_fee.fee;
 let add_bip_fee = add_fee.bip_fee;
 if (bip_balance - add_bip_fee >= 0) {
@@ -522,11 +529,10 @@ $('[name=add_bip_amount]').val(max);
 
 $('[name=add_amount]').change(async function() {
     let amount = parseFloat($('[name=add_amount]').val().replace(',', '.'));
-    let tokens = $('[name=add_tokens]').val();
     let price = (await getPrices()).price;
     let bip_amount = amount / price;
     
-    let add_fee =     await addToPool('LONG', 'BIP', amount, bip_amount, 'fee', '', 'LONG', tokens);
+    let add_fee =     await addToPool('LONG', 'BIP', amount, bip_amount, 'fee', '', 'LONG', referer);
 let add_long_fee = add_fee.fee;
 let add_bip_fee = add_fee.bip_fee;
 if (long_balance - add_long_fee >= 0 && amount + add_long_fee >= long_balance) {
@@ -540,11 +546,10 @@ bip_amount = amount * price;
 
 $('[name=add_bip_amount]').change(async function() {
     let amount = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));
-    let tokens = $('[name=add_tokens]').val();
     let price = (await getPrices()).price;
     let long_amount = amount * price;
     
-    let add_fee =     await addToPool('LONG', 'BIP', long_amount, amount, 'fee', '', 'LONG', tokens);
+    let add_fee =     await addToPool('LONG', 'BIP', long_amount, amount, 'fee', '', 'LONG', referer);
 let add_long_fee = add_fee.fee;
 let add_bip_fee = add_fee.bip_fee;
     if (bip_balance - add_bip_fee >= 0 && amount + add_bip_fee >= bip_balance) {
@@ -556,37 +561,12 @@ long_amount = amount / price;
     $('[name=add_amount]').val(long_amount);
 });
 
-$('[name=add_tokens]').change(async function() {
-    let amount1 = parseFloat($('[name=add_amount]').val().replace(',', '.'));
-    let amount2 = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));    
-    let tokens = $('[name=add_tokens]').val();
-
-    let add_fee =     await addToPool('LONG', 'BIP', amount1, amount2, 'fee', '', 'LONG', tokens);
-let add_long_fee = add_fee.fee;
-let add_bip_fee = add_fee.bip_fee;
-    if (add_gasCoin === 'BIP' && bip_balance - add_bip_fee >= 0 && amount2 + add_bip_fee >= bip_balance) {
-    amount2 -= add_bip_fee;
-    $('[name=add_bip_amount]').val(amount2);
-amount1 = amount2 / price;
-$('[name=add_amount]').val(amount1);
-} else     if (add_gasCoin === 'LONG' && long_balance - add_long_fee >= 0 && amount1 + add_long_fee >= long_balance) {
-        amount1 -= add_long_fee;
-        $('[name=add_amount]').val(amount1);
-    amount2 = amount1 * price;
-    $('[name=add_bip_amount]').val(amount2);}
-long_amount = amount * price;
-
-    $('[name=add_amount]').val(long_amount);
-
-});
-
 $('#action_add_liquidity').click(async function() {
     let amount1 = parseFloat($('[name=add_amount]').val().replace(',', '.'));
     let amount2 = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));    
-    let tokens = $('[name=add_tokens]').val();
 var q = window.confirm('Вы действительно хотите добавить ликвидность?');
 if (q === true) {
-    await addToPool('LONG', 'BIP', amount1, amount2, '', '', add_gasCoin, tokens);
+    await addToPool('LONG', 'BIP', amount1, amount2, '', '', add_gasCoin, referer);
 }
 });
 }

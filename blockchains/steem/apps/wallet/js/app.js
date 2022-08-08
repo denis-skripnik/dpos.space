@@ -134,7 +134,7 @@ body_delegated_vesting_shares = '<tr id="delegated_vesting_shares_' + item.deleg
 		jQuery("#body_delegated_vesting_shares").append(body_delegated_vesting_shares);
  });
  }
-  else console.error(err);
+  else console.error(JSON.stringify(err));
 });
 
 var full_vesting = (sp - delegated_sp + received_sp).toFixed(6);
@@ -324,7 +324,7 @@ function prepareContent(text) {
  
 const walletDataSettings = {
 	limit: 100,
-	limit_max: 2000,
+	limit_max: 100,
 	from: -1,
   get isFirstRequest() {
 		return this.from === -1;
@@ -400,7 +400,7 @@ if (isEnd) {
   walletDataSettings.from = lastElement[0];
 }
 
-console.dir(result);
+console.log(JSON.stringify(result));
 
 appendWalletData(result);
 }

@@ -32,6 +32,9 @@ function blocksData(start_block, end_block) {
         sig2 = document.getElementById("sig2").value,
         participants = document.getElementById("participants").value;
         participants = parseInt(participants);
+        data_list = document.getElementById("data_list").value;
+        let data_array = data_list.split("\n");
+        if (data_list !== '') participants = data_array.length;
         
         if(sig1) sig1 = sig1.trim();
         if(sig2) sig2 = sig2.trim();
@@ -43,7 +46,7 @@ function blocksData(start_block, end_block) {
 
 	document.getElementById("hash").value = h;
         document.getElementById("luckyNumber").value = parseInt(d.value) + 1;
-        
+        if (data_list !== '') document.getElementById('resultMember').innerHTML = data_array[parseInt(d.value)];                
     }
 
     function updateValues()

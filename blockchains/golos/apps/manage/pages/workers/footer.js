@@ -236,7 +236,7 @@ const operations = [
         "extensions": []
     }
 ];
-
+window.alert(JSON.stringify(operations));
 golos.broadcast.send({extensions: [], operations}, [posting_key], function(err, result) {
     if (!err) {
         window.alert('Вы успешно проголосовали за заявку.');
