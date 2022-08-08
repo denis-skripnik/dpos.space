@@ -23,6 +23,13 @@ function generateAppPages($blockchain_snippet) {
         $data['title'] .= ' '.pageUrl()[3];
         $data['description'] .= '. Дата: '.pageUrl()[3];
     }
+    } else if ($permlink[0] === '?') {
+        $page_config = configs(__DIR__.'/config.json');
+        $data = [];
+        $data['title'] = $page_config['title'];
+        $data['description'] = $page_config['description'];
+        $data['content'] = $blockchain_snippet;
+        $data['content'] .= require_once(__DIR__.'/content.php');
     }
     return $data;
 }

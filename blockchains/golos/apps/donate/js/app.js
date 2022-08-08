@@ -7,7 +7,47 @@ gates.YMTRX = {};
 gates.YMUSDT = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
+gates.YMBTC = {};
+gates.YMXMR = {};
+gates.YMZEC = {};
 gates.VIZUIA = {};
+
+gates.PRIZM.withdraw = {
+  account: "exprizm",
+  
+  get_max: {
+    allow: false,
+  login: "prizm",
+    separator: " / ",
+  },
+  vars: [
+    {
+      address: "Адрес в сети PRIZM",
+      key: "Публичный ключ"
+        }
+  ],
+  separator: " "
+};
+
+gates.YMRUB.withdraw = {
+  account: "ecurrex-ymrub",
+get_max: {
+  allow: true,
+login: "ecurrex-ru",
+  separator: " / ",
+},
+  vars: [
+    {
+      name: "advcash",
+      address: "Адрес кошелька Advcash",
+    },
+    {
+      name: "payeer",
+      address: "Адрес кошелька Payeer",
+    }
+  ],
+  separator: ":"
+};
 
 gates.YMRUB.deposit = {
 vars: [
@@ -44,6 +84,22 @@ vars: [
 ]
 };
 
+gates.YMPZM.withdraw = {
+  account: "ecurrex-prizm",
+get_max: {
+  allow: false,
+login: "ecurrex-ru",
+  separator: " / ",
+},
+  vars: [
+    {
+      name: "",
+      address: "Адрес кошелька Prizm",
+    }
+    ],
+  separator: ""
+};
+
 gates.YMPZM.deposit = {
   vars: [
     {
@@ -59,12 +115,44 @@ gates.YMPZM.deposit = {
   ]
   };
 
+  gates.YMDASH.withdraw = {
+    account: "ecurrex-dash",
+  get_max: {
+    allow: false,
+  login: "ecurrex-ru",
+    separator: " / ",
+  },
+    vars: [
+      {
+        name: "",
+        address: "Адрес кошелька DASH",
+      }
+      ],
+    separator: ""
+  };
+
   gates.YMDASH.deposit = {
     type: "get_address",
     account: "ecurrex-dash",
     memo: "deposit"
       };
 
+      gates.YMTRX.withdraw = {
+        account: "ecurrex-tron",
+      get_max: {
+        allow: false,
+      login: "ecurrex-ru",
+        separator: " / ",
+      },
+        vars: [
+          {
+            name: "",
+            address: "Адрес кошелька Tron",
+          }
+          ],
+        separator: ""
+      };
+    
       gates.YMTRX.deposit = {
         type: "get_address",
         account: "ecurrex-tron",
@@ -72,6 +160,22 @@ gates.YMPZM.deposit = {
         "text": "От 10 TRX",
           };
 
+          gates.YMUSDT.withdraw = {
+            account: "ecurrex-tether",
+          get_max: {
+            allow: false,
+          login: "ecurrex-ru",
+            separator: " / ",
+          },
+            vars: [
+              {
+                name: "",
+                address: "Адрес кошелька Tron",
+              }
+              ],
+            separator: ""
+          };
+        
           gates.YMUSDT.deposit = {
             type: "get_address",
             account: "ecurrex-tether",
@@ -79,6 +183,20 @@ gates.YMPZM.deposit = {
             "text": "От 10 USDT",
               };
 
+      gates.YMHIVE.withdraw = {
+        account: "ecurrex-hive",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "hive",
+            address: "Аккаунт в Hive",
+          }
+        ],
+        separator: ":"
+      };
+      
       gates.YMHIVE.deposit = {
       vars: [
         {
@@ -94,6 +212,20 @@ gates.YMPZM.deposit = {
       ]
       };
 
+      gates.YMSTEEM.withdraw = {
+        account: "ecurrex-steem",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "steem",
+            address: "Аккаунт в Steem",
+          }
+        ],
+        separator: ":"
+      };
+      
       gates.YMSTEEM.deposit = {
       vars: [
         {
@@ -109,7 +241,58 @@ gates.YMPZM.deposit = {
       ]
       };
 
-  gates.VIZUIA.deposit = {
+      gates.YMBTC.withdraw = {
+        account: "ecurrex-bitcoin",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "bitcoin",
+            address: "Bitcoin адрес",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMBTC.deposit = {
+        type: "get_address",
+        account: "ecurrex-bitcoin",
+        memo: "deposit",
+        "text": "От 0.0001 BTC",
+      };
+
+      gates.YMXMR.withdraw = {
+        account: "ecurrex-monero",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "monero",
+            address: "XMR адрес",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMXMR.deposit = {
+        type: "get_address",
+        account: "ecurrex-monero",
+        memo: "deposit",
+        "text": "От 0.0001 XMR",
+      };
+
+
+      
+      gates.YMZEC.deposit = {
+        type: "get_address",
+        account: "ecurrex-zcash",
+        memo: "deposit",
+        "text": "От 0.0001 ZEC",
+      };
+
+      gates.VIZUIA.deposit = {
   vars: [
     {
       address: {

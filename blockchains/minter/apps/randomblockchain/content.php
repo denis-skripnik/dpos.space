@@ -1,12 +1,14 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
-if (isset($_GET)) {
+if (isset($_GET) && count($_GET) > 0) {
     $data['title'] .= ' | Блоки '.$_GET['block1'].' и '.$_GET['block2'].', участников '.$_GET['participants'];
 }
 if (!empty($_GET)) {
 $start_block = $_GET['block2'];
 $end_block = $_GET['block1'];
 $participants = $_GET['participants'];
+$data_list = '';
+if (isset($_GET['data_list'])) $data_list = $_GET['data_list'];
 $start_link = '<a href="https://explorer.minter.network/blocks/'.$start_block.'" target="_blank">'.$start_block.'</a>';
 $end_link = '<a href="https://explorer.minter.network/blocks/'.$end_block.'" target="_blank">'.$end_block.'</a>';
 return '<div >
@@ -16,7 +18,9 @@ return '<div >
 <p><strong>Репозиторий: <a href="https://github.com/denis-skripnik/minter_random" target="_blank">https://github.com/denis-skripnik/minter_random</a></strong></p>
         <div>
     <input type="hidden" id="participants" value="'.$participants.'">
-        <label>Хэш первого указанного блока</label><br/>
+    <textarea style="display: none;" id="data_list">'.$data_list.'</textarea>
+    
+    <label>Хэш первого указанного блока</label><br/>
     <textarea id="sig1" cols="100" rows="5"></textarea>
     </div>
     <div>
@@ -33,7 +37,7 @@ return '<div >
     <input type="text" id="hash" size="100" /><br>
     <label>Счастливое число</label><br>
     <input type="text" id="luckyNumber" size="10" />
-
+<div id="resultMember"></div>
 	</div>
     
 
@@ -49,6 +53,8 @@ return '<form class="form" action="'.$conf['siteUrl'].'minter/randomblockchain/"
 <input type="text" name="block2" value="" placeholder="Введите второй блок"></p>
 <p><label for="participants">Количество участников (максимальное число): </label>
 <input type="text" name="participants" value="" placeholder="Введите число участников"></p>
+<p><label for="data_list">Список данных, указывайте каждый элемент с новой строки: </label>
+<textarea name="data_list"></textarea></p>
 <p><input type="submit" value="Сгенерировать"></p>
 </form>';
 }

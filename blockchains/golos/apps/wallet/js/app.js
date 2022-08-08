@@ -7,6 +7,9 @@ gates.YMTRX = {};
 gates.YMUSDT = {};
 gates.YMHIVE = {};
 gates.YMSTEEM = {};
+gates.YMBTC = {};
+gates.YMXMR = {};
+gates.YMZEC = {};
 gates.VIZUIA = {};
 
 gates.PRIZM.withdraw = {
@@ -236,6 +239,70 @@ gates.YMPZM.deposit = {
           }
           }
       ]
+      };
+
+      gates.YMBTC.withdraw = {
+        account: "ecurrex-bitcoin",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "bitcoin",
+            address: "Bitcoin адрес",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMBTC.deposit = {
+        type: "get_address",
+        account: "ecurrex-bitcoin",
+        memo: "deposit",
+        "text": "От 0.0001 BTC",
+      };
+
+      gates.YMXMR.withdraw = {
+        account: "ecurrex-monero",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "monero",
+            address: "XMR адрес",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMXMR.deposit = {
+        type: "get_address",
+        account: "ecurrex-monero",
+        memo: "deposit",
+        "text": "От 0.0001 XMR",
+      };
+
+
+      gates.YMZEC.withdraw = {
+        account: "ecurrex-zcash",
+      get_max: {
+        allow: false
+      },
+        vars: [
+          {
+            name: "zcash",
+            address: "ZEC адрес",
+          }
+        ],
+        separator: ":"
+      };
+      
+      gates.YMZEC.deposit = {
+        type: "get_address",
+        account: "ecurrex-zcash",
+        memo: "deposit",
+        "text": "От 0.0001 ZEC",
       };
 
   gates.VIZUIA.withdraw = {

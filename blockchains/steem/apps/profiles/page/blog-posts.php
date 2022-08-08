@@ -86,10 +86,10 @@ $post_number = $num + 1;
 
 $result['content'] .= '<tr><td align="center">'.$post_number.'</td>';
 if ($post['author'] == $user) {
-  $result['content'] .= '<td><a href="https://steemit.com/'.$post['url'].'" target="_blank">'.$post['title'].'</a></td>';
+  $result['content'] .= '<td><a href="https://steemit.com'.$post['url'].'" target="_blank">'.$post['title'].'</a></td>';
 $sum_num += 1;
 } else {
-  $result['content'] .= '<td><a href="https://steemit.com/'.$post['url'].'" target="_blank">'.$post['title'].'</a> (Репост от <a href="'.$conf['siteUrl'].'steem/profiles/'.$post['author'].'" target="_blank">@'.$post['author'].'</a>)</td>';
+  $result['content'] .= '<td><a href="https://steemit.com'.$post['url'].'" target="_blank">'.$post['title'].'</a> (Репост от <a href="'.$conf['siteUrl'].'steem/profiles/'.$post['author'].'" target="_blank">@'.$post['author'].'</a>)</td>';
 $sum_reblogs_num += 1;
 }
 $result['content'] .= '<td>'.$date_for_pay1.'</td>';

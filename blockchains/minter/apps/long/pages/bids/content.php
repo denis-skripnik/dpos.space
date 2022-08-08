@@ -54,6 +54,7 @@ if (!isset($url[3])) {
   $get_active_bids = file_get_contents('http://178.20.43.121:3852/smartfarm/bids/active');
 $active_bids = json_decode($get_active_bids, true);
 $content .= '<h2>Активные ставки</h2>
+<p><strong>Обновляйте страницу, чтоб посмотреть актуальные данные.</strong></p>
 <table id="bids_table"><thead><tr>
 <th>Токен</th>
 <th>Адрес</th>

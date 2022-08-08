@@ -1,11 +1,8 @@
 function checkWorkingNode() {
     const NODES = [
-		"https://viz-node.dpos.space/",
-        "https://node.viz.plus",
-        "https://vizrpc.lexai.host/",
                 "https://viz.lexai.host/",
-                "https://node.viz.cx",
-                "https://node.viz.media"
+                "https://api.viz.world/",
+                "https://node.viz.cx"
             ];
     let node = localStorage.getItem("viz_node") || NODES[0];
     const idx = Math.max(NODES.indexOf(node), 0);
