@@ -1,7 +1,18 @@
 <?php
- if (session_status() == PHP_SESSION_NONE) session_start();
+  if (session_status() == PHP_SESSION_NONE) session_start();
 ini_set('session.gc_maxlifetime', 12000000960);
 ini_set('session.cookie_lifetime', 12000000960);
+define('NOTLOAD', 1); // для защиты от прямого запуска php-файлов 
+require_once 'functions.php';
+if (isset(pageUrl()[1]) && pageUrl()[1] === 'api' && isset(pageUrl()[2])) {
+    if (!isset($_GET)) {
+    require_once(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.pageUrl()[2].'.php');
+} else {
+    $page = explode('?', pageUrl()[2])[0];
+    require_once(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.$page.'.php');
+}
+  return;
+}
 
 function myHandler($level, $message, $file, $line, $context) {
     // в зависимости от типа ошибки формируем заголовок сообщения
@@ -32,9 +43,6 @@ function myHandler($level, $message, $file, $line, $context) {
 // регистрируем наш обработчик, он будет срабатывать на для всех типов ошибок
 set_error_handler('myHandler', E_ALL);
 
-define('NOTLOAD', 1); // для защиты от прямого запуска php-файлов 
-
-require_once 'functions.php';
 $conf = configs("config.json");
 if (!empty($_POST)) {
 $_POST = array_map('trim', $_POST);

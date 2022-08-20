@@ -25,7 +25,7 @@ $result = substr($result, 0, -7);
     return $result;
 }
 
-$html = file_get_contents('https://lcd.cyber.cybernode.ai/txs/'.$datas);
+$html = file_get_contents('https://rpc.cyber.posthuman.digital/txs/'.$datas);
 $tx = json_decode($html, true);
 
 date_default_timezone_set('UTC');

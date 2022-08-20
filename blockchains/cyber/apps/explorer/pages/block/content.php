@@ -26,7 +26,7 @@ try {
   }
   
   function node($params) {
-    $html = file_get_contents('https://deimos.cybernode.ai/'.$params);
+    $html = file_get_contents('https://rpc.cyber.posthuman.digital/'.$params);
     $data = json_decode($html, true);
   return $data['result'];
   }
