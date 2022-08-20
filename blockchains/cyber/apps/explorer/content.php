@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function node($params) {
-  $html = file_get_contents('https://deimos.cybernode.ai/'.$params);
+  $html = file_get_contents('https://rpc.cyber.posthuman.digital/'.$params);
   $data = json_decode($html, true);
 return $data['result'];
 }
@@ -36,10 +36,7 @@ $content .= '<li>Сеть: '.$status['node_info']['network'].'</li>
 <li>Номер последнего блока: '.$status['sync_info']['latest_block_height'].'</li>
 <li>Дата и время последнего блока: '.$status['sync_info']['latest_block_time'].'</li>
 <li>Адрес валидатора: '.$status['validator_info']['address'].'</li>
-<li>тип публичного ключа: '.$status['validator_info']['pub_key']['type'].', ключ: '.$status['validator_info']['pub_key']['value'].'</li>';
-$index_stats = node('index_stats?');
-$content .= '<li>Число ссылок: '.$index_stats['linksCount'].'</li>
-<li>Число аккаунтов: '.$index_stats['accountsCount'].'</li>
+<li>тип публичного ключа: '.$status['validator_info']['pub_key']['type'].', ключ: '.$status['validator_info']['pub_key']['value'].'</li>
 </ul>
 <p align="center"><a href="#contents">К оглавлению</a></p>';
 return $content;

@@ -8,7 +8,8 @@ function pageUrl() {
  в противном случае - выдать ошибку 404
 */
 setlocale(LC_ALL, "ru_RU.UTF-8");
- if (preg_match ("/([^a-zA-Z0-9а-яА-Я\.\/\-\_\?\&\=\#]u)/", $chpu)) {
+setlocale(LC_NUMERIC, 'en_US.UTF8');
+if (preg_match ("/([^a-zA-Z0-9а-яА-Я\.\/\-\_\?\&\=\#]u)/", $chpu)) {
 
    header("HTTP/1.0 404 Not Found");
    echo "Недопустимые символы в URL";
@@ -268,5 +269,56 @@ function get404Page() {
   $data['menu'] = generateMenu();
   require_once 'template/404.php';
 return $data;
+}
+
+function getPage($url) {
+  $cache_url = 'caches/'.urlencode(basename($url));
+  if (strpos($url, 'coingecko') !== false && strpos($url, '/markets') !== false) {
+    $parameters = explode('?', $url)[1];
+    $param = explode('&', $parameters);
+    $vs_currency = explode('=', $param[0])[1];
+    $symbol = explode('=', $param[1])[1];
+    $cache_url = 'caches/markets-'.$vs_currency.'-'.$symbol;
+  } else if (strpos($url, 'coingecko') !== false && strpos($url, '/ohlc') !== false) {
+    $coin = explode('/', $url)[6];
+    $vs_currency_with = explode('?vs_currency=', $url)[1];
+    $vs_currency = explode('&days=', $vs_currency_with)[0];  
+      $cache_url = 'caches/ohlc-'.$coin.'_'.$vs_currency;
+  } else if (substr_count($url, '.') === 3) {
+    $service = explode('/', $url)[3];
+    [$name, $params] = explode('?', $service);
+    $params = str_replace('&', '-', $params);
+    $params = str_replace('=', '', $params);
+      $cache_url = 'caches/'.$name.'-'.$params;
+    }
+
+  $cache_file = $cache_url.'.cache';
+  if(file_exists($cache_file)) {
+  if (strpos($url, 'cbr.ru') !== false && time() - filemtime($cache_file) > 43200) {
+    $cache = file_get_contents($url);
+    $t=explode("<Sell>", $cache);
+    $t=explode("</Sell>", $t[1]);
+    $count = count($t);
+    if (isset($t) && $t[0]<>0 || $count > 14) {
+      return;
+    } else {
+      file_put_contents($cache_file, $cache);
+    }
+  } else if (strpos($url, 'golos-api?service=top') !== false && time() - filemtime($cache_file) > 1800) {
+      $cache = file_get_contents($url);
+      file_put_contents($cache_file, $cache);
+  } else if(time() - filemtime($cache_file) > 60) {
+       // too old , re-fetch
+       $cache = file_get_contents($url);
+       file_put_contents($cache_file, $cache);
+      } else {
+      $cache = file_get_contents($cache_url.'.cache');
+    }
+  } else {
+    // no cache, create one
+    $cache = file_get_contents($url);
+    file_put_contents($cache_file, $cache);
+  }
+return $cache;
 }
 ?>
