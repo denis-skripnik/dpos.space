@@ -25,6 +25,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <option value="author-rewards">Авторские награды</option>
 <option value="curation-rewards">Кураторские награды</option>
 <option value="benefactor-rewards">Бенефициарские награды</option>
+<option value="mentioned">Упоминания</option>
 <option value="votes">Апвоты и флаги</option>
 <option value="reputation">Изменения репутации</option>
 <option value="accounts">Аккаунты</option>
@@ -112,6 +113,17 @@ $data['content'] .= require_once(__DIR__.'/page/curation_rewards.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/benefactor_rewards.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'mentioned') {
+    $data['title'] .= ' - упоминания';
+    $data['description'] .= ' - упоминания';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/comment_mention.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/comment_mention.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'votes') {
     $data['title'] .= ' - Апвоты и флаги';
     $data['description'] .= ' - Апвоты и флаги';

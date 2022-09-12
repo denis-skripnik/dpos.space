@@ -46,7 +46,8 @@ $delegating_sp = round($un_delegating_sp, 3);
 $vesting_withdraw_rate = (float)$mass[0]['vesting_withdraw_rate'] / 1000000 * $steem_per_vests;
 $minus_shares = (float)$delegated_sp - (float)$delegating_sp;
 $all_shares = $minus_shares + (float)$sp;
-
+$emission_received_sp = (float)$mass[0]['emission_received_vesting_shares'] / 1000000 * $steem_per_vests;
+$emission_delegated_sp = (float)$mass[0]['emission_delegated_vesting_shares'] / 1000000 * $steem_per_vests;
 
 date_default_timezone_set('UTC');
 $server_time = time();
@@ -122,7 +123,6 @@ $next_vesting_withdrawal1 = $datas['next_vesting_withdrawal'];
 $next_vesting_withdrawal2 = strtotime($next_vesting_withdrawal1);
 $month6 = date('m', $next_vesting_withdrawal2);
 $next_vesting_withdrawal = date('d', $next_vesting_withdrawal2).' '.$month[$month6].' '.date('Y г. H:i:s', $next_vesting_withdrawal2);
-$accumulative_balance = $datas['accumulative_balance'];
 $tip_balance = $datas['tip_balance'];
 
 $current_time = strtotime($mass3['time']) * 1000;
@@ -250,6 +250,9 @@ $proxied_gpsf_votes = round($proxied_vsf_votes*$tvfs/$tvsh, 3);
 $proxy_shares = round($proxied_gpsf_votes, 3);
 }
 
+if ($datas['frozen'] == true) {
+    $content .= '<p><strong>Аккаунт заморожен для экономии ресурсов. Просьба отправить на него 100 GOLOS для разморозки, если надо его использовать. Это можно сделать <a href="'.$conf['siteUrl'].'golos/wallet" target="_blank">в кошельке</a></strong></p>';
+}
 $content .=  "<table><tr>
 <th>Название</th>
 <th>Значение</th>
@@ -284,7 +287,17 @@ if ($delegating_sp > 0) {
 $content .=  '<tr><td>Делегировано СГ другим аккаунтам</td>
 <td><a data-fancybox class="ajax_modal" data-src="#ajax_modal_content" href="javascript:;" data-url="'.$conf['siteUrl'].'blockchains/golos/apps/profiles/page/delegations.php" data-params="user='.$user.'&siteUrl='.$conf['siteUrl'].'&type=delegated">'.round($delegating_sp, 3).'</a> GOLOS</td></tr>';
 }
-if ($datas['proxied_vsf_votes'][0] != 0) {
+if ($emission_received_sp > 0) {
+    $content .= '<tr><td>Получено в пользование с эмиссией силы Голоса</td>
+    <td>'.round($emission_received_sp, 3).' GOLOS</td>
+    </tr>';
+    }
+    if ($emission_delegated_sp > 0) {
+        $content .= '<tr><td>Делегировано с эмиссией силы Голоса</td>
+        <td>'.round($emission_delegated_sp, 3).' GOLOS</td>
+        </tr>';
+        }
+    if ($datas['proxied_vsf_votes'][0] != 0) {
     $content .=  "<tr><td>Прокси СГ для голосования за делегатов</td>
     <td>$proxy_shares Ƶ</td></tr>";
 }
@@ -315,10 +328,6 @@ if (isset($json_metadata['profile']['select_tags'])) {
 <tr><td>Баланс GBG</td>
 <td>'.$sbd_balance.'</td>
 </tr>';
-if ($accumulative_balance !== '0.000 GOLOS') {
-    $content .= '<tr><td>Баланс наград вестинга</td>
-    <td>'.$accumulative_balance.'</td>';
-}
 if ($tip_balance !== '0.000 GOLOS') {
     $content .= '<tr><td>Баланс донатов</td>
 <td>'.$tip_balance.'</td>';

@@ -7,6 +7,8 @@ return '<h2>Выберите вариант сортировки рейтинг�
 <li><a href="'.$conf['siteUrl'].'golos/top/delegated_gp">Делегированная СГ</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/top/received_gp">Полученная делегированием СГ</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/top/effective_gp">Эффективная СГ (личная - делегированная + полученна делегированием)</a></li>
+<li><a href="'.$conf['siteUrl'].'golos/top/emission_received_gp">Полученная с эмиссией СГ</a></li>
+<li><a href="'.$conf['siteUrl'].'golos/top/emission_delegated_gp">Делегированная с эмиссией СГ</a></li>
 <li><a href="'.$conf['siteUrl'].'golos/top/reputation">Репутация</a></li>
 </ol>
 <h2>UIA активы</h2>
