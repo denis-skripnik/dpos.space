@@ -102,6 +102,8 @@ $chf['convert_fee_percent'] = "Процент комиссии по конвер
 $chf['min_golos_power_to_curate'] = "Мин[' СГ для получения кураторских";
 $chf['negrep_posting_window'] = "Время постинга аккаунтом с отрицательной репутацией (минут)";
 $chf['negrep_posting_per_window'] = "Кол-во постов для публикации аккаунтами с отриц[' репутацией";
+$chf['unwanted_operation_cost'] = "Стоимость нежелательных операций.";
+$chf['unlimit_operation_cost'] = "Цена 1 операции при отрицательной репутации.";
 
 foreach ($props as $prop => $value) {
 if ($prop !== 'min_curation_percent' && $prop !== 'max_curation_percent' && $prop !== 'flag_energy_additional_cost' && $prop !== 'worker_reward_percent' && $prop !== 'witness_reward_percent' && $prop !== 'vesting_reward_percent') {
