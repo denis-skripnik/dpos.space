@@ -45,8 +45,10 @@ chf.convert_fee_percent = "Процент комиссии по конверта
 chf.min_golos_power_to_curate = "Мин. СГ для получения кураторских";
 chf.negrep_posting_window = "Время постинга аккаунтом с отрицательной репутацией (минут)";
 chf.negrep_posting_per_window = "Кол-во постов для публикации аккаунтами с отриц. репутацией";
-
-    golos.api.getWitnessByAccount(golos_login, function(err, res) {
+chf.unwanted_operation_cost = "Стоимость нежелательных операций.";
+chf.nlimit_operation_cost = "Цена 1 операции при отрицательной репутации.";
+    
+golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
     let props = res.props;
 $('input[name=witness_url]').val(res.url);
@@ -177,7 +179,7 @@ let op = [];
 op[0] = 'chain_properties_update';
 op[1] = {};
 op[1].owner = golos_login;
-op[1].props = [6, props];
+op[1].props = [7, props];
 operations.push(op);  
 console.log(JSON.stringify(operations));
 golos.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {
