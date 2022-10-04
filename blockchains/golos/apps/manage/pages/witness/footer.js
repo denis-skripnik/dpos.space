@@ -46,7 +46,7 @@ chf.min_golos_power_to_curate = "Мин. СГ для получения кура
 chf.negrep_posting_window = "Время постинга аккаунтом с отрицательной репутацией (минут)";
 chf.negrep_posting_per_window = "Кол-во постов для публикации аккаунтами с отриц. репутацией";
 chf.unwanted_operation_cost = "Стоимость нежелательных операций.";
-chf.nlimit_operation_cost = "Цена 1 операции при отрицательной репутации.";
+chf.unlimit_operation_cost = "Цена 1 операции при отрицательной репутации.";
     
 golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
@@ -158,7 +158,7 @@ if (prop.indexOf('percent') > -1 || prop.indexOf('min_golos_power_to_curate') ==
         prop_value = parseInt(prop_value);
         } else if (prop === 'allow_distribute_auction_reward' || prop === 'allow_return_auction_reward_to_fund') {
             prop_value = elements[i].checked;
-    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance' || prop === 'min_golos_power_to_curate') {
+    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance' || prop === 'min_golos_power_to_curate' || prop.indexOf('cost') > -1) {
         prop_value = prop_value.toFixed(3) + ' GOLOS';
 } else if (prop === 'worker_request_creation_fee' || prop === 'asset_creation_fee') {
     prop_value = prop_value.toFixed(3) + ' GBG';
@@ -186,7 +186,7 @@ golos.broadcast.send({extensions: [], operations}, [active_key], function(err, r
 if (!err) {
     window.alert('Параметры сохранены успешно.');
 } else {
-if (err.payload.error.message.indexOf('max_referral_term_sec must be <=(60*60*24*30*12)') > -1) {
+    if (err.payload.error.message.indexOf('max_referral_term_sec must be <=(60*60*24*30*12)') > -1) {
     window.alert('Вы указали слишком большое значение Макс. срок получения % от реферала. Оно должно быть <= 360')
 } else if (err.payload.error.message.indexOf("max_curation_percent must be between min_curation_percent and 10000") > -1) {
 window.alert('Максимальный процент кураторских должен быть не более 100 и не менее мин. процента кураторских.');
