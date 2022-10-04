@@ -56,6 +56,7 @@ if (current_user && !current_user.type || current_user && current_user.type !== 
         golos.config.set('oauth.host', API_HOST);
         golos.config.set('websocket', API_HOST + '/api/oauth/sign');
         golos.config.set('credentials', 'include');
+        golos.use(new middlewares.MultiAuthMiddleware())
     }
     
     var golos_login = current_user.login;
@@ -76,7 +77,8 @@ if (!active_key) {
         golos.config.set('oauth.host', API_HOST);
         golos.config.set('websocket', API_HOST + '/api/oauth/sign');
         golos.config.set('credentials', 'include');
-    
+        golos.use(new middlewares.MultiAuthMiddleware())
+
     var golos_login = current_user.login;
     var posting_key = current_user.posting;
     var active_key = current_user.active;
@@ -101,7 +103,8 @@ if (!active_key) {
         golos.config.set('oauth.host', API_HOST);
         golos.config.set('websocket', API_HOST + '/api/oauth/sign');
         golos.config.set('credentials', 'include');
-    
+        golos.use(new middlewares.MultiAuthMiddleware())
+
     $( document ).ready(function() {
         let active_auth_msg = document.getElementById('active_auth_msg');
         let auth_msg = document.getElementById('auth_msg');
@@ -165,7 +168,7 @@ async function deleteAccount(login) {
     if (users.length > 1) {
     for (let user of users) {
         if (user.login === login && user.type === 'golos.app') {
-            await golos.oauth.logout();
+            await golos.multiauth.logout();
 
         }
     

@@ -72,7 +72,7 @@ function pass_gen(){
 }
 
 async function OAuthInit() {
-    const oauth_res = await golos.oauth.checkReliable();
+    const oauth_res = await golos.multiauth.checkReliable();
 if (oauth_res.authorized) {
     $('.oauth_login-form').hide();
     $('.oauth_actions').show();
@@ -85,11 +85,11 @@ $('.loading').hide();
 }
 
 $(document).ready(async function() {
-    $('.oauth_login').click(e => {
-    golos.oauth.login(['transfer', 'account_metadata', 'claim', 'donate', 'comment', 'comment_options', 'worker_request_vote', 'transfer_to_tip', 'transfer_to_vesting', 'account_update', 'transfer_from_tip', 'custom_json', 'limit_order_create', 'delete_comment', 'withdraw_vesting', '', 'account_witness_vote', 'worker_request', 'limit_order_cancel', 'witness_update', 'asset_issue', 'delegate_vesting_shares', 'escrow_release', 'chain_properties_update', 'escrow_transfer', 'escrow_dispute', 'escrow_approve', 'account_create_with_delegation', '', 'delegate_vesting_shares_with_interest', 'account_witness_proxy', 'proposal_create', 'proposal_update', 'proposal_delete', 'invite_claim', 'invite', 'account_create', 'convert', 'transfer_to_savings', 'transfer_from_savings', 'limit_order_cancel_ex', 'cancel_transfer_from_savings', 'asset_update', 'asset_create', 'change_recovery_account']);
-    golos.oauth.waitForLogin(async (res) => {
+    $('.oauth_login').click(async (e) => {
+    await golos.multiauth.login(['transfer', 'account_metadata', 'claim', 'donate', 'comment', 'comment_options', 'worker_request_vote', 'transfer_to_tip', 'transfer_to_vesting', 'account_update', 'transfer_from_tip', 'custom_json', 'limit_order_create', 'delete_comment', 'withdraw_vesting', '', 'account_witness_vote', 'worker_request', 'limit_order_cancel', 'witness_update', 'asset_issue', 'delegate_vesting_shares', 'escrow_release', 'chain_properties_update', 'escrow_transfer', 'escrow_dispute', 'escrow_approve', 'account_create_with_delegation', '', 'delegate_vesting_shares_with_interest', 'account_witness_proxy', 'proposal_create', 'proposal_update', 'proposal_delete', 'invite_claim', 'invite', 'account_create', 'convert', 'transfer_to_savings', 'transfer_from_savings', 'limit_order_cancel_ex', 'cancel_transfer_from_savings', 'asset_update', 'asset_create', 'change_recovery_account']);
+    golos.multiauth.waitForLogin(async (res) => {
         if (localStorage.getItem('golos_users') && JSON.stringify(localStorage.getItem('golos_users')).indexOf(res.account) > -1) {
-            await golos.oauth.logout();            
+            await golos.multiauth.logout();            
         window.alert('Аккаунт с таким-же логином уже добавлен. Просьба удалить его, если хотите использовать OAuth авторизацию.');
             return;
         }
@@ -105,7 +105,7 @@ $(document).ready(async function() {
 });
 
 $('.oauth_logout').click(async (e) => {
-    await golos.oauth.logout();
+    await golos.multiauth.logout();
     let new_list = [];
     if (users.length > 1) {
     for (let user of users) {
