@@ -47,7 +47,8 @@ chf.negrep_posting_window = "Время постинга аккаунтом с �
 chf.negrep_posting_per_window = "Кол-во постов для публикации аккаунтами с отриц. репутацией";
 chf.unwanted_operation_cost = "Стоимость нежелательных операций.";
 chf.unlimit_operation_cost = "Цена 1 операции при отрицательной репутации.";
-    
+chf.min_golos_power_to_emission = "Мин. СГ для получения эмиссии (в GBG)";   
+
 golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
     let props = res.props;
@@ -179,7 +180,7 @@ let op = [];
 op[0] = 'chain_properties_update';
 op[1] = {};
 op[1].owner = golos_login;
-op[1].props = [7, props];
+op[1].props = [8, props];
 operations.push(op);  
 console.log(JSON.stringify(operations));
 golos.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {

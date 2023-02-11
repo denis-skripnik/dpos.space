@@ -43,6 +43,28 @@ return '<div id="auth_msg" style="display: none;"><p>Для работы с ко
                                                  </form>
                                                       </div>
                                                       </div>
+                                                      <div style="display: none;" id="withdraw_modal">
+                                                      <h4 class="modal-title">Вывод <span class="withdraw_modal_token"></span> в <span id="withdraw_modal_blockchain"></span></h4>
+                                                      <p><button data-fancybox-close class="btn">Закрыть</button></p>
+                                                      <div id="action_withdraw">
+                                                <form class="form" name="postForm">
+                                                <p><label for="withdraw_template">Выберите шаблон вывода:</label></p>
+<p><select name="withdraw_template" id="select_withdraw_template">
+<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>
+</select> <span style="display: none;" id="remove_transfer_template">(<input type="button" value="Удалить текущий шаблон" id="action_remove_transfer_template">)</span> </p>
+                                                <p><label for="withdraw_to">Куда:</label></p>
+                                                <p><input type="text" name="withdraw_to" id="action_withdraw_to" placeholder="0x..."></p>
+                                                 <p><label for="withdraw_amount">Сумма вывода (<span id="max_token_withdraw">Перевести все доступные <span id="max_withdraw_amount"></span> <span class="withdraw_modal_token"></span></span>):</label></p>
+                                                <p><input type="text" name="withdraw_amount" id="action_withdraw_amount" placeholder="Введите сумму в формате 1.234"></p>
+<p><strong>Комиссия в Minter: <span id="withdraw_fee"></span></strong></p>
+<p><strong>Комиссия Hub: <span id="withdraw_hub_fee"></span> <span class="withdraw_modal_token"></span></strong></p>
+
+<p><strong>Итоговая сумма, которая вам придёт: <span id="finish_withdraw_amount"></span> <span class="withdraw_modal_token"></span></strong></p><p><input type="button" id="action_withdraw_start" value="Вывести"></p>
+                                                <hr>
+                                                <p><input type="button" id="action_save_withdraw_template" value="Создать шаблон вывода"></p>
+                                                 </form>
+                                                      </div>
+                                                      </div>
                                                       <div style="display: none;" id="convert_modal">
                                                       <h4 class="modal-title">Конвертация <span class="convert_modal_token"></span></h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
