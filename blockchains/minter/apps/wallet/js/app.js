@@ -19,7 +19,22 @@ if (variant === 'coin') {
   $('#actions').append(`<li><a data-fancybox class="delegate_modal" data-src="#delegate_modal" href="javascript:;" data-token="${token}" onclick="getDelegateTemplates('${token}');">Делегировать ${token}</a></li>
   `);
 }
+try {
+  let hub = await axios.get('https://hub-api.minter.network/mhub2/v1/token_infos');
+  if (typeof hub.data.list.token_infos !== undefined && hub.data.list.token_infos.length > 0) {
+let token_infos = hub.data.list.token_infos;
+let isHub = token_infos.filter((val) => typeof val.denom !== 'undefined' && token.toLowerCase().indexOf(val.denom) > -1 && val.chain_id !== 'minter')
+if (typeof isHub !== 'undefined' && isHub.length > 0) {
+for(let el of isHub) {
+  $('#actions').append(`<li><a data-fancybox class="withdraw_modal" data-src="#withdraw_modal" href="javascript:;" data-token="${token}" data-chain="${el.chain_id}" onclick="getWithdrawTemplates('${token}');">Вывести ${token} в ${el.chain_id}</a></li>
+  `); // end link.
 }
+  } // end if yes isHub.
+} // end if yes hub.
+} catch(e) {
+  window.alert(e);
+}
+} // end function.
 
 var link_state = {};
 async function actionsSpoiler(t) {
@@ -128,6 +143,20 @@ function getTransferTemplates(token) {
   let template_count = 1;
   for (let template of transfer_templates) {
 $('#select_transfer_template').append(`<option value="${template_count}" data-to="${template.to}" data-memo="${template.memo}">${template.name}</option>
+`);
+template_count++;
+}
+ }
+}
+
+function getWithdrawTemplates(token) {
+  $('#select_withdraw_template').html('<option value="">Выберите шаблон (данные будут установлены в поля при выборе)</option>');
+  
+  let withdraw_templates = JSON.parse(localStorage.getItem(token + '_minter_withdraw_templates'));
+ if (withdraw_templates && withdraw_templates.length > 0) {
+  let template_count = 1;
+  for (let template of withdraw_templates) {
+$('#select_withdraw_template').append(`<option value="${template_count}" data-to="${template.to}">${template.name}</option>
 `);
 template_count++;
 }
@@ -419,6 +448,28 @@ $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_' + token).html());
   });
 
+  $(document).on('click', '.withdraw_modal', async function(e) {
+    let token = $(this).attr('data-token');
+    $('.withdraw_modal_token').html(token);
+    let blockchain = $(this).attr('data-chain');
+$('#withdraw_modal_blockchain').html(blockchain)
+$('#max_withdraw_amount').html($('#max_' + token).html());
+  
+let hub_fee = await axios.get(`https://hub-api.minter.network/oracle/v1/${blockchain}_fee`);
+if (typeof hub_fee === 'undefined') return;
+let bsc_fee = parseFloat(hub_fee.data.min);
+let hub_prices = await axios.get(`https://hub-api.minter.network/oracle/v1/prices`);
+if (typeof hub_prices === 'undefined') return;
+let hubPrices = hub_prices.data.prices.list;
+let price = 0;
+for (let coin of hubPrices) {
+  if (coin.name === token.toLowerCase()) price = parseFloat(coin.value);
+}
+if (price === 0) return;
+let fee_amount = bsc_fee / price;
+$('#withdraw_hub_fee').html(fee_amount)
+});
+
   $(document).on('click', '.convert_modal', async function(e) {
     let token = $(this).attr('data-token');
 $('.convert_modal_token').html(token);
@@ -547,6 +598,107 @@ max_amount = parseFloat(max_amount);
 }
 $('#action_transfer_amount').val(amount.toFixed(3));
 });
+
+$("#action_withdraw_start").click(async function(){
+  let q = window.confirm('Вы действительно хотите сделать вывод средств?');
+  if (q == true) {
+    let coin = $('.withdraw_modal_token').html();
+   let to = $('#action_withdraw_to').val();
+    let amount = $('#action_withdraw_amount').val();
+    amount = parseFloat(amount);
+    let gasCoin = $('#withdraw_fee').html().split(' ')[1];
+   let blockchain = $('#withdraw_modal_blockchain').html();
+   let send_data = {};
+send_data.recipient = to.trim();
+send_data.type = 'send_to_' + blockchain.toLowerCase();
+let hub_fee = parseFloat($('#withdraw_hub_fee').html().trim());
+let finish_withdraw_amount = amount - hub_fee;
+$('#finish_withdraw_amount').html(finish_withdraw_amount)
+hub_fee *= (10 ** 18);
+send_data.fee = hub_fee.toString();
+let memo = JSON.stringify(send_data);
+   
+   try {
+    $.fancybox.close(); 
+    await send('Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', amount, coin, memo, '', gasCoin)
+   await loadBalances();
+  } catch(e) {
+  window.alert('Ошибка: ' + e);
+   }
+  }
+    }); // end subform
+  
+    $('#action_withdraw_to').change(async function() {
+      let coin = $('.withdraw_modal_token').html();
+      let to = $('#action_withdraw_to').val();
+      let amount = $('#action_withdraw_amount').val();
+      let blockchain = $('#withdraw_modal_blockchain').html();
+      if (amount === '') {
+        amount = 1;
+      } else {
+        amount = parseFloat(amount);
+      }
+      let send_data = {};
+      send_data.recipient = to.trim();
+      send_data.type = 'send_to_' + blockchain.toLowerCase();
+      let hub_fee = parseFloat($('#withdraw_hub_fee').html().trim());
+      let finish_withdraw_amount = amount - hub_fee;
+$('#finish_withdraw_amount').html(finish_withdraw_amount)
+      hub_fee *= (10 ** 18);
+      send_data.fee = hub_fee.toString();
+      
+      let memo = JSON.stringify(send_data);
+      if (to !== '') {
+        let {fee, bip_fee} = await send('Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', amount, coin, memo, 'fee', coin);
+        let coin_fee = coin;
+        if (fee === bip_fee) coin_fee = 'BIP';
+        $('#withdraw_fee').html(fee + ` ${coin_fee}`);
+        let max_amount = $('#max_withdraw_amount').html();
+  max_amount = parseFloat(max_amount);
+        if (amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
+          amount = amount - (amount + fee - max_amount);
+        } else if (amount > max_amount && fee === coin_fee && coin !== 'BIP') {
+            amount = amount - (amount - max_amount);
+        }
+      $('#action_withdraw_amount').val(amount.toFixed(3));
+      }
+    });
+    $('#action_withdraw_amount').change(async function() {
+      let coin = $('.withdraw_modal_token').html();
+      let to = $('#action_withdraw_to').val();
+      let amount = $('#action_withdraw_amount').val();
+      let blockchain = $('#withdraw_modal_blockchain').html();
+      if (amount === '') {
+        amount = 1;
+      } else {
+        amount = parseFloat(amount);
+      }
+      let send_data = {};
+      send_data.recipient = to.trim();
+      send_data.type = 'send_to_' + blockchain.toLowerCase();
+      let hub_fee = parseFloat($('#withdraw_hub_fee').html().trim());
+      let finish_withdraw_amount = amount - hub_fee;
+$('#finish_withdraw_amount').html(finish_withdraw_amount)
+      hub_fee *= (10 ** 18);
+      send_data.fee = hub_fee.toString();
+      
+      let memo = JSON.stringify(send_data);
+      if (to !== '') {
+        let {fee, bip_fee} = await send('Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', amount, coin, memo, 'fee', coin);
+        let coin_fee = coin;
+        if (fee === bip_fee) coin_fee = 'BIP';
+        $('#withdraw_fee').html(fee + ` ${coin_fee}`);
+        let max_amount = $('#max_withdraw_amount').html();
+  max_amount = parseFloat(max_amount);
+        if (amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
+          amount = amount - (amount + fee - max_amount);
+        } else if (amount > max_amount && fee === coin_fee && coin !== 'BIP') {
+            amount = amount - (amount - max_amount);
+        }
+      $('#action_withdraw_amount').val(amount.toFixed(3));
+      }
+    });
+
 
 $("#action_convert_start").click(async function(){
   let q = window.confirm('Вы действительно хотите сделать обмен средств?');
@@ -718,6 +870,82 @@ try {
   }
 }); // end action_remove_transfer_template
     
+$("#action_save_withdraw_template").click(function(){
+  let name = window.prompt('Введите название шаблона');
+  if (name && name !== '') {
+    try {
+     let  token = $('.withdraw_modal_token').html();
+     let action_withdraw_to = $('#action_withdraw_to').val();
+  
+  let withdraw_templates = JSON.parse(localStorage.getItem(token + '_minter_withdraw_templates'));
+   if (withdraw_templates && withdraw_templates.length > 0) {
+    let counter = 0; 
+    for (let template of withdraw_templates) {
+       if (name === template.name) {
+        counter = 1;
+        template.to = action_withdraw_to;
+       } // end if to.
+     } // end for.
+   if (counter === 0) {
+    withdraw_templates.push({name, to: action_withdraw_to});
+   }
+    } // end if templates.
+   else {
+     withdraw_templates = [];
+     withdraw_templates.push({name, to: action_withdraw_to});
+   }
+        localStorage.setItem(token + '_minter_withdraw_templates', JSON.stringify(withdraw_templates));
+  window.alert('Шаблон добавлен.');
+  getWithdrawTemplates(token);
+ } catch(e) {
+    window.alert('Ошибка: '  + JSON.stringify(e))
+  }
+  } else {
+    window.alert('Вы отменили создание шаблона.');
+  }
+}); // end subform
+
+$('#select_withdraw_template').change(function() {
+if ($('#select_withdraw_template').val() === '') {
+ $('#remove_withdraw_template').css('display', 'none');
+ $('#action_withdraw_to').val('');
+} else {
+ $('#remove_withdraw_template').css('display', 'inline');
+ $('#action_withdraw_to').val(String($(':selected', this).data('to')));
+}
+});
+
+$('#action_remove_withdraw_template').click(function() {
+let q = window.confirm('Вы действительно хотите удалить выбранный шаблон?');
+if (q == true) {
+let value = $('#select_withdraw_template').val();
+let token = $('.withdraw_modal_token').html();
+let option = document.querySelector("#select_withdraw_template option[value='" + value + "']");
+if (option) {
+   option.remove();
+}
+try {
+let withdraw_templates = JSON.parse(localStorage.getItem(token + '_minter_withdraw_templates'));
+let templates = [];
+if (withdraw_templates && withdraw_templates.length > 0) {
+let counter = 1;
+for (let template of withdraw_templates) {
+ if (counter !== parseInt(value)) {
+   templates.push(template);
+ }
+counter++;
+}
+localStorage.setItem(token + '_minter_withdraw_templates', JSON.stringify(templates));
+window.alert('Шаблон удалён.');
+$('#remove_withdraw_template').css('display', 'none');
+$('#action_withdraw_to').val('');
+}
+} catch(e) {
+window.alert('Ошибка: ' + e);
+}
+}
+}); // end action_remove_withdraw_template
+
       $('#select_delegate_template').change(async function() {
         if ($('#select_delegate_template').val() === '') {
           $('#remove_delegate_template').css('display', 'none');
@@ -796,6 +1024,33 @@ try {
         }
       });
     
+      $("#max_token_withdraw").click(async function(){
+        let coin = $('.withdraw_modal_token').html();
+        let to = $('#action_withdraw_to').val();
+        let max_amount = parseFloat($('#max_withdraw_amount').html());
+        let blockchain = $('#withdraw_modal_blockchain').html();
+        let send_data = {};
+     send_data.recipient = to.trim();
+     send_data.type = 'send_to_' + blockchain.toLowerCase();
+     let hub_fee = parseFloat($('#withdraw_hub_fee').html().trim());
+     let finish_withdraw_amount = max_amount - hub_fee;
+     $('#finish_withdraw_amount').html(finish_withdraw_amount)
+     hub_fee *= (10 ** 18);
+     send_data.fee = hub_fee.toString();
+     let memo = JSON.stringify(send_data);    
+        
+     if (to !== '') {
+          let {fee, bip_fee} = await send(to, max_amount, coin, memo, 'fee', coin);
+          let coin_fee = coin;
+          if (fee === bip_fee) coin_fee = 'BIP';
+          $('#withdraw_fee').html(fee + ` ${coin_fee}`);
+          if (max_amount + fee > max_amount && (coin === 'BIP' || fee !== coin_fee)) {
+            max_amount -= fee;
+          }
+        $('#action_withdraw_amount').val(max_amount.toFixed(3));
+        }
+      });
+
          $("#max_token_convert").click(async function(){
           let token = $('.convert_modal_token').html();
           $('#action_convert_amount').val(new Number(parseFloat($('#max_' + token).html())).toFixed(3));
