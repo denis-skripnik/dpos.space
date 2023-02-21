@@ -1,3 +1,12 @@
+function copyKey(that){
+    var inp =document.createElement('input');
+    document.body.appendChild(inp)
+    inp.value =that.textContent
+    inp.select();
+    document.execCommand('copy',false);
+    inp.remove();
+    }
+
 function saveAccount() {
     let login = $('#login').val();
     let posting_key = $('#posting_key').val();
@@ -59,3 +68,25 @@ $('#auth_msg').html('Вероятно, аккаунт не существует.
 }
 });
 }
+
+$(document).ready(function() {
+$('#get_keys').click(async function() {
+let login = $('[name=login_for_keys]').val();
+let password = $('[name=owner_password]').val();
+var keys = steem.auth.getPrivateKeys(login, password);
+$('#login').val(login);
+$('#active_key').val(keys.active);
+$('#posting_key').val(keys.posting);
+let res = '';
+for (let type in keys) {
+    if (type.indexOf('Pubkey') === -1) {
+let key = keys[type];
+let pubkey = keys[type + 'Pubkey'];
+        res += `
+<li>${type}: <span onclick="copyKey(this)">${key}</span> (Публичный ключ: ${pubkey})</li>`;
+}
+}
+$('#result_keys').html(`<h3>ключи</h3>
+<ul>${res}</ul>`);
+})
+});
