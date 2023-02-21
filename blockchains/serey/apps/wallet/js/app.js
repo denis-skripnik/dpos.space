@@ -181,7 +181,7 @@ if (!err) {
 window.alert('Вывод на ' + action_vesting_withdraw_amount + ' начат.');
 location.reload();
 } else {
-window.alert('Ошибка: ' + err);
+window.alert('Ошибка: ' + JSON.stringify(err));
 }
   });
 
