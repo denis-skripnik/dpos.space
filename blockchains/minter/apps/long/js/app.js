@@ -7,6 +7,64 @@ if (localStorage.getItem('minter_long_referer') !== null) {
         referer = ref_address;
     }
 
+    function updateBidsTable(url) {
+        $.ajax({
+          url: `https://backend.dpos.space/smartfarm/bids/active?coin=${url[4]}`,
+          success: function(data) {
+            // Разбор полученных данных
+            var active_bids = JSON.parse(data);
+
+            var sum_plus = 0;
+            var sum_minus = 0;
+            var count_plus = 0;
+            var count_minus = 0;
+            var coefficient = 0;
+      
+            // Подсчет суммы ставок и их количества
+            for (var i = 0; i < active_bids.length; i++) {
+              var bid = active_bids[i];
+              if (bid.direction === "+") {
+                sum_plus += bid.amount;
+                count_plus++;
+              } else if (bid.direction === "-") {
+                sum_minus += bid.amount;
+                count_minus++;
+              }
+            }
+      
+            // Вычисление коэффициента
+            if (count_plus === 0 || count_minus === 0) {
+              coefficient = "Все ставки будут возвращены";
+            } else {
+                coefficient = ((sum_plus - (sum_plus * 0.1)) / sum_minus) + 1;
+                coefficient = coefficient.toFixed(2);
+            }
+
+            // Обновление таблицы
+            var table = $("#bids_table");
+            table.empty();
+            table.append("<thead><tr><th>Токен</th><th>Адрес</th><th>Сумма</th><th>Прогноз направления</th></tr></thead>");
+            var tbody = $("<tbody>");
+            for (var i = 0; i < active_bids.length; i++) {
+              var bid = active_bids[i];
+              var row = $("<tr>");
+              row.append("<td>" + bid.token + "</td>");
+              row.append("<td><a href='https://dpos.space/minter/profiles/" + bid.address + "' target='_blank'>" + bid.address + "</a></td>");
+              row.append("<td>" + bid.amount.toFixed(8) + " " + bid.send_coin + "</td>");
+              row.append("<td>" + bid.direction + "</td>");
+              tbody.append(row);
+            }
+            table.append(tbody);
+      
+            // Обновление коэффициента
+            $("#coefficient").text("Коэффициент: " + coefficient);
+      
+            // Рекурсивный вызов функции через 3 секунды
+            setTimeout(updateBidsTable(url), 3000);
+          }
+        });
+      }
+      
 async function getPrices() {
     let get_price = (await axios.get('/swap_pool/0/2782')).data;
     let price = parseFloat(get_price.amount0) / parseFloat(get_price.amount1);
@@ -142,6 +200,7 @@ $('#selected_symbol').html(symbol);
 
 $(document).ready(async function() {
     var url = document.location.pathname;
+    updateBidsTable(url.split('/'));
     const date = new Date().toLocaleString();
     if (document.getElementById('page_date')) $('#page_date').html(date);
     
@@ -443,16 +502,9 @@ setInterval(endRound, 5000);
 // Конец блока кода лотерей с покупкой билетов или игры rps.
 
 // Ставки на курс крипты и пулов.
-let {bid_bip_balance, bid_bip_fee, bid_symbol_balance, bid_symbol_fee} = await selectedSendCoin(address, memo, 'LONG');
 
-$('#bid_send_coin').change(async function() {
-    let symbol = $('#bid_send_coin').val();
-    let selected_coin = await selectedSendCoin(address, memo, symbol);
-    bid_bip_balance = selected_coin.bid_bip_balance;
-    bid_bip_fee = selected_coin.bid_bip_fee;
-    bid_symbol_balance = selected_coin.bid_symbol_balance;
-    bid_symbol_fee = selected_coin.bid_symbol_fee;
-});
+let symbol = $('#bid_send_coin').val();
+let {bid_bip_balance, bid_bip_fee, bid_symbol_balance, bid_symbol_fee} = await selectedSendCoin(address, memo, symbol);
 
 $('#max_bid').click(async function() {
     let max = parseFloat($('#max_bid').html());
