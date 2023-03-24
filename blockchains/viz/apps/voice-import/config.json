@@ -1,0 +1,6 @@
+{
+"title": "Voice: импорт из telegra.ph",
+"description": "Это сервис, реализующий функционал импорта статьи из telegra.ph в readdle.me.",
+"in_menu": "Импорт в Voice",
+"category": "tools"
+}
