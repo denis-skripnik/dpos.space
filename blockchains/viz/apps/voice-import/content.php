@@ -7,4 +7,5 @@ return '<div id="posting_auth_msg" style="display: none;"><p>Для импорт
 <br>
 <button type="button" id="import-button">Импортировать</button>
 </form>
+<div color="red" id="results"></div>
 </div>'; ?>
