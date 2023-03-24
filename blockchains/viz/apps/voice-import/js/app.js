@@ -4,13 +4,18 @@ async function importArticle(url) {
   try {
     const response = await axios.get('https://dpos.space/blockchains/viz/apps/voice-import/proxy.php?url=' + url);
       const $$ = cheerio.load(response.data);
-      const title = $$('#_tl_editor h1').text();
-      const articleContent = $$('#_tl_editor').clone();
-      articleContent.find('h1, address').remove();
-      articleContent.find('h6').replaceWith((i, el) => $$(el).text()).end()
-      .find('h5').replaceWith((i, el) => $$(el).html(`<h4>${$$(el).html()}</h4>`)).end()
-      .find('h4').replaceWith((i, el) => $$(el).html(`<h3>${$$(el).html()}</h3>`)).end()
-      .find('h3').replaceWith((i, el) => $$(el).html(`<h2>${$$(el).html()}</h2>`)).end();
+      let title = $$('#_tl_editor h1').text();
+      let articleContent = $$('#_tl_editor').clone();
+if (url.indexOf('telegra.ph') > -1) {
+  articleContent.find('h1, address').remove();
+  articleContent.find('h6').replaceWith((i, el) => $$(el).text()).end()
+  .find('h5').replaceWith((i, el) => $$(el).html(`<h4>${$$(el).html()}</h4>`)).end()
+  .find('h4').replaceWith((i, el) => $$(el).html(`<h3>${$$(el).html()}</h3>`)).end()
+  .find('h3').replaceWith((i, el) => $$(el).html(`<h2>${$$(el).html()}</h2>`)).end();
+} else if (url.indexOf('mirror.xyz') > -1) {
+        title = $$('title').text().split(' — ')[0];
+        articleContent = $$('.css-175qwzc div').clone();
+}
       const content = articleContent.html();
       const images = await Promise.all($$('img').map(async (i, el) => {
         const imgURL = $$(el).attr('src');
@@ -71,6 +76,8 @@ async function importArticle(url) {
     $('#import-button').click(async () => {
       const url = $('#url-input').val();
       const article = await importArticle(url);
-    await publishPost(article.title, article.content);
+      article.content += `<p>Пост импортирован при помощи <a href="https://dpos.space/viz/voice-import" target="_blank">voice-import</a>.<br>
+<b><a href="${url}" target="_blank">источник</a></b></p>`;
+      await publishPost(article.title, article.content);
     });
   });
