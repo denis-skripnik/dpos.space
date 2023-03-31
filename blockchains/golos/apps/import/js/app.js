@@ -79,10 +79,12 @@ if (url.indexOf('telegra.ph') > -1) {
   const images = [];
   const imgElements = articleContent.find('img');
   for (let i = 0; i < imgElements.length; i++) {
-    const imgURL = articleContent.find(imgElements[i]).attr('src');
+    let imgURL = articleContent.find(imgElements[i]).attr('src');
+if (imgURL.indexOf('http') === -1) imgURL = `https://telegra.ph${imgURL}`;
     const newURL = await uploadImage(imgURL);
     articleContent.find(imgElements[i]).attr('src', newURL).attr('style', 'max-width: 100%; height: auto;');
     featuredImage.push(newURL);
+    images.push(newURL)
   }
   } else if (url.indexOf('mirror.xyz') > -1) {
         title = $$('title').text().split(' — ')[0];
@@ -115,7 +117,8 @@ if (el_variant === 1) {
   articleContent.find(el).parent().parent().parent().append(newImg);
   articleContent.find(el).parent().parent().remove()
 }
-        images.push(newURL);
+featuredImage.push(newURL);
+images.push(newURL);
       }
     }
     let content = articleContent.html();
@@ -159,9 +162,6 @@ if (el_variant === 1) {
     account: 'denis-skripnik',
     weight: 100
 }]
-  const extensions = [];
-  extensions.push([0,{beneficiaries:benif}]);
-   extensions.push([2,{percent:5000}]);
   var category = document.getElementById('content_category').value;
     if (document.getElementById('content_tags').value === '') {
       var content_tags = 'import_article dpos-post';
@@ -187,11 +187,18 @@ permlink=permlink.replace(/--/g,'-');
 permlink=permlink.replace(/--/g,'-');
 permlink=permlink.replace(/^\-+|\-+$/g, '');
 let content = await golos.api.getContentAsync(golos_login, permlink, 0);
+let isEdit = false;
 if (content.author !== '') {
-  var q = window.confir('Пост с таким пермлинком существует. Вы действительно хотите его заменить?');
+  var q = window.confirm('Пост с таким пермлинком существует. Вы действительно хотите его заменить?');
   if (q == false) return;
+  isEdit = true;
 }
      try {
+      const extensions = [];
+if (isEdit === false) {
+  extensions.push([0,{beneficiaries:benif}]);
+  extensions.push([2,{percent:5000}]);
+}
       const operations = [
         ['comment', {'parent_author':'','parent_permlink':category,'author':golos_login,'permlink':permlink,'title':title,'body':body,'json_metadata':JSON.stringify(jsonMetadata)}],['comment_options',{'author':golos_login,'permlink':permlink,'max_accepted_payout':'1000000.000 GBG','percent_steem_dollars':10000,'allow_votes':true,'allow_curation_rewards':true,extensions}]];
        console.log(JSON.stringify(operations));

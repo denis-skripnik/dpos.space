@@ -17,7 +17,8 @@ if (url.indexOf('telegra.ph') > -1) {
   const images = [];
   const imgElements = articleContent.find('img');
   for (let i = 0; i < imgElements.length; i++) {
-    const imgURL = articleContent.find(imgElements[i]).attr('src');
+    let imgURL = articleContent.find(imgElements[i]).attr('src');
+    if (imgURL.indexOf('http') === -1) imgURL = `https://telegra.ph${imgURL}`;
     const newURL = await uploadImage(imgURL);
     articleContent.find(imgElements[i]).attr('src', newURL).attr('style', 'max-width: 100%; height: auto;');
     images.push(newURL);
