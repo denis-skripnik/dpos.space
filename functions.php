@@ -47,8 +47,13 @@ function inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snipp
   $search_script = array_search('app.js', $scripts);
   if ($search_script) {
     $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js');
-    $data['scripts'] .= '
+    if ($url[1] === 'voice-import') {
+  $data['scripts'] .= '
   <script type="module" src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
+} else {
+  $data['scripts'] .= '
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
+}
   }
   }
   $data['styles'] = '';
@@ -147,7 +152,7 @@ if (!isset($data)) {
   if ($search_script) {
     $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js');
     $data['scripts'] .= '
-  <script type="module" src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
+  <script src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
   }
   }
   $data['styles'] = '';

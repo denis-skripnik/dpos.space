@@ -1,0 +1,6 @@
+{
+"title": "Импорт",
+"description": "Это сервис, реализующий функционал импорта статьи из telegra.ph и mirror.xyz на Golos.",
+"in_menu": "Импорт статьи",
+"category": "tools"
+}
