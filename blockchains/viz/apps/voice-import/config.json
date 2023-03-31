@@ -1,6 +1,6 @@
 {
 "title": "Импорт в voice (readdle.me)",
-"description": "Это сервис, реализующий функционал импорта статьи из telegra.ph и mirror.xyz в readdle.me (проткол Voice).",
+"description": "Это сервис, реализующий функционал импорта статьи из telegra.ph и mirror.xyz в readdle.me (протокол Voice).",
 "in_menu": "Импорт в Voice",
 "category": "tools"
 }
