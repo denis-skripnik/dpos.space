@@ -125,11 +125,13 @@ foreach ($posts as $post) {
 
     $all_beneficiaries = 0;
     $beneficiaries_list = '';
+    if (isset($post['beneficiaries']) && count($post['beneficiaries']) > 0) {
     foreach ($post['beneficiaries'] as $beneficiarie) {
         $all_beneficiaries += $beneficiarie['weight'];
         $beneficiarie_weight = $beneficiarie['weight'] / 100;
         $beneficiaries_list .= $beneficiarie['account'] . " - " . $beneficiarie_weight . "%  ";
     }
+}
     $beneficiaries_procent = $all_beneficiaries / 100;
     $result['content'] .= '<td>' . $beneficiaries_list . '</td>'; // список бенефециариатов
 
