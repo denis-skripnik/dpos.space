@@ -3,7 +3,7 @@ require_once 'functions.php';
 function generateAppPages() {
     $token = pageUrl()[2];
     $token = mb_strtolower($token);
-    $tokens = ['viz' => 'VIZ', 'shares' => 'соц. капиталу', 'delegated_shares' => 'делегированному другим соц. капиталу', 'received_shares' => 'полученному делегированием соц. капиталу', 'effective_shares' => 'эффективному соц. капиталу'];
+    $tokens = ['viz' => 'VIZ', 'shares' => 'соц. капиталу', 'delegated_shares' => 'делегированному другим соц. капиталу', 'received_shares' => 'полученному делегированием соц. капиталу', 'effective_shares' => 'эффективному соц. капиталу', 'vesting_withdraw_rate' => 'Выводимому соц. капиталу'];
     $page_numtext = 'страница 1';
     if (isset(pageUrl()[3])) {
 $page_numtext = 'страница '.pageUrl()[3];

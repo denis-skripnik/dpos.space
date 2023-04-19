@@ -194,7 +194,7 @@ $content .= '<tr>
 <td>'.number_format($provider['get_amount'], 3, ',', '&nbsp;').' LONG ('.$get_counter.' получений)</td>
 <td>'.number_format($farming_share, 3, ',', '&nbsp;').' LONG ('.round($provider_percent, 3).'%)</td>
 <td>'.$bonus_value.'</td>
-<td><a href="/minter/long/calc/'.$provider['address'].'" target="_blank">Семейный калькулятор</a>, <a data-fancybox data-src="#referer_info" href="javascript:;" onclick="$(`#referer_info`).html(`'.$provider['referer'].'`)">Пригласитель</a></td>
+<td><a href="/minter/long/dragon/'.$provider['address'].'" target="_blank"><img src="/blockchains/minter/apps/long/dragons/'.$provider['invest_days_share'].'.png" alt="'.$provider['invest_days_share'].'%" style="width:100%; max-width:100px; height:auto;"> Дракон</a>, <a href="/minter/long/calc/'.$provider['address'].'" target="_blank">Семейный калькулятор</a>, <a data-fancybox data-src="#referer_info" href="javascript:;" onclick="$(`#referer_info`).html(`'.$provider['referer'].'`)">Пригласитель</a></td>
 </tr>';
 }
 $content .= '</tbody></table>';

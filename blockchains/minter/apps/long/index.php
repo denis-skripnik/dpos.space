@@ -7,7 +7,7 @@ function generateAppPages($blockchain_snippet) {
     $permlink = pageUrl()[2];
 
     if (is_dir(__DIR__.'/pages/'.$permlink)) {
-            $page_config = configs(__DIR__.'/pages/'.$permlink.'/config.json');
+        $page_config = configs(__DIR__.'/pages/'.$permlink.'/config.json');
         $data = [];
         $data['title'] = $page_config['title'];
         $data['description'] = $page_config['description'];

@@ -5,5 +5,6 @@ return '<h2>Выберите токен</h2>
 <li><a href="'.$conf['siteUrl'].'viz/top/effective_shares">Эффективный соц. капитал</a></li>
 <li><a href="'.$conf['siteUrl'].'viz/top/received_shares">Полученный делегированием соц. капитал</a></li>
 <li><a href="'.$conf['siteUrl'].'viz/top/delegated_shares">Делегированный другим соц. капитал</a></li>
+<li><a href="'.$conf['siteUrl'].'viz/top/vesting_withdraw_rate">Выводимый соц. капитал</a></li>
 </ol>
 '; ?>

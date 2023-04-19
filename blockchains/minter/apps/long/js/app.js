@@ -214,6 +214,11 @@ $('#is_provider').html('<p><strong>К сожалению вы не являет�
 });
 }
 
+if (url.indexOf('dragon') > -1) {
+    let dragon_address = $('#dragon_address').html();
+    if (dragon_address !== sender.address) $('#dragon_table').css('display', 'none');
+
+}
     $('#max_lp').click(function() {
     let amount = $('#max_lp').html();
     $('[name=lp_tokens]').val(amount);
@@ -616,7 +621,9 @@ long_amount = amount / price;
 $('#action_add_liquidity').click(async function() {
     let amount1 = parseFloat($('[name=add_amount]').val().replace(',', '.'));
     let amount2 = parseFloat($('[name=add_bip_amount]').val().replace(',', '.'));    
-var q = window.confirm('Вы действительно хотите добавить ликвидность?');
+var q_text = 'Вы действительно хотите добавить ликвидность?';
+if (url.indexOf('dragon') > -1) q_text = 'Вы ддействительно желаете меня накормить?! ☺';
+    var q = window.confirm(q_text);
 if (q === true) {
     await addToPool('LONG', 'BIP', amount1, amount2, '', '', add_gasCoin, referer);
 }

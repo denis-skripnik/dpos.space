@@ -381,7 +381,7 @@ if (balance < 0.001) {
 } else {
     balance = balance.toFixed(3);
 }
-              balances.push({coin: token.coin.symbol, amount: balance, type: token.coin.type});
+              balances.push({id: token.coin.id, coin: token.coin.symbol, amount: balance, type: token.coin.type});
             }
             return balances;
             } catch(e) {

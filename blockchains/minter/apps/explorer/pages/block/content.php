@@ -52,16 +52,13 @@ $block = node('block/'.$datas);
 
   date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
-$timestamp1 = $block['time'];
+$timestamp1 = explode('.', $block['time'])[0];
 $timestamp2 = strtotime($timestamp1);
 $month1 = date('m', $timestamp2);
 $timestamp = date('d', $timestamp2).' '.$month[$month1].' '.date('Y г. H:i:s', $timestamp2);
 $prev_block = $datas-1;
 $next_block = $datas+1;
 
-  $content = '<h2>Блок №'.$datas.' (<a href="'.$conf['siteUrl'].'minter/explorer/block/'.$prev_block.'" target="_blank">← предыдущий</a>, <a href="'.$conf['siteUrl'].'minter/explorer/block/'.$next_block.'" target="_blank">→ следующий</a>)</h2>
-<h3>Транзакции</h3>
-<ol>';
 $txs = node('block/'.$datas)['transactions'];
 $types = [
   1 => 'Отправка',
@@ -104,22 +101,28 @@ $types = [
 38 => 'Блокировка токенов',
 39 => 'Перенос стейка'
 ];
-foreach ($txs as $num => $tr) {
-  $content .= '<li><h3>Хеш: <a href="'.$conf['siteUrl'].'minter/explorer/tx/'.$tr['hash'].'" target="_blank">'.$tr['hash'].'</a></h3>
-<table><tr><th>Тип транзакции</th>
-  <th>JSON</th></tr>';
-  if (isset($tr[0])) {
-    foreach ($tr['data'] as $op) {
-      $op_data = convert_operation_data($op, $conf['siteUrl']);
-        $content .= '<tr><td>'.$types[$tr['type']].'</td>
-      <td>'.$op_data.'</td></tr>';
-        }
-  } else {
-    $op_data = convert_operation_data($tr['data'], $conf['siteUrl']);
-    $content .= '<tr><td>'.$types[$tr['type']].'</td>
-  <td>'.$op_data.'</td></tr>';
+
+$content = '<h2>Блок №'.$datas.' (<a href="'.$conf['siteUrl'].'minter/explorer/block/'.$prev_block.'" target="_blank">← предыдущий</a>, <a href="'.$conf['siteUrl'].'minter/explorer/block/'.$next_block.'" target="_blank">→ следующий</a>)</h2>
+<h3>Транзакции: '.$block['transaction_count'].'</h3>
+<ol>';
+if (count($txs) > 0) {
+  foreach ($txs as $num => $tr) {
+    $content .= '<li><h3>Хеш: <a href="'.$conf['siteUrl'].'minter/explorer/tx/'.$tr['hash'].'" target="_blank">'.$tr['hash'].'</a></h3>
+  <table><tr><th>Тип транзакции</th>
+    <th>JSON</th></tr>';
+    if (isset($tr[0])) {
+      foreach ($tr['data'] as $op) {
+        $op_data = convert_operation_data($op, $conf['siteUrl']);
+          $content .= '<tr><td>'.$types[$tr['type']].'</td>
+        <td>'.$op_data.'</td></tr>';
+          }
+    } else {
+      $op_data = convert_operation_data($tr['data'], $conf['siteUrl']);
+      $content .= '<tr><td>'.$types[$tr['type']].'</td>
+    <td>'.$op_data.'</td></tr>';
+    }
+    $content .= '</table></li>';
   }
-  $content .= '</table></li>';
 }
 $content .= '</ol>
 

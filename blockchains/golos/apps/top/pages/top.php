@@ -35,7 +35,7 @@ $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=top&type=
 $top = json_decode($html, true);
 $next_page = true;
 if ($top && count($top) > 0) {
-$fields = ['name' => 'Логин', 'gp' => 'СГ (%)', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвоутинге', 'emission_received_gp' => 'Получено СГ с эмиссией', 'emission_delegated_gp' => 'Делегировано СГ с эмиссией', 'golos' => 'Баланс GOLOS (%)', 'gbg' => 'Баланс GBG (%)', 'tip_balance' => 'TIP-баланс', 'market_balance' => 'Маркет-баланс', 'reputation' => 'Репутация'];
+$fields = ['name' => 'Логин', 'gp' => 'СГ (%)', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвоутинге', 'emission_received_gp' => 'Получено СГ с эмиссией', 'emission_delegated_gp' => 'Делегировано СГ с эмиссией', 'gp_withdraw_rate' => 'Выводится СГ', 'golos' => 'Баланс GOLOS (%)', 'gbg' => 'Баланс GBG (%)', 'tip_balance' => 'TIP-баланс', 'market_balance' => 'Маркет-баланс', 'reputation' => 'Репутация'];
 if ($top) {
 $tr = '';
     $th = '<tr>';
