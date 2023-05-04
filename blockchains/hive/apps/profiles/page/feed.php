@@ -131,9 +131,10 @@ foreach ($posts as $content) {
 $month2 = date('m', $created2);
 $created = date('j', $created2).' '.$month[$month2].' '.date('Y г. H:i:s', $created2);
 $metadata = json_decode($content['json_metadata'], true);
-if (isset($metadata['tags'])) {
+$tegi = [];
+$filter_teg = array();
+if (isset($metadata) && isset($metadata['tags'])) {
     $tegi = $metadata['tags'];
-    $filter_teg = array();
 }    
 
     if ($content['author'] !== 'now') {
@@ -165,8 +166,8 @@ if (isset($metadata['tags'])) {
 $result['content'] .= '</td></tr>';
 }
 } // Конец цикла
-$result['nextIsExists'] = ! is_null($newStartAuthor);
-if ($result['nextIsExists']) {
+$result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);
+if (isset($result['nextIsExists']) && $result['nextIsExists']) {
     $result['next'] = [
         'startAuthor' => $newStartAuthor,
         'startPermlink' => $newStartPermlink,

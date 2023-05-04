@@ -6,7 +6,7 @@ $mass = $res['result'];
 function convert_operation_data($arr, $site_url) {
   $result = '{<br />';
   foreach ($arr as $key => $value) {
-    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'producer' || $key === 'owner' || $key === 'publisher' || $key === 'author' || $key === 'curator' || $key === 'comment_author' || $key === 'witness') {
+    if ($key === 'from' || $key === 'initiator' || $key === 'receiver' || $key === 'to' || $key === 'account' || $key === 'account_seller' || $key === 'subaccount_seller' || $key === 'seller' || $key === 'benefactor' || $key === 'new_account_name' || $key === 'producer' || $key === 'publisher' || $key === 'author' || $key === 'curator' || $key === 'comment_author' || $key === 'witness') {
       $result .= $key.': "<a href="'.$site_url.'steem/profiles/'.$value.'" target="_blank">'.$value.'</a>",';
     } else if ($key === 'beneficiaries') {
 $benif = $key.': [';

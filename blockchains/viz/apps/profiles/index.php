@@ -131,6 +131,8 @@ $data['content'] .= require_once(__DIR__.'/page/subscriptions.php');
     $data['content'] = $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/witness.php');
+} else {
+    $data = get404Page();
 }
 
 }

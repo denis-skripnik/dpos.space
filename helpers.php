@@ -31,6 +31,7 @@ define('MONTHS', [
 function getWord($number, $suffix)
 {
     $keys = array(2, 0, 1, 1, 1, 2);
+    if ($number < 0) $number = 0;
     $mod = $number % 100;
     $suffix_key = ($mod > 7 && $mod < 20) ? 2 : $keys[min($mod % 10, 5)];
     if ($suffix_key < 0) $suffix_key = 0;

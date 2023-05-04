@@ -224,6 +224,8 @@ $data['content'] .= require_once(__DIR__.'/page/feed.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/orders.php');
+} else {
+    $data = get404Page();
 }
 
 }

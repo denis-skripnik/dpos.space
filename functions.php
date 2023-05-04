@@ -15,7 +15,7 @@ if (preg_match ("/([^a-zA-Z0-9а-яА-Я\.\/\-\_\?\&\=\#]u)/", $chpu)) {
    echo "Недопустимые символы в URL";
    exit;
  }
-$url = preg_split ("/(\/|\.*$)/", $chpu,-1, PREG_SPLIT_NO_EMPTY);
+$url = preg_split ("/(\/|\?|\.*$)/", $chpu,-1, PREG_SPLIT_NO_EMPTY);
 return $url;
     }
 
@@ -47,7 +47,7 @@ function inUrl2($url, $blockchain_scripts, $blockchain_styles, $blockchain_snipp
   $search_script = array_search('app.js', $scripts);
   if ($search_script) {
     $version = filemtime(__DIR__.'/blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js');
-    if ($url[1] === 'voice-import') {
+    if (strpos($url[1], 'import') !== false) {
   $data['scripts'] .= '
   <script type="module" src="'.$conf['siteUrl'].'blockchains/'.$url[0].'/apps/'.$url[1].'/js/app.js?ver='.$version.'"></script>';
 } else {
@@ -271,7 +271,10 @@ function get404Page() {
   global $conf;
   header("HTTP/1.0 404 Not Found");
   $data = [];
+  $data['title'] = 'Ошибка 404: страница не существует';
+  $data['description'] = 'Вы попали на несуществующую страницу. Возможно ошиблись с url - проверьте.';
   $data['menu'] = generateMenu();
+  $data['content'] = '';
   require_once 'template/404.php';
 return $data;
 }

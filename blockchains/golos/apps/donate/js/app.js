@@ -1,3 +1,4 @@
+var url = document.location.pathname.split('/');
 var gates = {};
 gates.PRIZM = {};
 gates.YMRUB = {};

@@ -50,6 +50,9 @@ RewriteCond %{SCRIPT_FILENAME} !maintenance.html
 RewriteRule ^.*$ /maintenance.html [R=503,L]
 ErrorDocument 503 /maintenance.html
 Header Set Cache-Control "max-age=0, no-store"
+RewriteRule ^(.+)/$ /$1 [R=301,L]
+RewriteRule ^(.+),$ /$1 [R=301,L]
+
 RewriteBase /
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
@@ -67,7 +70,8 @@ RedirectMatch 301 ^/calc/(.*) https://dpos.space/$1/calc
 RedirectMatch 301 ^/post/(.*) https://dpos.space/$1/post
 RedirectMatch 301 ^/backup/(.*) https://dpos.space/$1/backup
 RedirectMatch 301 ^/profiles/(.*)/(.*) https://dpos.space/$2/profiles/$1/
-
+RedirectMatch 301 ^/golos/profiles/(.*)/sp https://dpos.space/golos/profiles/$1/gp
+RedirectMatch 301 ^/minter/long/survays https://dpos.space/minter/long/surveys
 RewriteCond %{QUERY_STRING} chain=(.*) [NC]
 RewriteCond %{QUERY_STRING} block1=(.*) [NC]
 RewriteCond %{QUERY_STRING} block2=(.*) [NC]

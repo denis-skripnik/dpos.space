@@ -26,11 +26,17 @@ function sendErrors() {
         $subject = 'Ошибки на странице сайта dpos.space';
         
         // Текст сообщения
-        $message = "Page: https://dpos.space/".(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '')."
+        $request_uri = (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '');
+        if (strpos($request_uri, "0function.array-intersect0") !== false) return;
+        $message = "Page: https://dpos.space".$request_uri."
         $errors";
+        if (strpos($message, "dpos.space/viz/projects") !== false || strpos($request_uri, "/sp") !== false) {
+            $message .= "Referer: ".$_SERVER['HTTP_REFERER']."
+";
+        }
         
         // Отправка письма
-        mail('webmaster@dpos.space', $subject, $message, $headers);
+        mail('scadens@yandex.ru', $subject, $message, $headers);
         }
     }
 
@@ -49,12 +55,13 @@ function myHandler($level, $message, $file, $line, $context) {
     break;
     }
     // выводим текст ошибки
-    
-    $errors .= "
-<h2>$type: $message</h2>
-<strong>File</strong>: $file:$line</p>
-<p><strong>Context</strong>: $". join(', $', 
-    array_keys($context))."</p>";
+    if (strstr($message, "file_get_contents") === false || strstr($message, "backend.dpos.space") !== false || strstr($message, "178.20.43.121") !== false || strstr($message, "Request Timeout") === false) {
+        $errors .= "
+        <h2>$type, подробности: $message</h2>
+        <strong>File</strong>: $file:$line</p>
+        <p><strong>Context</strong>: $". join(', $', 
+            array_keys($context))."</p>";
+        }
     // сообщаем, что мы обработали ошибку, и дальнейшая обработка не требуется
     return true;
 }
@@ -75,9 +82,23 @@ if (isset(pageUrl()[1]) && pageUrl()[1] === 'api' && isset(pageUrl()[2])) {
 }
 
 $conf = configs("config.json");
+
+function flattenArray($arr) {
+    $result = array();
+    foreach ($arr as $key => $value) {
+        if (is_array($value)) {
+            $result = array_merge($result, flattenArray($value));
+        } else {
+            $result[$key] = trim($value);
+        }
+    }
+    return $result;
+}
+
 if (!empty($_POST)) {
-$_POST = array_map('trim', $_POST);
-    $post_queries = trim(implode("/", $_POST));
+    $filtered_post = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING, FILTER_REQUIRE_ARRAY);
+    $_POST = flattenArray($filtered_post);   
+    $post_queries = implode("/", $_POST);
 header("Location: " .$conf['siteUrl'] . $post_queries);
 }
 

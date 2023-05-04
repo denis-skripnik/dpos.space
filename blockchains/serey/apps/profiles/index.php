@@ -152,6 +152,8 @@ $data['content'] .= require_once(__DIR__.'/page/comments.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/feed.php');
+} else {
+    $data = get404Page();
 }
 
 }
