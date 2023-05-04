@@ -86,6 +86,7 @@ foreach ($posts as $post) {
     $array_years = ['год', 'года', 'лет'];
     $years_word = getWord($year_for_pay, $array_years);
     $month_for_pay = date('n', $deltaTime) - 1;
+    if ($month_for_pay == -1) $month_for_pay = 0;
     $array_months = ['месяц', 'месяца', 'месяцев'];
     $months_word = getWord($month_for_pay, $array_months);
     $day_for_pay = date("j", $deltaTime) - 1;

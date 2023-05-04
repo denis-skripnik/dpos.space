@@ -31,7 +31,7 @@ $content .= '</ul>
 <h2><a name="status">Статус</a></h2>
 <ul>';
 $status = node('rpc/node_info');
-$content .= '<li>Сеть: '.$status['node_info']['network'].'</li>
+$content .= '<li>Сеть: '.$status['default_node_info']['network'].'</li>
 <li>Хеш последнего блока: '.$last_blocks[0]['hash'].'</li>
 <li>Номер последнего блока: '.$last_blocks[0]['height'].'</li>
 <li>Дата и время последнего блока: '.$last_blocks[0]['date'].'</li>

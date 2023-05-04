@@ -166,8 +166,8 @@ $result['content'] .= '</td></tr>';
 }
 } // Конец цикла
 if (!isset($newStartAuthor)) $newStartAuthor = null;
-$result['nextIsExists'] = ! is_null($newStartAuthor);
-if ($result['nextIsExists']) {
+$result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);
+if (isset($result['nextIsExists']) && $result['nextIsExists']) {
     $result['next'] = [
         'startAuthor' => $newStartAuthor,
         'startPermlink' => $newStartPermlink,

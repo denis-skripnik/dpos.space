@@ -5,7 +5,7 @@ require 'snippets/get_discussions_by_blog.php';
 require 'snippets/get_feed_history.php';
 require 'snippets/get_dynamic_global_properties.php';
 require 'snippets/get_config.php';
-
+$result = [];
 if( isset($user) ){ // проверяем существование элемента
 
  $res = $command->execute($commandQuery); 
@@ -41,7 +41,6 @@ $total_reward_shares2 = (int)$mass3["total_reward_shares2"];
 $total_vesting_shares = (float)$mass3["total_vesting_shares"];
     $steem_per_vests = $total_vesting_fund_steem / $total_vesting_shares;
     $sbd_print_rate = $mass3['sbd_print_rate']/10000;
-$result = [];
     $result['content'] = "<h2>Свежие посты аккаунта $user</h2>
   <table><tr><th>№</th>
 <th>Название</th>
@@ -172,7 +171,7 @@ $result['content'] .= "<td>$summ_fool_author STEEM</td>";
 }
 $result['content'] .= "</table>";
 } else {
-  $result['content'] .= '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
+  $result['content'] = '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
 }
 }
 return $result['content'];

@@ -250,7 +250,11 @@ $bnew = max(0, ($w - $t) * $bold / $w); //+ N
 $p = $s/$total_vesting_mshares*$e;
 $ost= $p-$bnew;
 $bandwidth = calculateBandwidth($ost/1000000, $p/1000000);
-$min_energy = $vote_accounting_min_viz / $all_shares * 100;
+if ($all_shares != 0){
+    $min_energy = $vote_accounting_min_viz / $all_shares * 100;
+} else {
+    $min_energy = 100;
+}
 $min_energy = round($min_energy, 2);
 if ($min_energy < 0.01) {
     $min_energy = 0.01.'%';

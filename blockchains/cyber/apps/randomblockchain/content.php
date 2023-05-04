@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
-if (!empty($_GET)) {
+if (isset($_GET) && isset($_GET['block1']) && isset($_GET['block2']) && isset($_GET['participants'])) {
 $start_block = $_GET['block1'];
 $end_block = $_GET['block2'];
 $participants = $_GET['participants'];

@@ -150,7 +150,8 @@ $newStartPermlink = $start_permlink;
                 break;
             }
 
-                  $curation_procent = round($content['curation_rewards_percent']/100, 2);
+            $curation_procent = 50;
+                  if (isset($content['curation_rewards_percent'])) $curation_procent = round($content['curation_rewards_percent']/100, 2);
                   $result['content'] .= '<tr>
                   <td>'.$created.'</td>
                   <td><a href="https://golos.id/' . $content['parent_permlink'] . '/@' . $content['author'] . '/' . $content['permlink'] . '" target="_blank">' . $content['title'] . '</a></td>
@@ -168,8 +169,8 @@ foreach ($tegi as $teg) {
         }
     }
 } // Конец цикла
-$result['nextIsExists'] = ! is_null($newStartAuthor);
-if ($result['nextIsExists']) {
+$result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);
+if (isset($result['nextIsExists']) && $result['nextIsExists']) {
     $result['next'] = [
         'startAuthor' => $newStartAuthor,
         'startPermlink' => $newStartPermlink,
