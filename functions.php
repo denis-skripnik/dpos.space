@@ -294,10 +294,14 @@ function getPage($url) {
       $cache_url = 'caches/ohlc-'.$coin.'_'.$vs_currency;
   } else if (substr_count($url, '.') === 3) {
     $service = explode('/', $url)[3];
-    [$name, $params] = explode('?', $service);
-    $params = str_replace('&', '-', $params);
-    $params = str_replace('=', '', $params);
+    if (strpos('?', $service) !== false) {
+      [$name, $params] = explode('?', $service);
+      $params = str_replace('&', '-', $params);
+      $params = str_replace('=', '', $params);
       $cache_url = 'caches/'.$name.'-'.$params;
+    } else {
+      $cache_url = 'caches/'.$service;
+    }
     }
 
   $cache_file = $cache_url.'.cache';

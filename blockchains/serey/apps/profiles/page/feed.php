@@ -133,10 +133,7 @@ $created = date('j', $created2).' '.$month[$month2].' '.date('Y г. H:i:s', $cre
 $metadata = json_decode($content['json_metadata'], true);
 if (isset($metadata['tags'])) {
     $tegi = $metadata['tags'];
-    $filter_teg = array();
 }    
-
-    if ($content['author'] !== 'now') {
             $rowCount++;
 
             if ($rowCount === FEED_LIMIT + 1) {
@@ -154,16 +151,17 @@ $newStartPermlink = $start_permlink;
 <td>';
 if (isset($metadata['tags'])) {
     $tags_str = '';
+    if (isset($tegi) && count($tegi) > 0 && is_array($tegi)) {
     foreach ($tegi as $teg) {
                     $taging = transliteration($teg, 'torus');
     
                     $tags_str .= '<a href="https://serey.io/categories/' . $teg . '" target="_blank">' . $taging . '</a>, ';
                 }
                 $tags_str = substr($tags_str,0,-2);
+            }
                 $result['content'] .= $tags_str;
 }
 $result['content'] .= '</td></tr>';
-}
 } // Конец цикла
 if (!isset($newStartAuthor)) $newStartAuthor = null;
 $result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);

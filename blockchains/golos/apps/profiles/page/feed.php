@@ -136,10 +136,6 @@ $created = date('j', $created2).' '.$month[$month2].' '.date('Y г. H:i:s', $cre
     if (isset($metadata['tags'])) {
     $tegi = $metadata['tags'];
     }
-    $filter_teg = array();
-
-    if ($content['author'] !== 'now') {
-        if (!count(array_intersect($tegi, $filter_teg))) {
             $rowCount++;
 
             if ($rowCount === FEED_LIMIT + 1) {
@@ -159,15 +155,15 @@ $newStartPermlink = $start_permlink;
 <td>'.$curation_procent.'%</td>
 <td>';
 $tags_str = '';
-foreach ($tegi as $teg) {
-                $taging = transliteration($teg, 'torus');
+if (isset($tegi) && count($tegi) > 0 && is_array($tegi)) {
+    foreach ($tegi as $teg) {
+        $taging = transliteration($teg, 'torus');
 
-                $tags_str .= '<a href="https://golos.id/created/' . $teg . '" target="_blank">' . $taging . '</a>, ';
-            }
-            $tags_str = substr($tags_str,0,-2);
-            $result['content'] .= $tags_str.'</td></tr>';
-        }
+        $tags_str .= '<a href="https://golos.id/created/' . $teg . '" target="_blank">' . $taging . '</a>, ';
     }
+            $tags_str = substr($tags_str,0,-2);
+        }
+            $result['content'] .= $tags_str.'</td></tr>';
 } // Конец цикла
 $result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);
 if (isset($result['nextIsExists']) && $result['nextIsExists']) {
