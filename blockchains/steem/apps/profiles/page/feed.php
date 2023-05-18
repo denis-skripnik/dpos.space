@@ -132,13 +132,9 @@ $month2 = date('m', $created2);
 $created = date('j', $created2).' '.$month[$month2].' '.date('Y г. H:i:s', $created2);
 	$metadata = json_decode($content['json_metadata'], true);
     $tegi = [];
-    $filter_teg = array();
     if (isset($metadata) && isset($metadata['tags'])) {
         $tegi = $metadata['tags'];
     }    
-    
-    if ($content['author'] !== 'now') {
-        if (!count(array_intersect($tegi, $filter_teg))) {
             $rowCount++;
 
             if ($rowCount === FEED_LIMIT + 1) {
@@ -155,15 +151,15 @@ $newStartPermlink = $start_permlink;
 <td><a href="'.$site_url.'steem/profiles/' . $content['author'] . '" target="_blank">' . $content['author'] . '</a></td>
 <td>';
 $tags_str = '';
+if (isset($tegi) && count($tegi) > 0 && is_array($tegi)) {
 foreach ($tegi as $teg) {
                 $taging = transliteration($teg, 'torus');
 
                 $tags_str .= '<a href="https://steemit.com/created/' . $teg . '" target="_blank">' . $taging . '</a>, ';
             }
             $tags_str = substr($tags_str,0,-2);
-            $result['content'] .= $tags_str.'</td></tr>';
         }
-    }
+            $result['content'] .= $tags_str.'</td></tr>';
 } // Конец цикла
 $result['nextIsExists'] = (isset($newStartAuthor) && !is_null($newStartAuthor) ? true : false);
 if (isset($result['nextIsExists']) && $result['nextIsExists']) {
