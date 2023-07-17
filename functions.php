@@ -274,8 +274,8 @@ function get404Page() {
   $data['title'] = 'Ошибка 404: страница не существует';
   $data['description'] = 'Вы попали на несуществующую страницу. Возможно ошиблись с url - проверьте.';
   $data['menu'] = generateMenu();
-  $data['content'] = '';
-  require_once 'template/404.php';
+  $data['content'] = '<h2>Вероятно, вы ошиблись адресом страницы или данные были удалены.</h2>
+<p>Проверьте url или перейдите на главную.</p>';
 return $data;
 }
 

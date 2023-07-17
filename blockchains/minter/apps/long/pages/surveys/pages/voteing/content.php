@@ -11,7 +11,7 @@ $page['title'] = $table['question'];
 $page['description'] = $table['question'];
 
 $answers = $table['answers'];
-if ($answers && $table['end_date'] > gmmktime()) {
+if ($answers && $table['end_date'] > time()) {
     $d = new DateTime();
     $d->setTimestamp($table['end_date']);
     
@@ -38,7 +38,7 @@ $page['content'] .= '</p>
 <hr>
 <p><button type="button" onclick="submitVoteing(`'.pageUrl()[4].'`, this.form.answers.value)">Голосовать</button></p>
 </form></div>';
-} else if ($table['end_date'] <= gmmktime()) {
+} else if ($table['end_date'] <= time()) {
     $page['content'] .= '<p>Опрос закончен.</p>';
 }
 } else {

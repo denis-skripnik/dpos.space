@@ -1,0 +1,190 @@
+const contracts = {
+	"3333": "0x0f96E331b1DC1DbbC1B8526F391C52B5C8f0d7F4",
+	"167005": "0x73C9F6e1B870a9447E329a3d6D20360D56988A0f",
+	"84531": "0xce1e3733c981f19f340a6eefe8f6031ccd880c39",
+	"534353": "0x0f96E331b1DC1DbbC1B8526F391C52B5C8f0d7F4",
+	"59140": "0xe03e74a3ffac37da8389deed05cd0fd826aa472b",
+	"97": "0xa18ee4748d26b6c254c67e32465c04c0b5a0c82f",
+	"7001": "0x20543ab6d8a90abb0b9402bf1e83858979bbce94"
+}
+
+const contractABI = [
+	{
+		"inputs": [],
+		"stateMutability": "payable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "player",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "option",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "contractOption",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "int8",
+				"name": "result",
+				"type": "int8"
+			}
+		],
+		"name": "Gamed",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint8",
+				"name": "_option",
+				"type": "uint8"
+			}
+		],
+		"name": "selectRPS",
+		"outputs": [
+			{
+				"internalType": "int8",
+				"name": "",
+				"type": "int8"
+			}
+		],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	}
+]
+
+const faucetAddress = '0xf38b87e411d33bA24f627719c2c3979855Bb0AD8';
+const faucetABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "lastRequest",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "recipientAddress",
+				"type": "address"
+			}
+		],
+		"name": "requestToken",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	}
+]
+
+let contract;
+let faucetContract;
+let game_variant = ['Rock', 'Scissors', 'Paper'];
+
+const event = "Gamed";
+
+var contractAddress = contracts[chain_id];
+
+  async function runGame(){
+	let _option = parseInt(document.getElementById("game_item").value);
+	let amountInEth = document.getElementById("amountInEth").value;
+    
+	let amountInWei = ethers.utils.parseEther(amountInEth.toString())
+	contractAddress = contracts[chain_id];
+	const contract = new ethers.Contract(contractAddress, contractABI, signer)
+
+    let resultOfGame = await contract.selectRPS(_option, {value: amountInWei});
+    const res = await resultOfGame.wait();
+    console.log(res);
+    
+	await handleEvent();
+}
+
+async function faucet(){
+	await switchNetwork(3333);
+
+try {
+	const faucetContract = new ethers.Contract(faucetAddress, faucetABI, signer)
+	let resultOfFaucet = await faucetContract.requestToken(signerAddress);
+    const res = await resultOfFaucet.wait();
+    window.alert(JSON.stringify(res));
+} catch(e) {
+	window.alert(JSON.stringify(e));
+}
+}
+
+async function handleEvent(){
+	contractAddress = contracts[chain_id];
+	const contract = new ethers.Contract(contractAddress, contractABI, signer)
+	let queryResult =  await contract.queryFilter('Gamed', await provider.getBlockNumber() - 5000, await provider.getBlockNumber());
+    let queryResultRecent = queryResult[queryResult.length-1]
+    let amount = await queryResultRecent.args.amount.toString();
+	let player = await queryResultRecent.args.player.toString();
+    let option = await queryResultRecent.args.option.toString();
+    let contractOption = await queryResultRecent.args.contractOption.toString();
+	let result = await queryResultRecent.args.result.toString();
+	let status = 'выигрышь 🎉';
+if (result == 0) {
+    status = 'Ничья: 50% от суммы ставки будет возвращено.'
+} else if (result == -1) {
+    status = 'Проигрышь 😥';
+}
+
+    let resultLogs = `
+    Сумма ставки: ${ethers.utils.formatEther(amount.toString())} ${tokens[chain_id]}, 
+    Игрок: ${player}, 
+    игрок выбрал: ${game_variant[option]}, 
+    Выбор смартконтракта: ${game_variant[contractOption]},
+    Результат: ${status}`;
+    console.log(resultLogs);
+
+    let resultLog = document.getElementById("resultLog");
+    resultLog.innerText = resultLogs;
+    
+}

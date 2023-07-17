@@ -73,12 +73,17 @@ register_shutdown_function('sendErrors');
 require_once 'functions.php';
 if (isset(pageUrl()[1]) && pageUrl()[1] === 'api' && isset(pageUrl()[2])) {
     if (!isset($_GET)) {
-    require_once(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.pageUrl()[2].'.php');
-} else {
-    $page = explode('?', pageUrl()[2])[0];
-    require_once(__DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.$page.'.php');
-}
-  return;
+        $api_file = __DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.pageUrl()[2].'.php';
+    } else {
+        $page = explode('?', pageUrl()[2])[0];
+        $api_file = __DIR__.'/blockchains/'.pageUrl()[0].'/apps/api/pages/'.$page.'.php';
+    }
+
+    if (file_exists($api_file)) {
+        require_once($api_file);
+    } else {
+        $data = get404Page();
+    }
 }
 
 $conf = configs("config.json");
@@ -111,5 +116,6 @@ if (isset(pageUrl()[1]) && !isset(pageUrl()[2])) to_menu(pageUrl()[0], pageUrl()
     require_once 'template/main.php';
 } else {
 $data = get404Page();
+require_once 'template/main.php';
 }
 ?>
