@@ -1,6 +1,7 @@
 <?php
 global $conf;
 require 'snippets/get_account.php';
+try {
 require 'snippets/get_dynamic_global_properties.php';
 require 'snippets/get_chain_properties.php';
 require 'snippets/get_config.php';
@@ -402,4 +403,8 @@ $content .= '</table>
     $content .=  '<p>такого пользователя не существует. Проверьте правильность написания логина. Сейчас введён: '.$user.'</p>';
      }
         return $content;
-		?>
+    } catch (Exception $e) {
+$data = get404Page();
+return;
+      }
+      ?>

@@ -1,7 +1,11 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 require 'block.php';
 try {
-$mass = $res2['result'];
+if (!isset($res2['result'])) {
+  $data = get404Page();
+  return;
+}
+  $mass = $res2['result'];
 $ops = $res['result'];
 function convert_operation_data($arr, $site_url) {
   $result = '{<br />';

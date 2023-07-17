@@ -2,7 +2,9 @@
 $page = pageUrl();
 $title_text = '';
 if (isset($page[0])) $title_text .= $page[0].' | ';
-if (isset($page[0]) && !isset($page[1])) {
+if ($data['title'] == 'Ошибка 404: страница не существует') {
+  $title_text = $data['title'];
+} else if (isset($page[0]) && !isset($page[1])) {
   $title_text .= 'Страница блокчейна';
 } else if (isset($page[0]) && isset($page[1])) {
   $title_text .= $data['title'];
@@ -73,7 +75,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <div class="container margin-fix">
 <h1 class="h1-main"><?= $data['title']; ?></h1>
-<?= $data['content']; ?>
+<?= (isset($data['content']) ? $data['content'] : ""); ?>
 <?php if (isset(pageUrl()[0]) && pageUrl()[0] === 'viz') { ?>
     <div id="price_widget"></div>
 <script>sendAjax('https://dpos.space/blockchains/viz/vizprice.php', 'price_widget');</script>

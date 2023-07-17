@@ -97,6 +97,17 @@ $data['content'] .= require_once(__DIR__.'/page/curation_rewards.php');
     $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/benefactor_rewards.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'votes') {
+    $data['title'] .= ' - Апвоты и флаги';
+    $data['description'] .= ' - Апвоты и флаги';
+    $data['content'] = '<script>
+    ajax_options.user = `'.$user.'`;
+    ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
+    getLoad(`'.$conf['siteUrl'].'blockchains/hive/apps/profiles/page/votes.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    </script>';
+    $data['content'] .= $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/votes.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'dao') {
     $data['title'] .= ' - ДАО';
     $data['description'] .= ' - ДАО';

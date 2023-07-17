@@ -30,6 +30,8 @@ function generateAppPages($blockchain_snippet) {
         $data['description'] = $page_config['description'];
         $data['content'] = $blockchain_snippet;
         $data['content'] .= require_once(__DIR__.'/content.php');
+    } else {
+        $data = get404Page();
     }
     return $data;
 }

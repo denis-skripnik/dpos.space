@@ -2,8 +2,11 @@
 global $conf;
 $content = '';
 $pagenum = 1;
-if (isset(pageUrl()[3])) {
+if (isset(pageUrl()[3]) && is_numeric(pageUrl()[3])) {
     $pagenum = pageUrl()[3];
+} else if (isset(pageUrl()[3]) && !is_numeric(pageUrl()[3])) {
+    $data = get404Page();
+return;
 }
 $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
 $top = json_decode($html, true);

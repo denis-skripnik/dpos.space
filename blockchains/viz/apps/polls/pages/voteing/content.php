@@ -8,7 +8,7 @@ $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=votes&type=
 if (pageUrl()[3] && $html) {
 $table = json_decode($html, true);
 $answers = $table['answers'];
-if ($answers && $table['end_date'] > gmmktime()) {
+if ($answers && $table['end_date'] > time()) {
     $d = new DateTime();
     $d->setTimestamp($table['end_date']);
     
@@ -31,7 +31,7 @@ $page['content'] .= '</p>
 <hr>
 <p><button type="button" onclick="submitVoteing(`'.pageUrl()[3].'`, this.form.sender.value, this.form.answers.value)">Голосовать</button></p>
 </form>';
-} else if ($table['end_date'] <= gmmktime()) {
+} else if ($table['end_date'] <= time()) {
     $page['content'] .= '<p>Опрос закончен.</p>';
 }
 } else {
