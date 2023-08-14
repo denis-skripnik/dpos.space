@@ -1,7 +1,7 @@
 $(document).ready(function() {
     //Значения переменных по-умолчанию
     // 1. Процент энергии
-    var energy = "16%";
+    var energy = "2%";
     $("#energy_value").val(energy);
     //2. Сумма награды
     var amount = "1.000";

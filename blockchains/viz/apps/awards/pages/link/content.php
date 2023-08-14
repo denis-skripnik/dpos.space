@@ -36,6 +36,15 @@ if (isset($url[6]) && (float)$url[6] <= 100) {
 	$content .= '<p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
 	<input type="text" name="energy" id="awarding_energy" value="" required placeholder="Введите процент энергии без знака %">%</p>';
 }
+if (isset($url[7])) {
+	$checked = '';
+	if ($url[7] == "true") $checked = ' checked';
+	$content .= '<p><label for="isFixed">Фиксированная в VIZ награда</label>
+	<input type="checkbox" name="isFixed" id="isFixed"'.$checked.'></p>';
+} else {
+$content .= '<p><label for="isFixed">Фиксированная в VIZ награда</label>
+<input type="checkbox" name="isFixed" id="isFixed"></p>';
+}
 $content .= '<p><strong><input type="submit" value="Наградить"></strong></p>
 </form>
 <script>

@@ -10,6 +10,8 @@ if (isset($_GET['energy'])) {
     $energy = 1;
 }
 $custom_sequence = (isset($_GET['custom_sequence']) && $_GET['custom_sequence'] !== '' ? $_GET['custom_sequence'] : 0);
+$payout = (isset($_GET['payout']) && $_GET['payout'] !== '' ? $_GET['payout'] : 0);
+$isFixed = (isset($_GET['isFixed']) && $_GET['isFixed'] !== '' ? $_GET['isFixed'] : false);
 $memo = (isset($_GET['memo']) ? $_GET['memo'] : '');
 $beneficiaries = (isset($_GET['beneficiaries']) ? $_GET['beneficiaries'] : '');
 return '<h2>Страницы сервиса</h2>
@@ -17,6 +19,6 @@ return '<h2>Страницы сервиса</h2>
 <div id="main_award_info"></div>
 <div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
 <script>
-send_award(`'.$target.'`, '.$energy.', '.$custom_sequence.', `'.$memo.'`, `'.$beneficiaries.'`);
+send_award(`'.$target.'`, '.$energy.', '.$custom_sequence.', `'.$memo.'`, `'.$beneficiaries.'`, `'.$payout.'`, `'.$isFixed.'`);
 </script>';
 ?>

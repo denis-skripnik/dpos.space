@@ -61,7 +61,9 @@ $("#max_payout").click(function () {
 });
 
 $("input[name='energy']").change(function() {
-var input_energy = $("input[name='energy']").val();
+    var isFixed = $("input[name='isFixed']").prop('checked');
+if (isFixed == true) return;
+    var input_energy = $("input[name='energy']").val();
 input_energy *= 100;
 input_energy = parseInt(input_energy);
 
@@ -72,7 +74,9 @@ change_payout = change_payout / 1000000; // количество shares в де�
 	$("input[name='payout']").val(change_payout);
 });
 $("input[name='payout']").change(function() {
-	var payout = $('input[name=payout]').val();
+    var isFixed = $("input[name='isFixed']").prop('checked');
+if (isFixed == true) return;
+    var payout = $('input[name=payout]').val();
 	var payout_energy = payout*(total_vesting_fund/total_vesting_shares) / total_reward_fund*(total_reward_shares / 1000000)/effective_vesting_shares;
 	payout_energy *= 100;
 	payout_energy *= 100;
@@ -102,9 +106,9 @@ shares1Energy(new_energy, effective_vesting_shares);
 });
 }
 
-async function send_award(target, energy, custom_sequence, memo, beneficiaries) {
+async function send_award(target, energy, custom_sequence, memo, beneficiaries, payout, isFixed) {
 if (viz_login !== target) {
-	let q = window.confirm('Вы действительно хотите отправить награду?');
+    let q = window.confirm('Вы действительно хотите отправить награду?');
 if (q === true) {
 	const [acc] = await viz.api.getAccountsAsync([viz_login]);
 	const props = await viz.api.getDynamicGlobalPropertiesAsync();
@@ -153,6 +157,8 @@ var beneficiaries_whait = 100;
 var viz_price = (total_vesting_shares * 1000000) / (total_vesting_fund * 1000000); //цена одного viz int
 var rshares = parseInt(effective_vesting_shares * 1000000 * energy / 10000); // будущие конкурирующии акции Shares пользователя(смотри словарь) int
 var all_award_payout = parseInt(rshares / (total_reward_shares + rshares) *( total_reward_fund * 1000000) * viz_price); //количество shares за авард int
+let old_payout = all_award_payout;
+if (isFixed === 'on') all_award_payout = parseFloat(payout) * 1000000;
 var beneficiaries_payout = (all_award_payout/100)*beneficiaries_whait;
 var award_payout = all_award_payout - beneficiaries_payout;
 all_award_payout = all_award_payout / 1000000; // количество shares в десятичном виде float
@@ -168,48 +174,98 @@ if(current_user.type && current_user.type === 'vizonator') {
     sendToVizonator('award', {receiver: target, energy, custom_sequence, memo, beneficiaries: JSON.stringify(benef_list)})
   return;
   }
-  viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
-if (!err) {
-viz.api.getAccountsAsync([viz_login], (err, res) => {
-$('#account_energy').html(res[0].energy/100 + '%');
-});
+  if (isFixed != 'on') {
+    viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
+        if (!err) {
+        viz.api.getAccountsAsync([viz_login], (err, res) => {
+        $('#account_energy').html(res[0].energy/100 + '%');
+        });
+        
+            jQuery("#main_award_info").css("display", "block");
+            $('#main_award_info').html(`<h1>Результат:</h1>
+        <p><strong>Вы успешно отправили награду.</strong></p>
+        <ul><li>Направление: ${target}</li>
+        <li>Затрачиваемый процент энергии: ${energy/100}%</li>
+        <li>Примерная награда в SHARES:
+        общая: ${all_award_payout},
+        Бенефициарам: ${beneficiaries_payout},
+        Награждаемому: ${award_payout}</li>
+        <li>Номер Custom операции (С каждой операцией он увеличивается в get_accounts): ${custom_sequence}</li>
+        <li>Заметка (Memo, описание; назначение может быть любым): ${memo}</li>
+        <li>Бенефициары: ${beneficiaries}</li>
+        <li>Осталось энергии на момент последней награды: <span id="account_energy"></span></li>
+        </ul>`);
+        } else {
+            if (/used_energy <= current_energy/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Указанный вами процент энергии > имеющейся у авторизованного аккаунта</h1>
+        <p align="center">Просьба проверить значение energy в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/beneficiaries.weight = NaN/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Вы указали бенефициара, но не указали процент, который он получит</h1>
+        <p align="center">Просьба проверить значение после двоеточия в beneficiaries (адресная строка) или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/acc != nullptr: Beneficiary/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>1 или несколько аккаунтов бенефициаров не существует.</h1>
+        <p align="center">Просьба проверить значение beneficiaries в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/is_valid_account_name\(name\): Account name/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Аккаунт награждаемого или бенефициара не существует.</h1>
+        <p align="center">Просьба проверить значение target и beneficiaries (Первую часть до двоеточия) в адресной строке.  Также можно ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+        } else {
+        window.alert(err);
+        }
+        }
+        }); // end award.
+  } // end if isFixed != true.
+  else {
+        viz.broadcast.fixedAwardAsync(posting_key,viz_login,target,parseFloat(payout).toFixed(3) + ' VIZ',energy,custom_sequence,memo,benef_list, (err,result) => {
+        if (!err) {
+            let payout_k = (all_award_payout / old_payout) * 1000000;
+            energy *= payout_k;
+energy = parseInt(energy)
+            viz.api.getAccountsAsync([viz_login], (err, res) => {
+        $('#account_energy').html(res[0].energy/100 + '%');
+        });
+        
+            jQuery("#main_award_info").css("display", "block");
+            $('#main_award_info').html(`<h1>Результат:</h1>
+        <p><strong>Вы успешно отправили награду.</strong></p>
+        <ul><li>Направление: ${target}</li>
+        <li>Затрачиваемый процент энергии: ${energy/100}%</li>
+        <li>Примерная награда в SHARES:
+        общая: ${all_award_payout},
+        Бенефициарам: ${beneficiaries_payout},
+        Награждаемому: ${award_payout}</li>
+        <li>Номер Custom операции (С каждой операцией он увеличивается в get_accounts): ${custom_sequence}</li>
+        <li>Заметка (Memo, описание; назначение может быть любым): ${memo}</li>
+        <li>Бенефициары: ${beneficiaries}</li>
+        <li>Осталось энергии на момент последней награды: <span id="account_energy"></span></li>
+        </ul>`);
+        } else {
+            if (/used_energy <= current_energy/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Указанный вами процент энергии > имеющейся у авторизованного аккаунта</h1>
+        <p align="center">Просьба проверить значение energy в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/beneficiaries.weight = NaN/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Вы указали бенефициара, но не указали процент, который он получит</h1>
+        <p align="center">Просьба проверить значение после двоеточия в beneficiaries (адресная строка) или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/acc != nullptr: Beneficiary/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>1 или несколько аккаунтов бенефициаров не существует.</h1>
+        <p align="center">Просьба проверить значение beneficiaries в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+            } else if (/is_valid_account_name\(name\): Account name/.test(err)) {
+                jQuery("#main_award_info").css("display", "block");
+                $('#main_award_info').html(`<h1>Аккаунт награждаемого или бенефициара не существует.</h1>
+        <p align="center">Просьба проверить значение target и beneficiaries (Первую часть до двоеточия) в адресной строке.  Также можно ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
+        } else {
+        window.alert(err);
+        }
+        }
+        });
+  }
 
-	jQuery("#main_award_info").css("display", "block");
-	$('#main_award_info').html(`<h1>Результат:</h1>
-<p><strong>Вы успешно отправили награду.</strong></p>
-<ul><li>Направление: ${target}</li>
-<li>Затрачиваемый процент энергии: ${energy/100}%</li>
-<li>Примерная награда в SHARES:
-общая: ${all_award_payout},
-Бенефициарам: ${beneficiaries_payout},
-Награждаемому: ${award_payout}</li>
-<li>Номер Custom операции (С каждой операцией он увеличивается в get_accounts): ${custom_sequence}</li>
-<li>Заметка (Memo, описание; назначение может быть любым): ${memo}</li>
-<li>Бенефициары: ${beneficiaries}</li>
-<li>Осталось энергии на момент последней награды: <span id="account_energy"></span></li>
-</ul>`);
-} else {
-	if (/used_energy <= current_energy/.test(err)) {
-		jQuery("#main_award_info").css("display", "block");
-		$('#main_award_info').html(`<h1>Указанный вами процент энергии > имеющейся у авторизованного аккаунта</h1>
-<p align="center">Просьба проверить значение energy в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
-	} else if (/beneficiaries.weight = NaN/.test(err)) {
-		jQuery("#main_award_info").css("display", "block");
-		$('#main_award_info').html(`<h1>Вы указали бенефициара, но не указали процент, который он получит</h1>
-<p align="center">Просьба проверить значение после двоеточия в beneficiaries (адресная строка) или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
-	} else if (/acc != nullptr: Beneficiary/.test(err)) {
-		jQuery("#main_award_info").css("display", "block");
-		$('#main_award_info').html(`<h1>1 или несколько аккаунтов бенефициаров не существует.</h1>
-<p align="center">Просьба проверить значение beneficiaries в адресной строке или ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
-	} else if (/is_valid_account_name\(name\): Account name/.test(err)) {
-		jQuery("#main_award_info").css("display", "block");
-		$('#main_award_info').html(`<h1>Аккаунт награждаемого или бенефициара не существует.</h1>
-<p align="center">Просьба проверить значение target и beneficiaries (Первую часть до двоеточия) в адресной строке.  Также можно ввести новое в <a href="/viz/awards" target="_blank">форме</a>.</p>`);
-} else {
-window.alert(err);
-}
-}
-});
 } else {
 window.alert('Вы отказались отправлять награду.');
 }

@@ -10,6 +10,8 @@ return '<h2>Что такое награждение пользователей 
 <form class="form" id="AwardUrlForm">
 <p><label for="target">target (логин Viz награждаемого):</label></p>
 <p><input type="text" name="target" value=""></p>
+<p><label for="isFixed">Фиксированная в VIZ награда</label>
+<input type="checkbox" name="isFixed" id="isFixed"></p>
 <p><label for="energy">Energy (процент энергии, который вы готовы потратить при награде):</label></p>
 <p><input type="text" name="energy" id="awarding_energy" value=""></p>
 <p><label for="payout">payout (сумма награды). Если вы заполните это поле, оно будет иметь больший преоритет, чем процент энергии:</label></p>
