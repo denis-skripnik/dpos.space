@@ -13,14 +13,16 @@ return '<h2>Что такое награждение пользователей 
 <form class="form" id="award_user_form" action="'.$conf['siteUrl'].'viz/awards/send/" method="get">
 <p><label for="target">Кого наградить:</label>
 <input type="text" name="target" value="" placeholder="Введите получателя награды"></p>
-<p><label for="energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
+<p><label for="isFixed">Фиксированная в VIZ награда</label>
+<input type="checkbox" name="isFixed" id="isFixed"></p>
+<p><label for="awarding_energy">Процент энергии, который вы готовы потратить при награде. Энергия регенерирует за сутки на 20%:</label>
 <input type="text" name="energy" id="awarding_energy" value="" required placeholder="Введите процент энергии без знака %">%</p>
 <p><label for="payout">Сумма награды. Если вы заполните это поле, оно будет иметь больший преоритет, чем процент энергии:</label>
-<input type="text" name="payout" value="" placeholder="Введите сумму награды"> <span id="max_payout"></span></p>
+<input type="text" name="payout" id="payout" value="" placeholder="Введите сумму награды"> <span id="max_payout"></span></p>
 <p><label for="custom_sequence">Номер Custom операции, отправленной пользователем, которому предназначена награда (в принципе, можно указать любое число, например, id новости, опубликованной пользователем, в базе данных вашего сайта):</label>
-<input type="number" min="0" name="custom_sequence" value="" placeholder="номер custom операции"></p>
+<input type="number" min="0" name="custom_sequence" id="custom_sequence" value="" placeholder="номер custom операции"></p>
 <p><label for="memo">Заметка (memo):</label></p>
-<p><input type="text" name="memo" value="" placeholder="Введите заметку к награде"></p>
+<p><input type="text" name="memo" id="memo" value="" placeholder="Введите заметку к награде"></p>
 <hr>
 <h3>Дополнительная награда</h3>
 <p><label for="benef_login">Логин: </label></p>
