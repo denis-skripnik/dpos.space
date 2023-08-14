@@ -75,6 +75,15 @@ await window.ethereum.request({
 	provider = new ethers.providers.Web3Provider(window.ethereum, chainId)
   };
 
+  function spoiler(elem, group){
+	style = document.getElementById(elem).style;
+	if(document.querySelector("#" + elem).classList.contains(group) && style.display === 'none') {
+		$('.' + group).hide();
+	}
+
+	style.display = (style.display == 'block') ? 'none' : 'block';
+}
+
 function generateNetworksForm(ids) {
 	let form = '';
 	for (let id of ids) {
