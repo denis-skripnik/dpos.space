@@ -1,8 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="faucetBlock">
-	<button onclick="faucet()">Faucet</button>
-	</div>
-	<div>
+return '<div>
     <h2>2. Игра!</h2>
     <p>Адрес смарт-контракта для отправки тестовых токенов: <span id="smartContractAddress"></span></p>
     <p> Добавьте сумму в <span id="nativeToken">MEGA2</span> для игры</p>
