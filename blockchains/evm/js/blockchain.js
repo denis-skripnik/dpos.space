@@ -1,5 +1,5 @@
 const networks = {
-	"3333": "Meganet testnet",
+	"9999": "Meganet RC",
 	"167005": "Taiko testnet",
 	"84531": "Base goerli",
 	"534353": "Scroll Alpha testnet",
@@ -11,7 +11,7 @@ const networks = {
 }
 
 const tokens = {
-	"3333": "MEGA2",
+	"9999": "MEGA",
 	"167005": "ETH",
 	"84531": "ETH",
 	"534353": "ETH",
@@ -23,7 +23,7 @@ const tokens = {
 }
 
 const explorers = {
-	"3333": "https://scan.testnet.metagarden.io",
+	"9999": "https://scan.metagarden.io",
 	"167005": "https://explorer.test.taiko.xyz",
 	"84531": "https://goerli.basescan.org",
 	"534353": "https://blockscout.scroll.io",
@@ -34,7 +34,7 @@ const explorers = {
 	"9001": "https://escan.live"
 }
 
-var chain_id = "3333";
+var chain_id = "9999";
 
 var provider = new ethers.providers.Web3Provider(window.ethereum, "any")
 let signer;

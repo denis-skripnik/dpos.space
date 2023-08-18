@@ -170,12 +170,12 @@ window.alert('Вы указали в memo приватный ключ. Будь�
 return;
 }
 
-if(current_user.type && current_user.type === 'vizonator') {
-    sendToVizonator('award', {receiver: target, energy, custom_sequence, memo, beneficiaries: JSON.stringify(benef_list)})
+  if (isFixed != 'on') {
+    if(current_user.type && current_user.type === 'vizonator') {
+        sendToVizonator('award', {receiver: target, energy, custom_sequence, memo, beneficiaries: JSON.stringify(benef_list)})
   return;
   }
-  if (isFixed != 'on') {
-    viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
+viz.broadcast.awardAsync(posting_key,viz_login,target,energy,custom_sequence,memo,benef_list, (err,result) => {
         if (!err) {
         viz.api.getAccountsAsync([viz_login], (err, res) => {
         $('#account_energy').html(res[0].energy/100 + '%');
@@ -219,7 +219,11 @@ if(current_user.type && current_user.type === 'vizonator') {
         }); // end award.
   } // end if isFixed != true.
   else {
-        viz.broadcast.fixedAwardAsync(posting_key,viz_login,target,parseFloat(payout).toFixed(3) + ' VIZ',energy,custom_sequence,memo,benef_list, (err,result) => {
+    if(current_user.type && current_user.type === 'vizonator') {
+        sendToVizonator('fixed_award', {receiver: target, reward_amount: `${parseFloat(payout).toFixed(3)} VIZ`, energy, custom_sequence, memo, beneficiaries: JSON.stringify(benef_list)})
+  return;
+  }
+    viz.broadcast.fixedAwardAsync(posting_key,viz_login,target,parseFloat(payout).toFixed(3) + ' VIZ',energy,custom_sequence,memo,benef_list, (err,result) => {
         if (!err) {
             let payout_k = (all_award_payout / old_payout) * 1000000;
             energy *= payout_k;
