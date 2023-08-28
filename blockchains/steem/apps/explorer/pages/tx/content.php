@@ -31,7 +31,10 @@ $result = substr($result, 0, -7);
     $result .= '<br />}';
     return $result;
 }
-
+if (!isset($mass)) {
+  header("HTTP/1.0 404 Not Found");
+  return '<p>Такой транзакции нет или ошибка: '.$e.'.</p>';
+}
 $content = '<h2>Транзакция '.$datas.'</h2>
 <p>Блок: <a href="'.$conf['siteUrl'].'steem/explorer/block/'.$mass['block_num'].'" target="_blank">'.$mass['block_num'].'</a></p>
 <hr />

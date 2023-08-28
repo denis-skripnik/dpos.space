@@ -211,6 +211,7 @@ var ajax_options = {};
         }
   
         // если есть следующая страница, нужна кнопка шага вперёд
+
         if (res.nextIsExists) {
           paginationParams['ajax_page'][page - 1] = res.next;
           const nextButtonId = `next_ajax_page`;

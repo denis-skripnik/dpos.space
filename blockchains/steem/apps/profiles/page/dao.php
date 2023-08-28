@@ -28,9 +28,9 @@ $result['content'] = '<div id="transfers_content"><h2>Действия поль�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
-
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$startWith = $_REQUEST['start'] ?? -1;
+$retry_counter = 0;
+while ($rowCount !== TRX_LIMIT && $retry_counter < 3) {
     
     $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['worker_request_vote', 'account_witness_vote', 'account_witness_proxy', 'worker_request', 'worker_request_delete', 'worker_state']]);
 
@@ -193,6 +193,8 @@ $result['content'] .= '<tr>
         }
     }
     }
+$retry_counter++;
+if ($startWith === -1) break;
 }
 $result['content'] .= '</table><br />';
 

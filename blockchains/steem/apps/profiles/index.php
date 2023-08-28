@@ -49,7 +49,7 @@ $data['content'] .= require_once(__DIR__.'/page/transfers.php');
     $data['content'] = '<script>
     ajax_options.user = `'.$user.'`;
     ajax_options.siteUrl = `'.$conf['siteUrl'].'`;
-    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/transfersvotes.php`, `transfers_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
+    getLoad(`'.$conf['siteUrl'].'blockchains/steem/apps/profiles/page/votes.php`, `ajax_content`, `Следующие 10`, `Предыдущие 10`)(START_MODE)
     </script>';
 $data['content'] .= $blockchain_snippet;
     $data['content'] .= $pages;

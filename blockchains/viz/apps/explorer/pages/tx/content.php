@@ -31,6 +31,10 @@ $result = substr($result, 0, -7);
     $result .= '<br />}';
     return $result;
 }
+if (!isset($mass)) {
+  header("HTTP/1.0 404 Not Found");
+  return '<p>Такой транзакции нет или ошибка: '.$e.'.</p>';
+}
 
 $content = '<h2>Транзакция '.$datas.'</h2>
 <p>Блок: <a href="'.$conf['siteUrl'].'viz/explorer/block/'.$mass['block_num'].'" target="_blank">'.$mass['block_num'].'</a></p>
@@ -46,6 +50,7 @@ $op_data = convert_operation_data($op[1], $conf['siteUrl']);
 $content .= '</table>';
 return $content;
 } catch (Exception $e) {
+  header("HTTP/1.0 404 Not Found");
   return '<p>Такой транзакции нет.</p>';
 }
 ?>

@@ -33,7 +33,7 @@ async function calcAwards(login) {
     
     try {
       // Получаем историю аккаунта
-      history = await viz.api.getAccountHistoryAsync(login, -1, 2000);
+      history = await viz.api.getAccountHistoryAsync(login, -1, 1000);
     } catch (error) {
       console.error(error);
       return 0;

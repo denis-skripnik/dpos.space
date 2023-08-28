@@ -28,8 +28,9 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
     $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
-while ($startWith !== -1 && $rowCount !== AUTHOR_REWARDS_LIMIT) {
+$startWith = $_REQUEST['start'] ?? -1;
+$retry_counter = 0;
+while ($rowCount !== AUTHOR_REWARDS_LIMIT && $retry_counter < 3) {
 $res = getAccountHistoryChunk($user, $startWith);
 
     $mass = $res['result'];
@@ -77,6 +78,8 @@ $res = getAccountHistoryChunk($user, $startWith);
                         <td><a href="https://hive.blog/@'.$author.'/'.$permlink.'" target="_blank">'.$author.'/'.$permlink.'</a></td>                    
 <td>'.$reward.'</td></tr>';
                     }
+                    $retry_counter++;
+                    if ($startWith === -1) break;
                 }
             }
         

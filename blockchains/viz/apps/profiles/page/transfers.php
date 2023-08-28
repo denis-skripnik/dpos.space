@@ -29,9 +29,11 @@ $result['content'] = '<div id="transfers_content"><h2>Переводы поль�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$retry_counter = 0;
+
+while ($rowCount !== TRX_LIMIT && $retry_counter < 4) {
 
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -50,8 +52,10 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
     krsort($mass);
 
     foreach ($mass as $datas) {
-        $startWith = $datas[0] - 1;
-
+        if ($rowCount === TRX_LIMIT) {
+            break;
+        }
+        
         $op = $datas[1]['op'];
 
 		$op1 = $op[1];
@@ -64,6 +68,7 @@ $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" tar
 
 		if ($op[0] == 'transfer' || $op[0] == 'transfer_to_vesting') {
         $rowCount++;
+        $startWith = $datas[0] - 1;
 
         $from = $op[1]['from'] ?? "robot";
         $to = $op[1]['to'] ?? "";
@@ -119,6 +124,8 @@ $initiator = $op[1]['initiator'];
             }
     }
     }
+$retry_counter++;
+if ($startWith === -1) break;
 }
 
 $result['content'] .= '</table><br />';

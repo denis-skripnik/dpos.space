@@ -44,11 +44,24 @@ foreach ($multy as $key => $val) {
   }
   
   function node($params) {
-    $html = file_get_contents('https://mainnet-explorer-api.decimalchain.ru/api/'.$params);
+    $ch = curl_init('https://mainnet-explorer-api.decimalchain.ru/api/'.$params);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $html = '';
+    $html = curl_exec($ch);
     $data = json_decode($html, true);
+    if (isset($data['statusCode']) && $data['statusCode'] !== 200) {
+      $data = ['result' => []];
+      header("HTTP/1.0 404 Not Found");
+    }
+
+    // Close handle
+    curl_close($ch);
   return $data;
   }
 $block = node('block/'.$datas)['result'];
+if (count($block) == 0) {
+  return '<p>Такого блока нет или ошибка соединения с Нодой.</p>';
+}
 
   date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');

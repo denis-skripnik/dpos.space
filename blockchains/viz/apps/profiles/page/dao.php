@@ -28,9 +28,11 @@ $result['content'] = '<div id="transfers_content"><h2>Действия поль�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$retry_counter = 0;
+
+while ($rowCount !== TRX_LIMIT && $retry_counter < 4) {
 
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -49,7 +51,9 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
     krsort($mass);
 
     foreach ($mass as $datas) {
-        $startWith = $datas[0] - 1;
+        if ($rowCount === TRX_LIMIT) {
+            break;
+        }
 
         $op = $datas[1]['op'];
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
@@ -61,6 +65,7 @@ $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" tar
         
 if ($op[0] == 'committee_vote_request') {
         $rowCount++;
+        $startWith = $datas[0] - 1;
         $name = 'Голосование по заявке в комитет';
         $voter = isset($op[1]['voter']) ? $op[1]['voter'] : "";
         $vote_percent = $op[1]['vote_percent'] / 100;
@@ -158,7 +163,9 @@ $result['content'] .= '<tr>
             break;
         }
     }
-    }
+}
+$retry_counter++;
+if ($startWith === -1) break;
 }
 
 $result['content'] .= '</table><br />';

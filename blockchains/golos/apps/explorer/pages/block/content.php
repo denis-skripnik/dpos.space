@@ -31,6 +31,10 @@ $result = substr($result, 0, -7);
     $result .= '<br />}';
     return $result;
 }
+if (!isset($mass)) {
+  header("HTTP/1.0 404 Not Found");
+  return '<p>Такого блока нет или ошибка: '.$e.'.</p>';
+}
 date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
 $timestamp1 = $mass['timestamp'];
