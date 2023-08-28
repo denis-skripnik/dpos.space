@@ -498,14 +498,9 @@ const minerAbi = [
 ]; // Token ABI.
 
 let contract;
+var contractAddress = contracts[chain_id];
 
   async function createMiner(){
-	contract = new ethers.Contract(
-		contractAddress,
-		contractABI,
-		signer
-	)
-
 	let name = document.getElementById("name").value;
 	let symbol = document.getElementById("symbol").value;
 	symbol = symbol.toUpperCase();
@@ -528,7 +523,7 @@ if (typeof res.events[0] === 'undefined') return;
 	let resultLog = document.getElementById("resultLog");
     resultLog.innerHTML = `<h3>Майнер был создан.</h3>
 <p>Адрес: ${tokenAddress}:<br>
-<a href="${explorers[chain_id]}/address/${tokenAddress}" target="_blank">Блок-эксплорер</a>, <a href="/evm/token-miners#address=${tokenAddress}" target="_blank">Переходите к минту и получайте награды</a></p>`;
+<a href="${explorers[chain_id]}/address/${tokenAddress}" target="_blank">Блок-эксплорер</a>, <a href="/evm/token-miner#address=${tokenAddress}" target="_blank">Переходите к минту и получайте награды</a></p>`;
 }
 
 async function mintMiner() {

@@ -393,7 +393,7 @@ var ajax_options = {};
             getLoad(tabName, columnId, nextButtonText, previousButtonText)(PREVIOUS_MODE);
           });
         }
-  
+
         // если есть следующая страница, нужна кнопка шага вперёд
         if (res.nextIsExists) {
           paginationParams['ajax_page'][page - 1] = res.next;
@@ -425,6 +425,11 @@ var ajax_options = {};
     }
     getLoad(url, 'ajax_modal_content', 'Следующие 10', 'Предыдущие 10')(START_MODE);
 });
+
+function getParameterByName(name) {
+	const urlParams = new URLSearchParams(window.location.hash.substring(1));
+	return urlParams.get(name) || "";
+  }
 
 $( document ).ready(function() {
     $('#vizonator_auth').click(function() {

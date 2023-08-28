@@ -191,6 +191,7 @@ $menu = json_decode($file, TRUE);
 $str = '';
 if (!pageUrl()) {
   foreach ($menu as $key => $val) {
+    if (!isset($val['name'])) continue;
     $val['name'] = mb_strtoupper($val['name']);
     $str .= '<li class="nav-link"><a href="'.$conf['siteUrl'].$key.'" class="nav-item">'.$val['name'].'</a></li>';
   }

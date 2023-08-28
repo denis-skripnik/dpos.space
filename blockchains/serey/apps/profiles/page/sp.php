@@ -36,9 +36,10 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$retry_counter = 0;
+while ($rowCount !== TRX_LIMIT && $retry_counter < 3) {
     if ($startWith === 0) break;
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -134,6 +135,8 @@ $result['content'] .= '<tr>
         }
     }
     }
+    $retry_counter++;
+    if ($startWith === -1) break;
 }
 
 $result['content'] .= '</table><br />';

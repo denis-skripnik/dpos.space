@@ -18,7 +18,7 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
     $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
 $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['vote']]);
     

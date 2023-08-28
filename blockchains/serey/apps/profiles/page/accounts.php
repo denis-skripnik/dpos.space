@@ -29,8 +29,9 @@ $result['content'] = '<div id="transfers_content"><h2>Действия с акк
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$startWith = $_REQUEST['start'] ?? -1;
+$retry_counter = 0;
+while ($rowCount !== TRX_LIMIT && $retry_counter < 3) {
     if ($startWith === 0) break;
     $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ["account_create", "account_create_with_invite", "account_update", "account_metadata"]]);
 
@@ -125,7 +126,9 @@ $result['content'] .= '<tr>
             break;
         }
     }
-    }
+    $retry_counter++;
+    if ($startWith === -1) break;    
+}
 }
 $result['content'] .= '</table><br />';
 

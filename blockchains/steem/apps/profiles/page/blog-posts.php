@@ -117,6 +117,8 @@ if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == 
 $author_sp = round($full_author_pending, 3);
 } else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '0') {
 $author_sp = round($full_author_pending, 3);
+} else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '5000') {
+  $author_sp = round($full_author_pending/2, 3);
 } else if (($post['percent_steem_dollars'] ?? $post['percent_steem_dollars'] ?? "") == '100') {
 $author_sp = round($full_author_pending/1.1, 3);
 }

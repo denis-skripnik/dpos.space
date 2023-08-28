@@ -9,12 +9,11 @@ use GrapheneNodeClient\Commands\Single\GetAccountHistoryCommand;
 function getAccountHistoryChunk($author, $startWith = -1)
 {
 
-        static $limitMax = 10000;
+        static $limit = 1000;
     
     $startWith = (int) $startWith;
 
-    $limit = $startWith < $limitMax ? $startWith : $limitMax;
-
+try {
     $query = [
         '0' => $author,
         '1' => $startWith,
@@ -33,4 +32,7 @@ function getAccountHistoryChunk($author, $startWith = -1)
     $result = $command->execute($commandQuery);
 
     return $result;
+} catch (Exception $e) {
+    return ['result' => []];
+}
 }

@@ -100,8 +100,12 @@ $commandQuery = new CommandQueryData();
 $f_data = [$options];
 $commandQuery->setParams($f_data);
 $connector = new $connector_class();
-$command = new GetDiscussionsByFeedCommand($connector);
+try {
+    $command = new GetDiscussionsByFeedCommand($connector);
 $res = $command->execute($commandQuery);
+} catch (exception $e) {
+$res = ['result' => []];
+}
 $posts = $res['result'];
 
 $result = [];

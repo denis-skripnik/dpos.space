@@ -40,10 +40,26 @@ foreach ($multy as $key => $val) {
       $result .= '<br />}';
       return $result;
   }
+  function node($params) {
+    $ch = curl_init('https://explorer-api.minter.network/api/v2/transactions/'.$params);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $html = '';
+    $html = curl_exec($ch);
+    $data = json_decode($html, true);
+    if (isset($data['error'])) {
+      $data = ['data' => []];
+      header("HTTP/1.0 404 Not Found");
+    }
 
-$html = file_get_contents('https://explorer-api.minter.network/api/v2/transactions/'.$datas);
-$tx = json_decode($html, true)['data'];
+    // Close handle
+    curl_close($ch);
+  return $data;
+}
 
+$tx = node($datas)['data'];
+if (count($tx) == 0) {
+  return '<p>Такой транзакции нет.</p>';
+}
 date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
 $timestamp1 = $tx['timestamp'];

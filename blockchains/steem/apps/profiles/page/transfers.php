@@ -29,8 +29,9 @@ $result['content'] = '<div id="transfers_content"><h2>Переводы поль�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$startWith = $_REQUEST['start'] ?? -1;
+$retry_counter = 0;
+while ($rowCount !== TRX_LIMIT && $retry_counter < 3) {
     $res = getAccountHistoryChunk($user, $startWith, ['select_ops' => ['transfer', 'transfer_to_vesting','claim','transfer_from_tip','transfer_to_tip','invite','invite_claim']]);
 
     $mass = $res['result'];
@@ -129,6 +130,8 @@ $initiator = $op[1]['initiator'];
             }
     }
     }
+    $retry_counter++;
+    if ($startWith === -1) break;
 }
 $result['content'] .= '</table><br />';
 

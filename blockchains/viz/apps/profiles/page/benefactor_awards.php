@@ -1,5 +1,5 @@
 <?php
-define('B_REWARDS_LIMIT', 10);
+define('TRX_LIMIT', 10);
 global $conf;
 require 'snippets/get_account_history_chunk.php';
 require 'snippets/get_dynamic_global_properties.php';
@@ -37,9 +37,11 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== B_REWARDS_LIMIT) {
+$retry_counter = 0;
+
+while ($rowCount !== TRX_LIMIT && $retry_counter < 4) {
 
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -58,7 +60,9 @@ while ($startWith !== -1 && $rowCount !== B_REWARDS_LIMIT) {
     $summ_b_SP = 0;
     krsort($mass);
     foreach ($mass as $datas) {
-        $startWith = $datas[0] - 1;
+        if ($rowCount === TRX_LIMIT) {
+            break;
+        }
 
         $op = $datas[1]['op'];
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
@@ -70,6 +74,7 @@ $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" tar
         
 if ($op[0] == 'benefactor_award' && $op[1]['benefactor'] == $user) {
             $rowCount++;
+            $startWith = $datas[0] - 1;
 
             $receiver = ($op[1]['receiver'] ?? "");
             $memo = ($op[1]['memo'] ?? "");
@@ -86,12 +91,13 @@ if ($op[0] == 'benefactor_award' && $op[1]['benefactor'] == $user) {
 </tr>';
 $summ_b_SP += $b_shares;
             
-if ($rowCount === B_REWARDS_LIMIT) {
+if ($rowCount === TRX_LIMIT) {
                 break;
             }
         }
     }
-
+$retry_counter++;
+if ($startWith === -1) break;
 }
 
     $result['content'] .= '<tr><td>Все даты</td>

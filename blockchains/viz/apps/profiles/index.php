@@ -37,6 +37,12 @@ $data['description'] .= ' - основное';
 $data['content'] = $blockchain_snippet;
 $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/userinfo.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'history') {
+    $data['title'] .= ' - История';
+    $data['description'] .= ' - история';
+$data['content'] = $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/history.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'transfers') {
     $data['title'] .= ' - Переводы средств';
     $data['description'] .= ' - переводы средств';

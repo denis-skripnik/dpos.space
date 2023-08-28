@@ -71,7 +71,6 @@ $mass = $res['result'];
                 }
 
             $result['content'] .= '</table><br>';
-
             $result['nextIsExists'] = $startWith !== '';
             if ($result['nextIsExists']) {
                 $result['next'] = $startWith;

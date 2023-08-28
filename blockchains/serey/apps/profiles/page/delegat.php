@@ -14,7 +14,7 @@ $result['content'] = '';
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 $res = $command->execute($commandQuery);
 
 $mass = $res['result'];
@@ -58,7 +58,8 @@ $result['content'] .= '<table id="delegat-ol">
 </tr>';
 $no_delegate_votes = '';
 
-while ($startWith !== -1 && $rowCount !== DELEGAT_LIMIT) {
+$retry_counter = 0;
+while ($rowCount !== DELEGAT_LIMIT && $retry_counter < 3) {
     $history_result = getAccountHistoryChunk($user, $startWith);
     $history_mass = $history_result['result'];
     krsort($history_mass);
@@ -92,6 +93,8 @@ $timestamp = date('j', $timestamp2).' '.$month[$month2].' '.date('Y г. H:i:s', 
             }
         }
     }
+    $retry_counter++;
+    if ($startWith === -1) break;
 }
 
 

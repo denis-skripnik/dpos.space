@@ -29,9 +29,11 @@ $result['content'] = '<div id="transfers_content"><h2>Соц. капитал п�
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$retry_counter = 0;
+
+while ($rowCount !== TRX_LIMIT && $retry_counter < 4) {
 
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -50,7 +52,9 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
     krsort($mass);
 
     foreach ($mass as $datas) {
-        $startWith = $datas[0] - 1;
+        if ($rowCount === TRX_LIMIT) {
+            break;
+        }
 
         $op = $datas[1]['op'];
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
@@ -62,6 +66,7 @@ $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" tar
         
 if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares') {
         $rowCount++;
+        $startWith = $datas[0] - 1;
 
         $from = isset($op[1]['from']) ? $op[1]['from'] : $op[1]['delegator'];
         $to = isset($op[1]['to']) ? $op[1]['to'] : $op[1]['delegatee'];
@@ -118,6 +123,8 @@ $result['content'] .= '<tr>
         }
     }
     }
+$retry_counter++;
+if ($startWith === -1) break;
 }
 
 $result['content'] .= '</table><br />';

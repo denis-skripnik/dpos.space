@@ -8,6 +8,7 @@ function sendErrors() {
     global $errors;
     $error = error_get_last();
     if ($error['type'] === E_ERROR || $error['type'] === E_PARSE) {
+        if (strstr($error['message'], "file_get_contents") === false && strstr($error['message'], "backend.dpos.space") === false && strstr($error['message'], "178.20.43.121") === false && strstr($error['message'], "Request Timeout") === false && strstr($error['message'], "answer code is '530' and response") === false) return;
         $errors .= "
 <h2>Fatal Error: ".$error['message']."</h2>
         <strong>File</strong>: ".$error['file'].":".$error['line']."</p>";

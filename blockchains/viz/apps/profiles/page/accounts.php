@@ -28,9 +28,11 @@ $result['content'] = '<div id="transfers_content"><h2>Действия с акк
 
 $rowCount = 0;
 
-$startWith = $_REQUEST['start'] ?? 300000000;
+$startWith = $_REQUEST['start'] ?? -1;
 
-while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
+$retry_counter = 0;
+
+while ($rowCount !== TRX_LIMIT && $retry_counter < 4) {
 
     $res = getAccountHistoryChunk($user, $startWith);
 
@@ -49,7 +51,9 @@ while ($startWith !== -1 && $rowCount !== TRX_LIMIT) {
     krsort($mass);
 
     foreach ($mass as $datas) {
-        $startWith = $datas[0] - 1;
+        if ($rowCount === TRX_LIMIT) {
+            break;
+        }
 
         $op = $datas[1]['op'];
         $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
@@ -61,7 +65,9 @@ $timestamp = '<a href="'.$site_url.'viz/explorer/tx/'.$datas[1]['trx_id'].'" tar
         
 		if ($op[0] == 'account_create') {
             $rowCount++;
-        $name = 'Создание аккаунта';
+            $startWith = $datas[0] - 1;
+
+            $name = 'Создание аккаунта';
         $account = isset($op[1]['new_account_name']) ? $op[1]['new_account_name'] : "";
 $amount = $op[1]['delegation'] !== '0.000000 SHARES' ? (float)$op[1]['delegation'].' VIZ делегированием соц. капитала' : (float)$op[1]['fee'].' VIZ';
 
@@ -160,6 +166,8 @@ $result['content'] .= '<tr>
         }
     }
     }
+$retry_counter++;
+if ($startWith === -1) break;
 }
 
 $result['content'] .= '</table><br />';
