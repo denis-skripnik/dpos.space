@@ -146,7 +146,7 @@ const russianFormattedDateTime = originalDateTime.toLocaleDateString('ru-RU', op
 let tr = `<tr>
 <td><a href="/hive/explorer/tx/${el[1].trx_id}" target="_blank">${russianFormattedDateTime}</a></td>
 <td>${ops[opType]}</td>
-<td>`;
+<td class="longtext">`;
 for (let field in opData) {
     let fieldValue = opData[field];
     if (typeof fieldValue === 'object') fieldValue = JSON.stringify(fieldValue);

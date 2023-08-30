@@ -666,3 +666,10 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
   } 
 
 }
+
+table{
+  table-layout: fixed;
+}
+td.longtext{
+  word-wrap:break-word
+}
