@@ -18,6 +18,7 @@ $pages = '<h2>Страницы сервиса</h2>
 <p><label for="page">Страница:<br>
 <select name="page">
 <option value="">Основное</option>
+<option value="history">История</option>
 <option value="transfers">Переводы средств</option>
 <option value="gp">Сила Голоса</option>
 <option value="dao">ДАО</option>
@@ -85,6 +86,12 @@ $data['description'] .= ' - основное';
 $data['content'] = $blockchain_snippet;
 $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/userinfo.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'history') {
+    $data['title'] .= ' - История';
+    $data['description'] .= ' - история';
+$data['content'] = $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/history.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'transfers') {
     $data['title'] .= ' - Переводы средств';
     $data['description'] .= ' - переводы средств';

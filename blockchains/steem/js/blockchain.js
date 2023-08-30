@@ -241,3 +241,8 @@ var ajax_options = {};
     }
     getLoad(url, 'ajax_modal_content', 'Следующие 10', 'Предыдущие 10')(START_MODE);
 });
+
+function getParameterByName(name) {
+    const urlParams = new URLSearchParams(window.location.hash.substring(1));
+    return urlParams.get(name) || "";
+  }

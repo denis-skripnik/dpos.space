@@ -103,7 +103,7 @@ $sum_weight = 0;
 foreach ($post['active_votes'] as $vote) {
   $sum_weight += $vote['weight'];
 }
-  $curation_procent = round($post['curation_rewards_percent']/100, 2);
+$curation_procent = round($post['curation_rewards_percent']/100, 2);
   $result['content'] .= '<td>'.$curation_procent.'%</td>';
 $arr_curation_procent[] = $curation_procent;
 $summ_curation_procent = $summ_curation_procent + $curation_procent;
