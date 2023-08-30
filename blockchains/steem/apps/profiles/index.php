@@ -11,6 +11,7 @@ $data['title'] = $page_config['title'].' '.$user;
 $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'">Основное</a></th>
+<th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/history">История</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/transfers">Переводы средств</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/sp">Steem Power</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/profiles/'.$user.'/dao">ДАО</a></th>
@@ -32,6 +33,12 @@ $data['description'] .= ' - основное';
 $data['content'] = $blockchain_snippet;
 $data['content'] .= $pages;
 $data['content'] .= require_once(__DIR__.'/page/userinfo.php');
+} else if (isset(pageUrl()[3]) && pageUrl()[3] == 'history') {
+    $data['title'] .= ' - История';
+    $data['description'] .= ' - история';
+$data['content'] = $blockchain_snippet;
+    $data['content'] .= $pages;
+$data['content'] .= require_once(__DIR__.'/page/history.php');
 } else if (isset(pageUrl()[3]) && pageUrl()[3] == 'transfers') {
     $data['title'] .= ' - Переводы средств';
     $data['description'] .= ' - переводы средств';

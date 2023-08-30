@@ -310,3 +310,8 @@ function copyText(id) {
     text.select();    
   document.execCommand("copy");
     }
+
+    function getParameterByName(name) {
+        const urlParams = new URLSearchParams(window.location.hash.substring(1));
+        return urlParams.get(name) || "";
+      }

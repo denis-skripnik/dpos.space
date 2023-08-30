@@ -11,6 +11,7 @@ $data['title'] = $page_config['title'].' '.$user;
 $data['description'] = $page_config['description'].' '.$user;
 $pages = '<h2>Страницы сервиса</h2>
 <table><tr><th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'">Основное</a></th>
+<th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/history">История</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/transfers">Переводы средств</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/shares">Соц. капитал</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/profiles/'.$user.'/dao">ДАО</a></th>

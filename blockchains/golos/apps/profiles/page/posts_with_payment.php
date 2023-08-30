@@ -27,6 +27,8 @@ $result['content'] = '<div id="ajax_content"><h2>Посты, получивши�
 <th>Время после выплаты</th>
 <th>Список бенефициаров и их проценты</th>
 <th>Пост оштрафован из-за частой публикации большого количества постов на</th>
+<th>Сумма донатов</th>
+<th>Сумма выплаты автору</th>
 <th>Сумма продвижения</th>
 </tr>';
 
@@ -133,14 +135,16 @@ foreach ($posts as $post) {
     }
 }
     $beneficiaries_procent = $all_beneficiaries / 100;
-    $result['content'] .= '<td>' . $beneficiaries_list . '</td>'; // список бенефециариатов
+    $result['content'] .= '<td>' . $beneficiaries_list . '</td>'; // список бенефециаров
 
     $reward_weight = $post['reward_weight'];
     $reward_weight_procent = $reward_weight / 100;
     $shtraf_procent = 100 - $reward_weight_procent;
     $result['content'] .= '<td>' . round($shtraf_procent, 2) . '%</td>';
     $arr_shtraf_procent[] = $shtraf_procent;
-        $result['content'] .= "<td>".$post['promoted']."</td>";
+        $result['content'] .= "<td>".$post['donates']." и ".$post['donates_uia']." UIA токенов</td>
+<td>".$post['author_payout_in_golos']."</td>
+        <td>".$post['promoted']."</td>";
         
     $result['content'] .= '</tr>';
 }
