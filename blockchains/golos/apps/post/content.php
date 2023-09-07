@@ -53,7 +53,7 @@ return '<h2>Публикация поста <br><strong>Бенефициарск
 
 <div class="ptags">
 <!--[if lt IE 10]><p><label for="post_tags">Теги через пробел: </label></p><![endif]-->
-<p><input type="text" name="post_tags" id="content_tags" value="" placeholder="Теги через пробел" ></p>
+<p><input type="text" name="post_tags" id="content_tags" data-domain="false" value="" placeholder="Теги через пробел" ></p>
 </div>
 
 <div class="pperm">

@@ -24,9 +24,26 @@ $result = substr($result, 0, -7);
     $result .= '<br />}';
     return $result;
 }
+function node($params) {
+  $ch = curl_init('https://rpc.cyber.posthuman.digital/tx?hash='.mb_strtolower($params).'/');
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  $html = '';
+  $html = curl_exec($ch);
+  $data = json_decode($html, true);
+  var_dump($data);
+  if (isset($data['error'])) {
+    $data = ['result' => []];
+    header("HTTP/1.0 404 Not Found");
+  }
 
-$html = file_get_contents('https://rpc.cyber.posthuman.digital/txs/'.$datas);
-$tx = json_decode($html, true);
+  // Close handle
+  curl_close($ch);
+return $data['result'];
+}
+$tx = node($datas);
+if (count($tx) == 0) {
+return '<p>Такой транзакции нет или ошибка соединения с Нодой.</p>';
+}
 
 date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');

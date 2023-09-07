@@ -17,7 +17,6 @@ $count=0;
 while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
   $d=date("d/m/Y", $time);
   $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
-
   $p=getPage($req); // курс GOLD-RUB
   $count++;
   $t=explode("<Sell>", $p);

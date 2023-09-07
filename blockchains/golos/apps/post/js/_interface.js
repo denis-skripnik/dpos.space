@@ -528,6 +528,7 @@ hasPost(author, permlink, postSender);
     var reset_q = window.confirm('Вы действительно хотите очистить форму?');
 if (reset_q == true) {
  $('form input[type="text"]:not(#blockchain_login), form textarea').val('');
+ $('form input[type="text"]:not(#blockchain_login), form textarea').garlic('destroy');   
  $('#content_category').prop('selectedIndex',0);
  MD.value('');
  }

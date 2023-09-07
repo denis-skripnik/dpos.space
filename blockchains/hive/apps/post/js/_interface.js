@@ -338,6 +338,7 @@ function fillContent(err, result) {
         var jmeta = JSON.parse(result.json_metadata);
        
         $('#content_title').val(result.title);
+                $(`#content_category option[value=${result.category}]`).attr("selected", "selected");
         $('#content_tags').val(jmeta.tags.join(' '));
         $('#content_image').val(jmeta.image.join(' '));
         $('#permlink_filde').val(result.permlink);
@@ -386,6 +387,7 @@ console.log(err);
 function post_submit() {
 var title = document.getElementById('content_title').value;
 var body = document.getElementById('content_text').value;
+var category = document.getElementById('content_category').value;
 if (document.getElementById('content_tags').value === '') {
  var content_tags = 'dpos-post';
 } else {
@@ -412,11 +414,12 @@ if (!user_permlink) {
     for (tag of tagsraw) {
          tags.push(transform(tag, "-"));
          }
-
-    if (document.getElementById('content_tags').value === '') {
-     var parentPermlink = content_tags;
-    } else {
+    if (typeof category !== 'undefined' && category !== '') {
+              var parentPermlink = category;
+    } else if (document.getElementById('content_tags').value !== '') {
      var parentPermlink = tags[0];
+    } else {
+        var parentPermlink = 'dpos-post';
     }
     var jsonMetadata = {
 "app": "dpos.space/post",
@@ -477,24 +480,12 @@ hasPost(hive_login, permlink, postSender);
     var reset_q = window.confirm('Вы действительно хотите очистить форму?');
 if (reset_q == true) {
  $('form input[type="text"]:not(#blockchain_login), form textarea').val('');
-    MD.value('');
+ $('form input[type="text"]:not(#blockchain_login), form textarea').garlic('destroy');      
+ $('#content_category').prop('selectedIndex',0);
+ MD.value('');
  }
 }
 
-$('.popular_tags').click(function() {
- let tags = $('#content_tags').val();
- tags += ' ' + $(this).val();
- $('#content_tags').val(tags);
- });
- 
  if(0<$('input[type=range]').length){
    bind_range();
  }
- 
- $('#submit_node').click(function() {
- let node_url = $('#public_node').val();
- if (!node_url) {
- return alert('Вы не указали адрес публичной Ноды');
- }
- localStorage.setItem('hive_node', node_url);
- });    

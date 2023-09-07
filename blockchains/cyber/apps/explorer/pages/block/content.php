@@ -24,14 +24,27 @@ try {
       $result .= '<br />}';
       return $result;
   }
-  
   function node($params) {
-    $html = file_get_contents('https://rpc.cyber.posthuman.digital/'.$params);
+    $ch = curl_init('https://rpc.cyber.posthuman.digital/'.$params);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $html = '';
+    $html = curl_exec($ch);
     $data = json_decode($html, true);
-  return $data['result'];
-  }
-$block = node('block?height='.$datas);
+    if (isset($data['error'])) {
+      $data = ['result' => []];
+      header("HTTP/1.0 404 Not Found");
+    }
 
+    // Close handle
+    curl_close($ch);
+  return $data['result'];
+}
+$block = node('block?height='.$datas);
+if (count($block) == 0) {
+  return '<p>Такого блока нет или ошибка соединения с Нодой.</p>';
+  }
+   
+ 
   date_default_timezone_set('UTC');
 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
 $timestamp1 = explode('.', $block['block']['header']['time'])[0];

@@ -463,7 +463,7 @@ let operations = [
     } else if(err == 'AssertionError: private_key required') {
              alert('Ошибка: Приватный постинг ключ обязателен к вводу!');
                            } else {
-             console.log(JSON.stringify(err));
+             console.log(err);
                              alert(err);
              }
              } else {
@@ -478,16 +478,11 @@ hasPost(author, permlink, postSender);
     var reset_q = window.confirm('Вы действительно хотите очистить форму?');
 if (reset_q == true) {
  $('form input[type="text"]:not(#blockchain_login), form textarea').val('');
-    MD.value('');
+ $('form input[type="text"]:not(#blockchain_login), form textarea').garlic('destroy');   
+ MD.value('');
  }
 }
 
-$('.popular_tags').click(function() {
- let tags = $('#content_tags').val();
- tags += ' ' + $(this).val();
- $('#content_tags').val(tags);
- });
- 
  if(0<$('input[type=range]').length){
    bind_range();
  }
