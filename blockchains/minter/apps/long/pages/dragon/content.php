@@ -14,12 +14,14 @@ $current_price = $all_bip / $all_long;
 <p align="center"><strong><a href="/minter/long">Фарминг</a> <a href="/minter/long/loto">Лотерея</a></strong></p>
 <h2>Ваш дракон</h2>
 ';
+$isProvider = '';
 if (!isset($provider['liquidity'])) {
 $content .= '
 <p>К сожалению, его у вас ещё нет. Но не расстраивайтесь: завести можете ниже!</p>
 <ul><li>Адрес: <a href="https://dpos.space/minter/profiles/'.pageUrl()[3].'" target="_blank"><span id="dragon_address">'.pageUrl()[3].'</span></a></li></ul>
 ';
     } else {
+      $isProvider = '<p><strong>Чтоб дракон чувствовал себя отлично, надо его накормить на '.number_format($provider['get_amount'], 3, ',', '&nbsp;').' Л элексира жизни LONG</strong></p>';
       $content .= '<p align="center"><img src="/blockchains/minter/apps/long/dragons/'.$provider['invest_days_share'].'.png" alt="'.$provider['invest_days_share'].'%" style="width:100%; max-width:600px; height:auto;"></p>
 <ul><li>Адрес: <a href="https://dpos.space/minter/profiles/'.pageUrl()[3].'" target="_blank"><span id="dragon_address">'.pageUrl()[3].'</span></a></li>
       <li>Рост дракона относительно роста самого древнего собрата с округлением к ближайшему целому равен '.$provider['invest_days_share'].'%</li></ul>';
@@ -29,7 +31,7 @@ $content .= '<h2>Кормите дракона, чтоб он развивалс
 Инвест. дни - это рост вашего дракона в метрах.<br>
 Приблизить его к древним собратам вы можете, позволяя ему съедать всё, что он получил у себя дома.</p>
 <h3>Стол дракона</h3>
-<p><strong>Чтоб дракон чувствовал себя отлично, надо его накормить на '.number_format($provider['get_amount'], 3, ',', '&nbsp;').' Л элексира жизни LONG</strong></p>
+'.$isProvider.'
 <div id="dragon_table">
 <div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой или через BIP wallet. Сделайте это <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
 <div id="seed_page"><form>

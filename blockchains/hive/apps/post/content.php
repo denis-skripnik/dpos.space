@@ -1,13 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<div id="posting_page">
-<h2>Адрес публичной Ноды</h2>
-<p>Ниже вы можете указать произвольный адрес публичной Ноды. После сохранения обновите страницу.</p>
-<form class="form">
-<p><label for="node_url">Адрес Ноды: </label>
-<input type="text" name="node_url" id="public_node" value="">
-<button type="button" id="submit_node">Сохранить</button>
-</form>
-<hr>
 <h1>Публикация поста <br><strong>Бенефициарские 1%</strong></h1>
 
 <div class="fillfields">
@@ -53,36 +45,16 @@ return '<div id="posting_page">
 
 <div class="drdrop"><input type="button" id="addimg" data-storage="false" value="Загрузить фото в пост" onclick="document.querySelector(&#39;#loadinp&#39;).click()" ></div><input id="loadinp" style="visibility: collapse; width: 0px;" type="file" onchange="upload(this.files[0])"><p></p>
 
+<div class="category">
+<!--[if lt IE 10]><p><label for="content_category">Выберите сообщество: </label></p><![endif]-->
+<p><select name="post_category" id="content_category" placeholder="Выберите сообщество" required>
+<option value="" disabled="">Выберите сообщество</option><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option>
+  </select></p>
+  </div>
+
 <div class="ptags">
 <!--[if lt IE 10]><p><label for="post_tags">Теги через пробел: </label></p><![endif]-->
-<p><input type="text" name="post_tags" id="content_tags" value="" placeholder="Теги через пробел" ></p>
-<div class="spoy_load">
-<input type="checkbox" id="spoiler_linksTags" ><label for="spoiler_linksTags">Популярные теги. (кликните для показа/скрытия)</label>
- <div class="spoiler_body">
- <table border="1" cellpadding="5" width="100%"><thead>
-    <tr>
-     <th colspan="3">Теги</th>
-    </tr></thead><tbody>
-         <tr>
-         <td><button type="button" class="popular_tags" id="tag1" value="liga-avtorov">Лига авторов</button></td>
-         <td><button type="button" class="popular_tags" id="tag2" value="vp-liganovi4kov">Лига новичков</button></td>
-         <td><button type="button" class="popular_tags" id="tag3" value="ladyzarulem">ladyzarulem</button></td>
-         <td><button type="button" class="popular_tags" id="tag4" value="psk">psk</button></td>
-         </tr>
-         <tr>
-         <td><button type="button" class="popular_tags" id="tag5" value="chaos-legion">Легион хаоса</button></td>
-         <td><button type="button" class="popular_tags" id="tag6" value="ru--megagalxyan">Мегагальян</button></td>
-         <td><button type="button" class="popular_tags" id="tag7" value="botbod">Проект БОД</button></td>
-         <td><button type="button" class="popular_tags" id="tag8" value="boonmood">boonmood</button></td>
-         </tr>
-         <tr>
-         <td><button type="button" class="popular_tags" id="tag9" value="hive">Hive</button></td>
-         <td><button type="button" class="popular_tags" id="tag10" value="blockchain">Блокчейн</button></td>
-         <td><button type="button" class="popular_tags" id="tag11" value="vox-populi">vox-populi</button></td>
-         <td><button type="button" class="popular_tags" id="tag12" value="earth-citizens">Граждане Земли</button></td>
-         </tr>
-   </tbody></table>
-</div></div>
+<p><input type="text" name="post_tags" id="content_tags" data-domain="false" value="" placeholder="Теги через пробел" ></p>
 </div>
 
 <div class="pperm">
