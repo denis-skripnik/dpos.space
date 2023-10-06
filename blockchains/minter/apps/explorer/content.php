@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 function node($params) {
-  $html = file_get_contents('https://api.minter.one/v2/'.$params);
+  $html = file_get_contents('https://api-minter.mnst.club/v2/'.$params);
   $data = json_decode($html, true);
   return $data;
 }

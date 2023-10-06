@@ -1,0 +1,33 @@
+    <div id="rubic-widget-root"></div>
+    
+    <script defer type="text/javascript">
+        // describe widget configuration and saving to a global variable for future use
+        var configuration = {
+            from: '',
+            to: '',
+            fromChain: '',
+            toChain: '',
+            amount: 0,
+            iframe: 'flex',
+            hideSelectionFrom: false,
+            hideSelectionTo: false,
+            tokenSearch: true,
+            rubicLink: true,
+            theme: 'light',
+            background: '#28372e',
+            injectTokens: {},
+            slippagePercent: {
+                instantTrades: 2,
+                crossChain: 5
+            },
+            fee: 0.075,
+            feeTarget: '0xaeac266a4533CB0B4255eA2922f997353a18B2E8',
+            language: 'ru'
+        }
+    
+        // prevent accidental changes to the object, for example, when re-creating a widget for another theme
+        Object.freeze(configuration);
+    
+        // create widget
+        rubicWidget.init(configuration);
+    </script>

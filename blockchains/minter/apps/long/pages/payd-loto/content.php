@@ -2,7 +2,7 @@
     $res = file_get_contents('http://178.20.43.121:3852/smartfarm/payd-loto');
     $tickets = json_decode($res, true);  
     $jackpot = $tickets['jackpot'];
-    $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');
+    $explorer = file_get_contents('https://api-minter.mnst.club/v2/swap_pool/0/2782');
   $pool = json_decode($explorer, true);
 $current_price = ((float)$pool['amount0'] / (10 ** 18)) / ((float)$pool['amount1'] / (10 ** 18));
 $types = ['10', '50', '100', '500', '1000'];
