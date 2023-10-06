@@ -1,9 +1,9 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-$address = file_get_contents('https://api.minter.one/v2/addresses?addresses=Mx01029d73e128e2f53ff1fcc2d52a423283ad9439&addresses=Mx6b897dff137ba8e6847812ae09ad46d709da7ec4');
+$address = file_get_contents('https://api-minter.mnst.club/v2/addresses?addresses=Mx01029d73e128e2f53ff1fcc2d52a423283ad9439&addresses=Mx6b897dff137ba8e6847812ae09ad46d709da7ec4');
 $addresses = json_decode($address, true)['addresses'];
   $html = file_get_contents('http://178.20.43.121:3852/smartfarm');
   $res = json_decode($html, true);
-  $explorer = file_get_contents('https://api.minter.one/v2/swap_pool/0/2782');
+  $explorer = file_get_contents('https://api-minter.mnst.club/v2/swap_pool/0/2782');
   $pool = json_decode($explorer, true);
 $all_bip = ((float)$pool['amount0'] / (10 ** 18));
   $all_long = ((float)$pool['amount1'] / (10 ** 18));

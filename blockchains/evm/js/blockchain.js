@@ -1,5 +1,6 @@
 const networks = {
 	"9999": "Meganet RC",
+	"111000": "Siberium Testnet",
 	"167005": "Taiko testnet",
 	"84531": "Base goerli",
 	"534353": "Scroll Alpha testnet",
@@ -12,6 +13,7 @@ const networks = {
 
 const tokens = {
 	"9999": "MEGA",
+	"111000": "SIBR",
 	"167005": "ETH",
 	"84531": "ETH",
 	"534353": "ETH",
@@ -24,6 +26,7 @@ const tokens = {
 
 const explorers = {
 	"9999": "https://scan.metagarden.io",
+	"111000": "https://explorer.test.siberium.net",
 	"167005": "https://explorer.test.taiko.xyz",
 	"84531": "https://goerli.basescan.org",
 	"534353": "https://blockscout.scroll.io",
@@ -95,7 +98,7 @@ function generateNetworksForm(ids) {
 }
 
 $(document).ready(function() {
-	$('#selectNetwork').html(generateNetworksForm(Object.keys(contracts)));
+	if (typeof contracts !== 'undefined') $('#selectNetwork').html(generateNetworksForm(Object.keys(contracts)));
 	$(':button').prop('disabled', true);
 
 	$('input[type=radio][name=network]').change(function() {

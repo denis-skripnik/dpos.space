@@ -9,7 +9,7 @@ return '<div>
         <input type="text" id = "rewardTokenAddress">
         <p> Начальная цена (цена покупки первого майнера)</p>
         <input type="number" min = "1" id = "firstPrice">
-        <p> На сколько процентов увеличится стоимость следующего майнера?< / p>
+        <p> На сколько процентов увеличится стоимость следующего майнера?</p>
         <input type="number" min = "1" id = "increment">
         <p> Сколько дней будут начлсляться награды?</p>
         <input type="number" min = "1" id = "totalDays">

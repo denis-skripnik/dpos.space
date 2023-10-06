@@ -667,9 +667,10 @@ h1 > p {color: #0371A8; font: 16px/24px Verdana, sans-serif;}
 
 }
 
-table{
+table.two_columns{
   table-layout: fixed;
 }
 td.longtext{
+  max-width: 1024px;
   word-wrap:break-word
 }

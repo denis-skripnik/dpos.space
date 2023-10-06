@@ -15,6 +15,8 @@ if ($type == 'results' || $type == 'voteing') {
 $data['title'] = $page_config['title'];
 $data['description'] = $page_config['description'];
 }
+} else {
+    $data = get404Page();
 }
     return $data;
 }

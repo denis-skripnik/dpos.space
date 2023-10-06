@@ -44,7 +44,7 @@ foreach ($multy as $key => $val) {
   }
   
   function node($params) {
-      $ch = curl_init('https://api.minter.one/v2/'.$params);
+      $ch = curl_init('https://api-minter.mnst.club/v2/'.$params);
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
       $html = '';
       $html = curl_exec($ch);

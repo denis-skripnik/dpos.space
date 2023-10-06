@@ -22,7 +22,7 @@ if ($data['title'] == 'Ошибка 404: страница не существу�
 	<meta name="description" content="<?= $data['description']; ?>">
  <link href="<?= $conf['siteUrl']; ?>template/css/famaly-Rubik.css" rel="stylesheet">
   <link href="<?= $conf['siteUrl']; ?>template/css/normalize.css" rel="stylesheet">
-<link href="<?= $conf['siteUrl']; ?>template/css/style.css" rel="stylesheet">
+<link href="<?= $conf['siteUrl']; ?>template/css/style.css?ver=<?= filemtime(__DIR__.'/css/style.css') ?>" rel="stylesheet">
 <link rel="icon" type="image/x-icon" href="<?= $conf['siteUrl']; ?>template/images/favicon.ico">
 	<script type="text/javascript" src="<?= $conf['siteUrl']; ?>template/js/jquery.min.js"></script>
 <script type="text/javascript" src="<?= $conf['siteUrl']; ?>template/js/garlic.min.js"></script>
