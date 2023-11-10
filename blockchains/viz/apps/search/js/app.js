@@ -106,10 +106,12 @@ async function send_award(target, energy, custom_sequence, keyword, link, inlink
 	let q = window.confirm('Вы действительно хотите создать ссылку, отправив награду?');
 if (q === true) {
 if (energy) {
-energy = parseInt(energy);
+energy = parseFloat(energy);
 } else {
 			energy = 1;
 		}
+energy *= 100;
+energy = parseInt(energy);
 
 		if (!custom_sequence) {
 custom_sequence = 0;
@@ -118,7 +120,7 @@ custom_sequence = 0;
 			var benef_list = [];
 			if (link.indexOf('://') > -1) link = link.split('://')[1];
 			if (inlink.indexOf('://') > -1) inlink = inlink.split('://')[1];
-		var memo = `${keyword},${link}${inlink}`;
+		var memo = `${keyword}~${link}~${inlink}`;
 		if(current_user.type && current_user.type === 'vizonator') {
 			sendToVizonator('award', {receiver: target, energy, custom_sequence, memo})
 		  return;

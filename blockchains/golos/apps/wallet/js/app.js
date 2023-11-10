@@ -1086,7 +1086,7 @@ let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
   $("#nvwithdrawal").html(nvwithdrawal);
   var next_vesting_withdrawal = date_str(nvwithdrawal-(new Date().getTimezoneOffset()*60000),true,false,true);
   $("#next_vesting_withdrawal").html(next_vesting_withdrawal);
-  var full_vesting_withdraw = (vesting_withdraw_rate*13).toFixed(6) + ' СГ';
+  var full_vesting_withdraw = (vesting_withdraw_rate*4).toFixed(6) + ' СГ';
   $("#full_vesting_withdraw").html(full_vesting_withdraw);
   if (full_vesting_withdraw !== '0.000000 СГ') {
   jQuery("#info_vesting_withdraw").css("display", "block");
