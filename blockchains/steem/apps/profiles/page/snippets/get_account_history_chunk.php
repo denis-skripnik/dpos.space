@@ -9,7 +9,7 @@ use GrapheneNodeClient\Commands\Single\GetAccountHistoryCommand;
 function getAccountHistoryChunk($author, $startWith = -1)
 {
 
-        static $limit = 100;
+        static $limit = 20;
     
     $startWith = (int) $startWith;
 

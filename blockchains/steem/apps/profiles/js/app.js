@@ -1,5 +1,5 @@
 const user = document.location.pathname.split('/')[3];
-const limit = 100;
+const limit = 20;
 var from = -1;
 const ops = {
     vote: 'Голосование по контенту',
@@ -110,8 +110,8 @@ const ops = {
 async function getHistory() {
     if (from === -1) $('#items').html('');
     let history_level = $('#history_level').html();
-    if (!isNaN(history_level) && parseInt(history_level) === 0) history_level = 100;
-   else history_level = parseInt(history_level) + 100;
+    if (!isNaN(history_level) && parseInt(history_level) === 0) history_level = 20;
+   else history_level = parseInt(history_level) + 20;
     $('#history_level').html(history_level);
    var selectedOps = $('#ops').val();
 let props = await steem.api.getDynamicGlobalPropertiesAsync();

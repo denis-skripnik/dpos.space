@@ -8,6 +8,8 @@ $page_config = configs(__DIR__.'/pages/'.$page.'/config.json');
 $data = $page_config;
 $data['content'] = $blockchain_snippet;
 $data['content'] .= require_once(__DIR__.'/pages/'.$page.'/content.php');
+} else {
+    $data = get404Page();
 }
     return $data;
 }

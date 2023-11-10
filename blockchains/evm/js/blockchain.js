@@ -1,9 +1,9 @@
 const networks = {
 	"9999": "Meganet RC",
 	"111000": "Siberium Testnet",
+	"534352": "Scroll mainnet",
 	"167005": "Taiko testnet",
 	"84531": "Base goerli",
-	"534353": "Scroll Alpha testnet",
 	"59140": "linea Testnet",
 	"7001": "Zetachain testnet",
 	"97": "BSC Testnet",
@@ -14,9 +14,9 @@ const networks = {
 const tokens = {
 	"9999": "MEGA",
 	"111000": "SIBR",
+	"534352": "ETH",
 	"167005": "ETH",
 	"84531": "ETH",
-	"534353": "ETH",
 	"59140": "ETH",
 	"7001": "ZETA",
 	"97": "BNB",
@@ -27,9 +27,9 @@ const tokens = {
 const explorers = {
 	"9999": "https://scan.metagarden.io",
 	"111000": "https://explorer.test.siberium.net",
+	"534352": "https://blockscout.scroll.io",
 	"167005": "https://explorer.test.taiko.xyz",
 	"84531": "https://goerli.basescan.org",
-	"534353": "https://blockscout.scroll.io",
 	"59140": "https://explorer.goerli.linea.build",
 	"7001": "https://explorer.zetachain.com",
 	"97": "https://testnet.bscscan.com",
