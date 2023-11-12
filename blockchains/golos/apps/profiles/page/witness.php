@@ -106,6 +106,7 @@ $chf['unwanted_operation_cost'] = "Стоимость нежелательных
 $chf['unlimit_operation_cost'] = "Цена 1 операции при отрицательной репутации.";
 $chf['min_golos_power_to_emission'] = "Мин. СГ для получения эмиссии (в GBG)";
 $chf['chain_status'] = 'Статус сети';
+$chf['nft_issue_cost'] = 'Цена создания NFT';
 
 foreach ($props as $prop => $value) {
 if ($prop !== 'min_curation_percent' && $prop !== 'max_curation_percent' && $prop !== 'flag_energy_additional_cost' && $prop !== 'worker_reward_percent' && $prop !== 'witness_reward_percent' && $prop !== 'vesting_reward_percent') {

@@ -48,6 +48,7 @@ chf.negrep_posting_per_window = "Кол-во постов для публика�
 chf.unwanted_operation_cost = "Стоимость нежелательных операций.";
 chf.unlimit_operation_cost = "Цена 1 операции при отрицательной репутации.";
 chf.min_golos_power_to_emission = "Мин. СГ для получения эмиссии (в GBG)";   
+chf.nft_issue_cost = 'Цена создания NFT';
 
 golos.api.getWitnessByAccount(golos_login, function(err, res) {
     if (!err && !$.isEmptyObject(res)) {
@@ -159,9 +160,9 @@ if (prop.indexOf('percent') > -1 || prop.indexOf('min_golos_power_to_curate') ==
         prop_value = parseInt(prop_value);
         } else if (prop === 'allow_distribute_auction_reward' || prop === 'allow_return_auction_reward_to_fund') {
             prop_value = elements[i].checked;
-    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance' || prop === 'min_golos_power_to_curate' || prop.indexOf('cost') > -1) {
+    } else if (prop === 'account_creation_fee' || prop === 'create_account_min_golos_fee' || prop === 'create_account_min_delegation' || prop === 'min_delegation' || prop === 'min_referral_break_fee' || prop === 'max_referral_break_fee' || prop === 'min_invite_balance' || prop.indexOf('operation_cost') > -1) {
         prop_value = prop_value.toFixed(3) + ' GOLOS';
-} else if (prop === 'worker_request_creation_fee' || prop === 'asset_creation_fee') {
+} else if (prop === 'worker_request_creation_fee' || prop === 'asset_creation_fee' || prop === 'nft_issue_cost' || prop === 'min_golos_power_to_emission' || prop === 'min_golos_power_to_curate') {
     prop_value = prop_value.toFixed(3) + ' GBG';
 } else if (prop === 'create_account_delegation_time' || prop === 'witness_idleness_time' || prop === 'account_idleness_time' || prop === 'max_referral_term_sec') {
     prop_value *= 86400;
@@ -180,13 +181,14 @@ let op = [];
 op[0] = 'chain_properties_update';
 op[1] = {};
 op[1].owner = golos_login;
-op[1].props = [8, props];
+op[1].props = [9, props];
 operations.push(op);  
-console.log(JSON.stringify(operations));
+
 golos.broadcast.send({extensions: [], operations}, [active_key], function(err, result) {
 if (!err) {
     window.alert('Параметры сохранены успешно.');
 } else {
+    console.log(err)
     if (err.payload.error.message.indexOf('max_referral_term_sec must be <=(60*60*24*30*12)') > -1) {
     window.alert('Вы указали слишком большое значение Макс. срок получения % от реферала. Оно должно быть <= 360')
 } else if (err.payload.error.message.indexOf("max_curation_percent must be between min_curation_percent and 10000") > -1) {
