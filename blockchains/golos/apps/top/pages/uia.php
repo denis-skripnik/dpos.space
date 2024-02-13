@@ -6,10 +6,12 @@ if (isset(pageUrl()[3])) {
     $pagenum = pageUrl()[3];
 }
 $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=uia-top&token='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
-$top = json_decode($html, true);
+$get_page = json_decode($html, true);
+$top = $get_page['data'];
 $next_page = true;
 if ($top && count($top) > 0) {
-    $content = '<table><thead><tr>
+    $content = '<p>Всего: '.$get_page['counter'].'</p>
+<table><thead><tr>
 <th>№</th><th>Логин</th><th>Суммарный баланс аккаунта</th><th>Основной баланс (ликвид)</th><th>TIP баланс (донаты)</th><th>Market-баланс</th>
 </tr></thead><tbody>';
 foreach ($top as $key => $value) {
@@ -37,7 +39,9 @@ if ($pagenum > 1) {
     $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
 }
 if ($next_page == true) {
-    $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
+    $finish_page = ceil($get_page['counter'] / 100); // округляем вверх до целого числа
+    $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a>
+    <a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.$finish_page.'">Последняя</a></p>';
 }
 
     return $content;

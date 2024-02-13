@@ -1,32 +1,38 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 return '<div>
 <h2>2. Создание майнера</h2>
-<p>Название</p>
-        <input type="text" id = "name">
-        <p>Тикер</p>
-        <input type="text" id = "symbol">
-        <p> Адрес токена, в котором будут начисляться вознаграждения</p>
-        <input type="text" id = "rewardTokenAddress">
-        <p> Начальная цена (цена покупки первого майнера)</p>
-        <input type="number" min = "1" id = "firstPrice">
-        <p> На сколько процентов увеличится стоимость следующего майнера?</p>
-        <input type="number" min = "1" id = "increment">
-        <p> Сколько дней будут начлсляться награды?</p>
-        <input type="number" min = "1" id = "totalDays">
-        <p> Размер вознаграждения за 1 майнера за 1 день</p>
-        <input type="number" min = "0.000000000000000001" id = "rewardPerDay">
-        <p> Количество майнеров (всего)</p>
-        <input type="number" min = "1" id = "totalMiners">
-		<button onclick="createMiner()">Создать майнер</button>
+<form>
+<p><label for="name">Название</label><br>
+        <input type="text" id = "name"></p>
+        <p><label for="symbol">Тикер</label><br>
+        <input type="text" id = "symbol"></p>
+        <p><label for="rewardTokenAddress">Адрес токена, в котором будут начисляться вознаграждения</label><br>
+        <input type="text" id = "rewardTokenAddress"></p>
+        <p><label for="firstPrice">Начальная цена (цена покупки первого майнера)</label><br>
+        <input type="number" min = "1" id = "firstPrice"></p>
+        <p><label for="increment">На сколько процентов увеличится стоимость следующего майнера?</label><br>
+        <input type="number" min = "1" id ="increment"></p>
+        <p><label for="totalDays">Сколько дней будут начлсляться награды?</label><br>
+        <input type="number" min = "1" id = "totalDays"></p>
+        <p><label for="rewardPerDay">Размер вознаграждения за 1 майнера за 1 день</label><br>
+        <input type="number" min = "0.000000000000000001" id = "rewardPerDay"></p>
+        <p><label for="totalMiners">Количество майнеров (всего)</label><br>
+        <input type="number" min = "1" id = "totalMiners"></p>
+		<p><button onclick="createMiner()">Создать майнер</button></p>
+</form>
         <p><b>Результат:</b> <span id="resultLog"></p>
         </div>
 <div id="mintMiner" style="display: none;">
 <h2>Минт майнера</h2>
-        <button onclick="mintMiner()">Минт!</button>
-    </div>
+<form>
+<p><button onclick="mintMiner()">Минт!</button></p>
+</form>
+</div>
     <div id="getRewards" style="display: none;">
     <h2>Получайте награды</h2>
-        <button onclick="getRewards()">Получить мои награды!</button>
+<form>
+    <p><button onclick="getRewards()">Получить мои награды!</button></p>
+</form>
     </div>
     <h2>Автор</h2>
 <p>Незрячий разработчик Денис Скрипник. Канал: <a href="https://t.me/blind_dev" target="_blank">@blind_dev</a><br>

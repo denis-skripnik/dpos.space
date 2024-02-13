@@ -58,12 +58,10 @@ while ($rowCount !== TRX_LIMIT && $retry_counter < 3) {
 
     foreach ($mass as $datas) {
         $startWith = $datas[0] - 1;
-
         $op = $datas[1]['op'];
 
 		if ($op[0] == 'transfer_to_vesting' || $op[0] == 'delegate_vesting_shares') {
         $rowCount++;
-
         $from = isset($op[1]['from']) ? $op[1]['from'] : $op[1]['delegator'];
         $to = isset($op[1]['to']) ? $op[1]['to'] : $op[1]['delegatee'];
         $float_amount = (float)(isset($op[1]['amount']) ? $op[1]['amount'] : (float)$op[1]['vesting_shares'] / 1000000 * $hive_per_vests);

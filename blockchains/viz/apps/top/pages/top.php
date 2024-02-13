@@ -9,7 +9,9 @@ if (isset(pageUrl()[3]) && is_numeric(pageUrl()[3])) {
 return;
 }
 $html = file_get_contents('http://178.20.43.121:3100/viz-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
-$top = json_decode($html, true);
+$get_page = json_decode($html, true);
+$top = $get_page['users'];
+$next_page = true;
 if ($top && count($top) > 0) {
 $fields = ['name' => 'Логин', 'shares' => 'Соц. капитал', 'shares_percent' => '% от всего соц. капитала', 'delegated_shares' => 'Делегировано соц. капитала другим', 'received_shares' => 'Получено соц. капитала от других делегированием', 'effective_shares' => 'Эффективный соц. капитал', 'vesting_withdraw_rate' => 'Выводимый соц. капитал', 'viz' => 'Баланс VIZ', 'viz_percent' => '% от всех VIZ'];
 if ($top) {
@@ -44,17 +46,26 @@ $tr .= '</tr>';
 }
 $th .= '</tr>';
 }
-$content = '<table><thead>'.$th.'</thead>
+$content = '<p>Всего: '.$get_page['counter'].'</p>
+<table><thead>'.$th.'</thead>
 <tbody>'.$tr.'</tbody></table>
 ';
 } else {
     $content = '<p>Данных на данной странице не найдено. Вернитесь на предыдущую.</p>
 ';
+$next_page = false;
+}
+if ($top && count($top) < 100) {
+    $next_page = false;
 }
 $content .= '</p>';
 if ($pagenum > 1) {
     $content .= '<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
 }
-$content .= '<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
+if ($next_page == true) {
+    $finish_page = ceil($get_page['counter'] / 100); // округляем вверх до целого числа
+    $content .= '<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a>
+<a href="'.$conf['siteUrl'].'viz/top/'.pageUrl()[2].'/'.$finish_page.'">Последняя</a></p>';
+}
 return $content;
 ?>
