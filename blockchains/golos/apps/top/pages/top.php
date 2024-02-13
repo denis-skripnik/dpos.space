@@ -32,7 +32,8 @@ if (isset(pageUrl()[3])) {
     $pagenum = pageUrl()[3];
 }
 $html = file_get_contents('http://178.20.43.121:3000/golos-api?service=top&type='.mb_strtolower(pageUrl()[2]).'&page='.$pagenum);
-$top = json_decode($html, true);
+$get_page = json_decode($html, true);
+$top = $get_page['users'];
 $next_page = true;
 if ($top && count($top) > 0) {
 $fields = ['name' => 'Логин', 'gp' => 'СГ (%)', 'delegated_gp' => 'Делегировано СГ другим', 'received_gp' => 'Получено СГ от других делегированием', 'effective_gp' => 'Эффективная СГ, учитываемая при апвоутинге', 'emission_received_gp' => 'Получено СГ с эмиссией', 'emission_delegated_gp' => 'Делегировано СГ с эмиссией', 'gp_withdraw_rate' => 'Выводится СГ', 'golos' => 'Баланс GOLOS (%)', 'gbg' => 'Баланс GBG (%)', 'tip_balance' => 'TIP-баланс', 'market_balance' => 'Маркет-баланс', 'reputation' => 'Репутация'];
@@ -74,7 +75,8 @@ $tr .= '</tr>';
 }
 $th .= '</tr>';
 }
-$content = '<table><thead>'.$th.'</thead>
+$content = '<p>Всего: '.$get_page['counter'].'</p>
+<table><thead>'.$th.'</thead>
 <tbody>'.$tr.'</tbody></table>
 ';
 } else {
@@ -90,7 +92,9 @@ if ($pagenum > 1) {
     $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum-1).'">Предыдущая</a> - ';
 }
 if ($next_page == true) {
-    $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a></p>';
+    $finish_page = ceil($get_page['counter'] / 100); // округляем вверх до целого числа
+    $content .= '<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.($pagenum+1).'">Следующая</a>
+<a href="'.$conf['siteUrl'].'golos/top/'.pageUrl()[2].'/'.$finish_page.'">Последняя</a></p>';
 }
     return $content;
 ?>

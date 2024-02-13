@@ -30,6 +30,11 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $startWith = $_REQUEST['start'] ?? -1;
 $retry_counter = 0;
+$result['content'] = '<div id="ajax_content"><h2>Авторские награды пользователя '.$user.'</h2>
+<table id="rewards-ol">
+        <tr><th>Дата и время получения</th>
+        <th>Ссылка на пост или комментарий</th>
+        <th>Награда</th></tr>';
 while ($rowCount !== AUTHOR_REWARDS_LIMIT && $retry_counter < 3) {
 $res = getAccountHistoryChunk($user, $startWith);
     
@@ -47,11 +52,6 @@ $mass = $res['result'];
 
     krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>Авторские награды пользователя '.$user.'</h2>
-    <table id="rewards-ol">
-            <tr><th>Дата и время получения</th>
-            <th>Ссылка на пост или комментарий</th>
-            <th>Награда</th></tr>';
                     foreach ($mass as $datas) {
                 if ($rowCount === AUTHOR_REWARDS_LIMIT) {
                     break;

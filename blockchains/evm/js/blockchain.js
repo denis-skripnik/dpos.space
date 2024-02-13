@@ -1,4 +1,6 @@
 const networks = {
+	"80085": "Berachain-Artio",
+	"168587773": "Blast Sepolia Testnet",
 	"9999": "Meganet RC",
 	"111000": "Siberium Testnet",
 	"534352": "Scroll mainnet",
@@ -12,6 +14,8 @@ const networks = {
 }
 
 const tokens = {
+	"80085": "BERA",
+	"168587773": "ETH",
 	"9999": "MEGA",
 	"111000": "SIBR",
 	"534352": "ETH",
@@ -25,6 +29,8 @@ const tokens = {
 }
 
 const explorers = {
+	"80085": "https://testnet.beratrail.io",
+	"168587773": "https://testnet.blastscan.io",
 	"9999": "https://scan.metagarden.io",
 	"111000": "https://explorer.test.siberium.net",
 	"534352": "https://blockscout.scroll.io",

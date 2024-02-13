@@ -30,6 +30,12 @@ if (!isset($user) && isset($_REQUEST['options']['user'])) { // проверяе�
 
 $startWith = $_REQUEST['start'] ?? -1;
 $retry_counter = 0;
+$result['content'] = '<div id="ajax_content"><h2>Авторские награды пользователя '.$user.'</h2>
+<table id="rewards-ol">
+        <tr><th>Дата и время получения</th>
+        <th>Ссылка на пост или комментарий</th>
+        <th>Награда</th></tr>';
+
 while ($rowCount !== AUTHOR_REWARDS_LIMIT && $retry_counter < 3) {
 $res = getAccountHistoryChunk($user, $startWith);
     
@@ -47,17 +53,11 @@ $mass = $res['result'];
 
     krsort($mass);
 
-            $result['content'] = '<div id="ajax_content"><h2>Авторские награды пользователя '.$user.'</h2>
-    <table id="rewards-ol">
-            <tr><th>Дата и время получения</th>
-            <th>Ссылка на пост или комментарий</th>
-            <th>Награда</th></tr>';
                     foreach ($mass as $datas) {
-                if ($rowCount === AUTHOR_REWARDS_LIMIT) {
-                    break;
-                }
-                $startWith = $datas[0] - 1;
-    
+                        $startWith = $datas[0] - 1;
+                        if ($rowCount === AUTHOR_REWARDS_LIMIT) {
+                            break;
+                        }
     
                 $op = $datas[1]['op'];
                 $month = array('01' => 'января', '02' => 'февраля', '03' => 'марта', '04' => 'апреля', '05' => 'мая', '06' => 'июня', '07' => 'июля', '08' => 'августа', '09' => 'сентября', '10' => 'октября', '11' => 'ноября', '12' => 'декабря');
@@ -77,7 +77,7 @@ $mass = $res['result'];
                         $result['content'] .= '<tr><td>' . $timestamp . '</td>
     <td><a href="https://hive.blog/@'.$author.'/'.$permlink.'" target="_blank">'.$author.'/'.$permlink.'</a></td>                    
 <td>'.$hbd_payout.$hive_payout.$gp_payout.'</td></tr>';
-                    }
+}
                 }
                 $retry_counter++;
                 if ($startWith === -1) break;
