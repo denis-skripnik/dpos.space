@@ -263,7 +263,7 @@ if ($blockchain == $permlink) {
   $taskList[$blockchain]['services'][$category]['name'] = $categories[$category];
   $taskList[$blockchain]['services'][$category][$permlink] = $ankor;
 }
-file_put_contents(__DIR__.'/menu.json', json_encode($taskList, JSON_UNESCAPED_UNICODE));
+// file_put_contents(__DIR__.'/menu.json', json_encode($taskList, JSON_UNESCAPED_UNICODE));
 unset($taskList);
 }
 }
@@ -310,6 +310,7 @@ function getPage($url) {
   if (strpos($url, 'cbr.ru') !== false && time() - filemtime($cache_file) > 43200) {
     $cache = file_get_contents($url);
     $t=explode("<Sell>", $cache);
+if (count($t) < 2) return;
     $t=explode("</Sell>", $t[1]);
     $count = count($t);
     if (isset($t) && $t[0]<>0 || $count > 14) {

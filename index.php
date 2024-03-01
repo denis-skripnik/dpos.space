@@ -82,6 +82,7 @@ if (isset(pageUrl()[1]) && pageUrl()[1] === 'api' && isset(pageUrl()[2])) {
 
     if (file_exists($api_file)) {
         require_once($api_file);
+    return;
     } else {
         $data = get404Page();
     }
