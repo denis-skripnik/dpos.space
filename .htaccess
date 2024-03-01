@@ -32,6 +32,11 @@ RewriteCond %{HTTP_HOST} ^(www\.)?viz\.dpos\.space$ [NC]
 RewriteCond %{REQUEST_URI} !^/viz-manual/
 RewriteRule ^(.*)$ viz-manual/$1 [L]
 
+#редрект для поддомена mgswap
+RewriteCond %{HTTP_HOST} ^(www\.)?mgswap\.dpos\.space$ [NC]
+RewriteCond %{REQUEST_URI} !^/mgswap/
+RewriteRule ^(.*)$ mgswap/$1 [L]
+
 #Редирект на https
 RewriteCond %{HTTP:X-Forwarded-Proto} !https
 RewriteRule (.*) https://%{HTTP_HOST}/$1 [L,R=301]
@@ -71,6 +76,8 @@ RedirectMatch 301 ^/post/(.*) https://dpos.space/$1/post
 RedirectMatch 301 ^/backup/(.*) https://dpos.space/$1/backup
 RedirectMatch 301 ^/profiles/(.*)/(.*) https://dpos.space/$2/profiles/$1/
 RedirectMatch 301 ^/golos/profiles/(.*)/sp https://dpos.space/golos/profiles/$1/gp
+RedirectMatch 301 ^/golos/api/(.*).php https://dpos.space/golos/api/$1
+RedirectMatch 301 ^/golos/api/get_uia-top https://dpos.space/golos/api/uia-top
 RedirectMatch 301 ^/minter/long/survays https://dpos.space/minter/long/surveys
 RewriteCond %{QUERY_STRING} chain=(.*) [NC]
 RewriteCond %{QUERY_STRING} block1=(.*) [NC]

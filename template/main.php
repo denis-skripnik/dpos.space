@@ -30,6 +30,20 @@ if ($data['title'] == 'Ошибка 404: страница не существу�
 <script src="<?= $conf['siteUrl']; ?>template/js/jquery.fancybox.min.js"></script>
 <?= ($data['scripts'] ?? $data['scripts'] ?? "") ?>
 <?= ($data['styles'] ?? $data['styles'] ?? "") ?>
+<script>
+  function openGoogleForm() {
+    $.fancybox.open('<iframe src="https://docs.google.com/forms/d/e/1FAIpQLSceyPgY4TV0CljtoRDqdERJBFqJC0QzmL8drDcCT1CHl0VgdA/viewform?embedded=true" width="700" height="520" frameborder="0" marginheight="0" marginwidth="0">Загрузка…</iframe>');
+  }
+    $(document).ready(function() {
+      let survey = localStorage.getItem('survey');
+      if (!survey || survey === 'true' || survey < 2) {
+openGoogleForm();
+          let plus_survey = 1;
+          if (survey !== 'true') plus_survey += survey;
+localStorage.setItem('survey', plus_survey);
+      }
+    });
+    </script>
 </head>
 
 <body class="body">
@@ -44,7 +58,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </div>
     <ul class="nav-list hidden">
     <li class="nav-link"><a href="<?= $conf['siteUrl']; ?>" class="nav-item">ГЛАВНАЯ</a></li>
-<?= ($data['menu'] ?? $data['menu'] ?? "") ?>
+    <li class="nav-link"><a color="red" onclick="openGoogleForm()" class="nav-item">ВАЖНЫЙ ОПРОС</a></li>
+    <?= ($data['menu'] ?? $data['menu'] ?? "") ?>
 </ul>    
     <div class="tpl_hamburger show" id="sandwichmenu">
           <svg viewBox="0 0 800 600">

@@ -1,6 +1,8 @@
 const networks = {
 	"80085": "Berachain-Artio",
 	"168587773": "Blast Sepolia Testnet",
+	"81457": "Blast mainnet",
+	"11155111": "Ethereum Sepolia",
 	"9999": "Meganet RC",
 	"111000": "Siberium Testnet",
 	"534352": "Scroll mainnet",
@@ -16,6 +18,8 @@ const networks = {
 const tokens = {
 	"80085": "BERA",
 	"168587773": "ETH",
+	"81457": "ETH",
+	"11155111": "ETH",
 	"9999": "MEGA",
 	"111000": "SIBR",
 	"534352": "ETH",
@@ -31,6 +35,8 @@ const tokens = {
 const explorers = {
 	"80085": "https://testnet.beratrail.io",
 	"168587773": "https://testnet.blastscan.io",
+	"81457": "https://blastscan.io",
+	"11155111": "https://sepolia.etherscan.io",
 	"9999": "https://scan.metagarden.io",
 	"111000": "https://explorer.test.siberium.net",
 	"534352": "https://blockscout.scroll.io",
@@ -110,6 +116,8 @@ $(document).ready(function() {
 	$('input[type=radio][name=network]').change(function() {
 		if (document.getElementById("nativeToken") !== null) document.getElementById('nativeToken').innerHTML = tokens[chain_id]
 		if (document.getElementById("smartContractAddress") !== null) document.getElementById('smartContractAddress').innerHTML = contracts[chain_id]
+		if (document.getElementById("chain_name") !== null && chain_id === "11155111") document.getElementById('chain_name').innerHTML = networks["168587773"]
+		if (document.getElementById("chain_name") !== null && chain_id === "168587773") document.getElementById('chain_name').innerHTML = networks["11155111"]
 		if (document.getElementById("faucetBlock") !== null && chain_id !== '3333') 	document.getElementById('faucetBlock').style.display = 'none';
 		$(':button').prop('disabled', false);
 	}) // end change.
