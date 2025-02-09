@@ -10,7 +10,7 @@ return '<div>
         <input type="number" min = "1" id = "start_supply"></p>
         <p><label for="max_supply">Total supply</label><br>
         <input type="number" min = "1" id = "max_supply"></p>
-        <p><button onclick="createAsset()">Создать токен</button></p>
+        <p><button type="button" onclick="createAsset()">Создать токен</button></p>
 </form>
         <div><b>Результат:</b> <span id="resultLog"></div>
         </div>
@@ -20,7 +20,7 @@ return '<div>
 <form>
 <p><label for="mint_amount">Сумма минта</label>
         <input type="number" min = "1" id = "mint_amount"></p>
-        <p><button onclick="mintToken()">Минт</button></p>
+        <p><button type="button" onclick="mintToken()">Минт</button></p>
 </form>
         </div>
     <h2>Донат</h2>
