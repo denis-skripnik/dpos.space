@@ -1,4 +1,11 @@
-const user = document.location.pathname.split('/')[3];
+function unicodeToChar(text) {
+    return text.replace(/\\u[\dA-F]{4}/gi,
+           function (match) {
+                return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
+           });
+ }
+
+const user_url = document.location.pathname.split('/')[3];
 const limit = 1000;
 var from = -1;
 const ops = {
@@ -121,7 +128,7 @@ let tvsh = parseFloat(props['total_vesting_shares']);
 
 let steem_per_vests = 1000000 * tvfs / tvsh;
 
-   let oldHistory = await golos.api.getAccountHistoryAsync(user, from, limit, {select_ops: selectedOps});
+   let oldHistory = await golos.api.getAccountHistoryAsync(user_url, from, limit, {select_ops: selectedOps});
 let history = oldHistory.reverse();
 let trs = '';
 for (let el of history) {
@@ -154,6 +161,7 @@ for (let field in opData) {
     if (typeof fieldValue === 'string' && fieldValue !== '' && userFields.indexOf(field) > -1) fieldValue = `<a href="/golos/profiles/${fieldValue}" target="_blank">@${fieldValue}</a>`;
     if (typeof fieldValue === 'string' && fieldValue.indexOf('VESTS') > -1 || typeof fieldValue === 'string' && fieldValue.indexOf('GESTS') > -1)    fieldValue = Math.round(parseFloat(fieldValue) / 1000000 * steem_per_vests, 3);
     if (field === 'expiration') fieldValue = new Date(fieldValue).toLocaleDateString('ru-RU', options);
+    fieldValue = unicodeToChar(fieldValue);
     tr += `${(fieldNames[field] ? fieldNames[field] : field)} ${fieldValue}; `;
 }
 tr += '</td></tr>';

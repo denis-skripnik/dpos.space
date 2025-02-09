@@ -4,7 +4,7 @@ return '<div>
     <p>Адрес смарт-контракта для отправки тестовых токенов: <span id="smartContractAddress"></span></p>
 <form>
     <p><label for="amountInEth">Добавьте сумму в <span id="nativeToken">MEGA2</span> для игры</label><br>
-        <input type="number" min = "0" id = "amountInEth"></p>
+        <input type="number" min = "0" step="0.00001" id="amountInEth"></p>
         <p><label for="game_item">Выберите игровой предмет</label><br>
 <select id="game_item">
 <option value="0">Камень</option>

@@ -1,4 +1,11 @@
-const user = document.location.pathname.split('/')[3];
+function unicodeToChar(text) {
+    return text.replace(/\\u[\dA-F]{4}/gi,
+           function (match) {
+                return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
+           });
+ }
+
+const user_url = document.location.pathname.split('/')[3];
 const limit = 1000;
 var from = -1;
 const ops = {
@@ -56,7 +63,8 @@ const ops = {
     'expire_escrow_ratification': 'Истечение срока ратификации escrow',
     'target_account_sale': 'Установка покупателя аккаунта',
     'bid': 'Ставка на покупку аккаунта',
-    'outbid': 'Ставка на покупку аккаунта перебита'
+    'outbid': 'Ставка на покупку аккаунта перебита',
+    'custom': 'Кастомный JSON'
   };
   var searchOps = [];
  var query = '';
@@ -91,7 +99,7 @@ async function getHistory() {
    else history_level = parseInt(history_level) + 1000;
     $('#history_level').html(history_level);
    var selectedOps = $('#ops').val();
-let oldHistory = await viz.api.getAccountHistoryAsync(user, from, limit);
+let oldHistory = await viz.api.getAccountHistoryAsync(user_url, from, limit);
 let history = oldHistory.reverse();
 let trs = '';
 for (let el of history) {
@@ -122,6 +130,7 @@ for (let field in opData) {
     let fieldValue = opData[field];
     if (typeof fieldValue === 'object') fieldValue = JSON.stringify(fieldValue);
     if (typeof fieldValue === 'string' && userFields.indexOf(field) > -1) fieldValue = `<a href="/viz/profiles/${fieldValue}" target="_blank">@${fieldValue}</a>`;
+    fieldValue = unicodeToChar(fieldValue);
     tr += `${(fieldNames[field] ? fieldNames[field] : field)} ${fieldValue}; `;
 }
 tr += '</td></tr>';
