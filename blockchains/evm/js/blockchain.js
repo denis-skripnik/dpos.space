@@ -1,6 +1,6 @@
 const networks = {
 	"80094": "Berachain mainnet",
-	"998": "Hyperliquid EVM testnet",
+	"999": "HyperEVM",
 	"168587773": "Blast Sepolia Testnet",
 	"81457": "Blast mainnet",
 	"8453": "Base mainnet",
@@ -20,7 +20,7 @@ const networks = {
 
 const tokens = {
 	"80094": "BERA",
-	"998": "HYPE",
+	"999": "HYPE",
     "168587773": "ETH",
 	"81457": "ETH",
 	"8453": "ETH",
@@ -40,7 +40,7 @@ const tokens = {
 
 const explorers = {
 	"80094": "https://berascan.com",
-	"998": "https://testnet.purrsec.com",
+	"999": "https://hyperevm-explorer.vercel.app",
     "168587773": "https://blast-testnet.blockscout.com",
 	"81457": "https://blast.blockscout.com",
 	"8453": "https://base.blockscout.com",
@@ -60,7 +60,7 @@ const explorers = {
 
 const rpcs = {
 	"80094": "https://rpc.berachain.com",
-    "998": "https://api.hyperliquid-testnet.xyz/evm",
+    "999": "https://rpc.hyperliquid.xyz/evm",
 	"168587773": "https://sepolia.blast.io",
 	"81457": "https://rpc.ankr.com/blast",
 	"8453": "https://base.llamarpc.com",
