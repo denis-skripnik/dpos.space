@@ -2,7 +2,8 @@ window.addEventListener('signerReady', checkRefCode);
 
 const contracts = {
 	"80094": "0x903c22b37FdDE80d473B0C532B454dc31af013bA",
-	"999": "0x903c22b37FdDE80d473B0C532B454dc31af013bA"
+	"999": "0x903c22b37FdDE80d473B0C532B454dc31af013bA",
+"10143": "0x86cfdfaD380F0679d69e248055b93454F5977077"
 };
 
 // Вставьте ABI вашего смарт-контракта TapGame
