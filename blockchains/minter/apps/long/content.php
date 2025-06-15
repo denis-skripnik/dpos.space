@@ -52,7 +52,7 @@ $top_providers = array_slice($res['providers'], 0, 99);
 $all_supers = array_reduce($top_providers, "allPowerSum");
 
 function allExperienceSum($a, $b) {
-  $b_days = (float)$b['invest_days'];
+  $b_days = (float)$b['invest_days'] * (float)$b['multiply'];
   $lock_days = 0;
   if (isset($locks[$b['address']])) {
 $lock = $locks[$b['address']];
@@ -114,6 +114,9 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <p><label for="invest_days_calc">Кол-во инвест. дней:<br>
 <input type="number" name="invest_days_calc" min=0 max=3650 value="0" placeholder="Выберите инвест. день">
 </label></p>
+<p><label for="invest_days_calc">Мультипликатор:<br>
+<input type="number" name="multiply_calc" min=1 max=2 step=0.1 value="1" placeholder="Выберите мультипликатор">
+</label></p>
 <p>Сумма фарминга: <span id="result_profit">0</span> LONG *Курс действителен на <span id="page_date"></span></p>
 </form>
 <h4>Добавить ликвидность</h4>
@@ -139,16 +142,17 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 Если же вы реинвестировали всё, у вас сразу же будет 0 количество получений, 0 сумма получений и +20 инвест. дней.</strong></p>
 <p><strong>При вкладе >= 1000 LP-токенов выдаются бонусные инвест. дни, равные проценту от ликвидности.<br>
 Т. е., если вы добавляете 10% от общего кол-ва LP-токенов, получаете +10 инвест. дней; если 1% - 1, если 4% - 4, и т. д.</strong></p>
+<p><strong>Используя сервисы Long (лотерею с покупкой билетов, ставки на курс криптовалют, "Камень, ножницы, бумага" и голосования по опросам Long), вы получаете +0.1 к мультипликатору (максимум 2), который умножается на количество инвест. дней, повышая сумму фарминга!</strong></p>
 <p>И напоминаю, что от инвест. дней зависит ваш процент фарминга: вы конкурируете друг с другом за долю от максимальной суммы фарминга.</p>
 <hr>
 <p align="center">Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: <a href="https://dpos.space/minter/profiles/Mx01029d73e128e2f53ff1fcc2d52a423283ad9439" target="_blank">Mx01029d73e128e2f53ff1fcc2d52a423283ad9439</a><br>
-<strong>Из-за больших комиссий в BIP и LONG мы вынуждены сделать отложенную отправку накопленных сумм 30 числа каждого месяца. <a href="https://dpos.space/minter/long/deferred-txs" target="_blank">Список</a></strong></p>
+<strong>Из-за больших комиссий в BIP и LONG мы вынуждены сделать отложенную отправку накопленных сумм 16 числа каждого месяца. <a href="https://dpos.space/minter/long/deferred-txs" target="_blank">Список</a></strong></p>
 <div style="display: none" id="referer_info"></div>
 <table id="table">
 <thead><tr><th>№</th>
 <th>Адрес</th>
 <th>Ликвидность</th>
-<th>Инвест. дней</th>
+<th>Инвест. дней ✖ Мультипликатор</th>
 <th>Сумма получений (кол-во получений)</th>
 <th>Будущий фарминг, сумма (процент)</th>
 <th>Вероятная сумма бонуса за кратные 50 инвест. дни</th>
@@ -160,7 +164,7 @@ foreach($res['providers'] as $key => $provider) {
   $liquidity_share = (float)$provider['liquidity'] / $l;
   $provider_bip = $all_bip * $liquidity_share;
   $provider_long = ($all_long) * $liquidity_share;
-  $provider_days = (float)$provider['invest_days'];
+  $provider_days = (float)$provider['invest_days'] * (float)$provider['multiply'];
 
   $lock_days = 0;
   if (isset($locks[$provider['address']])) {
@@ -190,7 +194,7 @@ $content .= '<tr>
 <td>'.$key.'</td>
 <td><a href="https://chainik.io/address/'.$provider['address'].'" target="_blank">'.$provider['address'].'</a></td>
 <td>'.number_format($provider['liquidity'], 3, ',', '&nbsp;').' ('.number_format($provider_long, 3, ',', '&nbsp;').' LONG и '.number_format($provider_bip, 3, ',', '&nbsp;').' BIP)</td>
-<td>'.round($provider_days, 3).'</td>
+<td>'.round($provider_days, 3).' ✖ '.$provider['multiply'].'</td>
 <td>'.number_format($provider['get_amount'], 3, ',', '&nbsp;').' LONG ('.$get_counter.' получений)</td>
 <td>'.number_format($farming_share, 3, ',', '&nbsp;').' LONG ('.round($provider_percent, 3).'%)</td>
 <td>'.$bonus_value.'</td>

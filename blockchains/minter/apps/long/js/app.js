@@ -87,7 +87,7 @@ async function calculate() {
     let pool_bip_amount = long_amount * price;
     $('#bip_add_amount').html(pool_bip_amount.toFixed(5));
     let liquidity = Math.sqrt(long_amount * pool_bip_amount);
-    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.'));
+    let invest_days = parseFloat($('[name=invest_days_calc]').val().replace(',', '.')) * parseFloat($('[name=multiply_calc]').val().replace(',', '.'));
     let power = liquidity * ( 1 + (invest_days / 100))
 let farming_amount = parseFloat($('#farming_amount').html().replace(',', '.'));
     try {
