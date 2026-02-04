@@ -1,6 +1,6 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
-return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'cyber/accounts" target="_blank">здесь</a></p></div>                        
+return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
                         <div id="seed_page">
 <p>Адрес:<br>
 <a id="current_address"></a></p>

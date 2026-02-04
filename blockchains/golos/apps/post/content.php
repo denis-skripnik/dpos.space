@@ -101,7 +101,7 @@ return '<h2>Публикация поста <br><strong>Бенефициарск
 </div></div>
 </div>
 
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
 <div>
 <p><strong><button type="button" onclick="post_submit();"  class="psend">Опубликовать!</button></strong></p>
 

@@ -3,7 +3,7 @@ $service_url = [];
 if (isset(pageUrl()[3])) array_push($service_url, '/'.pageUrl()[3]);
 if (isset(pageUrl()[4])) array_push($service_url, pageUrl()[4]);
 $add_to_url = implode('/', $service_url);
-return '<div id="active_auth_msg" style="display: none;"><p>Для обмена необходим активный ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>. Если вы авторизованы, удалите аккаунт и добавьте с активным ключом; Если нет, авторизуйтесь с указанием обоих ключей.</p></div>
+return '<div id="active_auth_msg" style="display: none;"><p>Для обмена необходим активный ключ. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить". Если вы уже авторизованы с постинг ключом, удалите аккаунт и добавьте заново с активным ключом или seed-фразой.</p></div>
 <div id="active_page">
 <p align="center"><a href="'.$conf['siteUrl'].'golos/swap'.$add_to_url.'">Моментальный обмен</a></p>
 <h2>Создание и просмотр ордеров на обмен</h2>

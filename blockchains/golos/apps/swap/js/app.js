@@ -12,6 +12,22 @@ Number.prototype.toFixedNoRounding = function(n) {
     return b > 0 ? (a + '0'.repeat(b)) : a;
   }
 
+  async function getPrices({ amount, symbol, direction }) {
+    try {
+        const res = await dex.getExchange({
+            node: 'wss://api-full.golos.id/ws',
+            amount,
+            symbol,
+            direction
+        });
+        return res;
+    } catch (e) {
+        console.error('Get price error:', e);
+        return null;
+    }
+}
+
+
   async function deleteOrder(orderid) {
     let q = window.confirm('Вы действительно хотите удалить этот ордер?');
     if (q == true) {
@@ -95,47 +111,42 @@ Number.prototype.toFixedNoRounding = function(n) {
     }
     }
  
-async function creationOrder(sell_amount, selected_sell_token, selected_buy_token, fee1, fee2, pr1, pr2) {
-    $('#buy_amount').val('');
-    $('#market_fee').html('');
-    $('#market_price').html('');
-    $('#action_buy_token').attr('disabled', true);
+    async function creationOrder(sell_amount, selected_sell_token, selected_buy_token, fee1, fee2, pr1, pr2) {
+        $('#buy_amount').val('');
+        $('#market_fee').html('');
+        $('#market_price').html('');
+        $('#action_buy_token').attr('disabled', true);
     
-    let orders = await golos.api.getOrderBookAsync(100, [selected_sell_token, selected_buy_token]);
-    orders = orders.bids;
-    if (orders.length > 0) {
-    let asset1_counter = 0;
-    let price_counter = 0;
-    let orders_counter = 0;
-    for (let order of orders) {
-    orders_counter++;
-        asset1_counter += parseFloat(order.asset1) / (10 ** pr1);
-        price_counter += parseFloat(order.price);
-    if (asset1_counter >= sell_amount) {
-        break;
-    }
-}
-if (asset1_counter < sell_amount) {
-window.alert(`Сумма продажи больше имеющейся на рынке ${asset2_counter.toFixedNoRounding(pr2)} ${selected_buy_token}. Попробуйте позже или измените цену продажи на меньшую.`);
-$('#action_buy_token').attr('disabled', true);
-} else {
-    $('#action_buy_token').attr('disabled', false);
-    let price = price_counter / orders_counter;
-    price = price.toFixedNoRounding(5);
-    price = parseFloat(price);
-    let buy_amount = sell_amount * price - (2 / (10 ** (pr2)));
-    if (buy_amount && parseFloat(buy_amount.toFixedNoRounding(pr2)) === 0)     $('#action_buy_token').attr('disabled', true); // Либо добавить атрибут disabled window.alert(buu)
+        let amountStr = `${sell_amount.toFixedNoRounding(pr1)} ${selected_sell_token}`;
+        let priceInfo = await getPrices({
+            amount: amountStr,
+            symbol: selected_buy_token,
+            direction: 'sell'
+        });
     
-    $('#buy_amount').val(buy_amount.toFixedNoRounding(pr2));
-            $('#market_fee').html(`${fee2}% (${(buy_amount * (fee2 / 100)).toFixedNoRounding(pr2)} ${selected_buy_token})`);
-            $('#market_price').html(`${price.toFixed(5)} ${selected_buy_token} / ${selected_sell_token}`);
+        if (!priceInfo || (!priceInfo.direct && !priceInfo.best)) {
+            window.alert(`Не удалось найти подходящие ордера для обмена ${selected_sell_token} -> ${selected_buy_token}.`);
+            return;
+        }
+    
+        const chain = priceInfo.direct || priceInfo.best;
+        const buy_amount = parseFloat(chain.res.split(' ')[0]);
+        const buy_token = chain.res.split(' ')[1];
+    
+        if (!buy_amount || buy_token !== selected_buy_token) {
+            window.alert(`Некорректные данные обмена. Проверьте параметры.`);
+            return;
+        }
+    
+        $('#action_buy_token').attr('disabled', false);
+        $('#buy_amount').val(buy_amount.toFixedNoRounding(pr2));
+        $('#market_price').html(`${parseFloat(chain.best_price).toFixed(5)} ${selected_buy_token} / ${selected_sell_token}`);
+        $('#market_fee').html(`${fee2}% (${(buy_amount * (fee2 / 100)).toFixedNoRounding(pr2)} ${selected_buy_token})`);
+    
+        // Сохраняем steps цепочки в DOM для использования при отправке
+        window.currentExchangeSteps = chain.steps;
     }
-    } else {
-        window.alert(`Ордеров на покупку ${selected_sell_token} за ${selected_buy_token} нет.`);
-    }
-return {pr1, pr2, fee1, fee2};
-}
-
+    
 async function checkApprovedToken(asset) {
 $('#buy_token').html(`<option value=""></option>`);
     let uia;
@@ -325,25 +336,26 @@ $('#max_amount').click(async function() {
 $('#action_buy_token').click(async function() {
     let selected_sell_token = $('#sell_token').val();
     let selected_buy_token = $('#buy_token').val();
-    let sell_amount = parseFloat($('#sell_amount').val());
-    let buy_amount = parseFloat($('#buy_amount').val());
     let pr1 = parseFloat($('#pr1').val());
-    let pr2 = parseFloat($('#pr2').val());
+
     let q = window.confirm('Вы действительно хотите совершить обмен?');
-    if (q == true) {
-        let orderid = Math.floor(Date.now() / 1000); // it is golos.id way and it is preferred
-        let expiration = new Date();
-        expiration.setHours(expiration.getHours() + 1);
-        expiration = expiration.toISOString().substr(0, 19); // i.e. 2020-09-07T11:33:00
-       try {
-        let res = await golos.broadcast.limitOrderCreateAsync(active_key, golos_login, orderid, sell_amount.toFixedNoRounding(pr1) + ' ' + selected_sell_token, buy_amount.toFixedNoRounding(pr2) + ' ' + selected_buy_token, true, expiration);
-if (res) {
-    window.alert('Обмен произведён');
-location.reload();
-}
-} catch(e) {
-           window.alert(JSON.stringify(e));
-       }
+    if (!q) return;
+
+    try {
+        let operations = await dex.makeExchangeTx(window.currentExchangeSteps, {
+            owner: golos_login,
+            fill_or_kill: true
+        });
+
+        // Подписываем и отправляем
+        let res = await golos.broadcast.sendOperationsAsync(operations, active_key);
+        if (res) {
+            window.alert('Обмен произведён');
+            location.reload();
+        }
+    } catch (e) {
+        console.error(e);
+        window.alert('Ошибка при отправке: ' + JSON.stringify(e));
     }
 });
 

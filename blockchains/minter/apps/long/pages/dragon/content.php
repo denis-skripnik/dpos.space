@@ -33,7 +33,7 @@ $content .= '<h2>Кормите дракона, чтоб он развивалс
 <h3>Стол дракона</h3>
 '.$isProvider.'
 <div id="dragon_table">
-<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой или через BIP wallet. Сделайте это <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой или через BIP wallet. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page"><form>
 <p><label for="add_amount">Количество литров элексира жизни LONG (максимум <span id="max_add"></span>) <br>
 <input type="number" min=1 name="add_amount"></p>

@@ -6,7 +6,8 @@ if (url.endsWith("/") === true) {
 
 async function rewardsHistory(rewards_amounts, offset, end_date) {
   let isEndDate = false;
-  let responce = await axios.get('https://mainnet-explorer-api.decimalchain.com/api/address/' + address + '/rewards?limit=200&offset=' + offset + '&order[date]=DESC');
+  // NOTE: OpenAPI endpoint does not support order[date]=DESC; implement client-side sorting if needed
+  let responce = await axios.get('https://api.decimalchain.com/api/v1/rewards/' + address + '?limit=200&offset=' + offset);
   let rewards = responce.data.result.rewards;
   // window.alert(end_date);
   if (rewards && rewards.length > 0) {
@@ -109,7 +110,7 @@ async function main() {
     jQuery("#wallet_transfer_history").css("display", "block");try {
     let offset = (page * 10) - 10;
      
-    let response = await axios.get('https://mainnet-gate.decimalchain.com/api/address/' + address + '/txs?limit=10&offset=' + offset);
+    let response = await axios.get('https://api.decimalchain.com/api/v1/txs/txs-by-address/' + address + '?limit=10&offset=' + offset);
     let results = '';
     let res = response.data.result.txs;
     

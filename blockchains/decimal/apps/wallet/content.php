@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'decimal/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+return '<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page">
 <div id="main_wallet_info" style="display: none;">
 <p>Адрес: <a target="_blank" id="address_link"><span id="current_address"></span></a><br>
@@ -44,7 +44,7 @@ return '<div id="auth_msg" style="display: none;"><p>Для работы с ко
                                                       </div>
                                                       </div>
                                                       <div style="display: none;" id="convert_modal">
-                                                      <h4 class="modal-title">Конвертация <span class="convert_modal_token"></span></h4>
+                                                      <h4 class="modal-title">Конвертация <span class="convert_modal_token"></span><span style="display: none;" class="convert_modal_token_address"></span></h4>
                                                       <p><button data-fancybox-close class="btn">Закрыть</button></p>
                                                       <div id="action_convert">
                                                 <form class="form" name="postForm">
@@ -76,6 +76,30 @@ return '<div id="auth_msg" style="display: none;"><p>Для работы с ко
                                                 <p><input type="button" id="action_delegate_start" value="Делегировать"></p>
                                                 <hr>
                                                 <p><input type="button" id="action_save_delegate_template" value="Создать шаблон делегирования"></p> 
+                                                </form>
+                                                      </div>
+                                                      </div>
+                                                      <div style="display: none;" id="delegate_nft_modal">
+                                                      <h4 class="modal-title">Делегирование NFT</h4>
+                                                      <p><button data-fancybox-close class="btn">Закрыть</button></p>
+                                                      <div id="action_delegate_nft">
+                                                <form class="form" name="postForm">
+                                                <p><label for="delegate_nft_info">NFT ID:</label></p>
+                                                <p><input type="text" readonly name="delegate_nft_info" id="action_delegate_nft_info"></p>
+                                                <p><strong>Комиссия: <span id="delegate_nft_fee"></span></strong></p>
+                                                <p><input type="button" id="action_delegate_nft_start" value="Делегировать NFT"></p>
+                                                </form>
+                                                      </div>
+                                                      </div>
+                                                      <div style="display: none;" id="anbond_nft_modal">
+                                                      <h4 class="modal-title">Анбонд NFT</h4>
+                                                      <p><button data-fancybox-close class="btn">Закрыть</button></p>
+                                                      <div id="action_anbond_nft">
+                                                <form class="form" name="postForm">
+                                                <p><label for="anbond_nft_info">NFT ID:</label></p>
+                                                <p><input type="text" readonly name="anbond_nft_info" id="action_anbond_nft_info"></p>
+                                                <p><strong>Комиссия: <span id="anbond_nft_fee"></span></strong></p>
+                                                <p><input type="button" id="action_anbond_nft_start" value="Анбонднуть NFT"></p>
                                                 </form>
                                                       </div>
                                                       </div>

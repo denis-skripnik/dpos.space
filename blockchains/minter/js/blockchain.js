@@ -33,8 +33,6 @@ var users = JSON.parse(localStorage.getItem('minter_users'));
 $( document ).ready(function() {
         if (users && users.length > 0) {
             document.getElementById('show_accounts_list').style = 'display: block';
-} else {
-    document.getElementById('show_accounts_list').style = 'display: none';
 }
         });
         

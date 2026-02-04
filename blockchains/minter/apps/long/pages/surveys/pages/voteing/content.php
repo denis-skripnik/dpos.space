@@ -20,7 +20,7 @@ if ($answers && $table['end_date'] > time()) {
     $page['content'] .= '<hr>
     <h2>Вопрос: '.$table['question'].' от <a href="/minter/profiles/'.$table['address'].'" target="_blank">'.$table['address'].'</a></h2>
     <h3>Дата и время завершения: '.$d->format('d.m.Y H:i:s').' GMT</h3>
-    <p><strong>Если вы авторизовались <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">здесь</a> и являетесь провайдером в пуле <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a>, сможете проголосовать.</strong></p>
+    <p><strong>Если вы авторизовались (нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить") и являетесь провайдером в пуле <a href="https://chainik.io/pool/BIP/LONG" target="_blank">BIP/LONG</a>, сможете проголосовать.</strong></p>
 <div id="is_provider">
 <p>Вы также можете отправить транзакцию вручную на адрес <span id="send_to_address">Mx01029d73e128e2f53ff1fcc2d52a423283ad9439</span> (<input type="button" id="copy_address" value="Копировать">)<br>
 В Сумма: 0 BIP;<br>

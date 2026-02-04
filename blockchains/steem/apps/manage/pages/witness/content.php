@@ -4,8 +4,8 @@
 <th><a href="'.$conf['siteUrl'].'steem/manage/witnesses">Делегаты</a></th>
 <th><a href="'.$conf['siteUrl'].'steem/manage/profile">Профиль</a></th>
 </tr></table>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'steem/accounts" target="_blank">здесь</a></p></div>
-<div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'steem/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
+<div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="active_page">
 <h2 class="tt" onclick="spoiler(`witness_activation`); return false">Активация/деактивация и указание url</h2>
 <div id="witness_activation" class="terms" style="display: none;">

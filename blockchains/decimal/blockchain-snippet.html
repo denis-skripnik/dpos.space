@@ -1,16 +1,158 @@
 <div id="show_accounts_list">
-<div class="tt" onclick="spoiler(`accounts_list`); return false"><strong>Выбрать аккаунт</strong></div>
-<div id="accounts_list" class="terms" style="display: none;">
-<div id="delete_msg"></div>
-<div id="select_msg"></div>
-<form  class="form"onclick="getRadioValue(`users`);">
-    <div class="form-group">
-    <p id="accounts"></p>
-</div></form>
-</div></div>
-<script>
-selectAccount()
-</script>
+  <button type="button" id="accounts_toggle" class="tt" aria-expanded="false" aria-controls="accounts_list">
+    <strong>Выбрать аккаунт</strong>
+  </button>
 
-<div style="display: none;" id="ajax_modal_content">
+  <div id="accounts_list" class="terms" hidden>
+    <div id="delete_msg"></div>
+    <div id="select_msg"></div>
+
+    <form class="form" onsubmit="return false;" onclick="getRadioValue('users');">
+      <div class="form-group">
+        <p id="accounts"></p>
+      </div>
+    </form>
+
+    <p>
+      <button type="button" id="open_accounts_modal_btn">Добавить аккаунт</button>
+    </p>
+  </div>
 </div>
+
+<div id="accounts_modal" style="display:none;" aria-labelledby="accounts_modal_title">
+  <form method="dialog" style="margin: 0;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <h2 id="accounts_modal_title" style="margin:0;">Добавить аккаунт</h2>
+      <button type="submit" id="accounts_modal_close">Закрыть</button>
+    </div>
+  </form>
+
+  <div id="accounts_modal_body">
+    <h3>Вручную</h3>
+    <div id="auth_msg"></div>
+    <p class="p-main">Фраза никуда не передаётся: сохраняется в зашифрованном виде в вашем браузере.</p>
+    <form class="form" onsubmit="return false;">
+      <p><label for="login">Имя аккаунта: </label>
+      <input type="text" name="login" id="login" value="" required placeholder="Введите произвольное имя аккаунта"></p>
+      <p><label for="seed">SEED фраза: </label></p>
+      <p><textarea name="seed" id="seed" required></textarea></p>
+      <p><input type="button" id="save_account_btn" value="Войти"></p>
+    </form>
+    <h3>Импорт из другого блокчейна на dpos.space</h3>
+    <form>
+      <p><label for="select_chain">Выберите блокчейн:<br>
+      <select name="select_chain" id="chains_list">
+      <option value="">Выберите блокчейн</option>
+      </select></label></p>
+      <p><label for="select_chain_account">Выберите аккаунт:<br>
+      <select name="select_chain_accounts">
+      <option value="">Выберите аккаунт</option>
+      </select></label></p>
+      <p align="center"><input type="button" id="import_chain_account" value="Импорт"></p>
+    </form>
+    <h2>Создать аккаунт</h2>
+    <p><strong><a onclick="createAccount()">Получить данные</a></strong></p>
+    <div id="account_create_result" style="display: none;">
+      <p><strong>ВНИМАНИЕ: сохраните SEED фразу - от неё зависит сохранность ваших средств.</strong></p>
+      <p><textarea id="new_seed"></textarea><br>
+      <input type="button" onclick="copyText(`new_seed`)" value="Копировать в буфер обмена"></p>
+      <div id="new_acc_data"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function setExpanded(isOpen) {
+    var btn = document.getElementById('accounts_toggle');
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+
+  function toggleList() {
+    var list = document.getElementById('accounts_list');
+    if (!list) return;
+    var isHidden = list.hasAttribute('hidden');
+    if (isHidden) {
+      list.removeAttribute('hidden');
+      setExpanded(true);
+    } else {
+      list.setAttribute('hidden', '');
+      setExpanded(false);
+    }
+  }
+
+  var toggleBtn = document.getElementById('accounts_toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      toggleList();
+    });
+
+    toggleBtn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleBtn.click();
+      }
+    });
+  }
+
+  if (typeof window.selectAccount === 'function') {
+    try { window.selectAccount(); } catch(_) {}
+  }
+
+  function openAccountsModal() {
+    // если основная логика не загружена - уводим на страницу аккаунтов
+    if (typeof window.saveAccount !== 'function') {
+      console.error('Account management not loaded');
+      return;
+    }
+
+    // биндим кнопку "Войти" один раз
+    var btn = document.getElementById('save_account_btn');
+    if (btn && !btn.__bound) {
+      btn.__bound = true;
+      btn.addEventListener('click', function() {
+        try { window.saveAccount(); } catch(_) {}
+      });
+    }
+
+    // fancybox, если доступен
+    if (window.jQuery && jQuery.fancybox) {
+      jQuery.fancybox.open({
+        src: '#accounts_modal',
+        type: 'inline',
+        opts: {
+          touch: false,
+          afterShow: function() {
+            var login = document.getElementById('login');
+            if (login) login.focus();
+          }
+        }
+      });
+      return;
+    }
+
+    // fallback на dialog
+    var dlg = document.getElementById('accounts_modal');
+    if (dlg && typeof dlg.showModal === 'function') {
+      dlg.showModal();
+      var login = document.getElementById('login');
+      if (login) login.focus();
+      return;
+    }
+
+    // самый простой fallback
+    document.getElementById('accounts_modal').setAttribute('open', '');
+    var login2 = document.getElementById('login');
+    if (login2) login2.focus();
+  }
+
+  var openBtn = document.getElementById('open_accounts_modal_btn');
+  if (openBtn) {
+    openBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAccountsModal();
+    });
+  }
+})();
+</script>

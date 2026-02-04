@@ -120,7 +120,7 @@ $content = '<h2>О LONG (<a href="/minter/long/phelosophy" target="_blank">Фи�
 <p>Сумма фарминга: <span id="result_profit">0</span> LONG *Курс действителен на <span id="page_date"></span></p>
 </form>
 <h4>Добавить ликвидность</h4>
-<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой или через BIP wallet. Сделайте это <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой или через BIP wallet. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page"><form>
 <p><label for="add_amount">Сумма LONG (максимум <span id="max_add"></span> LONG) <br>
 <input type="number" min=1 name="add_amount"></p>

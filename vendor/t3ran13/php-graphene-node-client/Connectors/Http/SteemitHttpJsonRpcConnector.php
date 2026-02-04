@@ -19,8 +19,8 @@ class SteemitHttpJsonRpcConnector extends HttpJsonRpcConnectorAbstract
      * @var string
      */
     protected static $nodeURL = [
-'https://api.steemit.com',
 'https://api.justyy.com',
+'https://api.steemit.com',
 'https://steem.61bts.com'
 //        'https://steemd.pevo.science' //too often 503
 //        'https://steemd.minnowsupportproject.org' //not full answers, some fields are empty

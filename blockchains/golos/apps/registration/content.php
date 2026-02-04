@@ -1,5 +1,5 @@
 <?php return '
-<p>Авторизовать и выбрать аккаунты можете <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>.</p>
+<p>Авторизовать и выбрать аккаунты можете нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p>
 <h2>Создаём новый аккаунт</h2>
 <form class="form" method="post" name="postForm" id="postForm">
 <div class="form-group1">
@@ -24,5 +24,4 @@
 </form>
 <div id="account_created"></div>
 <div id="account_create_error"></div>
-<script src="'.$conf['siteUrl'].'blockchains/golos/apps/accounts/pages/registration/footer.js"></script>
 '; ?>

@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page">
 <div id="main_wallet_info" style="display: none;">
 <p>Адрес: <a target="_blank" id="address_link"><span id="current_address"></span></a><br>
@@ -16,6 +16,15 @@ return '<div id="seed_auth_msg" style="display: none;"><p>Для работы с
 </tr></thead>
 </tr></thead>
 <tbody id="delegation_tbody"></tbody></table>
+
+<h2>Делегированные NFT</h2>
+<table><thead><tr>
+<th>NFT ID</th>
+<th>Статус валидатора, ключ<br>
+Название</th>
+<th>Действия...</th>
+</tr></thead>
+<tbody id="delegation_nft_tbody" style="display: none;"></tbody></table>
 
 <div style="display: none;" id="delegate_modal">
 <h4 class="modal-title">Конвертация <span class="delegate_modal_token"></span></h4>

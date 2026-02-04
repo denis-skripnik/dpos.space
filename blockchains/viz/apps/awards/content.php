@@ -6,7 +6,7 @@ return '<h2>Что такое награждение пользователей 
 <p>Энергия - показатель, от которого зависит, сколько токенов из эмиссии получат награждаемые. Энергия восстанавливается за сутки на 20%.</p>
 <h2>Страницы сервиса</h2>
 <p><span align="left"><a href="'.$conf['siteUrl'].'viz/awards/url">Генератор url наград и qr-кодов</a></span> <span align="right"><a href="'.$conf['siteUrl'].'viz/awards/builder">Конструктор форм</a></span></p>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <h2>Заполните поля, чтобы отправить награду</h2>
 <h3 id ="now_energy"></h3>

@@ -15,5 +15,5 @@ class GolosWSConnector extends WSConnectorAbstract
      *
      * @var string
      */
-    protected static $nodeURL = ['wss://api.golos.blckchnd.com/ws', 'wss://golos.lexa.host/ws', 'wss://golos.solox.world/ws'];
+    protected static $nodeURL = ['wss://golosapi.ecurrex.ru/ws', 'wss://api.golos.blckchnd.com/ws', 'wss://golos.lexa.host/ws', 'wss://golos.solox.world/ws'];
 }

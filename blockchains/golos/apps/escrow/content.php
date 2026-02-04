@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>. Если вы авторизованы, удалите аккаунт и добавьте с активным ключом; Если нет, авторизуйтесь с указанием обоих ключей.</p></div>                        
+return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Укажите его, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить". Если вы уже авторизованы, удалите текущий аккаунт и добавьте заново с указанием активного ключа.</p></div>
 <div id="active_page">
 <ul id="tabs">
 			<li><a id="tabSend" data-div="tabSendWrap" href="/">Отправить</a></li>

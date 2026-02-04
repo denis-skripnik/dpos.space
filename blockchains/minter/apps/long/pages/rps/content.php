@@ -30,7 +30,7 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 </ul>
 <hr>
 <h3><a name="play">Играть</a></h3>
-<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page"><form>
 <p><label for="amount">Сумма ставки (максимум <span id="max_rps"></span> LONG) <br>
 <input type="number" min=1 name="amount"></p>

@@ -1,7 +1,7 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
 $url = pageUrl();
-$content = '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+$content = '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <h2>Заполните поля, чтобы отправить награду</h2>
 <h3 id ="now_energy"></h3>

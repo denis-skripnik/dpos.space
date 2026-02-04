@@ -20,7 +20,7 @@ $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/golos/apps/poll
     <option value="1">Личную + прокси</option>
     <option value="2">Как при апвоутах</option>
 </select></p>
-<p><label for="service">При помощи чего создавать опрос. Если вы авторизованы <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a> с указанием активного ключа, будет выбран вариант dpos.space (создание опроса при помощи данного сайта): </label>
+<p><label for="service">При помощи чего создавать опрос. Если вы авторизованы с указанием активного ключа (кнопка "Выбрать аккаунт" -> "Добавить"), будет выбран вариант dpos.space (создание опроса при помощи данного сайта): </label>
 <select name="service" id="clients" placeholder="При помощи чего создать опрос">
 <option value="sign">Писарь</option>
     <option value="golos_id">golos.id</option>

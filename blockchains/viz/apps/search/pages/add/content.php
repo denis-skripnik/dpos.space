@@ -1,7 +1,7 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
 global $conf;
 return '<p><span align="center"><a href="'.$conf['siteUrl'].'viz/search">Найти</a></span></p>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <h2>Заполните поля, чтобы создать ссылку</h2>
 <h3 id ="now_energy"></h3>

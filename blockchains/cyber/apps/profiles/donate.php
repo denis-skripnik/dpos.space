@@ -34,7 +34,7 @@ for (let token of acc.coins) {
 </script>
 
 <?php $to = $_GET['to']; ?>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'cyber/accounts" target="_blank">здесь</a></p></div>                        
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
                         <div id="seed_page">
 <h2>Пропускная способность</h2>
 <p><strong><span id="my_bandwidth_remained"></span> из <span id="my_bandwidth_max_value"></span></strong></p>

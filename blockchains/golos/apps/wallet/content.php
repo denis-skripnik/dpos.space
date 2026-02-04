@@ -1,12 +1,26 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>. Если вы авторизованы, удалите аккаунт и добавьте с активным ключом; Если нет, авторизуйтесь с указанием обоих ключей.</p></div>                        
+return '<div id="active_auth_msg" style="display: none;"><p>Для работы с кошельком необходим активный ключ. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить". Если вы уже авторизованы с постинг ключом, удалите аккаунт и добавьте заново с активным ключом или seed-фразой.</p></div>
 <div id="active_page">
 <div id="main_wallet_info" style="display: none;">
 <h2>Балансы пользователя <span id="username"></span></h2>
 <p>После клика по балансу откроется либо список действий, либо список аккаунтов (для полученного и переданного делегирования). По наведении появится подсказка.</p>
-<table><thead><tr><th>Основной баланс</th><th>TIP-баланс</th></tr></thead>
+<p>
+  <label>
+    <input type="checkbox" id="balances_only" checked>
+    Показывать только токены с балансами
+  </label>
+</p>
+<div class="balances_layout">
+  <div class="balances_table_wrap">
+    <table><thead><tr><th>Основной баланс</th><th>TIP-баланс</th></tr></thead>
 <tbody id="balances"></tbody></table>
-<ul id="actions" class="terms" style="display: none;">      </ul>
+  </div>
+
+  <aside class="actions_panel" aria-label="Действия по токену">
+    <div id="actions_panel_title" class="actions_panel_title"></div>
+    <ul id="actions" class="terms" aria-live="polite"></ul>
+  </aside>
+</div>
 
 <div style="display: none;" id="vesting_withdraw_modal">
                                                       <h4 class="modal-title">Вывод СГ в golos</h4>

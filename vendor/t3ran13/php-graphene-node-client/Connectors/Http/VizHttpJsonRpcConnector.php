@@ -19,5 +19,5 @@ class VizHttpJsonRpcConnector extends HttpJsonRpcConnectorAbstract
      *
      * @var string
      */
-    protected static $nodeURL = ['https://viz.lexai.host'];
+    protected static $nodeURL = ['https://node.viz.cx', 'https://viz.lexai.top'];
 }

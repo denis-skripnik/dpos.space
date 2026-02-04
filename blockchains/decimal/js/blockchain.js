@@ -1,6 +1,32 @@
-const TX_TYPE = decimalJS.TX_TYPE;
+// Decimal SDK globals (browser bundle)
+if (!window.DecimalSDK) {
+  throw new Error("DecimalSDK is not loaded. Make sure decimal-sdk-web.js is loaded before blockchain.js");
+}
 
-axios.defaults.baseURL = 'https://mainnet-gate.decimalchain.com/api';
+const { Wallet, DecimalEVM, DecimalNetworks, TX_TYPE } = window.DecimalSDK;
+
+var sender = window.sender || {};
+var decimalEVM = null; // instance of DecimalEVM
+var decimalWallet = null; // instance of Wallet
+
+window.sender = sender;
+
+
+async function ensureDecimalEVM() {
+  if (!decimalEVM) {
+    throw new Error("decimalEVM is not initialized (no wallet). Select or create an account first.");
+  }
+  if (typeof decimalEVM.connect === "function" && !decimalEVM._connected) {
+    try {
+      await decimalEVM.connect();
+      decimalEVM._connected = true;
+    } catch (e) {
+      // connect may be optional in browser build
+      console.log("decimalEVM.connect failed:", e && (e.message || e));
+    }
+  }
+  return decimalEVM;
+}
 let current_user = JSON.parse(localStorage.getItem("decimal_current_user"));
 if (current_user && !current_user.type  || current_user && current_user.type !== 'bip.to') {
 var decimal_login = current_user.login;
@@ -31,164 +57,498 @@ var users = JSON.parse(localStorage.getItem('decimal_users'));
 $( document ).ready(function() {
         if (users && users.length > 0) {
             document.getElementById('show_accounts_list').style = 'display: block';
-} else {
-    document.getElementById('show_accounts_list').style = 'display: none';
 }
         });
-
-const options = {
-    gateUrl: 'https://mainnet-gate.decimalchain.com/api/',
-}
-
-        var sender = {};
+        var decimalEVM = null;  // Will be initialized with wallet
+        
         if (seed) {
             let chain = 'decimal';
             if (current_user && current_user.importFrom) chain = current_user.importFrom;
             const secret = sjcl.decrypt(`dpos.space_${chain}_` + current_user.login + '_seed', current_user.seed);
-            const wallet = new decimalJS.Wallet(secret);
+            
+            // Create wallet from seed (mnemonic)
+            decimalWallet = new Wallet(secret);
             sender = {
-                'address': wallet.address,
-                'privateKey': wallet.getPrivateKeyString(),
-                'node': "https://mainnet-gate.decimalchain.com/api/"
-            }
-        options.wallet = wallet;
+                address: decimalWallet.address,
+                evmAddress: decimalWallet.evmAddress,
+                privateKey: (typeof decimalWallet.getPrivateKeyString === "function")
+                  ? decimalWallet.getPrivateKeyString()
+                  : (decimalWallet.privateKey || "")
+            };
+            window.sender = sender;
+// Initialize DecimalEVM with wallet
+            decimalEVM = new DecimalEVM(decimalWallet, DecimalNetworks.mainnet);
+            window.decimalEVM = decimalEVM;
+
         }
-        const decimal = new decimalJS.Decimal(options);
 
         function isValidMnemonic(mnemonic) {
           if (!mnemonic) return false;
           try {
-            new decimalJS.Wallet(mnemonic);
+            new Wallet(mnemonic);
             return true;
           } catch (e) {
             return false;
           }
         }
 
-        async function getTransaction(txHash) {
-                try {
-                    let response = await axios.get('/tx/' + txHash);
-                    if (response.data.ok !== true) {
-                    return false;
-                } else {
-                    return true;
-                }
-                    } catch(e) {
-                        console.log(e);
-                    return false;
+        async function checkTxStatus(txHash) {
+            try {
+                // Poll OpenAPI for TX status (check every 2 seconds, max 60 attempts = 120 seconds)
+                let attempts = 0;
+                const maxAttempts = 60;
+                
+                while (attempts < maxAttempts) {
+                    let response = await axios.get(`https://api.decimalchain.com/api/v1/txs/${txHash}`);
+                    let root = (response && response.data) ? response.data : {};
+                    let tx = root.result || root.Result || {};
+                    if (tx.status === 'Success' || tx.status === 'success') {
+                        return { status: 'Success', tx: tx };
+                    } else if (tx.status === 'Failed' || tx.status === 'failed') {
+                        return { status: 'Failed', tx: tx };
                     }
+                    
+                    // Wait 2 seconds before retrying
+                    await new Promise(r => setTimeout(r, 2000));
+                    attempts++;
+                }
+                
+                return { status: 'Unknown', message: 'TX status check timeout' };
+            } catch(e) {
+                console.error('Error checking TX status:', e);
+                return { status: 'Error', error: e };
+            }
         }
         
-async function broadcasting(type, data) {
-    const broadcastTx = await decimal.getTransaction(type, data, options);
-    const result = await decimal.postTx(broadcastTx);
-
-        if (result.success === true) {
-            $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
-            await new Promise(r => setTimeout(r, 12000));
-            let res = await decimal.getTransactionByHash(result.hash);
-            console.log(JSON.stringify(res));
-            if (res.status === 'Success') {
-                document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/decimal/explorer/tx/${result.hash}" target="_blank">${result.hash}</a></strong>`);
-    } else {
-    document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
-    }
-            } else {
-            const errorMessage = result.error;
-            throw `Ошибка: ${errorMessage}`;
+        async function broadcastTx(txPayload) {
+            try {
+                // txPayload is the prepared transaction object from SDK
+                // Send it to blockchain and wait for status
+                const result = await decimalEVM.broadcast(txPayload);
+                
+                if (result && result.hash) {
+                    $.fancybox.open(`<p id="message"><strong>Пожалуйста, подождите. Идёт отправка и проверка доставки транзакции.</strong></p>`);
+                    
+                    let txStatus = await checkTxStatus(result.hash);
+                    
+                    if (txStatus.status === 'Success') {
+                        document.getElementById('message').innerHTML = (`<strong>Ok. Транзакция создана и отправлена: <a href="/decimal/explorer/tx/${result.hash}" target="_blank">${result.hash}</a></strong>`);
+                    } else {
+                        document.getElementById('message').innerHTML = ('Ошибка. Транзакция отправлена, но не принята.');
+                    }
+                    return result;
+                } else {
+                    throw 'TX broadcast failed: No hash returned';
+                }
+            } catch(e) {
+                console.error('TX broadcast error:', e);
+                throw `Ошибка при отправке транзакции: ${e}`;
+            }
         }
-}
+        
+        async function getTransaction(txHash) {
+                try {
+                    let response = await axios.get(`https://api.decimalchain.com/api/v1/txs/${txHash}`);
+                    let root = (response && response.data) ? response.data : {};
+                    return root.result || root.Result || false;
+                } catch(e) {
+                    console.log(e);
+                    return false;
+                }
+        }
 
 
         async function send(to, amount, coin, memo, mode) {
-            const data = {
-                to: to.toString(),
-                coin: coin.toString(),
-                amount: amount.toString(),
-              }
-              
-if (mode !== 'fee') {
-    await broadcasting(TX_TYPE.COIN_SEND, data);
-} else {
-    const fee = await decimal.estimateTxFee(TX_TYPE.COIN_SEND, data, options);
-    return fee;
-}
-        }
-        
-        async function convert(coin, to, value, minimum_buy_amount, mode) {
-            const data = {
-                sellCoin: coin.toString(),
-                amount: value.toString(),
-                getCoin: to.toString(),
-                minBuyLimit: minimum_buy_amount.toString(),
-              }
-            if (mode !== 'fee') {
-                await broadcasting(TX_TYPE.COIN_SELL, data);
+            if (mode === 'fee') {
+                // Estimate fee for coin send
+                try {
+                    let amountInSmallestUnit = (BigInt(Math.floor(amount * 1e18))).toString();
+                    if (coin.toUpperCase() === 'DEL') {
+                        return await decimalEVM.estimateFeeSendDEL({
+                            to: to,
+                            amount: amountInSmallestUnit
+                        });
+                    } else {
+                        return await decimalEVM.estimateFeeTransferToken({
+                            to: to,
+                            coin: coin,
+                            amount: amountInSmallestUnit
+                        });
+                    }
+                } catch(e) {
+                    console.error('Fee estimation error:', e);
+                    return 0;
+                }
             } else {
-                let fee_data = await decimal.estimateTxFee(TX_TYPE.COIN_SELL, data, options);
-                return fee_data;;
+                // Execute send transaction
+                try {
+                    let amountInSmallestUnit = (BigInt(Math.floor(amount * 1e18))).toString();
+                    let txPayload;
+                    
+                    if (coin.toUpperCase() === 'DEL') {
+                        txPayload = await decimalEVM.sendDEL({
+                            to: to,
+                            amount: amountInSmallestUnit
+                        });
+                    } else {
+                        txPayload = await decimalEVM.transferToken({
+                            to: to,
+                            coin: coin,
+                            amount: amountInSmallestUnit
+                        });
+                    }
+                    
+                    return await broadcastTx(txPayload);
+                } catch(e) {
+                    console.error('Send transaction error:', e);
+                    throw `Ошибка при отправке: ${e}`;
+                }
             }
         }
         
-        async function delegate(coin, address, stake, mode) {
-            const data = {
-                address: address.toString(),
-                coin: coin.toString(),
-                stake: stake.toString(),
-              }
+        
+async function convert(fromLeg, toLeg, value, minimum_buy_amount, mode) {
+  // EVM routes:
+  // - Token -> DEL: sellExactTokensForDEL(tokenAddress, amountIn, amountOutMin, recipient)
+  // - DEL -> Token: buyTokenForExactDEL(tokenAddress, amountDel, amountOutMin, recipient)
+  // - Token -> Token: convertToken(tokenAddress1, tokenAddress2, amountIn, amountOutMin, recipient, sign)
+  if (mode === "fee") {
+    // UI expects a number. Real gas estimation is EVM-dependent.
+    return 0;
+  }
 
-            if (mode !== 'fee') {
-                await broadcasting(TX_TYPE.VALIDATOR_DELEGATE, data);
-            } else {
-               let fee_data = await decimal.estimateTxFee(TX_TYPE.VALIDATOR_DELEGATE, data, options);
-                return fee_data;;
-            }
-        }
+  try {
+    const evm = await ensureDecimalEVM();
+
+    if (!sender || !sender.evmAddress) {
+      throw new Error("sender.evmAddress is not set");
+    }
+
+    const from = String(fromLeg || "").trim();
+    const to = String(toLeg || "").trim();
+
+    const isFromDEL = from.toUpperCase() === "DEL";
+    const isToDEL = to.toUpperCase() === "DEL";
+
+    if (isFromDEL && isToDEL) {
+      throw new Error("Invalid route: DEL -> DEL");
+    }
+
+    const owner = sender.evmAddress;
+    const recipient = owner;
+
+    const getDecFromUI = (id, fallback) => {
+      try {
+        const el = document.getElementById(id);
+        const v = el ? Number(el.value) : NaN;
+        return isFinite(v) && v > 0 ? v : fallback;
+      } catch (_) {
+        return fallback;
+      }
+    };
+
+    const parseAmount = (val, decimals) => {
+      // Prefer parseUnits if SDK exposes it (ethers v5/v6 style)
+      if (typeof evm.parseUnits === "function") return evm.parseUnits(String(val), decimals);
+      // Fallback: parseEther for 18 decimals
+      if (decimals !== 18) {
+        throw new Error("Token decimals != 18 are not supported in this build. Need evm.parseUnits().");
+      }
+      return evm.parseEther(String(val));
+    };
+
+    // Decimals are optional but help avoid wrong scaling
+    const fromDecimals = getDecFromUI("action_convert_from_decimals", 18);
+    const toDecimals = getDecFromUI("action_convert_to_decimals", 18);
+
+    // Token -> DEL
+    if (!isFromDEL && isToDEL) {
+      const tokenAddress = from;
+      if (!tokenAddress.startsWith("0x")) {
+        throw new Error("tokenAddress is required for EVM convert (0x...).");
+      }
+
+      const amountIn = parseAmount(value, fromDecimals);
+      const amountOutMin = parseAmount(minimum_buy_amount, 18); // DEL has 18
+
+      if (typeof evm.sellExactTokensForDEL !== "function") {
+        throw new Error("SDK method sellExactTokensForDEL is not available.");
+      }
+
+      return await evm.sellExactTokensForDEL(tokenAddress, amountIn, amountOutMin, recipient);
+    }
+
+    // DEL -> Token
+    if (isFromDEL && !isToDEL) {
+      const tokenAddress = to;
+      if (!tokenAddress.startsWith("0x")) {
+        throw new Error("tokenAddress is required for EVM convert (0x...).");
+      }
+
+      const amountDel = parseAmount(value, 18); // DEL has 18
+      const amountOutMin = parseAmount(minimum_buy_amount, toDecimals);
+
+      if (typeof evm.buyTokenForExactDEL !== "function") {
+        throw new Error("SDK method buyTokenForExactDEL is not available.");
+      }
+
+      return await evm.buyTokenForExactDEL(tokenAddress, amountDel, amountOutMin, recipient);
+    }
+
+    // Token -> Token
+    if (!isFromDEL && !isToDEL) {
+      const tokenAddress1 = from;
+      const tokenAddress2 = to;
+
+      if (!tokenAddress1.startsWith("0x") || !tokenAddress2.startsWith("0x")) {
+        throw new Error("tokenAddress is required for EVM convert (0x...).");
+      }
+
+      const amountIn = parseAmount(value, fromDecimals);
+      const amountOutMin = parseAmount(minimum_buy_amount, toDecimals);
+
+      if (typeof evm.convertToken !== "function") {
+        throw new Error("SDK method convertToken is not available.");
+      }
+
+      // Prefer permit flow (no approve tx)
+      let tokenCenterAddress = null;
+      if (typeof evm.getDecimalContractAddress === "function") {
+        try {
+          tokenCenterAddress = await evm.getDecimalContractAddress("token-center");
+        } catch (_) {}
+      }
+      tokenCenterAddress = tokenCenterAddress || evm.tokenCenterAddress;
+
+      if (!tokenCenterAddress) {
+        throw new Error("tokenCenterAddress is not set.");
+      }
+
+      let sign = null;
+      if (typeof evm.getSignPermitToken === "function") {
+        sign = await evm.getSignPermitToken(tokenAddress1, tokenCenterAddress, amountIn);
+      }
+
+      return await evm.convertToken(tokenAddress1, tokenAddress2, amountIn, amountOutMin, recipient, sign || undefined);
+    }
+
+    throw new Error("Convert route is not supported yet.");
+  } catch (e) {
+    console.error("Convert transaction error:", e);
+    throw `Ошибка при конвертации: ${e && (e.message || e)}`;
+  }
+}
+
+async function delegate(coin, address, stake, mode) {
+  const validator = String(address || "").trim();
+  if (!validator.startsWith("0x")) {
+    throw new Error("Invalid validator address");
+  }
+
+  const stakeWei = BigInt(Math.floor(Number(stake) * 1e18));
+if (mode === "fee") {
+  const amount = decimalEVM.parseEther(String(stake)); // если stake в DEL-единицах
+  const feeData = await decimalEVM.getFeeData();
+
+  let gas;
+  if (coin === "del") {
+    gas = await decimalEVM.delegateDEL(address, amount, true);
+  } else {
+    gas = await decimalEVM.delegateToken({ address, coin, amount }, true);
+  }
+
+  const feeWei = BigInt(gas.toString()) * BigInt(feeData.gasPrice.toString());
+  return feeWei; // дальше сам решаешь: показать в DEL или как "gas coin"
+}
+
+  try {
+    let txPayload;
+
+    if (coin === "del") {
+      txPayload = await decimalEVM.delegateDEL(
+        validator,
+        stakeWei
+      );
+    } else {
+      txPayload = await decimalEVM.delegateToken(
+        validator,
+        coin,
+        stakeWei
+      );
+    }
+
+    return await broadcastTx(txPayload);
+  } catch (e) {
+    console.error("Delegate transaction error:", e);
+    throw `Ошибка при делегировании: ${e.message || e}`;
+  }
+}
 
         async function anbond(coin, address, stake, mode) {
-            const data = {
-                address: address.toString(),
-                coin: coin.toString(),
-                stake: stake.toString(),
-              }
-              
-            if (mode !== 'fee') {
-                await broadcasting(TX_TYPE.VALIDATOR_UNBOND, data);
+            if (mode === 'fee') {
+                // Estimate fee for unbonding
+                try {
+                    let stakeInSmallestUnit = (BigInt(Math.floor(stake * 1e18))).toString();
+                    
+                    if (coin.toUpperCase() === 'DEL') {
+                        return await decimalEVM.estimateFeeWithdrawStakeDEL({
+                            address: address,
+                            amount: stakeInSmallestUnit
+                        });
+                    } else {
+                        return await decimalEVM.estimateFeeWithdrawStakeToken({
+                            address: address,
+                            coin: coin,
+                            amount: stakeInSmallestUnit
+                        });
+                    }
+                } catch(e) {
+                    console.error('Fee estimation error:', e);
+                    return 0;
+                }
             } else {
-                let fee_data = await decimal.estimateTxFee(TX_TYPE.VALIDATOR_UNBOND, data, options);
-                return fee_data;;
+                // Execute unbond transaction
+                try {
+                    let stakeInSmallestUnit = (BigInt(Math.floor(stake * 1e18))).toString();
+                    let txPayload;
+const coinNorm = String(coin || "").trim().toLowerCase();
+                   
+if (coinNorm === "del") {
+                        txPayload = await decimalEVM.withdrawStakeToken(address, '0x0000000000000000000000000000000000000000', stakeInSmallestUnit)
+                    } else {
+                                                txPayload = await decimalEVM.withdrawStakeToken(address, coin, stakeInSmallestUnit)
+                    }
+                    
+                    return await broadcastTx(txPayload);
+                } catch(e) {
+                    console.error('Unbond transaction error:', e);
+                    throw `Ошибка при анбонде: ${e}`;
+                }
             }
         }
 
         async function createCoin(title, ticker, initSupply, maxSupply, options, mode) {
-            const data = {
-                title,
-                ticker,
-                initSupply: initSupply.toString(),
-                maxSupply: maxSupply.toString(),
-                reserve: options.initialReserve,
-                crr: options.constantReserveRatio
-              }
-
-              let fee = await decimal.estimateTxFee(TX_TYPE.CREATE_COIN, data, options);
-let q = window.confirm('Вы действительно хотите сделать это? Комиссия составит ' + fee + ' DEL');
-if (q === true) {
-    await broadcasting(txParams);
-}
+            if (mode === 'fee') {
+                // Estimate fee for coin creation
+                try {
+                    let initSupplyInSmallestUnit = (BigInt(Math.floor(initSupply * 1e18))).toString();
+                    let maxSupplyInSmallestUnit = (BigInt(Math.floor(maxSupply * 1e18))).toString();
+                    
+                    return await decimalEVM.estimateFeeCreateToken({
+                        title: title,
+                        symbol: ticker,
+                        initSupply: initSupplyInSmallestUnit,
+                        maxSupply: maxSupplyInSmallestUnit,
+                        reserve: options.initialReserve,
+                        crr: options.constantReserveRatio
+                    });
+                } catch(e) {
+                    console.error('Fee estimation error:', e);
+                    return 0;
+                }
+            } else {
+                // Execute coin creation transaction
+                try {
+                    let initSupplyInSmallestUnit = (BigInt(Math.floor(initSupply * 1e18))).toString();
+                    let maxSupplyInSmallestUnit = (BigInt(Math.floor(maxSupply * 1e18))).toString();
+                    
+                    let txPayload = await decimalEVM.createToken({
+                        title: title,
+                        symbol: ticker,
+                        initSupply: initSupplyInSmallestUnit,
+                        maxSupply: maxSupplyInSmallestUnit,
+                        reserve: options.initialReserve,
+                        crr: options.constantReserveRatio
+                    });
+                    
+                    return await broadcastTx(txPayload);
+                } catch(e) {
+                    console.error('Create coin transaction error:', e);
+                    throw `Ошибка при создании монеты: ${e}`;
+                }
+            }
+        }
+        
+        // NFT delegation functions
+        async function delegateNFT(nftId, address, mode) {
+            if (mode === 'fee') {
+                // Estimate fee for NFT delegation
+                try {
+                    return await decimalEVM.estimateFeeDelegateNFT({
+                        nftId: nftId,
+                        address: address
+                    });
+                } catch(e) {
+                    console.error('Fee estimation error:', e);
+                    return 0;
+                }
+            } else {
+                // Execute NFT delegation transaction
+                try {
+                    let txPayload = await decimalEVM.delegateNFT({
+                        nftId: nftId,
+                        address: address
+                    });
+                    
+                    return await broadcastTx(txPayload);
+                } catch(e) {
+                    console.error('NFT delegate transaction error:', e);
+                    throw `Ошибка при делегировании NFT: ${e}`;
+                }
+            }
+        }
+        
+        async function withdrawStakeNFT(nftId, address, mode) {
+            if (mode === 'fee') {
+                // Estimate fee for NFT unbonding
+                try {
+                    return await decimalEVM.estimateFeeWithdrawStakeNFT({
+                        nftId: nftId,
+                        address: address
+                    });
+                } catch(e) {
+                    console.error('Fee estimation error:', e);
+                    return 0;
+                }
+            } else {
+                // Execute NFT unbond transaction
+                try {
+                    let txPayload = await decimalEVM.withdrawStakeNFT({
+                        nftId: nftId,
+                        address: address
+                    });
+                    
+                    return await broadcastTx(txPayload);
+                } catch(e) {
+                    console.error('NFT unbond transaction error:', e);
+                    throw `Ошибка при анбонде NFT: ${e}`;
+                }
+            }
         }
         
         async function getBalance(address) {
             try {
-            let response = await axios.get('https://mainnet-explorer-api.decimalchain.ru/api/addresses/' + address);
+            let response = await axios.get('https://api.decimalchain.com/api/v1/addresses/' + address + '/balances');
+            let root = (response && response.data) ? response.data : {};
+            // Addresses service OpenAPI: balances are in root.balances (RespAddressBalances).
+            // Some gateways may wrap it as {ok,result:{balances}} - keep backward compatibility.
+            let balancesArr = root.balances || (root.result && root.result.balances) || (root.Result && root.Result.balances) || [];
+
             let balances = [];
-            for (let token of response.data.data.balances) {
+            for (let token of balancesArr) {
+              let denom = token.denom || (token.coin && token.coin.symbol) || token.symbol || token.coin || token.ticker;
+              if (!denom) continue;
+
               let balance = parseFloat(token.amount);
-if (balance < 0.001) {
-    balance = balance.toFixed(8);
-} else {
-    balance = balance.toFixed(3);
-}
-              balances.push({coin: token.coin.symbol, amount: balance, type: token.coin.type});
+              if (!isFinite(balance)) continue;
+
+              if (balance < 0.001) {
+                  balance = balance.toFixed(8);
+              } else {
+                  balance = balance.toFixed(3);
+              }
+
+              balances.push({coin: denom, amount: balance, type: (token.type || (token.coin && token.coin.type) || 'coin')});
             }
             return balances;
             } catch(e) {

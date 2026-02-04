@@ -38,7 +38,7 @@ if (isset($url[4])) {
   <div id="uia_diposit_data"></div>
   <hr></div>
 <div id="auth_msg" style="display: none;"><hr>
-<p>Если вы хотите отправить донат при помощи Golos blockchain, необходимо авторизоваться <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
+<p>Если вы хотите отправить донат при помощи Golos blockchain, необходимо авторизоваться, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
 <div id="posting_page">
 <h2>Донат при помощи Golos blockchain</h2>
 <ul><li>Кому: '.$url[2].'</li>

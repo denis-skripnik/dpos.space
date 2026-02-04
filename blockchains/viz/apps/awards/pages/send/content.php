@@ -17,7 +17,7 @@ $beneficiaries = (isset($_GET['beneficiaries']) ? $_GET['beneficiaries'] : '');
 return '<h2>Страницы сервиса</h2>
 <p><span align="left"><a href="'.$conf['siteUrl'].'viz/awards">Форма награждения</a></span> <span align="center"><a href="'.$conf['siteUrl'].'viz/awards/url">генератор url наград и qr-кодов</a></span> <span align="right"><a href="'.$conf['siteUrl'].'viz/awards/builder">Конструктор форм</a></span></p>
 <div id="main_award_info"></div>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <script>
 send_award(`'.$target.'`, '.$energy.', '.$custom_sequence.', `'.$memo.'`, `'.$beneficiaries.'`, `'.$payout.'`, `'.$isFixed.'`);
 </script>';
