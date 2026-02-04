@@ -17,7 +17,7 @@ if ($answers && $table['end_date'] > time()) {
     $page['content'] .= '<hr>
     <h2>Вопрос: '.$table['question'].'</h2>
     <h3>Дата и время завершения: '.$d->format('d.m.Y H:i:s').' GMT</h3>
-    <p><strong>Если вы авторизовались <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a> с указанием логина и постинг ключа, сможете проголосовать, не выходя с этого сайта.</strong></p>
+    <p><strong>Если вы авторизовались (нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить") с указанием логина и постинг ключа, сможете проголосовать, не выходя с этого сайта.</strong></p>
     <form class="form">
 <p><label for="sender">Голосующий:</label></p>
 <p><input type="text" name="sender" value="" placeholder="логин голосующего"></p>

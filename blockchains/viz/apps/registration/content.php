@@ -1,5 +1,5 @@
 <?php return '
-<p>Авторизовать и выбрать аккаунты можете <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">на странице аккаунтов</a>.</p>
+<p>Авторизовать и выбрать аккаунты можете нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p>
 <h2>Создаём новый аккаунт</h2>
 <form class="form" method="post" name="postForm" id="postForm">
 <div class="form-group1">
@@ -29,5 +29,4 @@
 		onclick="send_reg_data();">
 </div>										
 </form>
-<script src="'.$conf['siteUrl'].'blockchains/viz/apps/accounts/pages/registration/footer.js"></script>
 '; ?>

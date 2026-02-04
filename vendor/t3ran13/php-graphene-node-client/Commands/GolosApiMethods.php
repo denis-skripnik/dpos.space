@@ -30,6 +30,17 @@ class GolosApiMethods
                 '0' => ['array'], //authors
             ]
         ],
+        'get_assets'                           => [
+            'apiName' => 'database_api',
+            'fields'  => [
+                '0' => ['string'],  //creator (can be empty string)
+                '1' => ['array'],   //symbols (can be empty array)
+                '2' => ['string'],  //from (start symbol, can be empty string)
+                '3' => ['integer'], //limit
+                '4' => ['string'],  //sort (e.g. "by_symbol_name")
+            ]
+        ],
+
         'get_account_count'                     => [
             'apiName' => 'database_api',
             'fields'  => []

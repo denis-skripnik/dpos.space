@@ -29,8 +29,8 @@ selectAccount();
 }
 
 function createAccount() {
-    const wallet = new decimalJS.Wallet();
-    const pk = wallet.getPrivateKeyString(wallet._privKey).slice(2);
+    const wallet = new window.DecimalSDK.Wallet();
+    const pk = wallet.getPrivateKeyString().slice(2);
     $('#account_create_result').css('display', 'block');
 $('#new_seed').val(wallet.mnemonic);
 $('#new_acc_data').html(`<h3>Другие данные</h3>

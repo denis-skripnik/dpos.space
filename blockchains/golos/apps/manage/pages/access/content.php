@@ -162,7 +162,7 @@ return '<h2>Страницы сервиса</h2>
 						<div class="manage-access-new-keys"></div>
 					</div>
 
-					<div class="addon captions"><h3>Подсказка</h3><p>Если вы хотите просто сбросить ключи доступа для аккаунта — перейдите в подраздел <a data-href="/accounts/reset-access/">«Сбросить ключи»</a>.</p></div>
+					<div class="addon captions"><h3>Подсказка</h3><p>Если вы хотите просто сбросить ключи доступа для аккаунта — перейдите в подраздел <a data-href="/golos/manage/reset-keys">«Сбросить ключи»</a>.</p></div>
 				</div>
 			</div>
 <script>	$(`.page-manage-access input[name=manage-access-login]`).val(golos_login);</script>

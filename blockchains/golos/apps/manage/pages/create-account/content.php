@@ -9,8 +9,8 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'golos/manage/reset-keys">Сброс ключей</a></th>
 <th><a href="'.$conf['siteUrl'].'golos/manage/multisig">Мультисиг</a></th>
 </tr></table>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
-<div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, здесь: <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
+<div id="active_auth_msg" style="display: none;"><p>Вы не ввели активный ключ. Пожалуйста удалите текущий аккаунт и авторизуйтесь с указанием и регулярного, и активного ключа, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
 <div id="active_page">
 <div id="golos_balance"></div>
 <div id="free_shares"></div>

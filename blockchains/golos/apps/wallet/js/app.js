@@ -1,341 +1,138 @@
-var gates = {};
-gates.PRIZM = {};
-gates.YMRUB = {};
-gates.YMPZM = {};
-gates.YMDASH = {};
-gates.YMTRX = {};
-gates.YMUSDT = {};
-gates.YMHIVE = {};
-gates.YMSTEEM = {};
-gates.YMBTC = {};
-gates.YMXMR = {};
-gates.YMZEC = {};
-gates.VIZUIA = {};
+// Автоматически собранные параметры шлюзов из json_metadata ассетов
+var gatesAuto = {};
 
-gates.PRIZM.withdraw = {
-  account: "exprizm",
-  
-  get_max: {
-    allow: false,
-  login: "prizm",
-    separator: " / ",
-  },
-  vars: [
-    {
-      address: "Адрес в сети PRIZM",
-      key: "Публичный ключ"
-        }
-  ],
-  separator: " "
-};
+// Возвращает конфиг шлюза для токена: сначала из json_metadata, затем ручной fallback
+function getGate(token) {
+  if (gatesAuto && gatesAuto[token]) return gatesAuto[token];
+  return null;
+}
 
-gates.YMRUB.withdraw = {
-  account: "ecurrex-ymrub",
-get_max: {
-  allow: true,
-login: "ecurrex-ru",
-  separator: " / ",
-},
-  vars: [
-    {
-      name: "advcash",
-      address: "Адрес кошелька Advcash",
-    },
-    {
-      name: "payeer",
-      address: "Адрес кошелька Payeer",
-    }
-  ],
-  separator: ":"
-};
 
-gates.YMRUB.deposit = {
-vars: [
-  { // Qiwi
-    address: {
-      name: "Никнейм в Qiwi",
-      value: `RICHE387`,
-    },
-    memo: {
-      name: "Примечание",
-      value: "golos:" + golos_login
-    }
-    }, // end Qiwi method
-  { // Advcash
-  address: {
-    name: "Адрес кошелька в Advcash",
-    value: `R 9085 0398 0645`,
-  },
-  memo: {
-    name: "Примечание к платежу",
-    value: "golos:" + golos_login
+function safeJsonParse(str) {
+  try {
+    if (!str) return null;
+    if (typeof str === 'object') return str;
+    return JSON.parse(str);
+  } catch(e) {
+    return null;
   }
-  }, // end Advcash method
-  { // Payeer
-    address: {
-      name: "Адрес кошелька в Payeer",
-      value: `P9741574`,
-    },
-    memo: {
-      name: "Примечание к платежу",
-      value: "golos:" + golos_login
+}
+
+function substituteAccount(template) {
+  if (!template) return '';
+  return String(template).split('<account>').join(golos_login);
+}
+
+// Достает symbol из строки max_supply вида "10000000.00 YMRUB"
+function symbolFromMaxSupply(max_supply) {
+  if (!max_supply) return '';
+  let parts = String(max_supply).trim().split(' ');
+  return parts.length > 1 ? parts[1] : '';
+}
+
+function buildGateFromAsset(asset) {
+  if (!asset) return null;
+  let symbol = symbolFromMaxSupply(asset.max_supply);
+  if (!symbol) return null;
+
+  let meta = safeJsonParse(asset.json_metadata);
+  if (!meta) return null;
+
+  let gate = {};
+  // Deposit
+  if (meta.deposit && meta.deposit.unavailable !== true) {
+    let d = meta.deposit;
+    gate.deposit = {
+      source: 'metadata',
+      details: d.details || '',
+      to_type: d.to_type || '',
+      min_amount: d.min_amount || '',
+      fee: d.fee || '',
+      // fixed
+      to_fixed: d.to_fixed || d.to || '',
+      memo_fixed: substituteAccount(d.memo_fixed || ''),
+      // api
+      to_api: substituteAccount(d.to_api || ''),
+      to_transfer: d.to_transfer || '',
+      memo_transfer: substituteAccount(d.memo_transfer || ''),
+    };
+  }
+
+  // Withdrawal
+  if (meta.withdrawal && meta.withdrawal.unavailable !== true) {
+    let w = meta.withdrawal;
+    let ways = Array.isArray(w.ways) ? w.ways : [];
+    gate.withdraw = {
+      source: 'metadata',
+      details: w.details || '',
+      min_amount: w.min_amount || '',
+      fee: w.fee || '',
+      account: w.to || '',
+      ways: ways.map(x => ({
+        name: x.name || '',
+        prefix: x.prefix || '',
+        memo: x.memo || '',
+        postfix_title: x.postfix_title || '',
+        postfix: x.postfix || ''
+      }))
+    };
+  }
+
+  // Если нет ни deposit ни withdrawal - не возвращаем gate
+  if (!gate.deposit && !gate.withdraw) return null;
+  return { symbol, gate };
+}
+
+async function hydrateGatesFromAssets(assets) {
+  // assets: массив ассетов (объекты из getAssetsAsync)
+  if (!Array.isArray(assets)) return;
+  for (let a of assets) {
+    let built = buildGateFromAsset(a);
+    if (built && built.symbol && built.gate) {
+      gatesAuto[built.symbol] = built.gate;
     }
+  }
+}
+
+async function fetchAssetsBySymbols(symbols) {
+  // getAssetsAsync умеет принимать массив symbols
+  if (!Array.isArray(symbols) || symbols.length === 0) return [];
+  try {
+    // Некоторые ноды могут ограничивать размер массива, поэтому батчим
+    let out = [];
+    let batchSize = 20;
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      let batch = symbols.slice(i, i + batchSize);
+      let res = await golos.api.getAssetsAsync('', batch);
+      if (Array.isArray(res)) out = out.concat(res);
     }
-]
-};
+    return out;
+  } catch(e) {
+    console.error('fetchAssetsBySymbols error:', e);
+    return [];
+  }
+}
 
-gates.YMPZM.withdraw = {
-  account: "ecurrex-prizm",
-get_max: {
-  allow: false,
-login: "ecurrex-ru",
-  separator: " / ",
-},
-  vars: [
-    {
-      name: "",
-      address: "Адрес кошелька Prizm",
-    }
-    ],
-  separator: ""
-};
+function buildWithdrawMemoFromMetadata(token) {
+  let gate = getGate(token);
+  if (!gate || !gate.withdraw || gate.withdraw.source !== 'metadata') return '';
+  let idx = parseInt($('select[name=withdraw_uia_method]').val() || '0');
+  let ways = gate.withdraw.ways || [];
+  let way = ways[idx] || {};
+  let prefix = String(way.prefix || '');
+  let main = String($('#uia_withdraw_main').val() || '').trim();
+  let extra = String($('#uia_withdraw_postfix').val() || '').trim();
 
-gates.YMPZM.deposit = {
-  vars: [
-    {
-      address: {
-        name: "Адрес кошелька в Prizm",
-        value: `PRIZM-5UER-N986-BU24-AXJRL`,
-      },
-      memo: {
-        name: "Примечание к платежу",
-        value: "golos:" + golos_login
-      }
-      }
-  ]
-  };
-
-  gates.YMDASH.withdraw = {
-    account: "ecurrex-dash",
-  get_max: {
-    allow: false,
-  login: "ecurrex-ru",
-    separator: " / ",
-  },
-    vars: [
-      {
-        name: "",
-        address: "Адрес кошелька DASH",
-      }
-      ],
-    separator: ""
-  };
-
-  gates.YMDASH.deposit = {
-    type: "get_address",
-    account: "ecurrex-dash",
-    memo: "deposit"
-      };
-
-      gates.YMTRX.withdraw = {
-        account: "ecurrex-tron",
-      get_max: {
-        allow: false,
-      login: "ecurrex-ru",
-        separator: " / ",
-      },
-        vars: [
-          {
-            name: "",
-            address: "Адрес кошелька Tron",
-          }
-          ],
-        separator: ""
-      };
-    
-      gates.YMTRX.deposit = {
-        type: "get_address",
-        account: "ecurrex-tron",
-        memo: "deposit",
-        "text": "От 10 TRX",
-          };
-
-          gates.YMUSDT.withdraw = {
-            account: "ecurrex-tether",
-          get_max: {
-            allow: false,
-          login: "ecurrex-ru",
-            separator: " / ",
-          },
-            vars: [
-              {
-                name: "",
-                address: "Адрес кошелька Tron",
-              }
-              ],
-            separator: ""
-          };
-        
-          gates.YMUSDT.deposit = {
-            type: "get_address",
-            account: "ecurrex-tether",
-            memo: "deposit",
-            "text": "От 10 USDT",
-              };
-
-      gates.YMHIVE.withdraw = {
-        account: "ecurrex-hive",
-      get_max: {
-        allow: false
-      },
-        vars: [
-          {
-            name: "hive",
-            address: "Аккаунт в Hive",
-          }
-        ],
-        separator: ":"
-      };
-      
-      gates.YMHIVE.deposit = {
-      vars: [
-        {
-          address: {
-            name: "Аккаунт в Hive",
-            value: `ecurrex-ru`,
-          },
-          memo: {
-            name: "Примечание к платежу",
-            value: "golos:" + golos_login
-          }
-          }
-      ]
-      };
-
-      gates.YMSTEEM.withdraw = {
-        account: "ecurrex-steem",
-      get_max: {
-        allow: false
-      },
-        vars: [
-          {
-            name: "steem",
-            address: "Аккаунт в Steem",
-          }
-        ],
-        separator: ":"
-      };
-      
-      gates.YMSTEEM.deposit = {
-      vars: [
-        {
-          address: {
-            name: "Аккаунт в Steem",
-            value: `ecurrex-ru`,
-          },
-          memo: {
-            name: "Примечание к платежу",
-            value: "golos:" + golos_login
-          }
-          }
-      ]
-      };
-
-      gates.YMBTC.withdraw = {
-        account: "ecurrex-bitcoin",
-      get_max: {
-        allow: false
-      },
-        vars: [
-          {
-            name: "bitcoin",
-            address: "Bitcoin адрес",
-          }
-        ],
-        separator: ":"
-      };
-      
-      gates.YMBTC.deposit = {
-        type: "get_address",
-        account: "ecurrex-bitcoin",
-        memo: "deposit",
-        "text": "От 0.0001 BTC",
-      };
-
-      gates.YMXMR.withdraw = {
-        account: "ecurrex-monero",
-      get_max: {
-        allow: false
-      },
-        vars: [
-          {
-            name: "monero",
-            address: "XMR адрес",
-          }
-        ],
-        separator: ":"
-      };
-      
-      gates.YMXMR.deposit = {
-        type: "get_address",
-        account: "ecurrex-monero",
-        memo: "deposit",
-        "text": "От 0.0001 XMR",
-      };
+  let memo = prefix + main;
+  if (extra) memo = memo + ' ' + extra;
+  return memo.trim();
+}
 
 
-      gates.YMZEC.withdraw = {
-        account: "ecurrex-zcash",
-      get_max: {
-        allow: false
-      },
-        vars: [
-          {
-            name: "zcash",
-            address: "ZEC адрес",
-          }
-        ],
-        separator: ":"
-      };
-      
-      gates.YMZEC.deposit = {
-        type: "get_address",
-        account: "ecurrex-zcash",
-        memo: "deposit",
-        "text": "От 0.0001 ZEC",
-      };
-
-  gates.VIZUIA.withdraw = {
-    account: "xchng",
-  get_max: {
-    allow: false
-  },
-    vars: [
-      {
-        name: "viz",
-        address: "Аккаунт в Viz",
-      }
-    ],
-    separator: ":"
-  };
-  
-  gates.VIZUIA.deposit = {
-  vars: [
-    {
-      address: {
-        name: "Аккаунт в Viz",
-        value: `gls.xchng`,
-      },
-      memo: {
-        name: "Примечание к платежу",
-        value: "log:" + golos_login
-      }
-      }
-  ]
-  };
-
-    async function links(tipe, token) {
+async function links(tipe, token) {
   $('#actions').html('');
+  // actions side panel title
+  $('#actions_panel_title').hide().text('');
   if (token === 'GOLOS' && tipe === 'main_balance') {
 $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 <li><a data-fancybox data-src="#to_shares_transfer_modal" href="javascript:;">golos в СГ этого аккаунта</a></li>
@@ -359,12 +156,13 @@ $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#trans
 } else if (token !== 'GOLOS' && token !== 'GP' && token !== 'GBG' && tipe === 'main_balance') {
   $('#actions').html(`<li><a data-fancybox class="transfer_modal" data-src="#transfer_modal" href="javascript:;" data-token="${token}" onclick="getTransferTemplates('${token}');">Перевести ${token}</a></li>
 `);
-if (gates[token] && gates[token].deposit) {
+let gate = getGate(token);
+if (gate && gate.deposit) {
   $('#actions').append(`<li><a data-fancybox class="uia_deposit_modal" data-src="#uia_deposit_modal" href="javascript:;" data-token="${token}">Пополнить ${token}</a></li>
   `);
 }
 
-if (gates[token] && gates[token].withdraw) {
+if (gate && gate.withdraw) {
   $('#actions').append(`<li><a data-fancybox class="uia_withdraw_modal" data-src="#uia_withdraw_modal" href="javascript:;" data-token="${token}">Вывести ${token}</a></li>
   `);
 }
@@ -375,6 +173,16 @@ $('#actions').append(`<li><a href="https://dpos.space/golos/swap/${token}" targe
   <li><a data-fancybox class="transfer_from_tip_modal" data-src="#transfer_from_tip_modal" href="javascript:;" data-token="${token}">Перевести из TIP-баланса ${token}</a></li>
 `);
 }
+  // show side panel title when actions exist
+  try {
+    const t = String(token || '').trim();
+    if ($('#actions').children().length > 0 && t) {
+      $('#actions_panel_title').text('Действия: ' + t).show();
+    } else {
+      $('#actions_panel_title').hide().text('');
+    }
+  } catch (_) {}
+
 }
 
 var link_state = {};
@@ -497,7 +305,67 @@ try {
   return res;
   }
 
+// Настройка фильтра балансов UIA: показывать только токены с ненулевым балансом.
+function getBalancesOnlySetting() {
+  const raw = localStorage.getItem('wallet_balances_only');
+  // По умолчанию - true.
+  if (raw === null || raw === undefined) return true;
+  return raw === '1' || raw === 'true';
+}
+
+function setBalancesOnlySetting(val) {
+  localStorage.setItem('wallet_balances_only', val ? '1' : '0');
+}
+
+// Получить symbol из строки "1000.000 TOKEN".
+function symbolFromAssetField(str) {
+  const s = String(str || '').trim();
+  const parts = s.split(' ');
+  return parts.length >= 2 ? parts[parts.length - 1].trim() : '';
+}
+
+// Загрузить список всех UIA ассетов (постранично). Может быть тяжело, поэтому вызывается только
+// когда пользователь отключил фильтр "только с балансом".
+async function fetchAllAssets(limit = 200) {
+  const assetsAll = [];
+  let from = '';
+  // Защита от зависания UI, если ассетов слишком много.
+  const hardCap = 5000;
+  for (let page = 0; page < 1000; page++) {
+    const chunk = await golos.api.getAssetsAsync('', [], from, String(limit), 'by_symbol_name');
+    if (!chunk || chunk.length === 0) break;
+    for (const a of chunk) {
+      assetsAll.push(a);
+      if (assetsAll.length >= hardCap) return assetsAll;
+    }
+    // Переходим к следующей странице.
+    const last = chunk[chunk.length - 1];
+    const lastSymbol = symbolFromAssetField(last && last.max_supply);
+    if (!lastSymbol) break;
+    // "from" в большинстве реализаций понимается как "начиная с", поэтому сдвигаем на следующий символ.
+    // Чтобы избежать дублей, будем фильтровать по symbol на стороне клиента.
+    from = lastSymbol;
+    if (chunk.length < limit) break;
+  }
+  return assetsAll;
+}
+
   async function loadBalances() {
+// Инициализируем чекбокс один раз.
+try {
+  const $cb = $('#balances_only');
+  if ($cb && $cb.length && !$cb.data('inited')) {
+    $cb.data('inited', true);
+    $cb.prop('checked', getBalancesOnlySetting());
+    $cb.on('change', async function() {
+      setBalancesOnlySetting($(this).prop('checked'));
+      await loadBalances();
+    });
+  }
+} catch(e) {
+  // ignore
+}
+
 let main_data =await mainData();
     if (main_data !== false) {
 let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
@@ -507,22 +375,67 @@ let {acc, props, gp, delegated_gp, received_gp, golos_per_gests} = main_data;
   tokens.push({name: 'GP', main_balance: parseFloat(gp)});
   tokens.push({name: 'DELEGATED_GP', main_balance: parseFloat(delegated_gp)});
   tokens.push({name: 'RECEIVED_GP', main_balance: parseFloat(received_gp)});
-  let accounts_balances = await golos.api.getAccountsBalancesAsync([golos_login]);
-  let yes_balances = [];
-  if (accounts_balances && accounts_balances.length > 0) {
-    let uias = accounts_balances[0];
-    for (let name in uias) {
-      yes_balances.push(name);
-      let token = uias[name];
-tokens.push({name, main_balance: parseFloat(token.balance), tip_balance: parseFloat(token.tip_balance)});
-    }
-}
+  // UIA балансы пользователя
+  const accounts_balances = await golos.api.getAccountsBalancesAsync([golos_login]);
+  const balancesOnly = getBalancesOnlySetting();
+  let assetsAll = null; // used in 'all tokens' mode for json_metadata hydration
 
-for (let name in gates) {
-if (yes_balances.indexOf(name) === -1) {
-  tokens.push({name, main_balance: 0, tip_balance: 0});
-}
-}
+  // Карта балансов UIA по symbol
+  const uiaBySymbol = {};
+  if (accounts_balances && accounts_balances.length > 0) {
+    const uias = accounts_balances[0] || {};
+    for (const symbol in uias) {
+      const b = uias[symbol] || {};
+      const main = parseFloat(b.balance || 0) || 0;
+      const tip = parseFloat(b.tip_balance || 0) || 0;
+      uiaBySymbol[symbol] = { main, tip };
+    }
+  }
+
+  if (balancesOnly) {
+    // В режиме "только с балансом" показываем UIA только если есть ненулевой main или tip.
+    for (const symbol in uiaBySymbol) {
+      const b = uiaBySymbol[symbol];
+      if ((b.main || 0) !== 0 || (b.tip || 0) !== 0) {
+        tokens.push({ name: symbol, main_balance: b.main, tip_balance: b.tip });
+      }
+    }
+  } else {
+    // В режиме "все токены" показываем все UIA ассеты в системе, подставляя баланс пользователя.
+    // Это может быть долго и дать большую таблицу.
+    assetsAll = await fetchAllAssets(200);
+    const seen = new Set();
+    for (const a of (assetsAll || [])) {
+      const symbol = symbolFromAssetField(a && a.max_supply);
+      if (!symbol) continue;
+      if (seen.has(symbol)) continue;
+      seen.add(symbol);
+      const b = uiaBySymbol[symbol] || { main: 0, tip: 0 };
+      tokens.push({ name: symbol, main_balance: b.main, tip_balance: b.tip });
+    }
+  }
+
+
+  // Обновляем конфиги шлюзов из json_metadata (deposit/withdrawal)
+  try {
+    gatesAuto = {};
+    // UIA символы, которые сейчас выводятся в таблице
+    const skip = new Set(['GOLOS','GBG','GP','DELEGATED_GP','RECEIVED_GP']);
+    const uiaSymbolsInTable = tokens.map(t => t.name).filter(s => !skip.has(s));
+    if (balancesOnly) {
+      const assetsForTable = await fetchAssetsBySymbols(uiaSymbolsInTable);
+      await hydrateGatesFromAssets(assetsForTable);
+    } else {
+      // В режиме "все токены" metadata уже получены в fetchAllAssets
+      // Важно: hydrateGatesFromAssets ждёт именно массив ассетов
+      // assets переменная есть выше в этой ветке, но может отсутствовать при ошибке
+      if (assetsAll && assetsAll.length) {
+        await hydrateGatesFromAssets(assetsAll);
+      }
+    }
+  } catch(e) {
+    console.error('hydrate gates error:', e);
+  }
 
 let balances_table = '';
     for (let token of tokens) {
@@ -543,10 +456,10 @@ let balances_table = '';
         if (token.name === 'GP') name = 'СГ';
         balances_table += `<tr>
 <td><a class="spoiler" data-tipe="main_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_main_${token.name}">${token.main_balance}</span> ${name}</a></td>`;
-        if (token.tip_balance && token.claim_balance) {
+        if (token.tip_balance !== undefined && token.tip_balance !== null && token.tip_balance !== 0 && token.claim_balance) {
           balances_table += `<td><a class="spoiler" data-tipe="tip_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${token.name}</a> (<a class="spoiler"data-tipe="claim_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_claim_${token.name}">${token.claim_balance}</span> ${name} в CLAIM</a>)</td>
         `;
-        } else if (token.tip_balance && !token.claim_balance) {
+        } else if (token.tip_balance !== undefined && token.tip_balance !== null && token.tip_balance !== 0 && !token.claim_balance) {
           balances_table += `<td><a class="spoiler"data-tipe="tip_balance" data-token="${token.name}" onclick="actionsSpoiler(this);" title="Клик для выбора действия"><span id="max_tip_${token.name}">${token.tip_balance}</span> ${name}</a></td>
         `;
         } else {
@@ -985,79 +898,234 @@ function createFiltr() {
 
 async function changeWithdrawUIASelect(value) {
   let token = $('.uia_withdraw_modal_token').html();
-  let w = gates[token].withdraw;
-    $('#action_uia_withdraw_to').val(w.account);
-  let vars = w.vars;
-$('.action_uia_withdraw_memo').remove();
-  let method = vars[parseInt(value)];
-  let get_max = w.get_max;  
+  let gate = getGate(token);
+  if (!gate || !gate.withdraw) return;
+
+  // Очищаем только динамические поля, оставляя сверху описание/минимумы/комиссию
+  if (!$('#uia_withdraw_fields_dynamic').length) {
+    $('#fields_uia_withdraw').append('<div id="uia_withdraw_fields_dynamic"></div>');
+  }
+  $('#uia_withdraw_fields_dynamic').html('');
   $('#max_uia_withdraw_amount').html($('#max_main_' + token).html());
-  if (get_max.allow == true) {
-  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
-  if (gate_account && gate_account.length > 0) {
-let metadata = JSON.parse(gate_account[0].json_metadata);
-let methods = metadata.profile.about.split(w.get_max.separator);
-let methods_list = [];
-for (let m of methods) {
-  let arr = m.split(':');
-  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
-}
-let max_method = methods_list[parseInt(value)];
-if (max_method.name === method.name && max_method.amount < parseFloat($('#max_main_' + token).html())) {
-  $('#max_uia_withdraw_amount').html(max_method.amount);
-} // end if.
-}
-}
-  
-  for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
-} else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
-}
+
+  // Метаданные из json_metadata
+  if (gate.withdraw.source === 'metadata') {
+    let ways = gate.withdraw.ways || [];
+    if (ways.length === 0) {
+      $('#fields_uia_withdraw').append('<p>Нет доступных способов вывода.</p>');
+      return;
+    }
+
+    // Рендер селекта
+    if (ways.length > 1) {
+      $('#uia_withdraw_fields_dynamic').append('<select name="withdraw_uia_method"></select>');
+      ways.forEach((w, i) => {
+        $('select[name=withdraw_uia_method]').append(`<option value="${i}">${w.name || ('Способ ' + (i + 1))}</option>`);
+      });
+      $('select[name=withdraw_uia_method]').val(String(parseInt(value || '0')));
+      $('select[name=withdraw_uia_method]').off('change').on('change', function() {
+        changeWithdrawUIASelect(this.value);
+      });
+    } else {
+      // один способ - селект не нужен, но чтобы buildWithdrawMemoFromMetadata работал, создаем скрытый селект
+      $('#uia_withdraw_fields_dynamic').append('<select name="withdraw_uia_method" style="display:none"></select>');
+      $('select[name=withdraw_uia_method]').append('<option value="0">0</option>');
+      $('select[name=withdraw_uia_method]').val('0');
+    }
+
+    let idx = parseInt($('select[name=withdraw_uia_method]').val() || '0');
+    let way = ways[idx] || {};
+
+    // Поля ввода
+    $('#uia_withdraw_fields_dynamic').append(`
+      <p><label for="uia_withdraw_main">${way.memo || 'Данные для вывода'}:</label></p>
+      <p><input type="text" id="uia_withdraw_main" placeholder="${way.memo || ''}" class="action_uia_withdraw_memo" value=""></p>
+    `);
+
+    if (way.postfix || way.postfix_title) {
+      let ph = way.postfix || way.postfix_title || '';
+      let title = way.postfix_title || 'Дополнительно';
+      $('#uia_withdraw_fields_dynamic').append(`
+        <p><label for="uia_withdraw_postfix">${title}:</label></p>
+        <p><input type="text" id="uia_withdraw_postfix" placeholder="${ph}" class="action_uia_withdraw_memo" value=""></p>
+      `);
+    }
+
+    // Служебно: заполняем to
+    $('#action_uia_withdraw_to').val(gate.withdraw.account || '');
+    return;
   }
 }
 
-async function cancelDelegatedVestingShares(delegatee) {
-  let q = window.confirm('Вы действительно хотите отменить делегирование?');
-  if (q == true) {
-    try {
-      let result = await golos.broadcast.delegateVestingSharesAsync(active_key, golos_login, delegatee, '0.000000 GESTS');
-      window.alert('Делегирование пользователю ' + delegatee + ' отменено.');
-      $('#delegated_vesting_shares_' + delegatee).css("display", "none");
-    } catch(e) {
-    window.alert('Ошибка: ' + JSON.stringify(e));
-    }
+async function fetchDepositAddressByAsset(asset, login) {
+  const url = `/golos/api/uia-deposit?asset=${encodeURIComponent(asset)}&login=${encodeURIComponent(login)}&ts=${Date.now()}`;
+
+  let r;
+  try {
+    r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+  } catch (e) {
+    return {
+      ok: false,
+      address: "",
+      memo: "",
+      error: { code: "network_error", message: "network error", status: 0 }
+    };
   }
+
+  const data = await r.json().catch(() => ({}));
+
+  // Если PHP всегда отдает JSON вида {ok:true|false,...}, то r.ok можно не использовать.
+  // Но оставим как fallback.
+  if (!r.ok && !data) {
+    return {
+      ok: false,
+      address: "",
+      memo: "",
+      error: { code: "http_error", message: "request failed", status: r.status || 0 }
+    };
+  }
+
+  // Новый формат: {ok:true,address,memo?}
+  if (data && data.ok === true) {
+    const address = (typeof data.address === "string") ? data.address.trim() : "";
+    const memo = (typeof data.memo === "string") ? data.memo.trim() : "";
+    return { ok: !!address, address, memo, error: address ? null : { code: "empty_address", message: "empty address", status: 200 } };
+  }
+
+  // Новый формат: {ok:false,error:{...}}
+  if (data && data.ok === false && data.error) {
+    const e = data.error || {};
+    return {
+      ok: false,
+      address: "",
+      memo: "",
+      error: {
+        code: String(e.code || "unknown"),
+        message: String(e.message || "unknown error"),
+        status: Number(e.status || 0),
+        curl_errno: e.curl_errno ? Number(e.curl_errno) : undefined
+      }
+    };
+  }
+
+  // Старый формат (на случай если PHP где-то еще старый)
+  if (data && typeof data.address === "string" && data.address.trim()) {
+    return { ok: true, address: data.address.trim(), memo: (typeof data.memo === "string" ? data.memo.trim() : ""), error: null };
+  }
+
+  return { ok: false, address: "", memo: "", error: { code: "no_data", message: "no data", status: r.status || 0 } };
 }
 
 async function getDepositAddress(token) {
-let deposit = gates[token].deposit;
-try {
-let accounts = await golos.api.getAccountsAsync([golos_login]);
-let acc = accounts[0];
-if (parseFloat(acc.balance) >= 0.001) {
-  let send = await golos.broadcast.transferAsync(active_key, golos_login, deposit.account, "0.001 GOLOS", deposit.memo);
-  setInterval(async function() {
-    let history = await golos.api.getAccountHistoryAsync(golos_login, -1, 1, {"select_ops":["transfer"]});
-    for (let el of history) {
-      let data = el[1].op[1];
-      if (data.from === deposit.account) {
-$('#uia_deposit_address').html(prepareContent(data.memo));
-        return;
-      } else {
-        $('#uia_deposit_address').html('Ждём получения адреса ' + token + '.');
-      }
+  let gate = getGate(token);
+  let deposit = gate && gate.deposit ? gate.deposit : null;
+  if (!deposit) { window.alert('Нет данных для пополнения ' + token + '.'); return; }
+
+  // API-адрес (to_type: api)
+if (deposit.to_type === 'api') {
+  const renderError = (info) => {
+    const code = info?.error?.code || "";
+    const status = info?.error?.status || 0;
+
+    let msg = 'Адрес пополнения недоступен: API не ответил или шлюз временно закрыт. Повторите попытку. Если несколько попыток подряд не дадут результата, скорее всего, пополнение для этого токена сейчас недоступно.';
+
+    // Более точные сообщения
+    if (code === "deposit_unavailable") {
+      msg = "Пополнение для этого токена отключено (шлюз закрыт).";
+    } else if (code === "no_deposit_meta") {
+      msg = "Для этого токена нет данных о пополнении (deposit metadata отсутствует).";
+    } else if (code === "unsupported_to_type") {
+      msg = "Пополнение для этого токена не через API (не поддерживается автоматически).";
+    } else if (code === "blocked_self_domain" || code === "scheme_not_allowed" || code === "port_not_allowed" || code === "dns_failed") {
+      msg = "Запрос адреса заблокирован правилами безопасности сервера.";
+    } else if (code === "upstream_http" && (status === 502 || status === 503)) {
+      msg = `Шлюз временно недоступен (ошибка ${status}).`;
+    } else if (code === "upstream_no_address" || code === "empty_address") {
+      msg = "Адрес пополнения недоступен: API не вернул адрес или шлюз временно закрыт.";
+    } else if (code === "rpc_failed") {
+      msg = "Не удалось получить метаданные токена: RPC временно недоступен.";
+    } else if (code === "network_error") {
+      msg = "Сетевой сбой при запросе адреса. Повторите попытку.";
     }
-  }, 5000);
-} else {
-  window.alert('Ваш баланс < 0.001 GOLOS');
+
+    let html = '';
+    html += `<p>${msg}</p>`;
+    html += `<p><input type="button" value="Повторить" onclick="getDepositAddress('${token}');"></p>`;
+    $('#uia_deposit_address').html(html);
+  };
+
+  const run = async () => {
+    $('#uia_deposit_address').html('Запрашиваем адрес...');
+
+    const info = await fetchDepositAddressByAsset(token, golos_login);
+
+    if (!info.ok || !info.address) {
+      renderError(info);
+      return;
+    }
+
+    const addr = String(info.address || '').trim();
+    const mm = String(info.memo || '').trim();
+
+    let html = '';
+    html += '<ul>';
+
+    // JSON.stringify безопасно экранирует строку для вставки в onclick
+    html += `<li>Адрес для пополнения: ${addr} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${addr}').catch(()=>{});">)</li>`;
+
+    if (mm) {
+      html += `<li>Memo: ${mm} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${mm}').catch(()=>{});">)</li>`;
+    }
+
+        html += '</ul>';
+    $('#uia_deposit_address').html(html);
+  };
+
+  try {
+    await run();
+  } catch (e) {
+    console.error('deposit api error', e);
+    renderError({ ok: false, error: { code: "js_exception", message: String(e?.message || e), status: 0 } });
+  }
+
+  return;
 }
-} catch(e) {
-  await getDepositAddress(token);
-  console.error(e);
-}
+
+
+  // Альтернативный способ через перевод (если указан to_transfer + memo_transfer) (если указан to_transfer + memo_transfer)
+  if (deposit.to_transfer && deposit.memo_transfer) {
+    let q = window.confirm('Шлюз требует запрос адреса через перевод 0.001 GOLOS. Отправить?');
+    if (!q) return;
+    try {
+      let accounts = await golos.api.getAccountsAsync([golos_login]);
+      let acc = accounts[0];
+      if (parseFloat(acc.balance) < 0.001) {
+        window.alert('Ваш баланс < 0.001 GOLOS');
+        return;
+      }
+      await golos.broadcast.transferAsync(active_key, golos_login, deposit.to_transfer, '0.001 GOLOS', deposit.memo_transfer);
+      $('#uia_deposit_address').html('Ждём получения адреса...');
+      let timer = setInterval(async function() {
+        try {
+          let history = await golos.api.getAccountHistoryAsync(golos_login, -1, 10, { select_ops: ['transfer'] });
+          for (let el of history) {
+            let data = el[1].op[1];
+            if (data.from === deposit.to_transfer) {
+              clearInterval(timer);
+              $('#uia_deposit_address').html(prepareContent(data.memo));
+              return;
+            }
+          }
+        } catch(_) {}
+      }, 5000);
+    } catch (e) {
+      console.error(e);
+      window.alert('Ошибка запроса адреса.');
+    }
+    return;
+  }
+
+  window.alert('Для этого токена адрес пополнения не поддерживается автоматически.');
 }
 
 $(document).ready(async function() {
@@ -1370,134 +1438,100 @@ window.alert('Вы делегировали ' + action_vesting_delegate_amount +
   await thisAccountHistory();
     }
   
-  $(document).on('click', '.uia_deposit_modal', function(e) {
-    let token = $(this).attr('data-token');
-    $('.uia_deposit_modal_token').html(token);
-    if (gates[token] && gates[token].deposit) {
-let deposit = gates[token].deposit;
-let res = '';
-if (deposit.type === 'get_address') {
-let notify_text = '';
-if (deposit.text) notify_text = `<p><strong>${deposit.text}</strong></p>`;
-  res = `<p>Нажмите на кнопку ниже, чтобы получить адрес пополнения.</p>
-<div id="uia_deposit_address"><button onclick="getDepositAddress('${token}')">Получить адрес</button></div>
-${notify_text}`;
+  $(document).on('click', '.uia_deposit_modal', async function(e) {
+  let token = $(this).attr('data-token');
+  $('.uia_deposit_modal_token').html(token);
 
-} else {
-  res = `<p>Для пополнения баланса следуйте инструкции ниже.</p>
-`;
-let vars = deposit.vars;
-for (let method of vars) {
-  res += '<ul>';
-for (let el in method) {
-res += `<li>${method[el].name}: ${method[el].value} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${method[el].value.replace(/<[^>]*>/g, "")}').then(() => {console.log('Successfully copied to clipboard');}).catch(() => {console.log('Copy error');});">)</li>`;
-}
-  res += `</ul>`;
-}
-}
-
-$('#uia_diposit_data').html(res);
-}
-  });
-
-  $(document).on('click', '.uia_withdraw_modal', async function(e) {
-    let token = $(this).attr('data-token');
-$('.uia_withdraw_modal_token').html(token);
-  if (gates[token] && gates[token].withdraw) {
-    let w = gates[token].withdraw;
-    $('#action_uia_withdraw_to').val(w.account);
-$('#fields_uia_withdraw').html('');
-$('#max_uia_withdraw_amount').html($('#max_main_' + token).html());
-let vars = w.vars;
-if (vars.length > 1) {
-  $('#fields_uia_withdraw').append(`<select name="withdraw_uia_method" onchange="changeWithdrawUIASelect(this.value);">`);
-  vars.filter((val, key) => $('select[name=withdraw_uia_method]').append(`<option value="${key}">${val.name}</option>
-`));
-$('#fields_uia_withdraw').append(`</select>`);
-let method = vars[parseInt($('select[name=withdraw_uia_method]').val())];
-let get_max = w.get_max;
-if (get_max.allow == true) {
-  let gate_account = await golos.api.getAccountsAsync([get_max.login]);
-  if (gate_account && gate_account.length > 0) {
-let metadata = JSON.parse(gate_account[0].json_metadata);
-let methods = metadata.profile.about.split(w.get_max.separator);
-let methods_list = [];
-for (let m of methods) {
-  let arr = m.split(':');
-  methods_list.push({name: arr[0], amount: parseFloat(arr[1])})
-}
-let max_method = methods_list[parseInt($('select[name=withdraw_uia_method]').val())];
-if (max_method.name === method.name && max_method.amount < parseFloat($('#max_main_' + token).html())) {
-  $('#max_uia_withdraw_amount').html(max_method.amount);
-} // end if.
-}
-}
-  
-for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
-} else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
-}
+  let gate = getGate(token);
+  let deposit = gate && gate.deposit ? gate.deposit : null;
+  if (!deposit) {
+    $('#uia_diposit_data').html('<p>Для этого токена нет данных пополнения.</p>');
+    return;
   }
-} else {
-for (let method of vars) {
-      for (let el in method) {
-if (el === 'name') {
-  $('#fields_uia_withdraw').append(`<input type="hidden" name="withdraw_method_name" placeholder="${method[el]}" class="action_uia_withdraw_memo" value="${method[el]}">`);
-} else {
-  $('#fields_uia_withdraw').append(`<p><label for="${el}">${method[el]}:</label></p>
-  <p><input type="text" name="${el}" placeholder="${method[el]}" class="action_uia_withdraw_memo" value=""></p>`);
-}
+
+  let html = '';
+
+  if (deposit.details) {
+    html += `<p>${prepareContent(String(deposit.details))}</p>`;
   }
-}
-}
-}
-  });
 
-  $("#max_token_uia_withdraw").click(async function(){
-    let token = $('.uia_withdraw_modal_token').html();
-    let amount = $('#max_uia_withdraw_amount').html();
-    let precision = 3;
-   let assets = await golos.api.getAssetsAsync('', [token]);
-   if (assets && assets.length > 0) {
-     let asset = assets[0];
-     precision = asset.precision;
-   }
-    $('#action_uia_withdraw_amount').val(new Number(parseFloat(amount)).toFixed(precision));
-     });
-
-$('#action_uia_withdraw_start').click(async function(){
-  let q = window.confirm('Вы действительно хотите сделать вывести средства?');
-  if (q == true) {
-    let token = $('.uia_withdraw_modal_token').html();
-    let precision = 3;
-   let assets = await golos.api.getAssetsAsync('', [token]);
-   if (assets && assets.length > 0) {
-     let asset = assets[0];
-     precision = asset.precision;
-   }
-   let action_transfer_to = $('#action_uia_withdraw_to').val();
-    let action_transfer_amount = $('#action_uia_withdraw_amount').val();
-    action_transfer_amount = parseFloat(action_transfer_amount);
-    action_transfer_amount = action_transfer_amount.toFixed(precision) + ' ' + token;
-    let action_transfer_memo = $(".action_uia_withdraw_memo").map( (i,el) => $(el).val() ).get().join(gates[token].withdraw.separator);
-
-    try {
-  let result = await golos.broadcast.transferAsync(active_key, golos_login, action_transfer_to, action_transfer_amount, action_transfer_memo);
-  window.alert('Вы вывели ' + action_transfer_amount + '.');
-  await loadBalances();
-  $.fancybox.close();
-  } catch(e) {
-  window.alert('Ошибка: ' + JSON.stringify(e));
+  // Доп. параметры
+  let extras = [];
+  if (deposit.min_amount) extras.push(`Минимальная сумма: ${String(deposit.min_amount)}`);
+  if (deposit.fee) extras.push(`Комиссия: ${String(deposit.fee)}`);
+  if (extras.length) {
+    html += '<ul>' + extras.map(x => `<li>${x}</li>`).join('') + '</ul>';
   }
-  } else {
-    window.alert('Вы отменили вывод.');
-  }
-    }); // end subform
 
-  $(document).on('click', '.transfer_modal', function(e) {
+  // fixed
+  if ((deposit.to_type || '').toLowerCase() === 'fixed') {
+    let addr = String(deposit.to_fixed || '').trim();
+    let memo = String(deposit.memo_fixed || '').trim();
+
+    html += '<p>Данные для пополнения:</p>';
+    html += '<ul>';
+    if (addr) {
+      html += `<li>Адрес: ${addr} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${addr.replace(/'/g, "\'")}').catch(()=>{});">)</li>`;
+    }
+    if (memo) {
+      html += `<li>Memo: ${memo} (<input type="button" value="копировать" onclick="navigator.clipboard.writeText('${memo.replace(/'/g, "\'")}').catch(()=>{});">)</li>`;
+    }
+    html += '</ul>';
+
+    $('#uia_diposit_data').html(html);
+    return;
+  }
+
+  // api
+  if ((deposit.to_type || '').toLowerCase() === 'api') {
+    html += `<p>Нажмите на кнопку ниже, чтобы получить адрес пополнения.</p>`;
+    html += `<div id="uia_deposit_address"><button type="button" onclick="getDepositAddress('${token}')">Получить адрес</button></div>`;
+
+    // Пояснение по onchain-запросу, если указано
+    if (deposit.to_transfer && deposit.memo_transfer) {
+      html += `<p>Если адрес не получается через API, можно попробовать запрос через перевод минимальной суммы GOLOS на аккаунт ${deposit.to_transfer} с memo ${deposit.memo_transfer}.</p>`;
+    }
+
+    $('#uia_diposit_data').html(html);
+    return;
+  }
+
+  // неизвестный тип
+  html += '<p>Неизвестный тип пополнения для этого токена.</p>';
+  $('#uia_diposit_data').html(html);
+});
+
+$(document).on('click', '.uia_withdraw_modal', async function(e) {
+  let token = $(this).attr('data-token');
+  $('.uia_withdraw_modal_token').html(token);
+
+  let gate = getGate(token);
+  let w = gate && gate.withdraw ? gate.withdraw : null;
+  if (!w) {
+    $('#action_uia_withdraw_to').val('');
+    $('#fields_uia_withdraw').html('<p>Для этого токена нет данных вывода.</p>');
+    return;
+  }
+
+  $('#action_uia_withdraw_to').val(w.account || '');
+
+  let html = '';
+  if (w.details) {
+    html += `<p>${prepareContent(String(w.details))}</p>`;
+  }
+  let extras = [];
+  if (w.min_amount) extras.push(`Минимальная сумма: ${String(w.min_amount)}`);
+  if (w.fee) extras.push(`Комиссия: ${String(w.fee)}`);
+  if (extras.length) {
+    html += '<ul>' + extras.map(x => `<li>${x}</li>`).join('') + '</ul>';
+  }
+  html += '<div id="uia_withdraw_fields_dynamic"></div>';
+  $('#fields_uia_withdraw').html(html);
+
+  await changeWithdrawUIASelect(0);
+});
+
+$(document).on('click', '.transfer_modal', function(e) {
     let token = $(this).attr('data-token');
 $('.transfer_modal_token').html(token);
     $('#max_transfer_amount').html($('#max_main_' + token).html());

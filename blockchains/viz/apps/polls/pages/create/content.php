@@ -20,7 +20,7 @@ $page['content'] = '<script src="'.$conf['siteUrl'].'blockchains/viz/apps/polls/
     <option value="1">Личный + прокси</option>
     <option value="2">Как при награждении</option>
 </select></p>
-<p><label for="service">При помощи чего создавать опрос. Если вы авторизованы <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a> с указанием активного ключа, будет выбран вариант dpos.space (создание опроса при помощи данного сайта): </label>
+<p><label for="service">При помощи чего создавать опрос. Если вы авторизованы (нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить") с указанием активного ключа, будет выбран вариант dpos.space (создание опроса при помощи данного сайта): </label>
 <select name="service" id="clients" placeholder="При помощи чего создать опрос">
 <option value="sign">Писарь</option>
     </select></p>

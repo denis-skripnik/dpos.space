@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'cyber/accounts" target="_blank">здесь</a></p></div>                        
+return '<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить"</p></div>
                         <div id="seed_page">
                         <h2>Пропускная способность адреса <span id="now_address"></span></h2>
                         <p><strong><span id="bandwidth_remained"></span> из <span id="bandwidth_max_value"></span></strong></p>

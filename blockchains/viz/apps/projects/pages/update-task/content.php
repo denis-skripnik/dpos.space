@@ -5,7 +5,7 @@ $content = '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/projects/tasks">Задачи</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/projects/new-task">Добавить задачу</a></th>
 </tr></table>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <h2>Обновите данные по задаче</h2>
 <form class="form">';

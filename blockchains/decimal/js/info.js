@@ -1,4 +1,10 @@
-const DecimalNumber = Decimal;
+// Для математических расчётов здесь нужен decimal.js (он должен быть подключён отдельным <script> до этого файла).
+// Важно: window.DecimalSDK.Decimal - это клиент SDK, а не библиотека decimal.js.
+const DecimalNumber = window.Decimal;
+
+if (!DecimalNumber || typeof DecimalNumber.set !== "function") {
+  throw new Error('decimal.js не загружен. Подключите decimal.js так, чтобы был доступен window.Decimal, и только потом подключайте info.js.');
+}
 
 DecimalNumber.set({ precision: 100 })
 
@@ -10,7 +16,7 @@ function getAmountFromSatoshi(amount) {
 
 function getCoinFormatted(coinData) {
   return {
-    supply: getAmountFromSatoshi(coinData.volume),
+    supply: getAmountFromSatoshi(coinData.total_supply) || 0,
     reserve: getAmountFromSatoshi(coinData.reserve),
     crr: new DecimalNumber(coinData.crr).div(100).toFixed(),
     maxSupply: getAmountFromSatoshi(coinData.limitVolume),

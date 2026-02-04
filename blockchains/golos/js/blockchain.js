@@ -1,8 +1,10 @@
 function checkWorkingNode() {
     const NODES = [
-        "https://api-golos.blckchnd.com",
+        'https://golosapi.ecurrex.ru',
         "https://api.aleksw.space",
-        "https://api-full.golos.id"
+        "https://golos.lexai.top",
+        "https://api-full.golos.id",
+        "https://api-golos.blckchnd.com"
     ];
     let node = localStorage.getItem("golos_node") || NODES[0];
     const idx = Math.max(NODES.indexOf(node), 0);
@@ -103,7 +105,6 @@ if (!active_key) {
         golos.config.set('oauth.host', API_HOST);
         golos.config.set('websocket', API_HOST + '/api/oauth/sign');
         golos.config.set('credentials', 'include');
-        golos.use(new middlewares.MultiAuthMiddleware())
 
     $( document ).ready(function() {
         let active_auth_msg = document.getElementById('active_auth_msg');
@@ -129,8 +130,6 @@ var users = JSON.parse(localStorage.getItem('golos_users'));
 $( document ).ready(function() {
             if (users && users.length > 0) {
                 document.getElementById('show_accounts_list').style = 'display: block';
-    } else {
-        document.getElementById('show_accounts_list').style = 'display: none';
     }
             });
 
@@ -315,3 +314,13 @@ function copyText(id) {
         const urlParams = new URLSearchParams(window.location.hash.substring(1));
         return urlParams.get(name) || "";
       }
+      
+      try {
+        new GolosDexApi(golos, {
+            host: 'https://api-dex.golos.app' // то же самое по умолчанию
+        })
+    } catch (err) {
+        console.error('GolosDexApi init error:', err)
+    }
+    
+    const { dex } = golos.libs

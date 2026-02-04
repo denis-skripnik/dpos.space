@@ -313,7 +313,7 @@ function getPage($url) {
 if (count($t) < 2) return;
     $t=explode("</Sell>", $t[1]);
     $count = count($t);
-    if (isset($t) && $t[0]<>0 || $count > 14) {
+    if (!isset($t)) {
       return;
     } else {
       file_put_contents($cache_file, $cache);

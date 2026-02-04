@@ -10,7 +10,7 @@ return '<h2>Страницы сервиса</h2>
 <th><a href="'.$conf['siteUrl'].'viz/manage/many-invites">Множество инвайтов (чеков)</a></th>
 <th><a href="'.$conf['siteUrl'].'viz/manage/multisig">Мультисиг</a></th>
 </tr></table>
-<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Просьба сделать это <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">здесь</a></p></div>
+<div id="auth_msg" style="display: none;"><p>Вы не авторизовались. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <h2>Фонд комитета <span id="committee_fund"></span></h2>
 <p align="center"><a data-fancybox data-src="#create_committee_request" href="javascript:;">Создать заявку</a></p>

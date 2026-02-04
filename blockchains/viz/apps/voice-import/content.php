@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="posting_auth_msg" style="display: none;"><p>Для импорта необходим регулярный ключ. Укажите его <a href="'.$conf['siteUrl'].'viz/accounts" target="_blank">на странице аккаунтов</a>.</p></div>
+return '<div id="posting_auth_msg" style="display: none;"><p>Для импорта необходим регулярный ключ. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <form>
 <label for="url-input">Url статьи в telegra.ph или mirror.xyz:</label>

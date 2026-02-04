@@ -19,5 +19,5 @@ class GolosHttpJsonRpcConnector extends HttpJsonRpcConnectorAbstract
      *
      * @var string
      */
-    protected static $nodeURL = ['https://api-full.golos.id', 'https://api.aleksw.space', 'https://api-full.golos.id', 'https://apinode.golos.today', 'https://api.golos.blckchnd.com', 'https://golos.solox.world', 'https://golos.lexa.host'];
+    protected static $nodeURL = ['https://golosapi.ecurrex.ru', 'https://api-full.golos.id', 'https://api.aleksw.space', 'https://api-full.golos.id', 'https://apinode.golos.today', 'https://api.golos.blckchnd.com', 'https://golos.solox.world', 'https://golos.lexa.host'];
 }

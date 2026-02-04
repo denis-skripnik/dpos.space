@@ -37,7 +37,7 @@ $form_projects .= '</select></p>';
 if (isset($url[3])) {
   $content .= '<h2>Сделать ставку</h2>
   <span id="allowedCoins" style="display: none;">'.$allowedCoins.'</span><span id="minAmountsAllowedCoins" style="display: none;">'.$minAmountsAllowedCoins.'</span>
-  <div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+  <div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
   <div id="seed_page"><form>
 '.$form_projects.'
   <p style="display: none;"><input type="text" name="bid_send_coin" id="bid_send_coin" value="'.$url[3].'"></p>

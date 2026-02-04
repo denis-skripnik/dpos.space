@@ -65,7 +65,7 @@ $content = '<p align="center"><strong><a href="/minter/long">К фармингу
 </ul>
 <hr>
 <h3><a name="buy_ticket">Купить билет</a></h3>
-<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Укажите её <a href="'.$conf['siteUrl'].'minter/accounts" target="_blank">на странице аккаунтов</a>.</p></div>                        
+<div id="auth_msg" style="display: none;"><p>Для работы с кошельком необходимо авторизоваться seed фразой. Добавить аккаунт можно нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="seed_page"><form>
 <p><label for="loto_type">Тип лотереи<br>
 <select name="loto_type">

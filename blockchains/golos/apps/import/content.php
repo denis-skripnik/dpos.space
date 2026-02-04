@@ -1,5 +1,5 @@
 <?php if (!defined('NOTLOAD')) exit('No direct script access allowed');
-return '<div id="posting_auth_msg" style="display: none;"><p>Для импорта необходим постинг ключ. Укажите его <a href="'.$conf['siteUrl'].'golos/accounts" target="_blank">на странице аккаунтов</a>.</p></div>
+return '<div id="posting_auth_msg" style="display: none;"><p>Для импорта необходим постинг ключ. Укажите его, нажав кнопку "Выбрать аккаунт" в верхней части страницы, затем "Добавить".</p></div>
 <div id="posting_page">
 <form>
 <p><label for="url-input">Url статьи в telegra.ph или mirror.xyz:</label>
