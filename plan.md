@@ -985,3 +985,134 @@ Acceptance criteria:
 - All real Hive wallet sends use `bindOperationForm` preview + explicit confirm, with no private key display/leakage.
 - Tests assert Hive renderer labels/forms/method names, legacy evidence in `plan.md`, and no developer notes in user-facing wallet UI.
 - Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all `tests/*.js`, `git diff --check`.
+
+## Minter wallet parity evidence pass — 2026-05-10
+
+### Preconditions
+
+- Branch confirmed: `v3`.
+- Starting commit: `52729b15c15a07d0232ccaf9afdca27706dbcfc1` (`Port Hive wallet legacy flows`).
+- Starting `git status --short`: clean.
+- Current v3 files inspected before edits: `v3/js/app.js`, `v3/js/profiles.js`, `v3/js/broadcast.js`, `v3/js/chains.js`; tests scanned: `tests/v3-minter-decimal-smoke.js`, `tests/v3-minter-long-smoke.js`, `tests/v3-route-coverage-smoke.js`, `tests/v3-profiles-smoke.js`, plus wallet smoke patterns for Golos/VIZ/Steem/Hive.
+
+### Legacy files inspected
+
+`origin/master:blockchains/minter/apps/wallet` returned and was inspected file-by-file:
+
+- `config.json`: wallet title/description/menu metadata.
+- `content.php`: main wallet DOM, auth notice, address/copy, balances list, actions list, transfer/withdraw/convert/delegate modals, transaction history table.
+- `css/jquery-ui.css`: vendored jQuery UI styles only; no wallet operation logic.
+- `css/style.css`: modal/layout helpers only; no wallet operation logic.
+- `delegation/config.json`: delegation page metadata.
+- `delegation/content.php`: delegation-only wallet page: balances hidden, delegations table, delegate/anbond modals, `getDelegations()` startup call.
+- `index.php`: PHP page loader for wallet/delegation subpage.
+- `origin/master:blockchains/minter/apps/wallet/js/app.js`: wallet UI logic, balances/actions, templates, fee/max helpers, history, delegations, autocomplete.
+- `js/jquery-ui.js`: vendored jQuery UI; no wallet-specific logic.
+
+Related Minter shared files inspected:
+
+- `origin/master:blockchains/minter/js/blockchain.js`: Minter SDK setup, auth/seed decrypt, sender derivation, broadcast helper, signed TX helper, send/convert/liquidity/delegate/anbond/coin/token helpers, getBalance.
+- `origin/master:blockchains/minter/js/modal-accounts.js`: account modal helper references `TX_TYPE.SEND`; account management is already handled by v3 `accounts/auth` and is not wallet-specific.
+- `origin/master:blockchains/minter/js/minterjs-sdk.min.js`, `minterjs-wallet.min.js`, `axios.min.js`, `sjcl.min.js`, `jquery-ui.js`: vendored libraries; API surfaces were verified via usage in `blockchain.js` and existing v3 vendor calls, not copied into user UI.
+
+### Legacy wallet checklist and exact evidence
+
+Read-only/account data:
+
+- Auth notice: wallet requires seed phrase; legacy also allows `current_user.type === 'bip.to'` for BIP wallet link flow.
+- Address area: `sender.address`, copy button, link to `/minter/profiles/<address>`.
+- Balances: `getBalance(address)` calls `https://explorer-api.minter.network/api/v2/addresses/<address>` and maps `data.data.balances[]` to `{id: token.coin.id, coin: token.coin.symbol, amount, type: token.coin.type}`; amounts `<0.001` use 8 decimals, otherwise 3 decimals.
+- Actions per balance: transfer and convert for every token; delegate only when `token.coin.type === 'coin'`; withdraw actions discovered dynamically from `https://hub-api.minter.network/mhub2/v1/token_infos` where `token.toLowerCase().indexOf(val.denom) > -1 && val.chain_id !== 'minter'`.
+- Delegations: `https://explorer-api.minter.network/api/v2/addresses/<address>/delegations`; table shows validator status/name/public_key, stake, BIP value, waitlisted flag; actions delegate/anbond for each row.
+- History: `https://explorer-api.minter.network/api/v2/addresses/<address>/transactions?page=<page>`; table columns date/block/hash/type/amount/memo; operation titles include numeric types 1–39; payload decoded with `window.atob` and URL content linkified.
+- Coin autocomplete: `https://explorer-api.minter.network/api/v2/coins`, sorted by `reserve_balance`, used only for convert target input.
+
+Shared SDK/API setup from legacy `blockchain.js`:
+
+- SDK destructuring: `const {TX_TYPE, prepareLink, prepareTx, prepareSignedTx, getTxData} = minterSDK`.
+- Client: `new minterSDK.Minter({apiType: 'node', baseURL: 'https://api.minter.one/v2'})`.
+- Axios default: `https://api.minter.one/v2`.
+- Sender derivation: `minterWallet.walletFromMnemonic(secret).getAddressString()` and `.getPrivateKeyString()`.
+- Legacy seed passphrase: `dpos.space_<chain>_<login>_seed`, where `chain` may be `current_user.importFrom`.
+- Broadcast: BIP wallet path uses `prepareLink(idTxParams)`; local seed path calls `minter.postTx(idTxParams, {privateKey: wif})`, then checks `/transaction/<hash>`.
+- Signed TX helper: `prepareSignedTx(idTxParams, {seedPhrase: seed})`.
+
+Exact operation methods/param order from legacy:
+
+- `send(to, value, coin, memo, mode, gasCoin)`:
+  - rejects memo that `minterWallet.isValidMnemonic(memo)` returns true for;
+  - `GET /min_gas_price`, `gasPrice = parseInt(min_gas_price) + 1`;
+  - `txParams = { chainId: 1, type: TX_TYPE.SEND, data: { to, value, coin }, gasCoin, gasPrice, payload: memo }`;
+  - `minter.replaceCoinSymbol(txParams)`;
+  - fee mode uses `minter.estimateTxCommission(idTxParams, {direct: false})`, falls back with `txParams.gasCoin = 'BIP'`.
+- `convert(coin, to, value, minimum_buy_amount, swap_route, mode, gasCoin)`:
+  - default `gasCoin = coin`;
+  - plain sell: `TX_TYPE.SELL`, data `{ coinToSell: coin, coinToBuy: to, minimumValueToBuy, valueToSell }`;
+  - pool route: `TX_TYPE.SELL_SWAP_POOL`, data `{ coins: swap_route.split(','), minimumValueToBuy, valueToSell }`;
+  - `GET /min_gas_price`, `replaceCoinSymbol`, `estimateTxCommission`.
+- `addToPool(coin, to, amount1, amount2, mode, variant, gasCoin, payload)`:
+  - default `gasCoin = coin`;
+  - `TX_TYPE.ADD_LIQUIDITY`, or `TX_TYPE.CREATE_SWAP_POOL` when `variant === 'create_pool'`;
+  - data `{ coin0: coin, coin1: to, volume0: amount1, maximumVolume1: amount2 }`, or `{ coin0, coin1, volume0, volume1: amount2 }` for create pool;
+  - optional `payload`.
+- `removeFromPool(coin0, coin1, liquidity, mode)`:
+  - `TX_TYPE.REMOVE_LIQUIDITY`, data `{ coin0, coin1, liquidity }`, `gasCoin: 'BIP'`.
+- `delegate(coin, publicKey, stake, mode, gasCoin)`:
+  - default `gasCoin = coin`;
+  - `TX_TYPE.DELEGATE`, data `{ publicKey, coin, stake }`.
+- `anbond(coin, publicKey, stake, mode)`:
+  - legacy spelling is `anbond`; tx is `TX_TYPE.UNBOND`, data `{ publicKey, coin, stake }`.
+- `createCoin(type, name, symbol, initialAmount, maxSupply, options, mode)`:
+  - `type: TX_TYPE[type]`, data `{ name, symbol, initialAmount, maxSupply }`;
+  - for `CREATE_COIN` / `RECREATE_COIN`, add `{ constantReserveRatio, initialReserve }`;
+  - otherwise add `{ mintable, burnable }` for token create/recreate.
+- `editCoinOwner(symbol, newOwner, mode)`:
+  - `TX_TYPE.EDIT_COIN_OWNER`, data `{ symbol, newOwner }`.
+- `mintToken(coin, value)`:
+  - `TX_TYPE.MINT_TOKEN`, data `{ coin, value }`.
+- `burnToken(coin, value)`:
+  - `TX_TYPE.BURN_TOKEN`, data `{ coin, value }`.
+- Hub withdraw memo:
+  - send target `Mx68f4839d7f32831b9234f9575f3b95e1afe21a56`;
+  - memo JSON `{ recipient: to.trim(), type: 'send_to_' + blockchain.toLowerCase(), fee: hub_fee_minimal_units_string }`;
+  - hub fee endpoints: `https://hub-api.minter.network/oracle/v1/<chain>_fee`, `https://hub-api.minter.network/oracle/v1/prices`.
+- Convert route discovery:
+  - `https://explorer-api.minter.network/api/v2/pools/coins/<coin>/<to>/route?amount=<amount*1e18>&type=input`;
+  - SDK estimate call: `minter.estimateCoinSell({ coinToSell, valueToSell, coinToBuy, swap_from: 'optimal', route })`.
+
+### v3 mapping for this pass
+
+Implemented before this pass and kept:
+
+- Minter chain config, vendor SDK/wallet paths, REST profile loader, history normalization, seed auth compatibility, seed sanitization, address validation.
+- Static Minter transaction forms for SEND, DELEGATE, UNBOND, SELL, SELL_SWAP_POOL, ADD_LIQUIDITY, REMOVE_LIQUIDITY, CREATE_SWAP_POOL, Hub withdraw SEND, CREATE/RECREATE_COIN, CREATE/RECREATE_TOKEN, MINT_TOKEN, BURN_TOKEN, EDIT_COIN_OWNER.
+- Real sends route through `bindOperationForm` preview/explicit send and `DposBroadcast.broadcast` confirm guard.
+
+Implemented now:
+
+- Dedicated `renderMinterWallet`, `renderMinterWalletBalances`, `renderMinterWalletForms`, `bindMinterWalletForms` entry points instead of generic `renderCosmosWallet` for Minter.
+- Wallet read-only panels for legacy balances, delegated coins, recent transactions, account link/copy affordance, and concise available actions per coin.
+- Minter-native user-facing labels: BIP, coin/token, validator public key MP..., stake, unbond, check/redeem note, address.
+- Send memo mnemonic guard in v3 Minter send prep, matching legacy safety behavior without exposing seed.
+- Minter gas coin passthrough on prepared tx where user provides gas coin; broadcast still owns signing and `replaceCoinSymbol`.
+- Smoke assertions for dedicated Minter renderer/forms, legacy endpoints, method names, route/Hub memo evidence, no technical notes in UI, and plan evidence.
+
+Blocked / later with exact reasons:
+
+- BIP wallet external `prepareLink` flow: legacy supports it when no local seed is present, but v3 broadcast currently requires local seed for operation prep; implementing external wallet-link signing safely needs a separate explicit external flow and UX review.
+- Dynamic fee estimation/max-button auto-adjustments: legacy uses live `minter.estimateTxCommission`, `GET /min_gas_price`, and mutable modal state; safe static v3 can prepare exact txs, but live fee/max rewriting should be added only after a focused API/UX pass.
+- Dynamic Hub token discovery and exact hub-fee price calculation: legacy depends on `hub-api.minter.network` oracle endpoints; v3 keeps manual Hub withdraw with explicit fee field to avoid silently stale external fee math.
+- Signed TX generation (`prepareSignedTx`) from arbitrary wallet forms: legacy exposes it, but v3 currently has dedicated signed TX submission route; generating signed payloads without sending needs a separate no-broadcast UX path.
+- Redeem/check creation: legacy wallet history has operation type `Получение чека` and SDK `TX_TYPE.REDEEM_CHECK`, but wallet UI inspected here did not include a check/redeem form. Not invented.
+- Multisend/multisig candidate/edit flows in wallet: legacy history and shared SDK know op types, but inspected wallet UI did not expose wallet forms for these beyond separate v3 broadcast multisig submit. Not invented in wallet UI.
+- NFT: no legacy Minter wallet NFT flow found; not implemented.
+
+### Acceptance criteria
+
+- Minter wallet route is no longer a generic Cosmos/Decimal renderer alias.
+- User-facing Minter wallet UI contains no developer/evidence notes; detailed legacy mapping stays in this `plan.md` section.
+- Balances, delegations, history and forms use Minter-native terminology and exact legacy endpoints/method names where implemented.
+- All write operations still pass through v3 preview + explicit send/confirm guard.
+- Seed/private key values are never included in prepared preview/result JSON.
+- Existing Golos/VIZ/Steem/Hive/Decimal paths are not broadly rewritten.
+- Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all `tests/*.js`, `git diff --check`.
