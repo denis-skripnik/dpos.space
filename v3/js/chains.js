@@ -5,6 +5,7 @@
     {
       id: 'profiles',
       title: 'Профили',
+      accountField: true,
       description: 'Read-only просмотр основных данных аккаунта через публичные API.'
     },
     {
@@ -15,11 +16,13 @@
     {
       id: 'wallet',
       title: 'Кошелёк',
+      accountField: true,
       description: 'Баланс, финансовая история, проверка и отправка операций.'
     },
     {
       id: 'history',
       title: 'История',
+      accountField: true,
       description: 'Read-only история операций аккаунта.'
     },
     {

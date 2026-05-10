@@ -10,9 +10,11 @@
   const appSelect = document.getElementById('app-select');
   const routeForm = document.getElementById('route-form');
   const accountInput = document.getElementById('account-input');
+  const accountField = accountInput ? accountInput.closest('.field') : null;
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
+  const LONG_API_BASE = 'https://backend.dpos.space/smartfarm';
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -71,6 +73,19 @@
 
   function getRouteAccount(state, chain) {
     return state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
+  }
+
+  function appRequiresAccount(app) {
+    return Boolean(app && app.accountField === true);
+  }
+
+  function updateAccountField(app) {
+    const visible = appRequiresAccount(app);
+    if (!accountField) return;
+    accountField.hidden = !visible;
+    accountField.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    accountInput.disabled = !visible;
+    accountInput.tabIndex = visible ? 0 : -1;
   }
 
   function profileRows(rows) {
@@ -1625,6 +1640,149 @@
     setStatus('Minter: отправка signed TX и multisig готова.', 'ok');
   }
 
+  function longUrl(path, params = {}) {
+    const url = new URL(`${LONG_API_BASE}${path || ''}`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
+    });
+    return url.toString();
+  }
+
+  async function fetchLongJson(path, params) {
+    const response = await fetch(longUrl(path, params), { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`LONG backend HTTP ${response.status}`);
+    return response.json();
+  }
+
+  function longPageHash(page, extra = {}) {
+    return appHash(Object.assign({ chain: 'minter', app: 'long', longPage: page }, extra));
+  }
+
+  function renderLongNav(activePage) {
+    const items = [
+      ['main', 'Обзор и рейтинг'],
+      ['bids', 'Ставки'],
+      ['deferred-txs', 'Отложенные транзакции']
+    ];
+    return `<nav class="subnav" aria-label="LONG"><ul>${items.map(([page, title]) => `<li>${page === activePage ? `<strong>${escapeHtml(title)}</strong>` : `<a href="${escapeHtml(longPageHash(page))}">${escapeHtml(title)}</a>`}</li>`).join('')}</ul></nav>`;
+  }
+
+  function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function formatLongNumber(value, digits = 3) {
+    const number = toNumber(value);
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(number);
+  }
+
+  function calcLongProviderRows(data) {
+    const providers = Array.isArray(data.providers) ? data.providers : [];
+    const maxPrize = toNumber(data.max_prize);
+    const maxAmount = toNumber(data.max_amount);
+    const farmingAmount = Math.max(0, maxAmount - (maxPrize * 2));
+    const totalLiquidity = providers.reduce((sum, item) => sum + toNumber(item.liquidity), 0) || 1;
+    const experienced = providers.map((provider) => {
+      const investDays = toNumber(provider.invest_days) * (toNumber(provider.multiply) || 1);
+      const experience = toNumber(provider.liquidity) * (1 + (investDays / 100));
+      return Object.assign({}, provider, { investDays, experience });
+    });
+    const totalExperience = experienced.reduce((sum, item) => sum + item.experience, 0) || 1;
+    return { providers: experienced, farmingAmount, totalLiquidity, totalExperience };
+  }
+
+  function renderLongProvidersTable(data) {
+    const { providers, farmingAmount, totalLiquidity, totalExperience } = calcLongProviderRows(data);
+    if (!providers.length) return '<p class="muted">Backend не вернул список провайдеров.</p>';
+    return `<div class="table-wrap"><table aria-label="Рейтинг провайдеров LONG"><caption>Рейтинг провайдеров LONG по данным backend</caption><thead><tr><th scope="col">#</th><th scope="col">Адрес</th><th scope="col">LP</th><th scope="col">Инвест. дни × множитель</th><th scope="col">Получения</th><th scope="col">Расчётная доля</th><th scope="col">Реферер</th></tr></thead><tbody>${providers.map((provider, index) => {
+      const share = provider.experience / totalExperience;
+      const calculatedPart = farmingAmount * share;
+      const liquidityShare = toNumber(provider.liquidity) / totalLiquidity * 100;
+      return `<tr><td>${index + 1}</td><td>${renderAccountCell(chains.minter, provider.address)}</td><td>${formatLongNumber(provider.liquidity)} LP<br><span class="muted">${formatLongNumber(liquidityShare, 4)}% пула</span></td><td>${formatLongNumber(provider.investDays)} × ${escapeHtml(provider.multiply || 1)}</td><td>${formatLongNumber(provider.get_amount)} LONG<br><span class="muted">${formatLongNumber(provider.get_counter)} начислений</span></td><td>${formatLongNumber(calculatedPart)} LONG<br><span class="muted">расчёт по текущим данным</span></td><td>${provider.referer ? renderAccountCell(chains.minter, provider.referer) : '<span class="muted">—</span>'}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+
+  async function renderLongMain() {
+    setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
+    const data = await fetchLongJson('');
+    const { farmingAmount, totalExperience } = calcLongProviderRows(data);
+    appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
+      <p>Раздел показывает параметры LONG по данным backend и публичной сети Minter. Это информационный расчёт: итоговые значения зависят от состояния блокчейна, ликвидности, правил сервиса и доступности backend.</p>
+      <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a></p>
+      <article class="card"><h3>Основные параметры</h3><ul>
+        <li><strong>Максимальная дневная сумма по backend:</strong> ${formatLongNumber(data.max_amount)} LONG</li>
+        <li><strong>Резерв для лотереи и бонусных инвест. дней:</strong> ${formatLongNumber(toNumber(data.max_prize) * 2)} LONG</li>
+        <li><strong>Расчётная часть для распределения:</strong> ${formatLongNumber(farmingAmount)} LONG</li>
+        <li><strong>Суммарный опыт провайдеров:</strong> ${formatLongNumber(totalExperience)}</li>
+      </ul></article>
+      <article class="card"><h3>Как читать расчёты</h3><p>Инвест. дни, множитель, LP и накопленные значения берутся из backend. Таблица ниже помогает проверить рейтинг и текущую формулу; она не является обещанием результата и не заменяет проверку транзакций в сети.</p></article>
+      ${renderLongProvidersTable(data)}
+      ${rawJsonDetails('Исходные данные LONG backend', data)}
+    </section>`;
+    setStatus('LONG: обзор и рейтинг загружены.', 'ok');
+  }
+
+  function renderLongProjects(projects) {
+    const entries = Object.entries(projects || {});
+    if (!entries.length) return '<p class="muted">Активные токены и пулы не найдены.</p>';
+    return `<div class="table-wrap"><table aria-label="Активные токены и пулы LONG bids"><caption>Активные токены и пулы для ставок</caption><thead><tr><th scope="col">Токен/пул</th><th scope="col">Текущее значение</th></tr></thead><tbody>${entries.map(([name, price]) => `<tr><td>${escapeHtml(name)}</td><td>${formatLongNumber(price, 8)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function renderLongAllowedCoins(data, selectedCoin) {
+    const coins = String(data.allowedCoins || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const mins = String(data.minAmountsAllowedCoins || '').split(',').map((item) => item.trim());
+    if (!coins.length) return '<p class="muted">Backend не вернул список разрешённых монет.</p>';
+    return `<ul>${coins.map((coin, index) => `<li>${coin === selectedCoin ? `<strong>${escapeHtml(coin)}</strong>` : `<a href="${escapeHtml(longPageHash('bids', { coin }))}">${escapeHtml(coin)}</a>`} — минимум ${escapeHtml(mins[index] || 'не указан')}</li>`).join('')}</ul>`;
+  }
+
+  function renderLongActiveBids(rows, coin) {
+    if (!Array.isArray(rows) || !rows.length) return `<p class="muted">Активных ставок${coin ? ` для ${escapeHtml(coin)}` : ''} сейчас нет или backend вернул пустой список.</p>`;
+    return `<div class="table-wrap"><table aria-label="Активные ставки LONG"><caption>Активные ставки${coin ? `: ${escapeHtml(coin)}` : ''}</caption><thead><tr><th scope="col">Токен</th><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Направление</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.token || row.coin || row.name || coin || '')}</td><td>${renderAccountCell(chains.minter, row.address || row.sender || row.from)}</td><td>${escapeHtml([formatLongNumber(row.amount || row.value, 8), row.send_coin || row.coin].filter(Boolean).join(' '))}</td><td>${escapeHtml(row.direction || row.predict || row.side || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  async function renderLongBids() {
+    const state = parseHash();
+    const coin = String(state.coin || '').trim();
+    setStatus('Загружаю LONG bids...', 'loading');
+    const data = await fetchLongJson('/bids', coin ? { coin } : {});
+    let activeBids = [];
+    if (coin) {
+      try { activeBids = await fetchLongJson('/bids/active', { coin }); } catch (error) { activeBids = []; }
+    }
+    const address = data.address || 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
+    appEl.innerHTML = `<section class="panel"><h2>LONG: ставки на токены и пулы</h2>${renderLongNav('bids')}
+      <p>Сервис принимает транзакции Minter с memo. Перед отправкой проверяйте монету, сумму, адрес и memo в кошельке.</p>
+      <article class="card"><h3>Разрешённые монеты для отправки</h3>${renderLongAllowedCoins(data, coin)}</article>
+      <article class="card"><h3>Инструкция memo</h3><p>Адрес получателя: <code>${escapeHtml(address)}</code></p><p>Memo: <code>lbid BTC +</code> или <code>lbid BTC -</code>. Вместо BTC укажите токен или пул из списка активных.</p><p class="muted">Если выбранная монета поддерживается вашим Minter-кошельком, используйте раздел «Кошелёк» и сначала сделайте предпросмотр операции.</p></article>
+      <h3>Активные токены и пулы</h3>${renderLongProjects(data.projects)}
+      ${coin ? `<h3>Активные ставки: ${escapeHtml(coin)}</h3>${renderLongActiveBids(Array.isArray(activeBids) ? activeBids : (activeBids.items || activeBids.bids || []), coin)}` : '<p>Выберите монету выше, чтобы открыть список активных ставок по ней.</p>'}
+      ${data.file ? `<details><summary>Описание сервиса из backend</summary><div class="longtext">${escapeHtml(data.file)}</div></details>` : ''}
+      ${rawJsonDetails('Исходные данные LONG bids', data)}
+    </section>`;
+    setStatus('LONG bids загружен.', 'ok');
+  }
+
+  async function renderLongDeferredTxs() {
+    setStatus('Загружаю LONG: отложенные транзакции...', 'loading');
+    const data = await fetchLongJson('/deferred-txs');
+    const rows = Array.isArray(data) ? data : (data.items || data.txs || []);
+    appEl.innerHTML = `<section class="panel"><h2>LONG: отложенные транзакции</h2>${renderLongNav('deferred-txs')}
+      <p>Таблица показывает накопленные backend отложенные отправки. Перед любыми действиями сверяйте фактическую транзакцию в Minter explorer.</p>
+      ${rows.length ? `<div class="table-wrap"><table aria-label="Отложенные транзакции LONG"><caption>Отложенные транзакции LONG</caption><thead><tr><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Memo</th></tr></thead><tbody>${rows.map((tx) => `<tr><td>${renderAccountCell(chains.minter, tx.to || tx.address || tx.recipient)}</td><td>${escapeHtml([formatLongNumber(tx.value || tx.amount, 8), tx.coin].filter(Boolean).join(' '))}</td><td class="longtext">${escapeHtml(tx.memo || tx.payload || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Отложенных транзакций нет или backend вернул пустой список.</p>'}
+      ${rawJsonDetails('Исходные данные deferred-txs', data)}
+    </section>`;
+    setStatus(`LONG: отложенные транзакции загружены (${rows.length}).`, 'ok');
+  }
+
+  async function renderMinterLong() {
+    const state = parseHash();
+    const page = state.longPage || 'main';
+    if (page === 'bids') return renderLongBids();
+    if (page === 'deferred-txs') return renderLongDeferredTxs();
+    return renderLongMain();
+  }
+
   async function renderCosmosValidators(chain) {
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} validators</h2><p>Загружаю...</p></section>`;
     const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators`;
@@ -1736,6 +1894,7 @@
 
     fillChainSelect(chain.id);
     fillAppSelect(chain, app.id);
+    updateAccountField(app);
     accountInput.value = account;
 
     try {
@@ -1753,6 +1912,8 @@
         renderCosmosCalculator(chain);
       } else if (isCosmosChain(chain) && app.id === 'randomblockchain') {
         renderServicePlaceholder(chain, app);
+      } else if (chain.id === 'minter' && app.id === 'long') {
+        await renderMinterLong();
       } else if (app.id === 'profiles') {
         await renderProfileRoute(chain, account);
       } else if (app.id === 'accounts') {
@@ -1803,21 +1964,31 @@
 
   chainSelect.addEventListener('change', () => {
     const chain = chains[chainSelect.value];
-    fillAppSelect(chain, chain.apps[0].id);
+    const app = chain.apps[0];
+    fillAppSelect(chain, app.id);
+    updateAccountField(app);
     accountInput.value = auth.getCurrentLogin(chain) || chain.defaultAccount || '';
+  });
+
+  appSelect.addEventListener('change', () => {
+    const chain = chains[chainSelect.value];
+    const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
+    updateAccountField(app);
   });
 
   routeForm.addEventListener('submit', (event) => {
     event.preventDefault();
+    const chain = chains[chainSelect.value];
+    const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
     navigate({
       chain: chainSelect.value,
       app: appSelect.value,
-      account: accountInput.value.trim().replace(/^@/, '')
+      account: appRequiresAccount(app) ? accountInput.value.trim().replace(/^@/, '') : null
     });
   });
 
   global.addEventListener('hashchange', renderRoute);
-  global.DposV3 = Object.freeze({ navigate, renderRoute });
+  global.DposV3 = Object.freeze({ navigate, renderRoute, appRequiresAccount });
 
   renderRoute();
 })(window);
