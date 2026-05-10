@@ -162,6 +162,37 @@ async function run() {
   assert.strictEqual(context.golos.broadcast.accountCreateWithInviteAsync ? 'available' : 'missing', 'available', 'golos invite broadcast method is mocked');
 
   const viz = chains.viz;
+  const vizonatorUser = { type: 'vizonator', last_login: 'viz-user', isActive: true };
+  context.localStorage.setItem('viz_current_user', JSON.stringify(vizonatorUser));
+  context.localStorage.setItem('viz_users', JSON.stringify([vizonatorUser]));
+  const vizonatorCalls = [];
+  context.vizonator = {
+    get_account(callback) { callback(null, { login: 'viz-user' }); },
+    transfer(options, callback) { vizonatorCalls.push(['transfer', options]); callback(null, { id: 'vizonator-transfer' }); },
+    transfer_to_vesting(options, callback) { vizonatorCalls.push(['transfer_to_vesting', options]); callback(null, { id: 'vizonator-shares' }); },
+    withdraw_vesting(options, callback) { vizonatorCalls.push(['withdraw_vesting', options]); callback(null, { id: 'vizonator-withdraw' }); },
+    delegate_vesting_shares(options, callback) { vizonatorCalls.push(['delegate_vesting_shares', options]); callback(null, { id: 'vizonator-delegate' }); }
+  };
+  const vizonatorPrepared = context.DposBroadcast.prepare(viz, 'active', 'transfer', ['viz-user', 'receiver', '1.000 VIZ', 'memo']);
+  assert.strictEqual(vizonatorPrepared.meta.signerType, 'vizonator', 'viz Vizonator prepare does not require local WIF');
+  assert.strictEqual(vizonatorPrepared.getPrivateKey(), '', 'viz Vizonator prepared operation has no local private key');
+  const vizonatorResult = await context.DposBroadcast.broadcast(viz, vizonatorPrepared, { confirmExecute: true });
+  assert.strictEqual(vizonatorResult.id, 'vizonator-transfer', 'viz Vizonator broadcast returns extension result');
+  assert.strictEqual(vizonatorCalls[0][0], 'transfer', 'viz Vizonator calls transfer bridge method');
+  assert.strictEqual(vizonatorCalls[0][1].to, 'receiver', 'viz Vizonator transfer passes legacy to option');
+  assert.strictEqual(vizonatorCalls[0][1].amount, '1.000 VIZ', 'viz Vizonator transfer passes legacy amount option');
+  assert.strictEqual(vizonatorCalls[0][1].memo, 'memo', 'viz Vizonator transfer passes legacy memo option');
+  assert.strictEqual(vizonatorCalls[0][1].force_memo_encoding, false, 'viz Vizonator transfer preserves legacy force_memo_encoding option');
+  await context.DposBroadcast.broadcast(viz, context.DposBroadcast.prepare(viz, 'active', 'withdrawVesting', ['viz-user', '0.000000 SHARES']), { confirmExecute: true });
+  assert.strictEqual(vizonatorCalls[1][0], 'withdraw_vesting', 'viz Vizonator calls withdraw_vesting bridge method');
+  assert.strictEqual(vizonatorCalls[1][1].vesting_shares, '0.000000 SHARES', 'viz Vizonator withdraw uses legacy bridge options');
+  await assert.rejects(
+    () => context.DposBroadcast.broadcast(viz, context.DposBroadcast.prepare(viz, 'active', 'createInvite', ['viz-user', '1.000 VIZ', 'VIZ_PUBLIC']), { confirmExecute: true }),
+    /Vizonator не поддерживает операцию createInvite/,
+    'viz Vizonator unsupported legacy wallet operations fail clearly'
+  );
+
+  seedLegacy(context, 'viz', 'viz-user');
   const vizInvite = context.DposBroadcast.prepareWithPrivateKey(viz, 'invite', 'active', SERVICE_WIF, 'inviteRegistration', [
     'invite', 'new-viz-user', 'invite-secret', 'VIZ_PUBLIC_NEW_ACCOUNT_KEY'
   ], { title: 'VIZ invite registration' });

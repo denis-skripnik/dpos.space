@@ -55,6 +55,9 @@ assert(appSource.includes('getVestingDelegations недоступен после
 assert(appSource.includes('0.000000 SHARES отменяет делегирование'), 'VIZ wallet explains delegation cancellation management');
 assert(appSource.includes('getInviteByKey(publicKey'), 'VIZ wallet can inspect invite by public key');
 assert(appSource.includes('wifToPublic'), 'VIZ create/check invite derives public invite key from secret WIF');
+assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes('function executeVizonator'), 'VIZ Vizonator JS bridge adapter is present');
+assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes("transfer_to_vesting', { to, amount }"), 'VIZ Vizonator transfer_to_vesting uses legacy bridge options');
+assert(appSource.includes('Для Vizonator memo передаётся в расширение как есть'), 'VIZ wallet warns about Vizonator #memo behavior');
 
 for (const evidence of [
   'blockchains/viz/apps/wallet/config.json',

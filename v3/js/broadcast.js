@@ -304,6 +304,14 @@
 
   function prepare(chain, requestedAuthority, operationName, params, meta) {
     const user = global.DposAuth.getCurrentUser(chain);
+    if (chain.id === 'viz' && global.DposAuth.getUserType(user) === 'vizonator') {
+      const login = global.DposAuth.getUserLogin(user);
+      if (!login) throw new Error('Vizonator-аккаунт не выбран или расширение не вернуло login.');
+      const authority = getAuthorityName(chain, requestedAuthority);
+      return createPrepared(chain, login, authority, '', operationName, params, Object.assign({ signerType: 'vizonator', warnings: [
+        'Операция будет отправлена через расширение Vizonator после отдельного подтверждения. Локальный WIF не используется.'
+      ] }, meta || {}));
+    }
     const keys = decryptLegacyKey(chain, user, requestedAuthority);
     return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta);
   }
@@ -425,6 +433,40 @@
     return typeof evm.broadcast === 'function' ? evm.broadcast(txPayload) : txPayload;
   }
 
+  async function executeVizonator(prepared) {
+    const bridge = global.vizonator;
+    if (!bridge) throw new Error('Расширение Vizonator не найдено: window.vizonator недоступен.');
+    if (typeof bridge.get_account !== 'function') throw new Error('Vizonator bridge не поддерживает get_account.');
+    const account = await toCallbackPromise(bridge.get_account, bridge, []);
+    if (!account || account.login !== prepared.from) {
+      throw new Error(`Vizonator авторизован как @${account && account.login ? account.login : 'unknown'}, а выбран аккаунт @${prepared.from}.`);
+    }
+
+    const [from, to, amount, memo] = prepared.params;
+    const operationMap = {
+      transfer: ['transfer', { to, amount, memo: memo || '', force_memo_encoding: false }],
+      transferToVesting: ['transfer_to_vesting', { to, amount }],
+      withdrawVesting: ['withdraw_vesting', { vesting_shares: prepared.params[1] }],
+      delegateVestingShares: ['delegate_vesting_shares', { delegatee: prepared.params[1], vesting_shares: prepared.params[2] }],
+      award: ['award', {
+        receiver: prepared.params[1],
+        energy: prepared.params[2],
+        custom_sequence: prepared.params[3],
+        memo: prepared.params[4] || '',
+        beneficiaries: JSON.stringify(prepared.params[5] || [])
+      }],
+      custom: ['custom', { protocol_id: prepared.params[1], json: prepared.params[2] }],
+      committeeVoteRequest: ['committee_vote_request', { request_id: prepared.params[1], vote_percent: prepared.params[2] }]
+    };
+    const mapped = operationMap[prepared.operationName];
+    if (!mapped) {
+      throw new Error(`Vizonator не поддерживает операцию ${prepared.operationName} в legacy dpos.space flow. Выберите аккаунт с локальным ключом для этой операции.`);
+    }
+    const method = bridge[mapped[0]];
+    if (typeof method !== 'function') throw new Error(`Vizonator bridge не поддерживает метод ${mapped[0]}.`);
+    return toCallbackPromise(method, bridge, [mapped[1]]);
+  }
+
   async function broadcast(chain, prepared, options) {
     const settings = Object.assign({ dryRun: false, confirmExecute: false }, options);
 
@@ -440,6 +482,10 @@
 
     if (!settings.confirmExecute) {
       throw new Error('Реальный broadcast требует явного подтверждения в UI.');
+    }
+
+    if (chain.id === 'viz' && prepared.meta && prepared.meta.signerType === 'vizonator') {
+      return executeVizonator(prepared);
     }
 
     const client = getClient(chain);
