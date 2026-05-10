@@ -14,7 +14,7 @@
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
-  const LONG_API_BASE = 'https://backend.dpos.space/smartfarm';
+  const LONG_API_BASE = '/api/smartfarm';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
 
   function escapeHtml(value) {
@@ -1859,11 +1859,12 @@
   }
 
   function longUrl(path, params = {}) {
-    const url = new URL(`${LONG_API_BASE}${path || ''}`);
+    const base = window.location && window.location.origin ? window.location.origin : 'https://dpos.blinddev.xyz';
+    const url = new URL(`${LONG_API_BASE}${path || ''}`, base);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
     });
-    return url.toString();
+    return url.pathname + url.search;
   }
 
   function parseJsonMaybeText(text, sourceLabel) {

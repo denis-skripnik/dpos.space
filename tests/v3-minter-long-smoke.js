@@ -88,7 +88,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
 (async () => {
   await context.DposV3.renderRoute();
   const html = elements.get('app').innerHTML;
-  assert(fetchCalls.some((url) => url === 'https://backend.dpos.space/smartfarm'), 'LONG main fetches smartfarm endpoint');
+  assert(fetchCalls.some((url) => url === '/api/smartfarm'), 'LONG main fetches same-origin smartfarm endpoint');
   assert(fetchCalls.some((url) => url === 'https://api-minter.mnst.club/v2/swap_pool/0/2782'), 'LONG main fetches Minter pool API like legacy version');
   assert(html.includes('Рейтинг провайдеров LONG'), 'LONG renders provider rating table as primary UI');
   assert(html.includes('BIP/LONG') && html.includes('BIP') && html.includes('LONG'), 'LONG renders BIP/LONG pool composition');
