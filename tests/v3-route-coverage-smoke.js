@@ -83,6 +83,6 @@ assert(appSource.includes("chain.id === 'decimal' && app.id === 'broadcast'"), '
 assert(appSource.includes('function renderMinterLong'), 'Minter LONG has a dedicated v3 renderer');
 assert(appSource.includes("fetchLongJson('/bids'"), 'Minter LONG bids endpoint is wired');
 assert(appSource.includes("fetchLongJson('/deferred-txs'"), 'Minter LONG deferred-txs endpoint is wired');
-assert(appSource.includes('https://backend.dpos.space/smartfarm'), 'Minter LONG uses HTTPS backend endpoint');
+assert(appSource.includes("const LONG_API_BASE = '/api/smartfarm';"), 'Minter LONG uses same-origin API proxy endpoint');
 assert(!appSource.includes('http://178.20.43.121:3852/smartfarm'), 'Minter LONG v3 does not use legacy mixed-content backend URL');
 assert(!/LONG[\s\S]{0,400}(гарантированн(?:ый|ого) доход|обещаем доход|profit promise)/i.test(appSource), 'LONG copy does not contain income promise phrases');
