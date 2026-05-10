@@ -445,22 +445,91 @@
   }
 
 
+  function numericAssetValue(value) {
+    if (value && typeof value === 'object') {
+      return numericAssetValue(value.amount || value.value || value.balance);
+    }
+    const match = String(value || '').match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : 0;
+  }
+
+  function formatUiaAmount(value, symbol) {
+    if (value && typeof value === 'object') {
+      return formatUiaAmount(value.amount || value.value || value.balance, symbol);
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.includes(symbol) ? value.trim() : `${value.trim()} ${symbol}`;
+    }
+    return `${Number(value || 0)} ${symbol}`;
+  }
+
+  function parseGolosUiaBalanceRows(raw, account) {
+    const unwrap = (value) => {
+      if (!value) return value;
+      if (value.result !== undefined) return unwrap(value.result);
+      if (value.data !== undefined) return unwrap(value.data);
+      return value;
+    };
+    const data = unwrap(raw);
+    let balances = null;
+
+    if (Array.isArray(data)) {
+      balances = data[0] && (data[0].symbol || data[0].asset || data[0].name) ? data : (data[0] || {});
+    } else if (data && typeof data === 'object') {
+      balances = data[account] || data.balances || data.accounts_balances || data;
+    }
+
+    if (!balances || typeof balances !== 'object') return [];
+
+    const entries = Array.isArray(balances)
+      ? balances.map((item) => [item && (item.symbol || item.asset || item.name), item])
+      : Object.entries(balances);
+
+    return entries.flatMap(([symbol, value]) => {
+      const token = String(symbol || '').trim();
+      if (!token) return [];
+      const mainValue = value && typeof value === 'object' ? (value.balance ?? value.main_balance ?? value.main ?? value.amount) : value;
+      const tipValue = value && typeof value === 'object' ? (value.tip_balance ?? value.tipBalance ?? value.tip) : 0;
+      const main = numericAssetValue(mainValue);
+      const tip = numericAssetValue(tipValue);
+      const rows = [];
+      if (main > 0) rows.push([`UIA ${token}`, formatUiaAmount(mainValue, token), { kind: 'uia', symbol: token, balanceType: 'main' }]);
+      if (tip > 0) rows.push([`UIA ${token} TIP`, formatUiaAmount(tipValue, token), { kind: 'uia', symbol: token, balanceType: 'tip' }]);
+      return rows;
+    });
+  }
+
+  async function callGolosBalancesRpc(connection, account) {
+    if (!connection.node || typeof global.fetch !== 'function') {
+      throw new Error('get_accounts_balances недоступен: нет fetch или URL ноды для прямого JSON-RPC fallback.');
+    }
+
+    const response = await global.fetch(connection.node, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'call', params: ['database_api', 'get_accounts_balances', [[account]]] })
+    });
+    if (!response.ok) throw new Error(`get_accounts_balances RPC HTTP ${response.status}`);
+    const payload = await response.json();
+    if (payload.error) throw new Error(payload.error.message || JSON.stringify(payload.error));
+    return payload.result;
+  }
+
   async function fetchGolosUiaBalances(connection, account) {
     const api = connection.client && connection.client.api;
-    if (!api || typeof api.getAccountsBalancesAsync !== 'function') return [];
     try {
-      const rows = await api.getAccountsBalancesAsync([account]);
-      const balances = rows && rows[0] ? rows[0] : {};
-      return Object.entries(balances).flatMap(([symbol, value]) => {
-        const main = Number(value && value.balance) || 0;
-        const tip = Number(value && value.tip_balance) || 0;
-        const result = [];
-        if (main > 0) result.push([`UIA ${symbol}`, `${main} ${symbol}`, { kind: 'uia', symbol, balanceType: 'main' }]);
-        if (tip > 0) result.push([`UIA ${symbol} TIP`, `${tip} ${symbol}`, { kind: 'uia', symbol, balanceType: 'tip' }]);
-        return result;
-      });
+      if (api && typeof api.getAccountsBalancesAsync === 'function') {
+        return parseGolosUiaBalanceRows(await api.getAccountsBalancesAsync([account]), account);
+      }
+      if (api && typeof api.getAccountsBalances === 'function') {
+        const rows = await new Promise((resolve, reject) => {
+          api.getAccountsBalances([account], (error, result) => error ? reject(error) : resolve(result));
+        });
+        return parseGolosUiaBalanceRows(rows, account);
+      }
+      return parseGolosUiaBalanceRows(await callGolosBalancesRpc(connection, account), account);
     } catch (error) {
-      return [];
+      return [['UIA балансы', `Не удалось загрузить UIA balances: ${profiles.formatError(error)}`, { kind: 'uia-status' }]];
     }
   }
 
@@ -853,7 +922,8 @@
     const current = auth.getCurrentUser(chain);
     const connection = await getConnection(chain);
     const rawAccount = await profiles.fetchAccount(connection, account);
-    const profile = profiles.normalizeAccount(connection, rawAccount);
+    const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);
+    const profile = profiles.normalizeAccount(connection, enrichedAccount);
     const extraBalances = options && typeof options.loadExtraBalances === 'function'
       ? await options.loadExtraBalances(connection, account)
       : [];
@@ -1091,6 +1161,8 @@
       if (meta && meta.kind === 'uia') {
         const suffix = meta.balanceType === 'tip' ? 'TIP' : 'основной';
         add(`UIA ${meta.symbol} (${suffix})`, row[1], 'UIA actions/gateways: not yet ported');
+      } else if (meta && meta.kind === 'uia-status') {
+        add(row[0], row[1], 'UIA balances diagnostic');
       }
     });
 
