@@ -3964,6 +3964,117 @@
     return broadcast.validateAmount(value, label);
   }
 
+
+  function unwrapMinterData(value) {
+    if (!value || typeof value !== 'object') return value;
+    if (Object.prototype.hasOwnProperty.call(value, 'data')) return unwrapMinterData(value.data);
+    return value;
+  }
+
+  function formatMinterAmount(value, digits = 3) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return String(value || '0');
+    return num < 0.001 && num > 0 ? num.toFixed(8) : num.toFixed(digits);
+  }
+
+  async function loadMinterWalletData(chain, account) {
+    const address = broadcast.validateAddress(chain, account, 'Minter address');
+    const [addressData, delegationsData, transactionsData] = await Promise.all([
+      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}`, 'Minter address API'),
+      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/delegations`, 'Minter delegations API').catch((error) => ({ _error: error.message, data: [] })),
+      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/transactions?page=1`, 'Minter transactions API').catch((error) => ({ _error: error.message, data: [] }))
+    ]);
+    const addressPayload = unwrapMinterData(addressData) || {};
+    const delegationsPayload = unwrapMinterData(delegationsData) || [];
+    const transactionsPayload = unwrapMinterData(transactionsData) || [];
+    return {
+      address,
+      balances: addressPayload.balances || [],
+      delegations: Array.isArray(delegationsPayload) ? delegationsPayload : [],
+      transactions: Array.isArray(transactionsPayload) ? transactionsPayload.slice(0, 20) : [],
+      delegationsError: delegationsData && delegationsData._error,
+      transactionsError: transactionsData && transactionsData._error
+    };
+  }
+
+  function renderMinterWalletBalances(data) {
+    const balances = Array.isArray(data.balances) ? data.balances : [];
+    const balanceRows = balances.map((item) => {
+      const coin = item.coin || {};
+      const symbol = coin.symbol || item.symbol || item.coin || '';
+      const type = coin.type || item.type || '';
+      const rawAmount = item.amount || item.value || 0;
+      const amount = formatMinterAmount(rawAmount, Number(rawAmount) < 0.001 ? 8 : 3);
+      const actions = ['перевод', 'обмен'];
+      if (type === 'coin') actions.push('делегирование');
+      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type || 'coin/token')}</td><td>${escapeHtml(actions.join(', '))}</td></tr>`;
+    }).join('');
+
+    const delegations = data.delegations.map((item) => {
+      const coin = item.coin || {};
+      const validator = item.validator || {};
+      const statusMap = { 0: 'Отключён', 1: 'Кандидат', 2: 'Валидатор' };
+      const validatorKey = validator.public_key || item.public_key || '';
+      const coinSymbol = coin.symbol || item.symbol || '';
+      return `<tr><td><code>${escapeHtml(validatorKey)}</code><br>${escapeHtml(validator.name || '')}</td><td>${escapeHtml(statusMap[validator.status] || '')}</td><td>${escapeHtml(formatMinterAmount(item.value || item.stake || 0))} ${escapeHtml(coinSymbol)}</td><td>${escapeHtml(formatMinterAmount(item.bip_value || 0))} BIP</td><td>${item.is_waitlisted ? 'Да' : 'Нет'}</td></tr>`;
+    }).join('');
+
+    return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.minter, data.address)}</p><p><button type="button" id="minter-copy-address">Копировать адрес</button></p></article>
+      <article class="card"><h3>Балансы</h3>${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Minter"><caption>Балансы Minter</caption><thead><tr><th scope="col">Монета</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
+      <article class="card"><h3>Делегированные монеты</h3>${data.delegationsError ? `<p class="muted">Делегирования сейчас не загрузились: ${escapeHtml(data.delegationsError)}</p>` : ''}${delegations ? `<div class="table-wrap"><table aria-label="Делегированные монеты Minter"><caption>Делегированные монеты</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Stake</th><th scope="col">В BIP</th><th scope="col">В ожидании</th></tr></thead><tbody>${delegations}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
+      <article class="card"><h3>Последние транзакции</h3>${data.transactionsError ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.transactionsError)}</p>` : renderTransactionsTable(data.transactions, chains.minter, { caption: 'Последние транзакции Minter', emptyText: 'Транзакции не найдены.' })}</article>`;
+  }
+
+  function renderMinterWalletForms(chain) {
+    return `<form id="minter-send-form" class="stacked-form"><fieldset>
+      <legend>Minter: перевод</legend>
+      <div class="field"><label for="minter-send-to">Адрес получателя</label><input id="minter-send-to" name="to" type="text" required placeholder="Mx..."></div>
+      <div class="field"><label for="minter-send-amount">Сумма</label><input id="minter-send-amount" name="amount" type="text" required placeholder="1.000"></div>
+      <div class="field"><label for="minter-send-coin">Монета</label><input id="minter-send-coin" name="coin" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-send-memo">Memo</label><input id="minter-send-memo" name="memo" type="text"></div>
+      <div class="field"><label for="minter-send-gas">Монета газа</label><input id="minter-send-gas" name="gasCoin" type="text" value="BIP"></div>
+      <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="minter-delegate-form" class="stacked-form"><fieldset>
+      <legend>Minter: stake</legend>
+      <div class="field"><label for="minter-validator">Публичный ключ валидатора</label><input id="minter-validator" name="validator" type="text" required placeholder="Mp..."></div>
+      <div class="field"><label for="minter-delegate-amount">Сумма</label><input id="minter-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
+      <div class="field"><label for="minter-delegate-coin">Монета</label><input id="minter-delegate-coin" name="coin" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-delegate-mode">Операция</label><select id="minter-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Unbond</option></select></div>
+      <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <article class="card"><h3>Checks</h3><p class="muted">В этом кошельке доступны формы, подтверждённые старым интерфейсом. Для checks используйте готовую транзакцию в разделе «Отправка», если она уже подписана внешним кошельком.</p></article>
+    ${minterSwapForms()}`;
+  }
+
+  async function renderMinterWallet(chain, account) {
+    appEl.innerHTML = '<section class="panel wallet-minter"><h2>Minter: кошелёк</h2><p>Загружаю балансы, делегирования и последние транзакции...</p></section>';
+    setStatus(`Загружаю Minter кошелёк: ${account}...`, 'loading');
+    const data = await loadMinterWalletData(chain, account);
+    appEl.innerHTML = `<section class="panel wallet-minter">
+      <h2>Minter: кошелёк ${escapeHtml(data.address)}</h2>
+      <p><strong>Доступ к отправке:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
+      ${renderMinterWalletBalances(data)}
+      <h3>Операции</h3>
+      ${renderMinterWalletForms(chain)}
+    </section>`;
+    const copyButton = document.getElementById('minter-copy-address');
+    if (copyButton) {
+      copyButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(data.address);
+          setStatus('Minter address copied.', 'ok');
+        } catch (error) {
+          setStatus('Не удалось скопировать адрес автоматически.', 'error');
+        }
+      });
+    }
+    bindMinterWalletForms(chain);
+    setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
+  }
+
   function renderCosmosWallet(chain, account) {
     const isMinter = chain.id === 'minter';
     const liquid = chain.liquidSymbol;
@@ -4080,6 +4191,92 @@
   function minterTx(typeName, data, gasCoin, memo) {
     const txType = global.minterSDK && global.minterSDK.TX_TYPE;
     return { chainId: 1, type: txType ? txType[typeName] : typeName, data, gasCoin: gasCoin || 'BIP', payload: memo || '' };
+  }
+
+
+  function bindMinterWalletForms(chain) {
+    bindOperationForm(chain, 'minter-send-form', (form) => {
+      const to = broadcast.validateAddress(chain, form.get('to'), 'Получатель');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
+      const memo = String(form.get('memo') || '');
+      if (global.minterWallet && typeof global.minterWallet.isValidMnemonic === 'function' && global.minterWallet.isValidMnemonic(memo)) {
+        throw new Error('Memo похоже на seed-фразу. Исправьте memo перед отправкой.');
+      }
+      const tx = minterTx('SEND', { to, value: Number(amount), coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Монета газа'), memo);
+      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter send', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin: tx.gasCoin });
+    });
+
+    bindOperationForm(chain, 'minter-delegate-form', (form) => {
+      const mode = String(form.get('mode') || 'delegate');
+      const amount = normalizeAmountInput(form.get('amount'), 'Stake');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
+      const validator = String(form.get('validator') || '').trim();
+      if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator public key должен быть MP + 64 hex chars.');
+      const txType = mode === 'unbond' ? 'UNBOND' : 'DELEGATE';
+      const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
+      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${txType}`, amount: `${amount} ${coin}`, txType, coin, validator });
+    });
+
+    bindOperationForm(chain, 'minter-swap-form', (form) => {
+      const from = normalizeCoinInput(form.get('from'), 'Монета к продаже');
+      const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
+      const min = String(form.get('min') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
+      const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
+      const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
+      const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(txType, data, from, '')], { title: 'Minter swap', amount: `${amount} ${from} → ${to}`, txType, coin: from, warnings: route.length ? [`Маршрут: ${[from].concat(route).concat([to]).join(' → ')}`] : [] });
+    });
+
+    bindOperationForm(chain, 'minter-liquidity-form', (form) => {
+      const mode = String(form.get('mode') || 'ADD_LIQUIDITY');
+      const coin0 = normalizeCoinInput(form.get('coin0'), 'Монета 0');
+      const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
+      const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
+      const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
+      const data = mode === 'REMOVE_LIQUIDITY'
+        ? { coin0, coin1, liquidity: Number(volume0) }
+        : { coin0, coin1, volume0: Number(volume0), [mode === 'CREATE_SWAP_POOL' ? 'volume1' : 'maximumVolume1']: Number(volume1) };
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, gasCoin, '')], { title: `Minter ${mode}`, amount: `${volume0} ${coin0} / ${volume1} ${coin1}`, txType: mode, coin: gasCoin });
+    });
+
+    bindOperationForm(chain, 'minter-hub-withdraw-form', (form) => {
+      const destinationChain = String(form.get('chainId') || '').trim().toLowerCase();
+      if (!/^[a-z0-9_-]{2,32}$/.test(destinationChain)) throw new Error('ID сети назначения is required, for example ethereum или bsc.');
+      const to = String(form.get('to') || '').trim();
+      if (!to) throw new Error('Нужен адрес назначения.');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
+      const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
+      const [feeWhole, feeFrac = ''] = hubFee.split('.');
+      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
+      const memo = JSON.stringify({ recipient: to, type: `send_to_${destinationChain}`, fee: feeMinimal });
+      const tx = minterTx('SEND', { to: 'Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', value: Number(amount), coin }, gasCoin, memo);
+      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub: вывод', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Адрес Minter Hub: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
+    });
+
+    bindOperationForm(chain, 'minter-coin-form', (form) => {
+      const mode = String(form.get('mode') || 'CREATE_TOKEN');
+      const symbol = normalizeCoinInput(form.get('symbol'), 'Symbol');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма');
+      let data;
+      if (mode === 'EDIT_COIN_OWNER') {
+        data = { symbol, newOwner: broadcast.validateAddress(chain, form.get('newOwner'), 'Новый владелец') };
+      } else if (mode === 'CREATE_COIN' || mode === 'RECREATE_COIN') {
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Начальный резерв')) };
+      } else if (mode === 'CREATE_TOKEN' || mode === 'RECREATE_TOKEN') {
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), mintable: true, burnable: true };
+      } else {
+        data = { coin: symbol, value: Number(amount) };
+      }
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
+    });
   }
 
   function bindCosmosForms(chain) {
@@ -4612,6 +4809,8 @@
         renderMinterBroadcast(chain);
       } else if (chain.id === 'decimal' && app.id === 'broadcast') {
         renderCosmosWallet(chain, account);
+      } else if (chain.id === 'minter' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
+        await renderMinterWallet(chain, account);
       } else if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
         renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && app.id === 'validators') {
