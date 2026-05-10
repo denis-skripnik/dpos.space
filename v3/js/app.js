@@ -462,6 +462,15 @@
   }
 
 
+  function refreshRouteAfterBroadcast(hashAtSend) {
+    if (typeof global.setTimeout !== 'function') return;
+    global.setTimeout(() => {
+      if (global.location.hash === hashAtSend) {
+        renderRoute();
+      }
+    }, 2500);
+  }
+
   function bindOperationForm(chain, formId, buildPrepared) {
     const form = document.getElementById(formId);
     if (!form) return;
@@ -492,8 +501,10 @@
         setOperationResult(form, 'Подключаю публичную ноду для broadcast...', 'loading', prepared);
         await profiles.connect(chain);
         setOperationResult(form, 'Отправляю транзакцию в сеть...', 'loading', prepared);
+        const hashAtSend = global.location.hash;
         const result = await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-        setOperationResult(form, 'Транзакция отправлена. Ответ сети ниже.', 'ok', prepared, result);
+        setOperationResult(form, 'Транзакция отправлена. Обновляю балансы и историю...', 'ok', prepared, result);
+        refreshRouteAfterBroadcast(hashAtSend);
       } catch (error) {
         setOperationResult(form, profiles.formatError(error), 'error');
       } finally {
