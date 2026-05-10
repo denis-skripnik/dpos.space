@@ -764,12 +764,12 @@
     const api = connection.client && connection.client.api;
     const client = connection.client || global[chain.libraryGlobal];
     if (!api || typeof api.getAccountsAsync !== 'function' || !client || !client.memo || typeof client.memo.encode !== 'function') {
-      throw new Error('Legacy encrypted memo (#...) не подготовлено: golos.api.getAccountsAsync или golos.memo.encode недоступны.');
+      throw new Error('Зашифрованное memo (#...) не подготовлено: API memo недоступен.');
     }
     const accounts = await api.getAccountsAsync([to]);
     const account = accounts && accounts[0];
     if (!account || !account.memo_key) {
-      throw new Error(`Legacy encrypted memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
+      throw new Error(`Зашифрованное memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
     }
     return client.memo.encode(privateKey, account.memo_key, text);
   }
@@ -782,12 +782,12 @@
     const api = connection.client && connection.client.api;
     const client = connection.client || global[chain.libraryGlobal];
     if (!api || typeof api.getAccountsAsync !== 'function' || !client || !client.memo || typeof client.memo.encode !== 'function') {
-      throw new Error('Legacy encrypted memo (#...) не подготовлено: viz.api.getAccountsAsync или viz.memo.encode недоступны.');
+      throw new Error('Зашифрованное memo (#...) не подготовлено: API memo недоступен.');
     }
     const accounts = await api.getAccountsAsync([to]);
     const account = accounts && accounts[0];
     if (!account || !account.memo_key) {
-      throw new Error(`Legacy encrypted memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
+      throw new Error(`Зашифрованное memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
     }
     return client.memo.encode(privateKey, account.memo_key, text);
   }
@@ -1599,7 +1599,7 @@
     add('СГ', formatGolosPowerMax(profile, raw.vesting_shares));
     add('Делегировано СГ', formatGolosPowerMax(profile, raw.delegated_vesting_shares));
     add('Получено делегированием СГ', formatGolosPowerMax(profile, raw.received_vesting_shares));
-    add('TIP GOLOS', raw.tip_balance, 'donate / transfer_from_tip доступны ниже через legacy-compatible broadcast methods');
+    add('TIP GOLOS', raw.tip_balance, 'донат и вывод из TIP доступны ниже');
     add('Накопления GOLOS', raw.accumulative_balance, 'claim accumulative balance');
 
     (balanceRows || []).forEach((row) => {
@@ -1664,8 +1664,8 @@
     return operationDetails('UIA withdraw / вывод через gateways', `
       <form id="wallet-golos-uia-withdraw-form" class="stacked-form">
         <fieldset>
-          <legend>Вывод UIA через transfer на gateway account</legend>
-          <p class="muted">Legacy content.php содержит форму и memo builder; handler #action_uia_withdraw_start в legacy wallet js/php/css не найден. V3 отправляет только logically determined active transfer: UIA на withdrawal.account, memo = prefix + main + optional postfix.</p>
+          <legend>Вывод UIA через шлюз</legend>
+          <p class="muted">Выберите токен, способ вывода и заполните данные получателя. Memo для шлюза будет подготовлен автоматически.</p>
           <ul>${descriptions}</ul>
           <div class="field"><label for="wallet-golos-uia-withdraw-way">Токен и способ</label><select id="wallet-golos-uia-withdraw-way" name="way" required>${options}</select></div>
           <div class="field"><label for="wallet-golos-uia-withdraw-amount">Сумма UIA</label><input id="wallet-golos-uia-withdraw-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-uia-withdraw-way" data-fill-target="wallet-golos-uia-withdraw-amount">Максимум</button></div>
@@ -1766,42 +1766,42 @@
       operationDetails('Перевод токена на TIP-баланс', `
         <form id="wallet-golos-transfer-to-tip-form" class="stacked-form">
           <fieldset>
-            <legend>transfer_to_tip: основной баланс → TIP-баланс</legend>
-            <p class="muted">Legacy parity: golos.broadcast.transferToTipAsync(active_key, from, to, amount, memo, []). Для UIA precision берётся из getAssetsAsync перед preview/send.</p>
+            <legend>Основной баланс → TIP-баланс</legend>
+            <p class="muted">Переводит выбранный токен с основного баланса на TIP-баланс получателя.</p>
             <div class="field"><label for="wallet-golos-transfer-to-tip-token">Токен</label><select id="wallet-golos-transfer-to-tip-token" name="token" required>${mainTokenOptions || '<option value="">Нет доступных main-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-transfer-to-tip-to">Кому</label><input id="wallet-golos-transfer-to-tip-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-golos-transfer-to-tip-amount">Сумма</label><input id="wallet-golos-transfer-to-tip-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-transfer-to-tip-token" data-fill-target="wallet-golos-transfer-to-tip-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-transfer-to-tip-memo">Memo</label><input id="wallet-golos-transfer-to-tip-memo" name="memo" type="text"></div>
-            <button type="submit" name="intent" value="preview">Проверить transfer_to_tip</button>
-            <button type="submit" name="intent" value="send">Отправить transfer_to_tip</button>
+            <button type="submit" name="intent" value="preview">Проверить перевод на TIP</button>
+            <button type="submit" name="intent" value="send">Отправить на TIP</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`, Boolean(mainTokenOptions)),
       operationDetails('Перевод из TIP-баланса', `
         <form id="wallet-golos-transfer-from-tip-form" class="stacked-form">
           <fieldset>
-            <legend>transfer_from_tip: TIP-баланс → СГ/основной баланс</legend>
-            <p class="muted">Legacy parity: golos.broadcast.transferFromTipAsync(active_key, from, to, amount, memo, []). Для GOLOS legacy подписывает действие как перевод в СГ, для UIA — на основной баланс.</p>
+            <legend>TIP-баланс → основной баланс / СГ</legend>
+            <p class="muted">Переводит выбранный токен из TIP-баланса. Для GOLOS вывод идёт в СГ, для UIA — на основной баланс.</p>
             <div class="field"><label for="wallet-golos-transfer-from-tip-token">Токен</label><select id="wallet-golos-transfer-from-tip-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-transfer-from-tip-to">Кому</label><input id="wallet-golos-transfer-from-tip-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-golos-transfer-from-tip-amount">Сумма</label><input id="wallet-golos-transfer-from-tip-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-transfer-from-tip-token" data-fill-target="wallet-golos-transfer-from-tip-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-transfer-from-tip-memo">Memo</label><input id="wallet-golos-transfer-from-tip-memo" name="memo" type="text"></div>
-            <button type="submit" name="intent" value="preview">Проверить transfer_from_tip</button>
-            <button type="submit" name="intent" value="send">Отправить transfer_from_tip</button>
+            <button type="submit" name="intent" value="preview">Проверить вывод из TIP</button>
+            <button type="submit" name="intent" value="send">Вывести из TIP</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`, Boolean(tipTokenOptions)),
       operationDetails('Донат из TIP-баланса токена', `
         <form id="wallet-golos-token-donate-form" class="stacked-form">
           <fieldset>
-            <legend>donate: донат GOLOS/UIA из TIP-баланса</legend>
-            <p class="muted">Legacy parity: golos.broadcast.donateAsync(posting_key, from, to, amount, {app:'dpos-space', version:1, comment:memo, target:{type:'personal_donate'}}, []).</p>
+            <legend>Донат GOLOS/UIA из TIP-баланса</legend>
+            <p class="muted">Отправляет донат выбранным токеном из TIP-баланса.</p>
             <div class="field"><label for="wallet-golos-token-donate-token">Токен</label><select id="wallet-golos-token-donate-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-token-donate-to">Кому</label><input id="wallet-golos-token-donate-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-golos-token-donate-amount">Сумма</label><input id="wallet-golos-token-donate-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-token-donate-token" data-fill-target="wallet-golos-token-donate-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-token-donate-memo">Комментарий</label><textarea id="wallet-golos-token-donate-memo" name="memo" rows="3"></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить donate</button>
-            <button type="submit" name="intent" value="send">Отправить donate</button>
+            <button type="submit" name="intent" value="preview">Проверить донат</button>
+            <button type="submit" name="intent" value="send">Отправить донат</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`, Boolean(tipTokenOptions)),
@@ -1811,7 +1811,7 @@
 
     return `
       <h3>Операции Golos</h3>
-      <p class="muted">Safe parity slice: основные GOLOS/GBG/СГ операции, TIP/UIA actions, legacy-compatible templates и metadata-based gateways доступны через preview + подтверждение.</p>
+      <p class="muted">Операции доступны через проверку и отдельное подтверждение отправки.</p>
       ${operations.join('')}`;
   }
 
@@ -1950,7 +1950,7 @@
         <form id="wallet-withdraw-vesting-form" class="stacked-form">
           <fieldset>
             <legend>Вывод SHARES</legend>
-            <p class="muted">Legacy warning: если вывод уже есть, новая операция сбросит сумму на вывод.</p>
+            <p class="muted">Если вывод уже запущен, новая операция изменит сумму вывода.</p>
             <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма SHARES</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 SHARES">${withdrawMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(withdrawMax)}">Максимум ${escapeHtml(withdrawMax)}</button>` : ''}</div>
             <button type="submit" name="intent" value="preview">Проверить вывод SHARES</button>
             <button type="submit" name="intent" value="send">Начать вывод</button>
@@ -1980,7 +1980,7 @@
         <form id="wallet-viz-use-invite-form" class="stacked-form">
           <fieldset>
             <legend>Использовать invite code</legend>
-            <p class="muted">Legacy wallet пополнял баланс через claim_invite_balance или use_invite_balance. Секрет invite не сохраняется и не попадает в preview/result без необходимости.</p>
+            <p class="muted">Секрет invite используется только для этой операции. Не публикуйте его и не пересылайте другим людям.</p>
             <div class="field"><label for="wallet-viz-invite-secret">Инвайт-код / secret WIF</label><input id="wallet-viz-invite-secret" name="secret" type="password" required autocomplete="off" placeholder="5K..."></div>
             <div class="field"><label for="wallet-viz-invite-receiver">Получатель</label><input id="wallet-viz-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
             <label class="inline-choice"><input name="toVesting" type="checkbox"> Перевести в SHARES; иначе в баланс VIZ</label>
@@ -2007,23 +2007,18 @@
         <form id="wallet-viz-witness-vote-form" class="stacked-form">
           <fieldset>
             <legend>Witness vote</legend>
-            <p class="muted">Legacy wallet предлагал проголосовать за создателя проекта dpos.space.</p>
+            <p class="muted">Голос за witness можно проверить перед отправкой.</p>
             <button type="submit" name="intent" value="preview">Проверить голос</button>
             <button type="submit" name="intent" value="send">Проголосовать</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
-      operationDetails('Legacy wallet scope notes', `
-        <ul>
-          <li>История переводов и award/reward операций отображается через общий history renderer; фильтры legacy UI заменены полем фильтра в разделе History.</li>
-          <li>Registration through inviteRegistration требует service signer WIF из legacy hardcoded flow — оставлено в VIZ registration/manage, не в кошельке.</li>
-          <li>Vizonator extension signing в v3 не реализуется: нет безопасного web extension bridge в текущей статической версии.</li>
-        </ul>`)
+
     ];
 
     return `
       <h3>Операции VIZ</h3>
-      <p class="muted">Legacy VIZ wallet: transfer, transfer_to_vesting, withdraw_vesting, delegate_vesting_shares, create/use/claim invite, encrypted memo, templates, delegations и witness vote перенесены в безопасный preview + confirm flow.</p>
+      <p class="muted">Операции доступны через проверку и отдельное подтверждение отправки.</p>
       ${operations.join('')}`;
   }
 
@@ -2406,7 +2401,7 @@
       if (!(prepared.meta && prepared.meta.signerType === 'vizonator')) {
         prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
       } else if (String(form.get('memo') || '').startsWith('#')) {
-        prepared.meta.warnings.push('Для Vizonator memo передаётся в расширение как есть, как в legacy dpos.space; локальное шифрование #memo в v3 не выполняется.');
+        prepared.meta.warnings.push('Для Vizonator memo с # передаётся в расширение как есть. Если нужно шифрование, проверьте поведение расширения перед отправкой.');
       }
       return prepared;
     });

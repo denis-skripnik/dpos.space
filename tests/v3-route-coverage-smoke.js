@@ -91,9 +91,9 @@ assert(appSource.includes('wallet-golos-token-donate-form'), 'Golos wallet expos
 assert(appSource.includes("broadcast.prepare(chain, 'active', 'transferToTip'"), 'Golos transfer_to_tip uses legacy broadcast method name');
 assert(appSource.includes("broadcast.prepare(chain, 'active', 'transferFromTip'"), 'Golos transfer_from_tip uses legacy broadcast method name');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'donate'"), 'Golos token donate uses legacy posting donate method name');
-assert(appSource.includes('golos.broadcast.transferToTipAsync(active_key, from, to, amount, memo, [])'), 'Golos transfer_to_tip label documents exact legacy param order');
-assert(appSource.includes('golos.broadcast.transferFromTipAsync(active_key, from, to, amount, memo, [])'), 'Golos transfer_from_tip label documents exact legacy param order');
-assert(appSource.includes('golos.broadcast.donateAsync(posting_key, from, to, amount'), 'Golos donate label documents exact legacy method family');
+assert(appSource.includes("broadcast.prepare(chain, 'active', 'transferToTip'"), 'Golos transfer_to_tip binding keeps expected operation');
+assert(appSource.includes("broadcast.prepare(chain, 'active', 'transferFromTip'"), 'Golos transfer_from_tip binding keeps expected operation');
+assert(appSource.includes("broadcast.prepare(chain, 'posting', 'donate'"), 'Golos donate binding keeps expected operation');
 assert(appSource.includes('function encodeGolosMemoIfNeeded'), 'Golos wallet preserves legacy # encrypted memo preparation when memo API is available');
 assert(appSource.includes("version: 1, comment"), 'Golos donate metadata keeps legacy dpos-space version 1');
 assert(appSource.includes('renderGolosUiaDepositSection'), 'Golos wallet renders UIA gateway deposit metadata');
