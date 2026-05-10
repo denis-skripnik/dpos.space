@@ -70,6 +70,8 @@ assert(appSource.includes('APP_SCOPED_HASH_PARAMS'), 'route navigation clears ap
 assert(appSource.includes('function appUsesAuthorizedAccount'), 'route form has authorized-account selector helper for wallet/manage/broadcast tools');
 assert(appSource.includes('accountInput.disabled = !inputVisible'), 'hidden account field is disabled and removed from tab order');
 assert(appSource.includes('selectSavedAccount(chain, accountSelect.value)'), 'route submit switches current user from the authorized-account selector');
+assert(appSource.includes('function refreshRouteAfterBroadcast'), 'successful broadcast schedules a route refresh for fresh wallet balances/history');
+assert(appSource.includes('Обновляю балансы и историю'), 'successful broadcast tells the user balances/history are refreshing');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'validators').accountField, undefined, 'Minter validators do not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'profiles').accountField, true, 'profiles keep the global account field');
