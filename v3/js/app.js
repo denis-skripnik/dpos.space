@@ -572,6 +572,96 @@
     return broadcast.validateAsset(chain, value, symbols, label);
   }
 
+  function normalizeGolosTokenSymbol(value, label) {
+    const symbol = String(value || '').trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(symbol)) {
+      throw new Error(`${label || 'Токен'}: нужен UIA symbol в формате A-Z/0-9.`);
+    }
+    return symbol;
+  }
+
+  async function fetchGolosAssetPrecision(chain, symbol) {
+    const token = normalizeGolosTokenSymbol(symbol, 'Токен');
+    if (token === (chain.liquidSymbol || 'GOLOS') || token === (chain.debtSymbol || 'GBG')) return 3;
+    await loadScript(chain.libraryPath);
+    const connection = await profiles.connect(chain);
+    const api = connection.client && connection.client.api;
+    if (!api || typeof api.getAssetsAsync !== 'function') {
+      throw new Error('Не удалось получить precision UIA: golos.api.getAssetsAsync недоступен. Операция не подготовлена, чтобы не отправить сумму в неверном формате.');
+    }
+    const assets = await api.getAssetsAsync('', [token]);
+    const asset = assets && assets[0];
+    if (!asset || asset.precision === undefined || asset.precision === null) {
+      throw new Error(`Не удалось получить precision для UIA ${token}. Операция не подготовлена.`);
+    }
+    const precision = Number(asset.precision);
+    if (!Number.isInteger(precision) || precision < 0 || precision > 18) {
+      throw new Error(`Некорректный precision для UIA ${token}: ${asset.precision}.`);
+    }
+    return precision;
+  }
+
+  async function normalizeGolosTokenAmount(chain, amount, symbol, label) {
+    const token = normalizeGolosTokenSymbol(symbol, 'Токен');
+    const text = String(amount || '').trim().replace(',', '.').replace(new RegExp(`\\s+${token}$`, 'i'), '');
+    if (!/^\d+(?:\.\d+)?$/.test(text) || Number(text) <= 0) {
+      throw new Error(`${label || 'Сумма'}: нужно положительное число.`);
+    }
+    const precision = await fetchGolosAssetPrecision(chain, token);
+    return `${Number(text).toFixed(precision)} ${token}`;
+  }
+
+  async function encodeGolosMemoIfNeeded(chain, to, memo, privateKey) {
+    const text = String(memo || '');
+    if (text[0] !== '#') return text;
+    await loadScript(chain.libraryPath);
+    const connection = await profiles.connect(chain);
+    const api = connection.client && connection.client.api;
+    const client = connection.client || global[chain.libraryGlobal];
+    if (!api || typeof api.getAccountsAsync !== 'function' || !client || !client.memo || typeof client.memo.encode !== 'function') {
+      throw new Error('Legacy encrypted memo (#...) не подготовлено: golos.api.getAccountsAsync или golos.memo.encode недоступны.');
+    }
+    const accounts = await api.getAccountsAsync([to]);
+    const account = accounts && accounts[0];
+    if (!account || !account.memo_key) {
+      throw new Error(`Legacy encrypted memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
+    }
+    return client.memo.encode(privateKey, account.memo_key, text);
+  }
+
+  function golosAmountNumber(value) {
+    const match = String(value || '').match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : 0;
+  }
+
+  function collectGolosTipActionTokens(profile, balanceRows) {
+    const tokens = new Map();
+    const add = (symbol, balanceType, balance) => {
+      const token = normalizeGolosTokenSymbol(symbol, 'Токен');
+      if (!tokens.has(token)) tokens.set(token, { symbol: token, main: '', tip: '' });
+      const item = tokens.get(token);
+      if (balanceType === 'tip') item.tip = balance || item.tip;
+      else item.main = balance || item.main;
+    };
+    const raw = (profile && profile.raw) || {};
+    if (golosAmountNumber(raw.balance) > 0) add('GOLOS', 'main', raw.balance);
+    if (golosAmountNumber(raw.tip_balance) > 0) add('GOLOS', 'tip', raw.tip_balance);
+    (balanceRows || []).forEach((row) => {
+      const meta = row && row[2];
+      if (!meta || meta.kind !== 'uia') return;
+      if (golosAmountNumber(row[1]) <= 0) return;
+      add(meta.symbol, meta.balanceType === 'tip' ? 'tip' : 'main', row[1]);
+    });
+    return Array.from(tokens.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  }
+
+  function tokenOptions(tokens, balanceType) {
+    return tokens
+      .filter((token) => golosAmountNumber(token[balanceType]) > 0)
+      .map((token) => `<option value="${escapeHtml(token.symbol)}" data-max="${escapeHtml(token[balanceType])}">${escapeHtml(token.symbol)} — максимум ${escapeHtml(token[balanceType])}</option>`)
+      .join('');
+  }
+
 
   function refreshRouteAfterBroadcast(hashAtSend) {
     if (typeof global.setTimeout !== 'function') return;
@@ -592,7 +682,7 @@
         await loadScript(chain.cryptoPath);
         await loadScript(chain.walletPath);
         await loadScript(chain.libraryPath);
-        const prepared = buildPrepared(new FormData(form));
+        const prepared = await buildPrepared(new FormData(form));
         const submitter = event.submitter;
         const intent = submitter && submitter.value === 'send' ? 'send' : 'preview';
 
@@ -964,7 +1054,7 @@
     setStatus(`Загружаю Golos-кошелёк @${account}...`, 'loading');
 
     const data = await loadGrapheneWalletData(chain, account, { loadExtraBalances: fetchGolosUiaBalances });
-    const formsHtml = renderGolosWalletForms(chain, data.profile);
+    const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows);
 
     appEl.innerHTML = `
       <section class="panel wallet-golos">
@@ -1153,14 +1243,14 @@
     add('СГ', formatGolosPowerMax(profile, raw.vesting_shares));
     add('Делегировано СГ', formatGolosPowerMax(profile, raw.delegated_vesting_shares));
     add('Получено делегированием СГ', formatGolosPowerMax(profile, raw.received_vesting_shares));
-    add('TIP GOLOS', raw.tip_balance, 'donate / transfer_from_tip ещё не перенесены в этот slice полностью');
+    add('TIP GOLOS', raw.tip_balance, 'donate / transfer_from_tip доступны ниже через legacy-compatible broadcast methods');
     add('Накопления GOLOS', raw.accumulative_balance, 'claim accumulative balance');
 
     (balanceRows || []).forEach((row) => {
       const meta = row && row[2];
       if (meta && meta.kind === 'uia') {
         const suffix = meta.balanceType === 'tip' ? 'TIP' : 'основной';
-        add(`UIA ${meta.symbol} (${suffix})`, row[1], 'UIA actions/gateways: not yet ported');
+        add(`UIA ${meta.symbol} (${suffix})`, row[1], meta.balanceType === 'tip' ? 'TIP actions доступны ниже; gateways/templates — later' : 'transfer/transfer_to_tip доступны ниже; gateways/templates — later');
       } else if (meta && meta.kind === 'uia-status') {
         add(row[0], row[1], 'UIA balances diagnostic');
       }
@@ -1169,13 +1259,16 @@
     return `<ul class="wallet-golos-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
   }
 
-  function renderGolosWalletForms(chain, profile) {
+  function renderGolosWalletForms(chain, profile, balanceRows) {
     const liquid = chain.liquidSymbol || 'GOLOS';
     const debt = chain.debtSymbol || 'GBG';
     const liquidMax = profile ? pickBalance(profile, liquid) : '';
     const tipMax = profile && profile.raw ? profile.raw.tip_balance : '';
     const vestingMax = formatGolosPowerMax(profile, profile && profile.raw && profile.raw.vesting_shares);
     const claimMax = profile && profile.raw ? profile.raw.accumulative_balance : '';
+    const tipActionTokens = collectGolosTipActionTokens(profile, balanceRows);
+    const mainTokenOptions = tokenOptions(tipActionTokens, 'main');
+    const tipTokenOptions = tokenOptions(tipActionTokens, 'tip');
     const operations = [
       operationDetails(`Перевод GOLOS/GBG`, `
         <form id="wallet-transfer-form" class="stacked-form">
@@ -1246,13 +1339,55 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
-      operationDetails('TIP/UIA: not yet ported', `
-        <p class="muted">TIP transfer / transfer_from_tip для UIA, UIA gateways/deposit/withdraw и шаблоны transfer/donate из legacy-кошелька пока не перенесены в v3. Балансы UIA/TIP отображаются выше, но действия не показываются как готовые, чтобы не имитировать неподдержанную feature.</p>`)
+      operationDetails('Перевод токена на TIP-баланс', `
+        <form id="wallet-golos-transfer-to-tip-form" class="stacked-form">
+          <fieldset>
+            <legend>transfer_to_tip: основной баланс → TIP-баланс</legend>
+            <p class="muted">Legacy parity: golos.broadcast.transferToTipAsync(active_key, from, to, amount, memo, []). Для UIA precision берётся из getAssetsAsync перед preview/send.</p>
+            <div class="field"><label for="wallet-golos-transfer-to-tip-token">Токен</label><select id="wallet-golos-transfer-to-tip-token" name="token" required>${mainTokenOptions || '<option value="">Нет доступных main-балансов</option>'}</select></div>
+            <div class="field"><label for="wallet-golos-transfer-to-tip-to">Кому</label><input id="wallet-golos-transfer-to-tip-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-golos-transfer-to-tip-amount">Сумма</label><input id="wallet-golos-transfer-to-tip-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-transfer-to-tip-memo">Memo</label><input id="wallet-golos-transfer-to-tip-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить transfer_to_tip</button>
+            <button type="submit" name="intent" value="send">Отправить transfer_to_tip</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, Boolean(mainTokenOptions)),
+      operationDetails('Перевод из TIP-баланса', `
+        <form id="wallet-golos-transfer-from-tip-form" class="stacked-form">
+          <fieldset>
+            <legend>transfer_from_tip: TIP-баланс → СГ/основной баланс</legend>
+            <p class="muted">Legacy parity: golos.broadcast.transferFromTipAsync(active_key, from, to, amount, memo, []). Для GOLOS legacy подписывает действие как перевод в СГ, для UIA — на основной баланс.</p>
+            <div class="field"><label for="wallet-golos-transfer-from-tip-token">Токен</label><select id="wallet-golos-transfer-from-tip-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
+            <div class="field"><label for="wallet-golos-transfer-from-tip-to">Кому</label><input id="wallet-golos-transfer-from-tip-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-golos-transfer-from-tip-amount">Сумма</label><input id="wallet-golos-transfer-from-tip-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-transfer-from-tip-memo">Memo</label><input id="wallet-golos-transfer-from-tip-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить transfer_from_tip</button>
+            <button type="submit" name="intent" value="send">Отправить transfer_from_tip</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, Boolean(tipTokenOptions)),
+      operationDetails('Донат из TIP-баланса токена', `
+        <form id="wallet-golos-token-donate-form" class="stacked-form">
+          <fieldset>
+            <legend>donate: донат GOLOS/UIA из TIP-баланса</legend>
+            <p class="muted">Legacy parity: golos.broadcast.donateAsync(posting_key, from, to, amount, {app:'dpos-space', version:1, comment:memo, target:{type:'personal_donate'}}, []).</p>
+            <div class="field"><label for="wallet-golos-token-donate-token">Токен</label><select id="wallet-golos-token-donate-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
+            <div class="field"><label for="wallet-golos-token-donate-to">Кому</label><input id="wallet-golos-token-donate-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-golos-token-donate-amount">Сумма</label><input id="wallet-golos-token-donate-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-token-donate-memo">Комментарий</label><textarea id="wallet-golos-token-donate-memo" name="memo" rows="3"></textarea></div>
+            <button type="submit" name="intent" value="preview">Проверить donate</button>
+            <button type="submit" name="intent" value="send">Отправить donate</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, Boolean(tipTokenOptions)),
+      operationDetails('UIA gateways/templates: later', `
+        <p class="muted">Пополнение/вывод через UIA gateways и transfer/donate templates оставлены later: в legacy подтверждены metadata-rendering и deposit API, но exact withdraw broadcast handler в проверенном js/app.js не найден. Не портирую это без точного evidence по params.</p>`)
     ];
 
     return `
       <h3>Операции Golos</h3>
-      <p class="muted">Это первый safe parity slice: основные GOLOS/GBG/СГ операции доступны через preview + подтверждение; UIA/TIP actions отмечены отдельно как not yet ported.</p>
+      <p class="muted">Safe parity slice: основные GOLOS/GBG/СГ операции и подтверждённые legacy TIP/UIA actions доступны через preview + подтверждение; gateways/templates оставлены later без догадок.</p>
       ${operations.join('')}`;
   }
 
@@ -1316,16 +1451,65 @@
       });
     });
 
-    bindOperationForm(chain, 'wallet-golos-donate-form', (form) => {
+    bindOperationForm(chain, 'wallet-golos-donate-form', async (form) => {
       const to = normalizeAccountInput(chain, form.get('to'), 'Кому донат');
       const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма доната');
+      let memo = String(form.get('memo') || '');
+      if (memo[0] === '#') {
+        memo = await encodeGolosMemoIfNeeded(chain, to, memo, broadcast.prepare(chain, 'active', 'transfer', [auth.getCurrentLogin(chain), to, amount, ''], {}).getPrivateKey());
+      }
       return broadcast.prepare(chain, 'posting', 'donate', [
         auth.getCurrentLogin(chain),
         to,
         amount,
-        { app: 'dpos-space', version: 3, comment: String(form.get('memo') || ''), target: { type: 'personal_donate' } },
+        { app: 'dpos-space', version: 1, comment: memo, target: { type: 'personal_donate' } },
         []
       ], { title: 'Golos donate', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-golos-transfer-to-tip-form', async (form) => {
+      const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен transfer_to_tip');
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому transfer_to_tip');
+      const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма transfer_to_tip');
+      const prepared = broadcast.prepare(chain, 'active', 'transferToTip', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        String(form.get('memo') || ''),
+        []
+      ], { title: 'Golos transfer_to_tip', to, amount });
+      prepared.params[3] = await encodeGolosMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
+      return prepared;
+    });
+
+    bindOperationForm(chain, 'wallet-golos-transfer-from-tip-form', async (form) => {
+      const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен transfer_from_tip');
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому transfer_from_tip');
+      const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма transfer_from_tip');
+      return broadcast.prepare(chain, 'active', 'transferFromTip', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        String(form.get('memo') || ''),
+        []
+      ], { title: 'Golos transfer_from_tip', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-golos-token-donate-form', async (form) => {
+      const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен donate');
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому donate');
+      const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма donate');
+      let memo = String(form.get('memo') || '');
+      if (memo[0] === '#') {
+        memo = await encodeGolosMemoIfNeeded(chain, to, memo, broadcast.prepare(chain, 'active', 'transfer', [auth.getCurrentLogin(chain), to, amount, ''], {}).getPrivateKey());
+      }
+      return broadcast.prepare(chain, 'posting', 'donate', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        { app: 'dpos-space', version: 1, comment: memo, target: { type: 'personal_donate' } },
+        []
+      ], { title: 'Golos UIA/TIP donate', to, amount });
     });
   }
 
@@ -1483,13 +1667,21 @@
           </fieldset>
         </form>
       </section>`;
-    bindOperationForm(chain, 'golos-donate-form', (form) => broadcast.prepare(chain, 'posting', 'donate', [
-      auth.getCurrentLogin(chain),
-      String(form.get('to') || '').trim().replace(/^@/, ''),
-      String(form.get('amount') || '').trim(),
-      { app: 'dpos-space', version: 3, comment: String(form.get('memo') || ''), target: { type: 'personal_donate' } },
-      []
-    ]));
+    bindOperationForm(chain, 'golos-donate-form', async (form) => {
+      const to = normalizeAccountInput(chain, form.get('to'), 'Получатель доната');
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма доната');
+      let memo = String(form.get('memo') || '');
+      if (memo[0] === '#') {
+        memo = await encodeGolosMemoIfNeeded(chain, to, memo, broadcast.prepare(chain, 'active', 'transfer', [auth.getCurrentLogin(chain), to, amount, ''], {}).getPrivateKey());
+      }
+      return broadcast.prepare(chain, 'posting', 'donate', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        { app: 'dpos-space', version: 1, comment: memo, target: { type: 'personal_donate' } },
+        []
+      ]);
+    });
     setStatus('Golos-донат готов: проверка или отправка по подтверждению.', 'ok');
   }
 
