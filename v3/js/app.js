@@ -136,8 +136,8 @@
       block: item.block || item.block_id || item.blockId || item.block_number || item.height || data.block || data.height || '',
       from: getPathValue(data, ['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'sender.address']),
       to: getPathValue(data, ['to', 'recipient', 'receiver', 'target', 'validator', 'public_key', 'coin_to_buy']),
-      amount: getPathValue(data, ['amount', 'value', 'stake', 'volume', 'sell', 'min_to_receive']),
-      coin: getPathValue(data, ['coin.symbol', 'coin', 'denom', 'symbol', 'ticker', 'amount.coin']),
+      amount: getPathValue(data, ['amount', 'value', 'stake', 'volume', 'sell', 'min_to_receive', 'value_to_sell', 'value_to_buy', 'initial_amount', 'initSupply', 'volume0']),
+      coin: getPathValue(data, ['coin.symbol', 'coin', 'denom', 'symbol', 'ticker', 'amount.coin', 'coin_to_sell.symbol', 'coin_to_buy.symbol', 'sellCoin.symbol', 'buyCoin.symbol']),
       memo: getPathValue(data, ['memo', 'payload', 'comment', 'title', 'url']),
       raw: item
     };
@@ -207,6 +207,8 @@
     const balanceRows = profile.balances.map(([label, value]) => [label, value]);
     const socialRows = profile.socials.map(([label, value]) => [label, value]);
     const metadataHasData = Object.keys(profile.metadataJson || {}).length || Object.keys(profile.postingMetadataJson || {}).length;
+    const isRestProfile = profile.chainId === 'minter' || profile.chainId === 'decimal';
+    const showDisplayName = !isRestProfile || (profile.displayName && profile.displayName !== profile.name);
 
     appEl.innerHTML = `
       <section class="panel">
@@ -215,7 +217,7 @@
         <article class="card">
           <h3>Кратко</h3>
           <ul>
-            <li><strong>Отображаемое имя:</strong> ${escapeHtml(profile.displayName)}</li>
+            ${showDisplayName ? `<li><strong>Отображаемое имя:</strong> ${escapeHtml(profile.displayName)}</li>` : ''}
             ${profile.about ? `<li><strong>О себе:</strong> ${escapeHtml(profile.about)}</li>` : ''}
             ${profile.location ? `<li><strong>Локация:</strong> ${escapeHtml(profile.location)}</li>` : ''}
             ${profile.website ? `<li><strong>Сайт:</strong> <a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener">${escapeHtml(profile.website)}</a></li>` : ''}

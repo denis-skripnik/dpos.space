@@ -406,3 +406,48 @@ Additional implementation in this pass:
 - [x] Minter/Decimal profile REST transactions now stay structured in `DposProfiles.normalizeAccount` instead of being pre-stringified.
 - [x] `DposHistory.normalizeHistory` / REST history normalization now preserve block/height fields for explorer linking.
 - [x] Tests updated to assert structured REST transactions and accessible/linking hooks in the shared renderer.
+
+## Service parity audit legacy → v3 — 2026-05-10 retry
+
+### Audit method
+
+- Synced local `v3` with `origin/v3` using `git pull --ff-only origin v3`; branch was already current at `56a5f91` before this pass.
+- Built legacy inventory with `find blockchains/{golos,viz,steem,hive,minter,decimal} -type f` for JS/PHP/HTML/JSON/CSS; 804 legacy files were enumerated.
+- Inspected service entrypoints/config/content/scripts for each scoped chain under `blockchains/<chain>/apps/*`, plus chain-level `js/blockchain.js`, `js/modal-accounts.js`, SDK/browser library references, localStorage key usage, API calls, and broadcast calls.
+- Built v3 inventory from `v3/js/chains.js`, `v3/js/app.js`, `v3/js/profiles.js`, `v3/js/history.js`, `v3/js/broadcast.js`, `v3/js/auth.js`, and all `tests/*.js`.
+- Focused static parity on user-visible labels/fields/forms/history operation explanations/auth compatibility; real broadcast is verified only by mocks/dry paths, never by real tx in automated tests.
+
+### Legacy files inspected by chain/service family
+
+- Golos: `activities`, `api`, `backup`, `calc`, `donate`, `donates`, `escrow`, `explorer`, `help`, `import`, `instant-view`, `manage`, `polls`, `post`, `profiles`, `randomblockchain`, `referrers`, `registration`, `stakebot`, `swap`, `top`, `wallet`, `witnesses-rewards`; key files include `blockchains/golos/apps/{profiles,wallet,post,donate,manage,registration,explorer,calc,import,instant-view,swap}/**/*.{php,js,json}` and `blockchains/golos/js/{blockchain.js,modal-accounts.js,golos.min.js}`.
+- VIZ: `analytics`, `awards`, `calc`, `custom-generator`, `exchanges`, `explorer`, `help`, `manage`, `polls`, `profiles`, `projects`, `randomblockchain`, `registration`, `search`, `top`, `vmp`, `voice-import`, `wallet`, `witnesses-rewards`; key files include `blockchains/viz/apps/{profiles,wallet,awards,manage,registration,explorer,calc,exchanges}/**/*.{php,js,json}` and `blockchains/viz/js/{blockchain.js,modal-accounts.js,viz.min.js}`.
+- Steem: `backup`, `calc`, `explorer`, `help`, `manage`, `post`, `profiles`, `randomblockchain`, `swap`, `wallet`; key files include `blockchains/steem/apps/{profiles,wallet,post,manage,explorer,calc,swap}/**/*.{php,js,json}` and `blockchains/steem/js/{blockchain.js,modal-accounts.js,steem.min.js}`.
+- Hive: `backup`, `calc`, `manage`, `post`, `profiles`, `randomblockchain`, `swap`, `wallet`; key files include `blockchains/hive/apps/{profiles,wallet,post,manage,calc,swap}/**/*.{php,js,json}` and `blockchains/hive/js/{blockchain.js,modal-accounts.js,hive.min.js}`.
+- Minter: `broadcast`, `explorer`, `help`, `long`, `my-coin`, `profiles`, `randomblockchain`, `swap`, `validators`, `wallet`; key files include `blockchains/minter/apps/{profiles,wallet,validators,my-coin,swap,broadcast,explorer,randomblockchain,long}/**/*.{php,js,json}` and `blockchains/minter/js/{blockchain.js,modal-accounts.js,minterjs-sdk.min.js,minterjs-wallet.min.js}`.
+- Decimal: `explorer`, `profiles`, `randomblockchain`, `validators`, `wallet`; key files include `blockchains/decimal/apps/{profiles,wallet,validators,explorer,randomblockchain}/**/*.{php,js,json}` and `blockchains/decimal/js/{blockchain.js,modal-accounts.js,decimal-sdk-web.js}`.
+
+### Parity matrix
+
+| Chain/service | Legacy behavior/fields/labels | v3 current behavior before fixes | Status | Exact fix plan/result |
+| --- | --- | --- | --- | --- |
+| All chains / accounts-auth | Legacy uses `<chain>_current_user`, `<chain>_users`, `<chain>_node`; Golos/Hive/Steem posting+active, VIZ regular+active, Minter/Decimal seed-style users. | `auth.js` keeps legacy keys/passphrases and does not migrate schema. | [x] | Existing tests cover decrypt/select/sanitization. No change. |
+| Golos/VIZ/Steem/Hive profiles | Legacy profile pages are chain-specific, with balances, vesting/power, governance, authorities, activity, metadata/socials. | v3 exposes chain-specific balance/economy/authority labels; not over-universalized for VIZ regular/energy and social power naming. | [x] | No code change required. |
+| Minter/Decimal profiles | Legacy REST profile/wallet screens show the address once in address/REST context; repeated address as display name/profile field is noisy. | v3 repeated REST address as page title, summary display name, profile metadata row, and REST row. | [fix] | Removed REST address from profile metadata rows, deduplicated REST rows, and suppress summary display-name row when it is identical to REST account address. |
+| Golos/VIZ/Steem/Hive wallet/history | Legacy shows readable operation names for social-chain ops and wallet forms for transfer/vesting/delegation/claim/savings where supported. | v3 has readable social op names, wallet forms, dry preview and confirm-based real broadcast; no real tx in tests. | [x] | No change beyond preserving tests. |
+| Minter history | Legacy `blockchains/minter/apps/wallet/js/app.js:getHistory` maps numeric tx type ids 1–39 to readable Russian labels; specifically `13` = `Мультисенд (мульти-отправка)`, plus pool/token/limit-order/stake-lock types. | v3 normalized REST transactions but `operationTitle(13)` returned raw `13`, so tables showed bare ids. | [fix] | Added Minter 1–39 numeric tx type mapping, numeric string and hex `0x0D` fallback in `history.operationTitle`, and focused test for type `13`. |
+| Decimal history | Legacy `blockchains/decimal/apps/wallet/js/app.js:getHistory` maps old snake/uppercase types, NFT ops, governance proposal/vote, and OpenAPI paths like `/decimal.coin.v1.MsgSendCoin`. | v3 had only generic/social op labels; Decimal OpenAPI/NFT labels could appear raw. | [fix] | Added Decimal snake/OpenAPI/NFT/governance labels to `history.operationTitle` and focused tests. |
+| Minter/Decimal wallet validators/delegation/unbond/token/NFT/swap | Legacy has rich SDK/API forms; v3 has static forms where SDK supports browser-side prepare/broadcast, and REST read-only validators/explorer. | v3 supports Minter/Decimal seed broadcast mocks and forms without leaking seed; no Cyber/EVM added. | [x] | Kept scope; labels fixed in shared history rendering. |
+| Broadcast/signing | Legacy signs with old browser libraries and localStorage keys/seeds. | v3 uses legacy decrypt, preview/sanitize, confirm before real broadcast. | [x] | Existing mocks verify no WIF/seed leaks. |
+| Editor/posting, donate/award, manage/governance, registration/invite | Legacy chain-specific apps exist for social chains. | v3 routes/forms exist for scoped social-chain features; unsupported backend-heavy parts are shown explicitly rather than silently pretending parity. | [x] | No true blocker for requested regressions; no Cyber/EVM added. |
+| Explorer/calculator/import/instant-view/swap/market | Legacy has mixed static+backend pages. | v3 exposes available static/read-only/helper routes and clear unsupported messages for backend-dependent flows. | [x] | No change needed for current regressions. |
+
+### Completion checklist for this pass
+
+- [x] Minter tx type id mapping/readable labels restored from legacy `wallet/js/app.js`.
+- [x] Decimal readable operation labels restored from legacy `wallet/js/app.js`.
+- [x] REST profile duplicate address rows reduced.
+- [x] Tests updated for Minter operation label mapping and profile duplicate-field prevention.
+- [x] No legacy PHP/JS deleted.
+- [x] No Cyber/EVM route added to v3.
+- [x] No real transaction performed in automated checks.
+- [x] No `[blocked]` items remain for this static pass.
