@@ -562,3 +562,83 @@ Known intentional differences / blockers:
 - v3 still does not recreate old PHP/backend-only pages and cron/data flows.
 - OAuth/Vizonator/BIP wallet link flows are recognized as existing account types, but v3 does not invent new OAuth/extension signing paths in this static pass.
 - LONG depends on `backend.dpos.space`; if it hangs, v3 now times out with a clear error instead of hanging forever.
+
+## 2026-05-10 exhaustive public click-through parity audit
+Audit method: `/chro` local Chromium/CDP opened rendered pages for every app id from `window.DposChains` on public v3 `https://dpos.blinddev.xyz/#chain=...&app=...` and the inferred legacy public route on `https://dpos.space/...` where one exists. No private keys were entered and no transaction submit/confirm path was executed. Raw CDP extraction captured title, headings, body text, forms, buttons, and text samples for each route in `/tmp/dpos_v3_click_audit.json` during the run.
+Summary: 74/74 v3 routes were opened in browser/CDP. Initial public run found 2 safe v3 gaps: Minter profile defaulted to an invalid zero address; Decimal validators could hang/fall into the generic route error when the public API/CORS failed. Both were fixed, pushed, deployed, and re-tested on public v3 with Chromium/CDP cache disabled.
+| Chain/app | Old live URL/status | New live URL/status | Result |
+| --- | --- | --- | --- |
+| golos/profiles (Профили) | https://dpos.space/golos/profiles — opened | https://dpos.blinddev.xyz/#chain=golos&app=profiles — opened in public CDP click-through | OK |
+| golos/accounts (Аккаунты) | https://dpos.space/golos/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=golos&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| golos/wallet (Кошелёк) | https://dpos.space/golos/wallet — opened | https://dpos.blinddev.xyz/#chain=golos&app=wallet — opened in public CDP click-through | OK |
+| golos/history (История) | https://dpos.space/golos/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=golos&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| golos/broadcast (Отправка) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=golos&app=broadcast — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| golos/editor (Редактор) | https://dpos.space/golos/post — opened | https://dpos.blinddev.xyz/#chain=golos&app=editor — opened in public CDP click-through | OK |
+| golos/calculator (Калькулятор) | https://dpos.space/golos/calc — opened | https://dpos.blinddev.xyz/#chain=golos&app=calculator — opened in public CDP click-through | OK |
+| golos/donate (Донат) | https://dpos.space/golos/donate — opened | https://dpos.blinddev.xyz/#chain=golos&app=donate — opened in public CDP click-through | OK |
+| golos/import (Импорт статьи) | https://dpos.space/golos/import — opened | https://dpos.blinddev.xyz/#chain=golos&app=import — opened in public CDP click-through | OK |
+| golos/escrow (Escrow) | https://dpos.space/golos/escrow — opened | https://dpos.blinddev.xyz/#chain=golos&app=escrow — opened in public CDP click-through | OK |
+| golos/instant-view (Instant View) | https://dpos.space/golos/instant-view — opened | https://dpos.blinddev.xyz/#chain=golos&app=instant-view — opened in public CDP click-through | OK |
+| golos/manage (Управление) | https://dpos.space/golos/manage — opened | https://dpos.blinddev.xyz/#chain=golos&app=manage — opened in public CDP click-through | OK |
+| golos/swap (Обмен) | https://dpos.space/golos/swap — opened | https://dpos.blinddev.xyz/#chain=golos&app=swap — opened in public CDP click-through | OK |
+| golos/register (Регистрация) | https://dpos.space/golos/registration — opened | https://dpos.blinddev.xyz/#chain=golos&app=register — opened in public CDP click-through | OK |
+| golos/explorer (Проводник) | https://dpos.space/golos/explorer — opened | https://dpos.blinddev.xyz/#chain=golos&app=explorer — opened in public CDP click-through | OK |
+| viz/profiles (Профили) | https://dpos.space/viz/profiles — opened | https://dpos.blinddev.xyz/#chain=viz&app=profiles — opened in public CDP click-through | OK |
+| viz/accounts (Аккаунты) | https://dpos.space/viz/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=viz&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| viz/wallet (Кошелёк) | https://dpos.space/viz/wallet — opened | https://dpos.blinddev.xyz/#chain=viz&app=wallet — opened in public CDP click-through | OK |
+| viz/history (История) | https://dpos.space/viz/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=viz&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| viz/broadcast (Отправка) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=viz&app=broadcast — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| viz/award (Награды) | https://dpos.space/viz/awards — opened | https://dpos.blinddev.xyz/#chain=viz&app=award — opened in public CDP click-through | OK |
+| viz/registration (Регистрация) | https://dpos.space/viz/registration — opened | https://dpos.blinddev.xyz/#chain=viz&app=registration — opened in public CDP click-through | OK |
+| viz/calculator (Калькулятор) | https://dpos.space/viz/calc — opened | https://dpos.blinddev.xyz/#chain=viz&app=calculator — opened in public CDP click-through | OK |
+| viz/manage (Управление) | https://dpos.space/viz/manage — opened | https://dpos.blinddev.xyz/#chain=viz&app=manage — opened in public CDP click-through | OK |
+| viz/explorer (Проводник) | https://dpos.space/viz/explorer — opened | https://dpos.blinddev.xyz/#chain=viz&app=explorer — opened in public CDP click-through | OK |
+| viz/exchanges (Обмен VIZ) | https://dpos.space/viz/exchanges — opened | https://dpos.blinddev.xyz/#chain=viz&app=exchanges — opened in public CDP click-through | OK |
+| steem/profiles (Профили) | https://dpos.space/steem/profiles — opened | https://dpos.blinddev.xyz/#chain=steem&app=profiles — opened in public CDP click-through | OK |
+| steem/accounts (Аккаунты) | https://dpos.space/steem/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=steem&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| steem/wallet (Кошелёк) | https://dpos.space/steem/wallet — opened | https://dpos.blinddev.xyz/#chain=steem&app=wallet — opened in public CDP click-through | OK |
+| steem/history (История) | https://dpos.space/steem/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=steem&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| steem/broadcast (Отправка) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=steem&app=broadcast — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| steem/editor (Редактор) | https://dpos.space/steem/post — opened | https://dpos.blinddev.xyz/#chain=steem&app=editor — opened in public CDP click-through | OK |
+| steem/calculator (Калькулятор) | https://dpos.space/steem/calc — opened | https://dpos.blinddev.xyz/#chain=steem&app=calculator — opened in public CDP click-through | OK |
+| steem/manage (Управление) | https://dpos.space/steem/manage — opened | https://dpos.blinddev.xyz/#chain=steem&app=manage — opened in public CDP click-through | OK |
+| steem/register (Регистрация) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=steem&app=register — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| steem/import (Импорт статьи) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=steem&app=import — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| steem/instant-view (Instant View) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=steem&app=instant-view — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| steem/swap (Обмен) | https://dpos.space/steem/swap — opened | https://dpos.blinddev.xyz/#chain=steem&app=swap — opened in public CDP click-through | OK |
+| steem/explorer (Проводник) | https://dpos.space/steem/explorer — opened | https://dpos.blinddev.xyz/#chain=steem&app=explorer — opened in public CDP click-through | OK |
+| hive/profiles (Профили) | https://dpos.space/hive/profiles — opened | https://dpos.blinddev.xyz/#chain=hive&app=profiles — opened in public CDP click-through | OK |
+| hive/accounts (Аккаунты) | https://dpos.space/hive/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=hive&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| hive/wallet (Кошелёк) | https://dpos.space/hive/wallet — opened | https://dpos.blinddev.xyz/#chain=hive&app=wallet — opened in public CDP click-through | OK |
+| hive/history (История) | https://dpos.space/hive/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=hive&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| hive/broadcast (Отправка) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=hive&app=broadcast — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| hive/editor (Редактор) | https://dpos.space/hive/post — opened | https://dpos.blinddev.xyz/#chain=hive&app=editor — opened in public CDP click-through | OK |
+| hive/calculator (Калькулятор) | https://dpos.space/hive/calc — opened | https://dpos.blinddev.xyz/#chain=hive&app=calculator — opened in public CDP click-through | OK |
+| hive/manage (Управление) | https://dpos.space/hive/manage — opened | https://dpos.blinddev.xyz/#chain=hive&app=manage — opened in public CDP click-through | OK |
+| hive/register (Регистрация) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=hive&app=register — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| hive/import (Импорт статьи) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=hive&app=import — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| hive/instant-view (Instant View) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=hive&app=instant-view — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| hive/swap (Обмен) | https://dpos.space/hive/swap — opened | https://dpos.blinddev.xyz/#chain=hive&app=swap — opened in public CDP click-through | OK |
+| hive/explorer (Проводник) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=hive&app=explorer — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| minter/profiles (Профили) | https://dpos.space/minter/profiles — opened | https://dpos.blinddev.xyz/?cb=b1ec486#chain=minter&app=profiles — public re-test opened profile for `Mxf85ceccfe2112e88be58162c43f5ec959672ab54` | FIXED and public re-tested OK |
+| minter/accounts (Аккаунты) | https://dpos.space/minter/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=minter&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| minter/wallet (Кошелёк) | https://dpos.space/minter/wallet — opened | https://dpos.blinddev.xyz/#chain=minter&app=wallet — opened in public CDP click-through | OK |
+| minter/history (История) | https://dpos.space/minter/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=minter&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| minter/broadcast (Отправка) | https://dpos.space/minter/broadcast — opened | https://dpos.blinddev.xyz/#chain=minter&app=broadcast — opened in public CDP click-through | OK |
+| minter/validators (Валидаторы) | https://dpos.space/minter/validators — opened | https://dpos.blinddev.xyz/#chain=minter&app=validators — opened in public CDP click-through | OK |
+| minter/explorer (Проводник) | https://dpos.space/minter/explorer — opened | https://dpos.blinddev.xyz/#chain=minter&app=explorer — opened in public CDP click-through | OK |
+| minter/swap (Обмен) | https://dpos.space/minter/swap — opened | https://dpos.blinddev.xyz/#chain=minter&app=swap — opened in public CDP click-through | OK |
+| minter/my-coin (Мои монеты) | https://dpos.space/minter/my-coin — opened | https://dpos.blinddev.xyz/#chain=minter&app=my-coin — opened in public CDP click-through | OK |
+| minter/calculator (Калькулятор) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=minter&app=calculator — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| minter/randomblockchain (Случайный блокчейн) | https://dpos.space/minter/randomblockchain — opened | https://dpos.blinddev.xyz/#chain=minter&app=randomblockchain — opened in public CDP click-through | OK |
+| minter/long (LONG) | https://dpos.space/minter/long — opened | https://dpos.blinddev.xyz/#chain=minter&app=long — opened in public CDP click-through | OK |
+| decimal/profiles (Профили) | https://dpos.space/decimal/profiles — opened | https://dpos.blinddev.xyz/#chain=decimal&app=profiles — opened in public CDP click-through | OK |
+| decimal/accounts (Аккаунты) | https://dpos.space/decimal/profiles — opened, equivalent account widget | https://dpos.blinddev.xyz/#chain=decimal&app=accounts — opened in public CDP click-through | minor copy difference: dedicated v3 login/add page vs old modal/widget |
+| decimal/wallet (Кошелёк) | https://dpos.space/decimal/wallet — opened | https://dpos.blinddev.xyz/#chain=decimal&app=wallet — opened in public CDP click-through | OK |
+| decimal/history (История) | https://dpos.space/decimal/wallet — opened, old wallet/history equivalent | https://dpos.blinddev.xyz/#chain=decimal&app=history — opened in public CDP click-through | minor copy difference: dedicated v3 history vs old wallet-integrated history |
+| decimal/broadcast (Отправка) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=broadcast — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| decimal/validators (Валидаторы) | https://dpos.space/decimal/validators — opened | https://dpos.blinddev.xyz/?cb=b1ec486#chain=decimal&app=validators — public re-test rendered in-route API unavailable warning, not generic route crash | FIXED and public re-tested OK |
+| decimal/explorer (Проводник) | https://dpos.space/decimal/explorer — opened | https://dpos.blinddev.xyz/#chain=decimal&app=explorer — opened in public CDP click-through | OK |
+| decimal/swap (Обмен) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=swap — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| decimal/my-coin (Монеты/NFT) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=my-coin — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+| decimal/calculator (Калькулятор) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=calculator — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
