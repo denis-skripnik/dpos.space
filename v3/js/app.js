@@ -458,11 +458,96 @@
     return `${status.regularOrPostingLabel}: ${regularOrPosting}; active: ${active}; источник: ${status.source}`;
   }
 
+  function authorityObjectFor(chain, account, authority) {
+    if (!account) return null;
+    if (chain.id === 'viz') {
+      if (authority === 'regular') return account.regular_authority || account.regular || null;
+      if (authority === 'active') return account.active_authority || account.active || null;
+    }
+    return account[authority] || null;
+  }
+
+  function keyMatchesAuthority(client, privateKey, authority) {
+    if (!privateKey || !authority) return false;
+    if (!client || !client.auth || typeof client.auth.wifToPublic !== 'function') {
+      throw new Error('Библиотека сети не умеет проверить WIF → public key. Ключ не сохранён.');
+    }
+    const publicKey = client.auth.wifToPublic(privateKey);
+    return Array.isArray(authority.key_auths) && authority.key_auths.some((item) => Array.isArray(item) && item[0] === publicKey && Number(item[1]) > 0);
+  }
+
+  async function fetchChainAccount(chain, login) {
+    await loadScript(chain.libraryPath);
+    const connection = await profiles.connect(chain);
+    return profiles.fetchAccount(connection, login);
+  }
+
+  function seedMnemonicIsValid(chain, seed) {
+    if (!seed) return false;
+    if (chain.id === 'minter' && global.minterWallet && typeof global.minterWallet.isValidMnemonic === 'function') {
+      return global.minterWallet.isValidMnemonic(seed);
+    }
+    if (chain.id === 'decimal' && global.DecimalSDK && typeof global.DecimalSDK.Wallet === 'function') {
+      try {
+        new global.DecimalSDK.Wallet(seed);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+    return seed.trim().split(/\s+/).filter(Boolean).length >= 12;
+  }
+
+  function canGenerateSeed(chain) {
+    return (chain.id === 'minter' && global.minterWallet && typeof global.minterWallet.generateWallet === 'function') ||
+      (chain.id === 'decimal' && global.DecimalSDK && typeof global.DecimalSDK.Wallet === 'function');
+  }
+
+  function generateSeedFor(chain) {
+    if (chain.id === 'minter' && global.minterWallet && typeof global.minterWallet.generateWallet === 'function') {
+      const wallet = global.minterWallet.generateWallet();
+      return {
+        seed: wallet._mnemonic || '',
+        login: wallet.getAddressString ? wallet.getAddressString() : '',
+        extra: 'Адрес сгенерирован локально. Приватный ключ не показывается; сохраните seed-фразу отдельно.'
+      };
+    }
+    if (chain.id === 'decimal' && global.DecimalSDK && typeof global.DecimalSDK.Wallet === 'function') {
+      const wallet = new global.DecimalSDK.Wallet();
+      return {
+        seed: wallet.mnemonic || '',
+        login: wallet.address || '',
+        extra: [wallet.address ? `Адрес: ${wallet.address}` : '', 'Приватный ключ не показывается; сохраните seed-фразу отдельно.'].filter(Boolean).join('\n')
+      };
+    }
+    throw new Error('Генерация seed недоступна: библиотека кошелька не загружена.');
+  }
+
+  function renderSeedImportOptions(chain) {
+    const groups = auth.getSeedChains().filter((group) => group.chainId !== chain.id);
+    const options = [];
+    groups.forEach((group) => {
+      group.users.forEach((user, index) => {
+        options.push(`<option value="${escapeHtml(`${group.chainId}:${index}`)}">${escapeHtml(group.chainId.toUpperCase())}: ${escapeHtml(auth.getUserLogin(user))}</option>`);
+      });
+    });
+    if (!options.length) return '<p class="muted">Seed-аккаунты в других сетях не найдены.</p>';
+    return `
+      <form id="seed-import-form" class="stacked-form">
+        <div class="field"><label for="seed-import-account">Импортировать seed из другой сети</label><select id="seed-import-account" name="account"><option value="">Выберите аккаунт</option>${options.join('')}</select></div>
+        <button type="submit">Импортировать выбранный seed</button>
+      </form>`;
+  }
+
   async function renderAccounts(chain) {
     await loadScript(chain.cryptoPath);
+    if (chain.walletPath) await loadScript(chain.walletPath);
+    if (chain.id === 'minter' || chain.id === 'decimal') await loadScript(chain.libraryPath);
     const users = auth.getUsers(chain);
     const current = auth.getCurrentUser(chain);
     const currentLogin = auth.getUserLogin(current);
+    const isSeedChain = chain.id === 'minter' || chain.id === 'decimal';
+    const regularOrPosting = chain.id === 'viz' ? 'regular' : 'posting';
     const rows = users.map((user, index) => {
       const login = auth.getUserLogin(user);
       const type = auth.getUserType(user);
@@ -475,13 +560,14 @@
             @${escapeHtml(login)}${type !== 'standard' ? ` (${escapeHtml(type)})` : ''}
           </label>
           <br><span class="muted">${escapeHtml(keyStatusText(status))}</span>
+          <br><button type="button" class="secondary" data-delete-account="${index}">Удалить</button>
         </li>`;
     }).join('');
 
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: сохранённые аккаунты</h2>
-        <p>Используются уже сохранённые в браузере аккаунты для этой сети.</p>
+        <p>Используются сохранённые в браузере аккаунты для этой сети. Ключи шифруются старой схемой localStorage и не показываются после сохранения.</p>
         ${currentLogin ? `<p><strong>Текущий аккаунт:</strong> @${escapeHtml(currentLogin)}. ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>` : '<p><strong>Текущий аккаунт не выбран.</strong></p>'}
         ${users.length ? `
           <form id="legacy-account-form">
@@ -491,9 +577,38 @@
             </fieldset>
             <button type="submit">Выбрать аккаунт</button>
           </form>` : '<p>Сохранённые аккаунты для этой сети не найдены.</p>'}
-        <p class="notice">Здесь можно выбрать уже сохранённый аккаунт. Добавление и удаление аккаунтов выполняйте в привычном интерфейсе управления аккаунтами.</p>
+        <div id="accounts-message" class="operation-result" role="status" aria-live="polite"></div>
+      </section>
+      <section class="panel">
+        <h2>Добавить аккаунт</h2>
+        ${isSeedChain ? `
+          <form id="seed-account-form" class="stacked-form">
+            <div class="field"><label for="seed-login">Имя/адрес аккаунта</label><input id="seed-login" name="login" type="text" autocomplete="username" placeholder="${escapeHtml(chain.defaultAccount || '')}"></div>
+            <div class="field"><label for="seed-value">Seed-фраза</label><textarea id="seed-value" name="seed" rows="4" autocomplete="off"></textarea></div>
+            <button type="submit">Сохранить seed-аккаунт</button>
+            ${canGenerateSeed(chain) ? '<button type="button" id="generate-seed-account" class="secondary">Сгенерировать новый seed</button>' : ''}
+          </form>
+          <pre id="generated-seed-extra" class="muted" aria-live="polite"></pre>
+          ${renderSeedImportOptions(chain)}
+        ` : `
+          <form id="key-account-form" class="stacked-form">
+            <div class="field"><label for="key-login">Логин аккаунта</label><input id="key-login" name="login" type="text" autocomplete="username"></div>
+            <div class="field"><label for="key-main">${escapeHtml(regularOrPosting)} WIF</label><input id="key-main" name="main" type="password" autocomplete="off"></div>
+            <div class="field"><label for="key-active">active WIF (опционально)</label><input id="key-active" name="active" type="password" autocomplete="off"></div>
+            <button type="submit">Проверить и сохранить</button>
+          </form>
+        `}
+        <p class="notice">Ключи/seed сохраняются локально в браузере, не отправляются на сервер и не показываются после сохранения. Перед сохранением v3 проверяет authority аккаунта, где это применимо, и пишет те же ключи localStorage, что старая версия.</p>
       </section>
     `;
+
+    const messageEl = document.getElementById('accounts-message');
+    const showAccountMessage = (message, state) => {
+      if (!messageEl) return;
+      messageEl.textContent = message;
+      messageEl.dataset.state = state || 'info';
+      setStatus(message, state || 'info');
+    };
 
     const form = document.getElementById('legacy-account-form');
     if (form) {
@@ -508,7 +623,109 @@
         auth.selectUser(chain, auth.getUserLogin(user), auth.getUserType(user));
         accountInput.value = auth.getUserLogin(user);
         navigate({ chain: chain.id, app: 'accounts', account: auth.getUserLogin(user) });
-        setStatus(`Аккаунт @${auth.getUserLogin(user)} выбран.`, 'ok');
+        showAccountMessage(`Аккаунт @${auth.getUserLogin(user)} выбран.`, 'ok');
+      });
+
+      form.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-delete-account]');
+        if (!button) return;
+        const user = users[Number(button.dataset.deleteAccount)];
+        if (!user) return;
+        const login = auth.getUserLogin(user);
+        const confirmed = global.confirm(`Удалить аккаунт ${login} из списка ${chain.title}? Ключи в localStorage для этой записи будут удалены из списка.`);
+        if (!confirmed) return;
+        auth.removeUser(chain, login, auth.getUserType(user));
+        showAccountMessage(`Аккаунт @${login} удалён из списка.`, 'ok');
+        renderAccounts(chain);
+      });
+    }
+
+    const keyForm = document.getElementById('key-account-form');
+    if (keyForm) {
+      keyForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submitter = event.submitter || keyForm.querySelector('button[type="submit"]');
+        if (submitter) submitter.disabled = true;
+        try {
+          const data = new FormData(keyForm);
+          const login = String(data.get('login') || '').trim().replace(/^@/, '');
+          const mainKey = String(data.get('main') || '').trim();
+          const activeKey = String(data.get('active') || '').trim();
+          showAccountMessage(`Проверяю аккаунт @${login} и ключи...`, 'loading');
+          const account = await fetchChainAccount(chain, login);
+          const client = global[chain.libraryGlobal];
+          const mainAuthority = authorityObjectFor(chain, account, regularOrPosting);
+          if (!keyMatchesAuthority(client, mainKey, mainAuthority)) throw new Error(`${regularOrPosting}-ключ не найден в authority @${login}.`);
+          if (activeKey && !keyMatchesAuthority(client, activeKey, authorityObjectFor(chain, account, 'active'))) throw new Error('active-ключ не найден в active authority аккаунта.');
+          const keys = { active: activeKey };
+          keys[regularOrPosting] = mainKey;
+          auth.saveUser(chain, auth.createKeyUser(chain, login, keys));
+          keyForm.reset();
+          accountInput.value = login;
+          showAccountMessage(`Аккаунт @${login} добавлен и выбран.`, 'ok');
+          navigate({ chain: chain.id, app: 'accounts', account: login });
+        } catch (error) {
+          showAccountMessage(profiles.formatError(error), 'error');
+        } finally {
+          if (submitter) submitter.disabled = false;
+        }
+      });
+    }
+
+    const seedForm = document.getElementById('seed-account-form');
+    if (seedForm) {
+      seedForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        try {
+          const data = new FormData(seedForm);
+          const login = String(data.get('login') || '').trim();
+          const seed = String(data.get('seed') || '').trim();
+          if (!seedMnemonicIsValid(chain, seed)) throw new Error('Seed-фраза невалидна. Проверьте её, пожалуйста.');
+          auth.saveUser(chain, auth.createSeedUser(chain, login, seed));
+          seedForm.reset();
+          accountInput.value = login;
+          showAccountMessage(`Seed-аккаунт ${login} добавлен и выбран.`, 'ok');
+          navigate({ chain: chain.id, app: 'accounts', account: login });
+        } catch (error) {
+          showAccountMessage(profiles.formatError(error), 'error');
+        }
+      });
+    }
+
+    const generateButton = document.getElementById('generate-seed-account');
+    if (generateButton && seedForm) {
+      generateButton.addEventListener('click', () => {
+        try {
+          const generated = generateSeedFor(chain);
+          seedForm.elements.login.value = generated.login || '';
+          seedForm.elements.seed.value = generated.seed || '';
+          document.getElementById('generated-seed-extra').textContent = generated.extra || '';
+          showAccountMessage('Новый seed сгенерирован локально. Сохраните seed отдельно до использования.', 'info');
+        } catch (error) {
+          showAccountMessage(profiles.formatError(error), 'error');
+        }
+      });
+    }
+
+    const importForm = document.getElementById('seed-import-form');
+    if (importForm) {
+      importForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        try {
+          const selected = String(new FormData(importForm).get('account') || '');
+          if (!selected) throw new Error('Выберите аккаунт для импорта.');
+          const [sourceChain, indexText] = selected.split(':');
+          const sourceUsers = auth.getSeedChains().find((group) => group.chainId === sourceChain);
+          const sourceUser = sourceUsers && sourceUsers.users[Number(indexText)];
+          if (!sourceUser) throw new Error('Исходный seed-аккаунт не найден.');
+          const imported = Object.assign({}, sourceUser, { importFrom: sourceChain });
+          auth.saveUser(chain, imported);
+          accountInput.value = auth.getUserLogin(imported);
+          showAccountMessage(`Seed-аккаунт ${auth.getUserLogin(imported)} импортирован из ${sourceChain.toUpperCase()} и выбран.`, 'ok');
+          navigate({ chain: chain.id, app: 'accounts', account: auth.getUserLogin(imported) });
+        } catch (error) {
+          showAccountMessage(profiles.formatError(error), 'error');
+        }
       });
     }
 
@@ -1664,10 +1881,19 @@
   }
 
   async function fetchJsonText(url, sourceLabel) {
-    const response = await fetch(url, { headers: { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' } });
-    if (!response.ok) throw new Error(`${sourceLabel || 'API'} HTTP ${response.status}`);
-    const text = await response.text();
-    return parseJsonMaybeText(text, sourceLabel);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+    try {
+      const response = await fetch(url, { headers: { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' }, signal: controller ? controller.signal : undefined });
+      if (!response.ok) throw new Error(`${sourceLabel || 'API'} HTTP ${response.status}`);
+      const text = await response.text();
+      return parseJsonMaybeText(text, sourceLabel);
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error(`${sourceLabel || 'API'} не ответил за 10 секунд.`);
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function fetchLongJson(path, params) {
@@ -1782,6 +2008,7 @@
   }
 
   async function renderLongMain() {
+    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю обзор и рейтинг LONG...</p></section>';
     setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
     const [data, pool] = await Promise.all([fetchLongJson(''), fetchMinterLongPool()]);
     const poolStats = calcLongPoolStats(pool);
@@ -1825,6 +2052,7 @@
   async function renderLongBids() {
     const state = parseHash();
     const coin = String(state.coin || '').trim();
+    appEl.innerHTML = '<section class="panel"><h2>LONG: ставки</h2><p>Загружаю LONG bids...</p></section>';
     setStatus('Загружаю LONG bids...', 'loading');
     const data = await fetchLongJson('/bids', coin ? { coin } : {});
     let activeBids = [];
@@ -1845,6 +2073,7 @@
   }
 
   async function renderLongDeferredTxs() {
+    appEl.innerHTML = '<section class="panel"><h2>LONG: отложенные транзакции</h2><p>Загружаю отложенные транзакции...</p></section>';
     setStatus('Загружаю LONG: отложенные транзакции...', 'loading');
     const data = await fetchLongJson('/deferred-txs');
     const rows = Array.isArray(data) ? data : (data.items || data.txs || []);

@@ -16,6 +16,9 @@ assert(!appSource.includes("document.getElementById('explorer-result').innerHTML
 assert(!appSource.includes('return `<pre>${escapeHtml(JSON.stringify(broadcast.sanitizePrepared(prepared), null, 2))}</pre>`'), 'broadcast prepared payload is not the primary preview');
 assert(appSource.includes('Данные операции для проверки'), 'operation payload is explicitly labelled as secondary');
 assert(appSource.includes('Кратко перед отправкой'), 'broadcast result includes a human-readable summary before technical payload');
+assert(appSource.includes('Ключи/seed сохраняются локально в браузере, не отправляются на сервер'), 'accounts page warns that secrets stay local');
+assert(!appSource.includes('Приватный ключ: ${'), 'generated account UI must not render private keys');
+assert(!appSource.includes('getPrivateKeyString().replace'), 'Decimal generated account UI must not expose private key strings');
 
 for (const label of [
   'Что открыть',

@@ -130,6 +130,12 @@ button:hover {
   filter: brightness(1.05);
 }
 
+button.secondary {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.65;

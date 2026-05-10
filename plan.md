@@ -522,3 +522,43 @@ Removed as legacy/non-runtime for v3:
 - stale maintenance and old SEO artifacts tied to legacy routes.
 
 Validation expectation: v3 runtime source must not reference `blockchains/` paths; `tests/v3-route-coverage-smoke.js` enforces vendored `v3/vendor/` paths.
+
+## 2026-05-10 account/login parity and QA pass
+
+Scope for this pass:
+
+- Restore the critical old-flow parity gap in `Аккаунты`: adding/logging into accounts, not only selecting existing localStorage records.
+- Keep v3 static-only: no PHP/backend runtime, no new frameworks/dependencies.
+- Keep old localStorage key names and `dpos.space_...` SJCL passphrases unchanged.
+- Do not expose private keys/WIF/seed in reports, logs, previews, or UI after save; generated seed UI shows seed/address guidance only, not private key.
+
+Old version evidence inspected:
+
+- `blockchains/{golos,viz,hive,steem}/js/modal-accounts.js`: login + posting/regular WIF + optional active WIF, authority public-key check, legacy `*_users`/`*_current_user` writes.
+- `blockchains/{minter,decimal}/js/modal-accounts.js`: login/address + seed, mnemonic validation, same `*_users`/`*_current_user` writes, import of seed accounts from another dpos.space chain with `importFrom`.
+- `blockchains/{minter,decimal}/js/blockchain.js`: decrypts imported seed with `dpos.space_<sourceChain>_<login>_seed`.
+- Browser `/chro` old-site smoke: Golos profile page exposes `Добавить аккаунт` with login/posting/active fields; Decimal wallet exposes manual seed login plus import and create account sections; Minter profile and Decimal wallet routes load legacy service content.
+
+Implemented in v3:
+
+- `v3/js/auth.js`: added legacy-compatible account writers/removers, current-user writer, key/seed user creation, seed-chain scanner, duplicate protection, imported-seed source-chain handling.
+- `v3/js/app.js`: `Аккаунты` now shows saved users, current user, switch, confirm-delete, add key-account forms for Golos/VIZ/Steem/Hive, add seed-account forms for Minter/Decimal, local seed generation, and cross-chain seed import.
+- `v3/css/style.css`: secondary button style for safe delete/generate controls.
+- `tests/v3-accounts-auth-smoke.js`: verifies legacy passphrases for posting/regular/active/seed, duplicate prevention, seed import source-chain decrypt, removal/current-user behavior.
+- `tests/v3-ux-smoke.js`: guards local-secret warning and prevents generated-account private-key rendering.
+- LONG load hardening: fetch timeout and explicit loading panels so an unavailable LONG backend does not leave stale route content indefinitely.
+
+Validation checklist for this pass:
+
+- `node --check v3/js/*.js`.
+- `node --check tests/*.js`.
+- all `tests/*.js`.
+- `git diff --check`.
+- Static HTTP curl checks for `/`, `/favicon.ico`, `/v3/js/app.js`, `/v3/js/auth.js`, `/v3/js/chains.js`, `/v3/css/style.css`, `/v3/vendor/golos/golos.min.js`.
+- `/chro` local v3 smoke for accounts on Golos/VIZ/Minter/Decimal and representative profile/wallet/history/explorer/write routes.
+
+Known intentional differences / blockers:
+
+- v3 still does not recreate old PHP/backend-only pages and cron/data flows.
+- OAuth/Vizonator/BIP wallet link flows are recognized as existing account types, but v3 does not invent new OAuth/extension signing paths in this static pass.
+- LONG depends on `backend.dpos.space`; if it hangs, v3 now times out with a clear error instead of hanging forever.
