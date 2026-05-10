@@ -444,6 +444,48 @@
     return '';
   }
 
+
+  async function fetchGolosUiaBalances(connection, account) {
+    const api = connection.client && connection.client.api;
+    if (!api || typeof api.getAccountsBalancesAsync !== 'function') return [];
+    try {
+      const rows = await api.getAccountsBalancesAsync([account]);
+      const balances = rows && rows[0] ? rows[0] : {};
+      return Object.entries(balances).flatMap(([symbol, value]) => {
+        const main = Number(value && value.balance) || 0;
+        const tip = Number(value && value.tip_balance) || 0;
+        const result = [];
+        if (main > 0) result.push([`UIA ${symbol}`, `${main} ${symbol}`]);
+        if (tip > 0) result.push([`UIA ${symbol} TIP`, `${tip} ${symbol}`]);
+        return result;
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function golosPowerRateFromProfile(profile) {
+    return profile && profile.raw ? profiles.golosPowerRate(profile.raw) : 0;
+  }
+
+  function formatGolosPowerMax(profile, rawVesting) {
+    const rate = golosPowerRateFromProfile(profile);
+    const vests = Number.parseFloat(String(rawVesting || '')) || 0;
+    if (!rate || !vests) return '';
+    return `${(vests / 1000000 * rate).toFixed(6)} СГ`;
+  }
+
+  function normalizeGolosPowerInput(profile, value, label) {
+    const text = String(value || '').trim().replace(',', '.').replace(/\s*(СГ|SG|GP)$/i, '');
+    if (!/^\d+(?:\.\d{1,6})?$/.test(text) || Number(text) < 0) {
+      throw new Error(`${label || 'СГ'}: нужно неотрицательное число, например 1.000000.`);
+    }
+    const rate = golosPowerRateFromProfile(profile);
+    if (!rate) throw new Error('Не удалось получить курс GESTS → СГ для подготовки операции. Обновите кошелёк и попробуйте ещё раз.');
+    const gests = Number(text) * 1000000 / rate;
+    return `${gests.toFixed(6)} GESTS`;
+  }
+
   function bindMaxButtons(root) {
     root.querySelectorAll('[data-fill-target]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -815,6 +857,8 @@
     const connection = await getConnection(chain);
     const rawAccount = await profiles.fetchAccount(connection, account);
     const profile = profiles.normalizeAccount(connection, rawAccount);
+    const uiaBalances = chain.id === 'golos' ? await fetchGolosUiaBalances(connection, account) : [];
+    const balanceRows = profile.balances.concat(uiaBalances);
     const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
     const walletItems = history.getWalletOperations(chain, items).slice(0, 50);
 
@@ -825,14 +869,14 @@
         <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>
         <p class="notice">Перед отправкой можно проверить операцию. Реальная отправка запускается отдельной кнопкой и подтверждается в браузере.</p>
         <h3>Балансы</h3>
-        <ul>${profile.balances.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
+        <ul>${balanceRows.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
         ${walletPrepareForms(chain, profile)}
         <h3>Последние финансовые операции</h3>
         ${renderHistoryTable(walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
       </section>
     `;
 
-    bindWalletForms(chain);
+    bindWalletForms(chain, profile);
     bindMaxButtons(appEl);
     setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки «Максимум» и отправка в сеть.`, 'ok');
   }
@@ -852,7 +896,7 @@
     const supportsClaim = chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem';
     const supportsSavings = chain.id !== 'viz';
     const liquidMax = profile ? pickBalance(profile, liquid) : '';
-    const vestingMax = profile ? pickBalance(profile, vesting) : '';
+    const vestingMax = chain.id === 'golos' ? formatGolosPowerMax(profile, profile && profile.raw && profile.raw.vesting_shares) : (profile ? pickBalance(profile, vesting) : '');
     const operations = [
       operationDetails(`Перевод (${liquid})`, `
         <form id="wallet-transfer-form" class="stacked-form">
@@ -881,7 +925,7 @@
         <form id="wallet-withdraw-vesting-form" class="stacked-form">
           <fieldset>
             <legend>Вывод vesting / power down</legend>
-            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма СГ</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 СГ">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
             <button type="submit" name="intent" value="preview">Проверить вывод vesting</button>
             <button type="submit" name="intent" value="send">Отправить power down в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -892,7 +936,7 @@
           <fieldset>
             <legend>Делегирование</legend>
             <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма СГ</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 СГ">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
             <button type="submit" name="intent" value="preview">Проверить делегирование</button>
             <button type="submit" name="intent" value="send">Отправить делегирование в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -963,7 +1007,7 @@
       ${operations.join('')}`;
   }
 
-  function bindWalletForms(chain) {
+  function bindWalletForms(chain, profile) {
     bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
       auth.getCurrentLogin(chain),
       normalizeAccountInput(chain, form.get('to'), 'Получатель'),
@@ -979,16 +1023,21 @@
       return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'Power up', to, amount });
     });
 
-    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => broadcast.prepare(chain, 'active', 'withdrawVesting', [
-      auth.getCurrentLogin(chain),
-      normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма vesting')
-    ], { title: 'Withdraw vesting', amount: normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма vesting') }));
+    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => {
+      const amount = chain.id === 'golos'
+        ? normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ')
+        : normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма vesting');
+      return broadcast.prepare(chain, 'active', 'withdrawVesting', [
+        auth.getCurrentLogin(chain),
+        amount
+      ], { title: 'Withdraw vesting', amount });
+    });
 
     bindOperationForm(chain, 'wallet-delegation-form', (form) => broadcast.prepare(chain, 'active', 'delegateVestingShares', [
       auth.getCurrentLogin(chain),
       normalizeAccountInput(chain, form.get('delegatee'), 'Delegatee'),
-      normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation')
-    ], { title: 'Delegation', to: normalizeAccountInput(chain, form.get('delegatee'), 'Delegatee'), amount: normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation') }));
+      chain.id === 'golos' ? normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ') : normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation')
+    ], { title: 'Delegation', to: normalizeAccountInput(chain, form.get('delegatee'), 'Delegatee'), amount: chain.id === 'golos' ? normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ') : normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation') }));
 
     bindOperationForm(chain, 'wallet-claim-form', (form) => {
       const account = auth.getCurrentLogin(chain);
@@ -1050,7 +1099,7 @@
         <p class="notice">Приватные ключи не показываются в интерфейсе, проверке операции и ответах сети.</p>
         ${walletPrepareForms(chain)}
       </section>`;
-    bindWalletForms(chain);
+    bindWalletForms(chain, null);
     bindMaxButtons(appEl);
     setStatus('Отправка операций готова: доступны проверка и отправка в сеть.', 'ok');
   }
