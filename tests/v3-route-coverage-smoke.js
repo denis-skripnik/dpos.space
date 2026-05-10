@@ -13,6 +13,7 @@ const chains = context.DposChains;
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 
 assert.deepStrictEqual(Object.keys(chains).sort(), ['decimal', 'golos', 'hive', 'minter', 'steem', 'viz'], 'v3 exposes only the six requested chains');
+assert.strictEqual(chains.viz.nodes[0], 'https://api.viz.world', 'VIZ uses api.viz.world as the first public node without trailing slash');
 assert(!Object.prototype.hasOwnProperty.call(chains, 'cyber'), 'Cyber is not enabled in v3 chains');
 assert(!Object.prototype.hasOwnProperty.call(chains, 'evm'), 'EVM is not enabled in v3 chains');
 

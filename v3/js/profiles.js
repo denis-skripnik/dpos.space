@@ -69,8 +69,10 @@
     let lastError = null;
 
     const storedNode = global.localStorage.getItem(`${chainConfig.id}_node`);
-    const nodes = storedNode && chainConfig.nodes.includes(storedNode)
-      ? [storedNode, ...chainConfig.nodes.filter((nodeUrl) => nodeUrl !== storedNode)]
+    const normalizedStoredNode = storedNode && storedNode.replace(/\/$/, '');
+    const shouldPreferStoredNode = chainConfig.id !== 'viz';
+    const nodes = shouldPreferStoredNode && normalizedStoredNode && chainConfig.nodes.includes(normalizedStoredNode)
+      ? [normalizedStoredNode, ...chainConfig.nodes.filter((nodeUrl) => nodeUrl !== normalizedStoredNode)]
       : chainConfig.nodes;
 
     for (const nodeUrl of nodes) {
