@@ -246,6 +246,17 @@ summary {
   color: var(--muted);
 }
 
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.footer-links a {
+  font-weight: 700;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
