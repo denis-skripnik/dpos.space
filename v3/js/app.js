@@ -533,6 +533,82 @@
     }
   }
 
+  function parseGolosJsonMetadata(value) {
+    try {
+      return value && typeof value === 'object' ? value : JSON.parse(String(value || '{}'));
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function golosAssetSymbolFromMaxSupply(maxSupply) {
+    const parts = String(maxSupply || '').trim().split(/\s+/);
+    return parts.length > 1 ? normalizeGolosTokenSymbol(parts[parts.length - 1], 'UIA symbol') : '';
+  }
+
+  function buildGolosUiaGatewayFromAsset(asset) {
+    const symbol = asset && (asset.symbol || asset.asset || asset.name || golosAssetSymbolFromMaxSupply(asset.max_supply));
+    if (!symbol) return null;
+    const token = normalizeGolosTokenSymbol(symbol, 'UIA symbol');
+    const meta = parseGolosJsonMetadata(asset.json_metadata);
+    if (!meta) return null;
+
+    const gateway = { symbol: token };
+    if (meta.deposit && meta.deposit.unavailable !== true) {
+      const deposit = meta.deposit;
+      gateway.deposit = {
+        source: 'metadata',
+        details: deposit.details || '',
+        to_type: deposit.to_type || '',
+        to_fixed: deposit.to_fixed || deposit.to || '',
+        memo_fixed: String(deposit.memo_fixed || '').replaceAll('<account>', auth.getCurrentLogin(chains.golos) || ''),
+        to_transfer: deposit.to_transfer || '',
+        memo_transfer: String(deposit.memo_transfer || '').replaceAll('<account>', auth.getCurrentLogin(chains.golos) || ''),
+        min_amount: deposit.min_amount || '',
+        fee: deposit.fee || ''
+      };
+    }
+
+    if (meta.withdrawal && meta.withdrawal.unavailable !== true) {
+      const withdrawal = meta.withdrawal;
+      gateway.withdraw = {
+        source: 'metadata',
+        details: withdrawal.details || '',
+        min_amount: withdrawal.min_amount || '',
+        fee: withdrawal.fee || '',
+        account: withdrawal.account || withdrawal.to || '',
+        ways: Array.isArray(withdrawal.ways) ? withdrawal.ways.map((way) => ({
+          name: way && way.name || '',
+          prefix: way && way.prefix || '',
+          memo: way && way.memo || '',
+          postfix: way && way.postfix || '',
+          postfix_title: way && way.postfix_title || ''
+        })) : []
+      };
+    }
+
+    return gateway.deposit || gateway.withdraw ? gateway : null;
+  }
+
+  async function fetchGolosUiaGateways(chain, balanceRows) {
+    const symbols = Array.from(new Set((balanceRows || [])
+      .map((row) => row && row[2])
+      .filter((meta) => meta && meta.kind === 'uia' && meta.balanceType === 'main')
+      .map((meta) => normalizeGolosTokenSymbol(meta.symbol, 'UIA symbol'))));
+    if (!symbols.length) return [];
+    try {
+      await loadScript(chain.libraryPath);
+      const connection = await profiles.connect(chain);
+      const api = connection.client && connection.client.api;
+      if (!api || typeof api.getAssetsAsync !== 'function') return [];
+      const assets = await api.getAssetsAsync('', symbols);
+      return (assets || []).map(buildGolosUiaGatewayFromAsset).filter(Boolean);
+    } catch (error) {
+      console.warn('Golos UIA gateway metadata was not loaded:', error);
+      return [];
+    }
+  }
+
   function golosPowerRateFromProfile(profile) {
     return profile && profile.raw ? profiles.golosPowerRate(profile.raw) : 0;
   }
@@ -660,6 +736,64 @@
       .filter((token) => golosAmountNumber(token[balanceType]) > 0)
       .map((token) => `<option value="${escapeHtml(token.symbol)}" data-max="${escapeHtml(token[balanceType])}">${escapeHtml(token.symbol)} — максимум ${escapeHtml(token[balanceType])}</option>`)
       .join('');
+  }
+
+  function golosTemplateStorageKey(kind, token) {
+    return `${normalizeGolosTokenSymbol(token || 'GOLOS', 'Токен шаблона')}_${kind}_templates`;
+  }
+
+  function getGolosBuiltInTemplates(kind, token, login) {
+    const symbol = normalizeGolosTokenSymbol(token || 'GOLOS', 'Токен шаблона');
+    if (kind === 'transfer') {
+      const templates = [{ id: 'me', builtin: true, name: 'На свой аккаунт в TIP-баланс', to: login || '', memo: '', in: 'to_tip' }];
+      if (symbol === 'GOLOS') templates.push({ id: 'rudex', builtin: true, name: 'На Rudex (memo берите на бирже)', to: 'rudex', memo: '', in: 'to_balance' });
+      return templates;
+    }
+    if (kind === 'donate' && symbol === 'GOLOS') {
+      return [
+        { id: 'tiptok', builtin: true, name: 'Перевод с TIP-баланса в ликвид через tiptok', to: 'tiptok', memo: '' },
+        { id: 'ecurrex-t2g', builtin: true, name: 'Перевод с TIP-баланса в ликвид через ecurrex-t2g', to: 'ecurrex-t2g', memo: '' }
+      ];
+    }
+    return [];
+  }
+
+  function readGolosCustomTemplates(kind, token) {
+    const raw = global.localStorage && global.localStorage.getItem(golosTemplateStorageKey(kind, token));
+    const parsed = raw ? parseGolosJsonMetadata(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => item && item.name) : [];
+  }
+
+  function writeGolosCustomTemplates(kind, token, templates) {
+    if (!global.localStorage) return;
+    global.localStorage.setItem(golosTemplateStorageKey(kind, token), JSON.stringify(Array.isArray(templates) ? templates : []));
+  }
+
+  function upsertGolosCustomTemplate(kind, token, template) {
+    const templates = readGolosCustomTemplates(kind, token);
+    const index = templates.findIndex((item) => item.name === template.name);
+    if (index >= 0) templates[index] = Object.assign({}, templates[index], template);
+    else templates.push(template);
+    writeGolosCustomTemplates(kind, token, templates);
+    return templates;
+  }
+
+  function removeGolosCustomTemplate(kind, token, indexOneBased) {
+    const templates = readGolosCustomTemplates(kind, token);
+    const index = Number(indexOneBased) - 1;
+    if (index >= 0 && index < templates.length) templates.splice(index, 1);
+    writeGolosCustomTemplates(kind, token, templates);
+    return templates;
+  }
+
+  function buildGolosWithdrawMemo(prefix, main, postfix) {
+    const base = `${String(prefix || '')}${String(main || '').trim()}`;
+    const extra = String(postfix || '').trim();
+    return extra ? `${base} ${extra}` : base;
+  }
+
+  function getGolosGatewayOptions(gateways, type) {
+    return (gateways || []).filter((gateway) => gateway && gateway[type]);
   }
 
 
@@ -1054,7 +1188,8 @@
     setStatus(`Загружаю Golos-кошелёк @${account}...`, 'loading');
 
     const data = await loadGrapheneWalletData(chain, account, { loadExtraBalances: fetchGolosUiaBalances });
-    const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows);
+    const uiaGateways = await fetchGolosUiaGateways(chain, data.balanceRows);
+    const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows, uiaGateways);
 
     appEl.innerHTML = `
       <section class="panel wallet-golos">
@@ -1070,7 +1205,7 @@
       </section>
     `;
 
-    bindGolosWalletForms(chain, data.profile);
+    bindGolosWalletForms(chain, data.profile, uiaGateways);
     bindMaxButtons(appEl);
     setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
   }
@@ -1130,6 +1265,7 @@
             <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
             <button type="submit" name="intent" value="preview">Проверить перевод</button>
             <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
+            <button type="button" data-template-save="transfer" data-template-token="GOLOS">Создать шаблон перевода</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
@@ -1259,7 +1395,68 @@
     return `<ul class="wallet-golos-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
   }
 
-  function renderGolosWalletForms(chain, profile, balanceRows) {
+  function renderTemplateSelect(kind, token, login, selectId) {
+    const builtIns = getGolosBuiltInTemplates(kind, token, login);
+    const custom = readGolosCustomTemplates(kind, token);
+    const builtInOptions = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-in="${escapeHtml(item.in || '')}">${escapeHtml(item.name)}</option>`).join('');
+    const customOptions = custom.map((item, index) => `<option value="${index + 1}" data-to="${escapeHtml(item.to || '')}" data-memo="${escapeHtml(item.memo || '')}" data-in="${escapeHtml(item.in || '')}">${escapeHtml(item.name)}</option>`).join('');
+    return `<div class="field"><label for="${selectId}">Шаблон ${kind === 'transfer' ? 'перевода' : 'доната'} (${escapeHtml(token)})</label><select id="${selectId}" data-template-select="${kind}" data-template-token="${escapeHtml(token)}"><option value="">Выберите шаблон</option>${builtInOptions}${customOptions}</select> <button type="button" data-template-remove="${kind}" data-template-token="${escapeHtml(token)}" data-template-select-id="${selectId}" hidden>Удалить текущий шаблон</button></div>`;
+  }
+
+  function renderGolosUiaDepositSection(gateways) {
+    const depositGateways = getGolosGatewayOptions(gateways, 'deposit');
+    if (!depositGateways.length) return '';
+    const options = depositGateways.map((gateway) => `<option value="${escapeHtml(gateway.symbol)}">${escapeHtml(gateway.symbol)}</option>`).join('');
+    const panels = depositGateways.map((gateway, index) => {
+      const deposit = gateway.deposit;
+      const extras = [deposit.min_amount && `Минимальная сумма: ${deposit.min_amount}`, deposit.fee && `Комиссия: ${deposit.fee}`].filter(Boolean);
+      let body = deposit.details ? `<p>${escapeHtml(deposit.details)}</p>` : '';
+      if (extras.length) body += `<ul>${extras.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+      if (String(deposit.to_type || '').toLowerCase() === 'fixed') {
+        body += '<p>Данные для пополнения:</p><ul>';
+        if (deposit.to_fixed) body += `<li>Адрес/получатель: <code>${escapeHtml(deposit.to_fixed)}</code></li>`;
+        if (deposit.memo_fixed) body += `<li>Memo: <code>${escapeHtml(deposit.memo_fixed)}</code></li>`;
+        body += '</ul>';
+      } else if (String(deposit.to_type || '').toLowerCase() === 'api') {
+        body += `<p>Адрес запрашивается через <code>/golos/api/uia-deposit</code>.</p><p><button type="button" data-uia-deposit-api="${escapeHtml(gateway.symbol)}">Получить адрес</button></p><div id="wallet-golos-uia-deposit-result-${escapeHtml(gateway.symbol)}" class="operation-result" role="status" aria-live="polite"></div>`;
+      } else {
+        body += '<p class="muted">Тип пополнения из metadata не поддержан автоматически.</p>';
+      }
+      if (deposit.to_transfer && deposit.memo_transfer) {
+        body += `<form id="wallet-golos-uia-deposit-transfer-${escapeHtml(gateway.symbol)}" class="stacked-form"><input type="hidden" name="to" value="${escapeHtml(deposit.to_transfer)}"><input type="hidden" name="memo" value="${escapeHtml(deposit.memo_transfer)}"><fieldset><legend>Запрос адреса через перевод 0.001 GOLOS</legend><p class="muted">Это реальная active-операция transfer на шлюз. Сначала нажмите «Проверить», затем отдельной кнопкой подтвердите отправку.</p><button type="submit" name="intent" value="preview">Проверить запрос адреса</button> <button type="submit" name="intent" value="send">Отправить 0.001 GOLOS</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></fieldset></form>`;
+      }
+      return `<div data-uia-deposit-panel="${escapeHtml(gateway.symbol)}" ${index ? 'hidden' : ''}>${body}</div>`;
+    }).join('');
+    return operationDetails('UIA deposit / пополнение через gateways', `<div class="field"><label for="wallet-golos-uia-deposit-token">Токен/gateway</label><select id="wallet-golos-uia-deposit-token">${options}</select></div>${panels}`);
+  }
+
+  function renderGolosUiaWithdrawSection(gateways) {
+    const withdrawGateways = getGolosGatewayOptions(gateways, 'withdraw').filter((gateway) => gateway.withdraw.account && gateway.withdraw.ways.length);
+    if (!withdrawGateways.length) return '';
+    const options = withdrawGateways.flatMap((gateway) => gateway.withdraw.ways.map((way, index) => `<option value="${escapeHtml(gateway.symbol)}:${index}" data-token="${escapeHtml(gateway.symbol)}" data-account="${escapeHtml(gateway.withdraw.account)}" data-prefix="${escapeHtml(way.prefix || '')}" data-memo-label="${escapeHtml(way.memo || 'Данные для вывода')}" data-postfix-label="${escapeHtml(way.postfix_title || '')}" data-postfix-placeholder="${escapeHtml(way.postfix || '')}">${escapeHtml(gateway.symbol)} — ${escapeHtml(way.name || `Способ ${index + 1}`)}</option>`)).join('');
+    const descriptions = withdrawGateways.map((gateway) => {
+      const w = gateway.withdraw;
+      const extras = [w.details, w.min_amount && `Минимальная сумма: ${w.min_amount}`, w.fee && `Комиссия: ${w.fee}`, `Аккаунт шлюза: ${w.account}`].filter(Boolean);
+      return `<li><strong>${escapeHtml(gateway.symbol)}:</strong> ${extras.map((item) => escapeHtml(item)).join('; ')}</li>`;
+    }).join('');
+    return operationDetails('UIA withdraw / вывод через gateways', `
+      <form id="wallet-golos-uia-withdraw-form" class="stacked-form">
+        <fieldset>
+          <legend>Вывод UIA через transfer на gateway account</legend>
+          <p class="muted">Legacy content.php содержит форму и memo builder; handler #action_uia_withdraw_start в legacy wallet js/php/css не найден. V3 отправляет только logically determined active transfer: UIA на withdrawal.account, memo = prefix + main + optional postfix.</p>
+          <ul>${descriptions}</ul>
+          <div class="field"><label for="wallet-golos-uia-withdraw-way">Токен и способ</label><select id="wallet-golos-uia-withdraw-way" name="way" required>${options}</select></div>
+          <div class="field"><label for="wallet-golos-uia-withdraw-amount">Сумма UIA</label><input id="wallet-golos-uia-withdraw-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="wallet-golos-uia-withdraw-main" data-withdraw-main-label>Данные для вывода</label><input id="wallet-golos-uia-withdraw-main" name="main" type="text" required autocomplete="off"></div>
+          <div class="field" data-withdraw-postfix-field hidden><label for="wallet-golos-uia-withdraw-postfix" data-withdraw-postfix-label>Дополнительно</label><input id="wallet-golos-uia-withdraw-postfix" name="postfix" type="text"></div>
+          <button type="submit" name="intent" value="preview">Проверить вывод</button>
+          <button type="submit" name="intent" value="send">Отправить вывод</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>`);
+  }
+
+  function renderGolosWalletForms(chain, profile, balanceRows, uiaGateways) {
     const liquid = chain.liquidSymbol || 'GOLOS';
     const debt = chain.debtSymbol || 'GBG';
     const liquidMax = profile ? pickBalance(profile, liquid) : '';
@@ -1269,11 +1466,14 @@
     const tipActionTokens = collectGolosTipActionTokens(profile, balanceRows);
     const mainTokenOptions = tokenOptions(tipActionTokens, 'main');
     const tipTokenOptions = tokenOptions(tipActionTokens, 'tip');
+    const transferTemplateSelect = renderTemplateSelect('transfer', 'GOLOS', auth.getCurrentLogin(chain), 'wallet-transfer-template');
+    const donateTemplateSelect = renderTemplateSelect('donate', 'GOLOS', auth.getCurrentLogin(chain), 'wallet-golos-donate-template');
     const operations = [
       operationDetails(`Перевод GOLOS/GBG`, `
         <form id="wallet-transfer-form" class="stacked-form">
           <fieldset>
             <legend>Перевод GOLOS/GBG</legend>
+            ${transferTemplateSelect}
             <div class="field"><label for="wallet-transfer-to">Кому</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
             <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
@@ -1331,11 +1531,13 @@
         <form id="wallet-golos-donate-form" class="stacked-form">
           <fieldset>
             <legend>Донат GOLOS из TIP-баланса</legend>
+            ${donateTemplateSelect}
             <div class="field"><label for="wallet-golos-donate-to">Кому</label><input id="wallet-golos-donate-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-golos-donate-amount">Сумма GOLOS</label><input id="wallet-golos-donate-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${tipMax ? ` <button type="button" data-fill-target="wallet-golos-donate-amount" data-fill-value="${escapeHtml(tipMax)}">Максимум ${escapeHtml(tipMax)}</button>` : ''}</div>
             <div class="field"><label for="wallet-golos-donate-memo">Комментарий</label><textarea id="wallet-golos-donate-memo" name="memo" rows="3"></textarea></div>
             <button type="submit" name="intent" value="preview">Проверить донат</button>
             <button type="submit" name="intent" value="send">Отправить донат</button>
+            <button type="button" data-template-save="donate" data-template-token="GOLOS">Создать шаблон доната</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
@@ -1381,13 +1583,13 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`, Boolean(tipTokenOptions)),
-      operationDetails('UIA gateways/templates: later', `
-        <p class="muted">Пополнение/вывод через UIA gateways и transfer/donate templates оставлены later: в legacy подтверждены metadata-rendering и deposit API, но exact withdraw broadcast handler в проверенном js/app.js не найден. Не портирую это без точного evidence по params.</p>`)
+      renderGolosUiaDepositSection(uiaGateways),
+      renderGolosUiaWithdrawSection(uiaGateways)
     ];
 
     return `
       <h3>Операции Golos</h3>
-      <p class="muted">Safe parity slice: основные GOLOS/GBG/СГ операции и подтверждённые legacy TIP/UIA actions доступны через preview + подтверждение; gateways/templates оставлены later без догадок.</p>
+      <p class="muted">Safe parity slice: основные GOLOS/GBG/СГ операции, TIP/UIA actions, legacy-compatible templates и metadata-based gateways доступны через preview + подтверждение.</p>
       ${operations.join('')}`;
   }
 
@@ -1403,7 +1605,138 @@
     return buildGrapheneWalletForms(chain, profile);
   }
 
-  function bindGolosWalletForms(chain, profile) {
+  function bindGolosTemplateControls(chain) {
+    document.querySelectorAll('[data-template-select]').forEach((select) => {
+      const removeButton = document.querySelector(`[data-template-remove="${select.dataset.templateSelect}"][data-template-select-id="${select.id}"]`);
+      select.addEventListener('change', () => {
+        const option = select.selectedOptions && select.selectedOptions[0];
+        if (!option || !option.value) {
+          if (removeButton) removeButton.hidden = true;
+          return;
+        }
+        const form = select.closest('form');
+        if (!form) return;
+        const to = form.querySelector('[name="to"]');
+        const memo = form.querySelector('[name="memo"]');
+        if (to) to.value = option.dataset.to || '';
+        if (memo) memo.value = option.dataset.memo || '';
+        const inSelect = form.querySelector('[name="in"]');
+        if (inSelect && option.dataset.in) inSelect.value = option.dataset.in;
+        if (removeButton) removeButton.hidden = option.dataset.builtin === '1';
+      });
+    });
+
+    document.querySelectorAll('[data-template-save]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const form = button.closest('form');
+        if (!form) return;
+        const kind = button.dataset.templateSave;
+        const token = button.dataset.templateToken || 'GOLOS';
+        const name = global.prompt ? global.prompt('Введите название шаблона') : '';
+        if (!name) return;
+        upsertGolosCustomTemplate(kind, token, {
+          name: String(name).trim(),
+          to: String((form.querySelector('[name="to"]') || {}).value || '').trim(),
+          memo: String((form.querySelector('[name="memo"]') || {}).value || ''),
+          in: String((form.querySelector('[name="in"]') || {}).value || '')
+        });
+        renderRoute();
+      });
+    });
+
+    document.querySelectorAll('[data-template-remove]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const select = document.getElementById(button.dataset.templateSelectId);
+        const option = select && select.selectedOptions && select.selectedOptions[0];
+        if (!option || option.dataset.builtin === '1') return;
+        removeGolosCustomTemplate(button.dataset.templateRemove, button.dataset.templateToken || 'GOLOS', option.value);
+        renderRoute();
+      });
+    });
+  }
+
+  function bindGolosGatewayControls(chain, uiaGateways) {
+    const depositToken = document.getElementById('wallet-golos-uia-deposit-token');
+    if (depositToken) {
+      depositToken.addEventListener('change', () => {
+        document.querySelectorAll('[data-uia-deposit-panel]').forEach((panel) => {
+          panel.hidden = panel.dataset.uiaDepositPanel !== depositToken.value;
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-uia-deposit-api]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const token = normalizeGolosTokenSymbol(button.dataset.uiaDepositApi, 'UIA deposit token');
+        const result = document.getElementById(`wallet-golos-uia-deposit-result-${token}`);
+        if (result) result.textContent = 'Запрашиваю адрес пополнения...';
+        try {
+          const response = await global.fetch(`/golos/api/uia-deposit?asset=${encodeURIComponent(token)}&login=${encodeURIComponent(auth.getCurrentLogin(chain))}&ts=${Date.now()}`, { credentials: 'same-origin', cache: 'no-store' });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.ok === false || !data.address) {
+            const error = data && data.error;
+            throw new Error(error && error.message ? error.message : `deposit API HTTP ${response.status}`);
+          }
+          if (result) result.innerHTML = `<p>Адрес: <code>${escapeHtml(data.address)}</code></p>${data.memo ? `<p>Memo: <code>${escapeHtml(data.memo)}</code></p>` : ''}`;
+        } catch (error) {
+          if (result) result.textContent = `Адрес пополнения недоступен: ${profiles.formatError(error)}`;
+        }
+      });
+    });
+
+    (uiaGateways || []).forEach((gateway) => {
+      const deposit = gateway.deposit;
+      if (!deposit || !deposit.to_transfer || !deposit.memo_transfer) return;
+      bindOperationForm(chain, `wallet-golos-uia-deposit-transfer-${gateway.symbol}`, (form) => {
+        const amount = '0.001 GOLOS';
+        return broadcast.prepare(chain, 'active', 'transfer', [
+          auth.getCurrentLogin(chain),
+          normalizeAccountInput(chain, form.get('to'), 'Gateway account'),
+          amount,
+          String(form.get('memo') || '')
+        ], { title: `Запрос deposit address ${gateway.symbol}`, to: form.get('to'), amount });
+      });
+    });
+
+    const withdrawWay = document.getElementById('wallet-golos-uia-withdraw-way');
+    const syncWithdrawFields = () => {
+      if (!withdrawWay) return;
+      const option = withdrawWay.selectedOptions && withdrawWay.selectedOptions[0];
+      if (!option) return;
+      const mainLabel = document.querySelector('[data-withdraw-main-label]');
+      if (mainLabel) mainLabel.textContent = option.dataset.memoLabel || 'Данные для вывода';
+      const postfixField = document.querySelector('[data-withdraw-postfix-field]');
+      const postfixLabel = document.querySelector('[data-withdraw-postfix-label]');
+      const postfixInput = document.getElementById('wallet-golos-uia-withdraw-postfix');
+      const hasPostfix = Boolean(option.dataset.postfixLabel || option.dataset.postfixPlaceholder);
+      if (postfixField) postfixField.hidden = !hasPostfix;
+      if (postfixLabel) postfixLabel.textContent = option.dataset.postfixLabel || 'Дополнительно';
+      if (postfixInput) postfixInput.placeholder = option.dataset.postfixPlaceholder || '';
+    };
+    if (withdrawWay) {
+      withdrawWay.addEventListener('change', syncWithdrawFields);
+      syncWithdrawFields();
+    }
+
+    bindOperationForm(chain, 'wallet-golos-uia-withdraw-form', async (form) => {
+      const option = withdrawWay && withdrawWay.selectedOptions && withdrawWay.selectedOptions[0];
+      if (!option) throw new Error('Выберите способ вывода UIA.');
+      const token = normalizeGolosTokenSymbol(option.dataset.token, 'UIA withdraw token');
+      const to = normalizeAccountInput(chain, option.dataset.account, 'Gateway account');
+      const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма UIA withdraw');
+      const memo = buildGolosWithdrawMemo(option.dataset.prefix, form.get('main'), form.get('postfix'));
+      return broadcast.prepare(chain, 'active', 'transfer', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        memo
+      ], { title: `UIA withdraw ${token}`, to, amount, memo });
+    });
+  }
+
+  function bindGolosWalletForms(chain, profile, uiaGateways) {
+    bindGolosTemplateControls(chain);
+    bindGolosGatewayControls(chain, uiaGateways);
     bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
       auth.getCurrentLogin(chain),
       normalizeAccountInput(chain, form.get('to'), 'Кому'),

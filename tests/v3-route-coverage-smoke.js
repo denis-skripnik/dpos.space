@@ -96,8 +96,9 @@ assert(appSource.includes('golos.broadcast.transferFromTipAsync(active_key, from
 assert(appSource.includes('golos.broadcast.donateAsync(posting_key, from, to, amount'), 'Golos donate label documents exact legacy method family');
 assert(appSource.includes('function encodeGolosMemoIfNeeded'), 'Golos wallet preserves legacy # encrypted memo preparation when memo API is available');
 assert(appSource.includes("version: 1, comment"), 'Golos donate metadata keeps legacy dpos-space version 1');
-assert(appSource.includes('UIA gateways/templates: later'), 'Golos wallet keeps unverified UIA gateways/templates explicitly later');
-assert(appSource.includes('exact withdraw broadcast handler'), 'Golos UIA withdraw is blocked/later without exact legacy handler evidence');
+assert(appSource.includes('renderGolosUiaDepositSection'), 'Golos wallet renders UIA gateway deposit metadata');
+assert(appSource.includes('renderGolosUiaWithdrawSection'), 'Golos wallet renders UIA gateway withdraw metadata');
+assert(appSource.includes('function golosTemplateStorageKey'), 'Golos wallet ports legacy transfer/donate templates');
 assert(appSource.includes('fetchGolosUiaBalances'), 'Golos wallet fetches UIA balances');
 assert(appSource.includes("{ kind: 'uia', symbol: token, balanceType: 'tip' }"), 'Golos UIA TIP balances carry metadata for dedicated rendering');
 assert(appSource.includes('function parseGolosUiaBalanceRows'), 'Golos wallet has a dedicated UIA balance parser');
