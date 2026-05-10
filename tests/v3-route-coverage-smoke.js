@@ -72,6 +72,13 @@ assert(appSource.includes('accountInput.disabled = !inputVisible'), 'hidden acco
 assert(appSource.includes('selectSavedAccount(chain, accountSelect.value)'), 'route submit switches current user from the authorized-account selector');
 assert(appSource.includes('function refreshRouteAfterBroadcast'), 'successful broadcast schedules a route refresh for fresh wallet balances/history');
 assert(appSource.includes('Обновляю балансы и историю'), 'successful broadcast tells the user balances/history are refreshing');
+assert(appSource.includes('renderGrapheneWalletByChain'), 'Graphene wallet route dispatches through chain-specific wallet renderers');
+assert(appSource.includes('function renderGolosWallet'), 'Golos wallet has a dedicated renderer entry point');
+assert(appSource.includes('function renderVizWallet'), 'VIZ wallet has a dedicated renderer entry point');
+assert(appSource.includes('function renderHiveWallet'), 'Hive wallet has a dedicated renderer entry point');
+assert(appSource.includes('function renderSteemWallet'), 'Steem wallet has a dedicated renderer entry point');
+assert(appSource.includes('function buildGrapheneWalletForms'), 'Graphene wallet keeps shared form markup helper behind chain-specific renderers');
+assert(appSource.includes('function bindGolosWalletForms'), 'Golos wallet has a dedicated binding entry point');
 assert(appSource.includes('fetchGolosUiaBalances'), 'Golos wallet fetches UIA balances');
 assert(appSource.includes('normalizeGolosPowerInput'), 'Golos wallet accepts СГ amounts and converts them to GESTS for broadcast');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');

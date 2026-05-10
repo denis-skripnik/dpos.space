@@ -848,37 +848,82 @@
     return profiles.connect(chain);
   }
 
-  async function renderWallet(chain, account) {
-    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька</h2><p>Подключаю публичную ноду...</p></section>';
-    setStatus(`Загружаю кошелёк ${chain.title}: @${account}...`, 'loading');
-
+  async function loadGrapheneWalletData(chain, account, options) {
     await loadScript(chain.cryptoPath);
     const current = auth.getCurrentUser(chain);
     const connection = await getConnection(chain);
     const rawAccount = await profiles.fetchAccount(connection, account);
     const profile = profiles.normalizeAccount(connection, rawAccount);
-    const uiaBalances = chain.id === 'golos' ? await fetchGolosUiaBalances(connection, account) : [];
-    const balanceRows = profile.balances.concat(uiaBalances);
+    const extraBalances = options && typeof options.loadExtraBalances === 'function'
+      ? await options.loadExtraBalances(connection, account)
+      : [];
+    const balanceRows = profile.balances.concat(extraBalances || []);
     const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
     const walletItems = history.getWalletOperations(chain, items).slice(0, 50);
+    return { current, profile, balanceRows, walletItems };
+  }
+
+  async function renderGrapheneWallet(chain, account, options) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю кошелёк ${chain.title}: @${account}...`, 'loading');
+
+    const data = await loadGrapheneWalletData(chain, account, options);
+    const formsHtml = options.renderForms(chain, data.profile);
 
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: кошелёк @${escapeHtml(account)}</h2>
-        <p><strong>Нода:</strong> ${escapeHtml(profile.node)}</p>
-        <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>
+        <p><strong>Нода:</strong> ${escapeHtml(data.profile.node)}</p>
+        <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, data.current)))}</p>
         <p class="notice">Перед отправкой можно проверить операцию. Реальная отправка запускается отдельной кнопкой и подтверждается в браузере.</p>
         <h3>Балансы</h3>
-        <ul>${balanceRows.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
-        ${walletPrepareForms(chain, profile)}
+        <ul>${data.balanceRows.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
+        ${formsHtml}
         <h3>Последние финансовые операции</h3>
-        ${renderHistoryTable(walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
+        ${renderHistoryTable(data.walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
       </section>
     `;
 
-    bindWalletForms(chain, profile);
+    options.bindForms(chain, data.profile);
     bindMaxButtons(appEl);
     setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки «Максимум» и отправка в сеть.`, 'ok');
+  }
+
+  async function renderGolosWallet(chain, account) {
+    return renderGrapheneWallet(chain, account, {
+      loadExtraBalances: fetchGolosUiaBalances,
+      renderForms: renderGolosWalletForms,
+      bindForms: bindGolosWalletForms
+    });
+  }
+
+  async function renderVizWallet(chain, account) {
+    return renderGrapheneWallet(chain, account, {
+      renderForms: renderVizWalletForms,
+      bindForms: bindVizWalletForms
+    });
+  }
+
+  async function renderHiveWallet(chain, account) {
+    return renderGrapheneWallet(chain, account, {
+      renderForms: renderHiveWalletForms,
+      bindForms: bindHiveWalletForms
+    });
+  }
+
+  async function renderSteemWallet(chain, account) {
+    return renderGrapheneWallet(chain, account, {
+      renderForms: renderSteemWalletForms,
+      bindForms: bindSteemWalletForms
+    });
+  }
+
+  async function renderGrapheneWalletByChain(chain, account) {
+    if (chain.id === 'golos') return renderGolosWallet(chain, account);
+    if (chain.id === 'viz') return renderVizWallet(chain, account);
+    if (chain.id === 'hive') return renderHiveWallet(chain, account);
+    if (chain.id === 'steem') return renderSteemWallet(chain, account);
+    throw new Error(`Кошелёк ${chain.title} не поддерживается этим маршрутом.`);
   }
 
   function operationDetails(title, body, open) {
@@ -889,7 +934,7 @@
       </details>`;
   }
 
-  function walletPrepareForms(chain, profile) {
+  function buildGrapheneWalletForms(chain, profile) {
     const liquid = chain.liquidSymbol || 'TOKEN';
     const debt = chain.debtSymbol || 'TOKEN';
     const vesting = chain.vestingSymbol || 'VESTS';
@@ -1007,7 +1052,39 @@
       ${operations.join('')}`;
   }
 
-  function bindWalletForms(chain, profile) {
+  function renderGolosWalletForms(chain, profile) {
+    return buildGrapheneWalletForms(chain, profile);
+  }
+
+  function renderVizWalletForms(chain, profile) {
+    return buildGrapheneWalletForms(chain, profile);
+  }
+
+  function renderHiveWalletForms(chain, profile) {
+    return buildGrapheneWalletForms(chain, profile);
+  }
+
+  function renderSteemWalletForms(chain, profile) {
+    return buildGrapheneWalletForms(chain, profile);
+  }
+
+  function bindGolosWalletForms(chain, profile) {
+    bindGrapheneWalletForms(chain, profile);
+  }
+
+  function bindVizWalletForms(chain, profile) {
+    bindGrapheneWalletForms(chain, profile);
+  }
+
+  function bindHiveWalletForms(chain, profile) {
+    bindGrapheneWalletForms(chain, profile);
+  }
+
+  function bindSteemWalletForms(chain, profile) {
+    bindGrapheneWalletForms(chain, profile);
+  }
+
+  function bindGrapheneWalletForms(chain, profile) {
     bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
       auth.getCurrentLogin(chain),
       normalizeAccountInput(chain, form.get('to'), 'Получатель'),
@@ -1097,9 +1174,9 @@
           <li><strong>Источник:</strong> ${escapeHtml(keys.source)}</li>
         </ul>
         <p class="notice">Приватные ключи не показываются в интерфейсе, проверке операции и ответах сети.</p>
-        ${walletPrepareForms(chain)}
+        ${buildGrapheneWalletForms(chain, null)}
       </section>`;
-    bindWalletForms(chain, null);
+    bindGrapheneWalletForms(chain, null);
     bindMaxButtons(appEl);
     setStatus('Отправка операций готова: доступны проверка и отправка в сеть.', 'ok');
   }
@@ -2366,7 +2443,7 @@
       } else if (app.id === 'accounts') {
         await renderAccounts(chain);
       } else if (app.id === 'wallet') {
-        await renderWallet(chain, account);
+        await renderGrapheneWalletByChain(chain, account);
       } else if (app.id === 'history') {
         await renderHistory(chain, account);
       } else if (app.id === 'broadcast') {
