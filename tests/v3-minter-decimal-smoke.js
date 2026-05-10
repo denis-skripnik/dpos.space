@@ -88,7 +88,13 @@ async function run() {
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'dx0000000000000000000000000000000000000000'), 'dx0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, '0x0000000000000000000000000000000000000000'), '0x0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposHistory.operationTitle('/decimal.coin.v1.MsgSendCoin'), 'Отправка', 'decimal OpenAPI message type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('COIN_SEND'), 'Отправка', 'decimal legacy uppercase send type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('COIN_SELL'), 'Продажа монеты', 'decimal legacy uppercase sell type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('VALIDATOR_DELEGATE'), 'Делегирование', 'decimal legacy uppercase validator type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('/decimal.validator.v1.MsgUndelegateCoin'), 'Анбонд', 'decimal OpenAPI validator type is readable');
   assert.strictEqual(context.DposHistory.operationTitle('delegate_nft'), 'Делегирование NFT', 'decimal NFT op is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('NFT_TRANSFER'), 'Передача NFT', 'decimal legacy uppercase NFT type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('/decimal.nft.v1.MsgDelegateToken'), 'Делегирование NFT', 'decimal OpenAPI NFT type is readable');
 
   const decimalCalls = [];
   context.DecimalSDK = {

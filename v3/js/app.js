@@ -136,11 +136,13 @@
     if (kind === 'tx') {
       const tx = result.result || result.data || result;
       const operations = tx.operations || tx.ops || tx.messages || (tx.data && tx.data.list) || (tx.data ? [tx.data] : []);
+      const rawType = tx.type || tx.tx_type || tx.transaction_type;
+      const readableType = history.operationTitle(rawType);
       const summaryRows = [
         ['Tx', tx.trx_id || tx.tx_id || tx.hash || tx.transaction_hash || value],
         ['Блок', tx.block_num || tx.block || tx.blockId || tx.height],
         ['Создана', history.formatDate(tx.timestamp || tx.time || tx.created_at)],
-        ['Тип', tx.type || tx.tx_type || tx.transaction_type],
+        ['Тип', readableType && readableType !== rawType ? `${readableType} (${rawType})` : rawType],
         ['Отправитель', tx.from || tx.sender || tx.address],
         ['Комиссия', tx.fee && typeof tx.fee === 'object' ? history.formatValue(tx.fee) : tx.fee]
       ].filter(([, item]) => item !== undefined && item !== null && item !== '');
