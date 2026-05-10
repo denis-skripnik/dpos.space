@@ -45,3 +45,16 @@ const sourceBundle = [
 assert(!/blockchains\/(cyber|evm)\//i.test(sourceBundle), 'v3 source does not load Cyber/EVM assets');
 assert(/confirmExecute:\s*true/.test(appSource), 'UI has confirmed real broadcast path');
 assert(/dryRun:\s*true/.test(appSource), 'UI keeps preview/dry-run path');
+
+assert(appSource.includes('manage-witness-update-form'), 'manage includes witness settings update form');
+assert(appSource.includes('manage-authority-form'), 'manage includes authority/access update form');
+assert(appSource.includes('accountCreateWithDelegation'), 'Golos registration includes account_create_with_delegation flow');
+assert(appSource.includes("prepareWithPrivateKey(chain, account, 'owner'"), 'authority update uses explicit owner WIF in memory only');
+assert(appSource.includes('Owner WIF is used only in memory'), 'authority update warns about owner WIF handling');
+
+assert(appSource.includes('renderTransactionsTable'), 'profiles/history use shared accessible transaction table renderer');
+assert(appSource.includes('<caption>'), 'transaction tables include captions');
+assert(appSource.includes('scope=\"col\"'), 'transaction tables include scoped column headers');
+assert(appSource.includes("explorerLink(chain, 'tx'"), 'transaction rows link tx values to explorer route');
+assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link block values to explorer route');
+assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');

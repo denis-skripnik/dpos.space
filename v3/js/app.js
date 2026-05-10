@@ -100,6 +100,108 @@
       </details>`;
   }
 
+  function appHash(params) {
+    return `#${new URLSearchParams(params).toString()}`;
+  }
+
+  function explorerLink(chain, kind, value, label) {
+    if (!value) return '';
+    const text = label || value;
+    return `<a href="${escapeHtml(appHash({ chain: chain.id, app: 'explorer', kind, value }))}">${escapeHtml(text)}</a>`;
+  }
+
+  function accountLink(chain, account) {
+    const value = String(account || '').trim().replace(/^@/, '');
+    if (!value) return '';
+    return `<a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: value }))}">${chain.id === 'minter' || chain.id === 'decimal' ? escapeHtml(value) : `@${escapeHtml(value)}`}</a>`;
+  }
+
+  function getPathValue(item, paths) {
+    for (const path of paths) {
+      const value = path.split('.').reduce((current, key) => current && current[key], item);
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return '';
+  }
+
+  function normalizeTransactionRow(raw, index) {
+    const item = raw && raw.raw && raw.data ? raw : (raw || {});
+    const data = item.data || item.message || item.payload || item;
+    return {
+      index: item.index ?? item.nonce ?? data.nonce ?? index,
+      type: item.type || item.tx_type || item.transaction_type || item.message_type || data.type || 'transaction',
+      timestamp: item.timestamp || item.time || item.created_at || item.createdAt || data.timestamp || '',
+      trxId: item.trxId || item.trx_id || item.hash || item.tx_hash || item.id || data.hash || data.tx_hash || '',
+      block: item.block || item.block_id || item.blockId || item.block_number || item.height || data.block || data.height || '',
+      from: getPathValue(data, ['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'sender.address']),
+      to: getPathValue(data, ['to', 'recipient', 'receiver', 'target', 'validator', 'public_key', 'coin_to_buy']),
+      amount: getPathValue(data, ['amount', 'value', 'stake', 'volume', 'sell', 'min_to_receive']),
+      coin: getPathValue(data, ['coin.symbol', 'coin', 'denom', 'symbol', 'ticker', 'amount.coin']),
+      memo: getPathValue(data, ['memo', 'payload', 'comment', 'title', 'url']),
+      raw: item
+    };
+  }
+
+  function transactionDetails(row) {
+    const raw = row.raw || {};
+    const data = raw.data || raw.message || raw.payload || raw;
+    const details = [];
+    for (const [key, value] of Object.entries(data || {})) {
+      if (['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'to', 'recipient', 'receiver', 'target', 'validator', 'amount', 'value', 'stake', 'coin', 'denom', 'symbol', 'memo', 'payload', 'comment', 'title', 'url'].includes(key)) continue;
+      if (value === undefined || value === null || value === '') continue;
+      details.push(`${key}: ${history.formatValue(value)}`);
+      if (details.length >= 4) break;
+    }
+    return details.join('; ');
+  }
+
+  function renderAccountCell(chain, value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (chain.id === 'minter') return /^Mx[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : escapeHtml(text);
+    if (chain.id === 'decimal') return /^(dx|0x)[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : escapeHtml(text);
+    return /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/i.test(text) ? accountLink(chain, text) : escapeHtml(text);
+  }
+
+  function renderTransactionsTable(items, chain, options = {}) {
+    const rows = Array.isArray(items) ? items.map(normalizeTransactionRow) : [];
+    if (!rows.length) return `<p>${escapeHtml(options.emptyText || 'Транзакции не найдены.')}</p>`;
+    const caption = options.caption || `Последние транзакции ${chain.title}`;
+    const labelledBy = options.labelledBy || '';
+    return `
+      <div class="table-wrap">
+        <table${labelledBy ? ` aria-labelledby="${escapeHtml(labelledBy)}"` : ` aria-label="${escapeHtml(caption)}"`}>
+          <caption>${escapeHtml(caption)}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Дата</th>
+              <th scope="col">Операция</th>
+              <th scope="col">Отправитель</th>
+              <th scope="col">Получатель / валидатор</th>
+              <th scope="col">Сумма</th>
+              <th scope="col">Memo / детали</th>
+              <th scope="col">Block</th>
+              <th scope="col">Tx</th>
+            </tr>
+          </thead>
+          <tbody>${rows.map((row) => {
+            const amount = [row.amount, row.coin].filter(Boolean).join(' ');
+            const details = row.memo || transactionDetails(row);
+            return `<tr>
+              <td>${escapeHtml(history.formatDate(row.timestamp))}</td>
+              <td><code>${escapeHtml(row.type)}</code><br><span class="muted">${escapeHtml(history.operationTitle(row.type))}</span></td>
+              <td>${renderAccountCell(chain, row.from)}</td>
+              <td>${renderAccountCell(chain, row.to)}</td>
+              <td>${escapeHtml(amount)}</td>
+              <td class="longtext">${escapeHtml(details)}</td>
+              <td>${row.block ? explorerLink(chain, 'block', row.block, String(row.block)) : ''}</td>
+              <td>${row.trxId ? explorerLink(chain, 'tx', row.trxId, String(row.trxId).slice(0, 12)) : ''}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
   function renderProfile(profile) {
     const balanceRows = profile.balances.map(([label, value]) => [label, value]);
     const socialRows = profile.socials.map(([label, value]) => [label, value]);
@@ -130,7 +232,11 @@
         ${detailsSection('Authorities / публичные ключи', profile.authorityRows, 'Нет данных authorities.')}
         ${detailsSection('Активность и статистика', profile.activityRows, 'Нет статистики активности.')}
         ${rawListSection('Делегирования / stakes из API', profile.rawLists && profile.rawLists.delegations)}
-        ${rawListSection('Последние транзакции из API', profile.rawLists && profile.rawLists.transactions)}
+        ${profile.rawLists && profile.rawLists.transactions && profile.rawLists.transactions.length ? `
+          <details open>
+            <summary id="profile-transactions-summary">Последние транзакции из API (${profile.rawLists.transactions.length})</summary>
+            ${renderTransactionsTable(profile.rawLists.transactions, chains[profile.chainId] || { id: profile.chainId, title: profile.chain }, { caption: `Последние транзакции ${profile.chain}: ${profile.name}`, labelledBy: 'profile-transactions-summary' })}
+          </details>` : ''}
         ${rawListSection('Rewards из API', profile.rawLists && profile.rawLists.rewards)}
         ${rawListSection('NFT из API', profile.rawLists && profile.rawLists.nfts)}
         ${metadataHasData ? `
@@ -326,34 +432,10 @@
   }
 
   function renderHistoryTable(items, chain, emptyText) {
-    if (!items.length) {
-      return `<p>${escapeHtml(emptyText || 'Операции не найдены.')}</p>`;
-    }
-
-    const rows = items.map((item) => `
-      <tr>
-        <td>${escapeHtml(history.formatDate(item.timestamp))}</td>
-        <td>${escapeHtml(history.operationTitle(item.type))}</td>
-        <td><code>${escapeHtml(item.type)}</code></td>
-        <td class="longtext">${escapeHtml(Object.entries(item.data || {}).map(([key, value]) => `${key}: ${history.formatValue(value)}`).join('; '))}</td>
-        <td>${item.trxId ? `<a href="/${escapeHtml(chain.id)}/explorer/tx/${escapeHtml(item.trxId)}" target="_blank" rel="noopener">tx</a>` : ''}</td>
-      </tr>`).join('');
-
-    return `
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th>Операция</th>
-              <th>Код</th>
-              <th>Данные</th>
-              <th>Tx</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    return renderTransactionsTable(items, chain, {
+      caption: `История операций ${chain.title}`,
+      emptyText: emptyText || 'Операции не найдены.'
+    });
   }
 
   async function getConnection(chain) {
@@ -744,7 +826,7 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: управление</h2>
-        <p>Рабочий перенос manage: proxy, witness vote и profile metadata update. Для VIZ добавлены committee/invite flows из старого wallet/manage.</p>
+        <p>Рабочий перенос manage: proxy, witness vote, witness settings, profile metadata и authority update. Для VIZ добавлены committee/invite flows из старого wallet/manage.</p>
         <form id="manage-proxy-form" class="stacked-form">
           <fieldset>
             <legend>Witness proxy</legend>
@@ -761,6 +843,34 @@
             <label class="inline-choice"><input name="approve" type="checkbox" checked> approve vote</label>
             <button type="submit" name="intent" value="preview">Preview vote</button>
             <button type="submit" name="intent" value="send">Отправить vote реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-witness-update-form" class="stacked-form">
+          <fieldset>
+            <legend>Witness settings / activation</legend>
+            <p class="muted">Перенос старых witness settings: URL, signing key и fee/properties. Пустые custom properties будут взяты из текущих chain properties библиотекой/нодой, если метод это поддерживает.</p>
+            <div class="field"><label for="manage-witness-url">Witness URL</label><input id="manage-witness-url" name="url" type="url" required></div>
+            <div class="field"><label for="manage-witness-key">Block signing public key</label><input id="manage-witness-key" name="signingKey" type="text" required></div>
+            <div class="field"><label for="manage-witness-fee">Fee</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+            <div class="field"><label for="manage-witness-props">Props JSON (optional)</label><textarea id="manage-witness-props" name="props" rows="4" placeholder='{"account_creation_fee":"3.000 ${escapeHtml(chain.liquidSymbol)}"}'></textarea></div>
+            <button type="submit" name="intent" value="preview">Preview witness update</button>
+            <button type="submit" name="intent" value="send">Обновить witness реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-authority-form" class="stacked-form">
+          <fieldset>
+            <legend>Authority / access update</legend>
+            <p class="muted">Статический безопасный перенос authority ops: v3 не генерирует и не показывает приватные ключи. Введите готовые public keys/account auths и owner WIF только для подписи в памяти.</p>
+            <div class="field"><label for="manage-authority-owner-wif">Owner private WIF текущего аккаунта</label><input id="manage-authority-owner-wif" name="ownerWif" type="password" autocomplete="off" required></div>
+            <div class="field"><label for="manage-authority-memo">Memo public key</label><input id="manage-authority-memo" name="memoKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-owner-key">Owner public key</label><input id="manage-authority-owner-key" name="ownerKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-active-key">Active public key</label><input id="manage-authority-active-key" name="activeKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-posting-key">Posting/regular public key</label><input id="manage-authority-posting-key" name="postingKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-json">json_metadata</label><textarea id="manage-authority-json" name="jsonMetadata" rows="3" placeholder="{}"></textarea></div>
+            <button type="submit" name="intent" value="preview">Preview authority update</button>
+            <button type="submit" name="intent" value="send">Обновить authority реально</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
@@ -812,9 +922,41 @@
     ]));
     bindOperationForm(chain, 'manage-witness-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
       auth.getCurrentLogin(chain),
-      String(form.get('witness') || '').trim().replace(/^@/, ''),
+      normalizeAccountInput(chain, form.get('witness'), 'Witness'),
       form.get('approve') === 'on'
-    ]));
+    ], { title: 'Witness vote', to: normalizeAccountInput(chain, form.get('witness'), 'Witness') }));
+
+    bindOperationForm(chain, 'manage-witness-update-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      const url = String(form.get('url') || '').trim();
+      const signingKey = String(form.get('signingKey') || '').trim();
+      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
+      let props = {};
+      const rawProps = String(form.get('props') || '').trim();
+      if (rawProps) {
+        try { props = JSON.parse(rawProps); } catch (error) { throw new Error('Props JSON must be valid JSON.'); }
+      }
+      if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key must be a public key, not a private WIF.');
+      return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: 'Witness update', amount: fee, warnings: ['Check witness props carefully: wrong chain parameters may make witness settings invalid.'] });
+    });
+
+    bindOperationForm(chain, 'manage-authority-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      const ownerWif = String(form.get('ownerWif') || '').trim();
+      const memoKey = String(form.get('memoKey') || '').trim();
+      const ownerKey = String(form.get('ownerKey') || '').trim();
+      const activeKey = String(form.get('activeKey') || '').trim();
+      const postingKey = String(form.get('postingKey') || '').trim();
+      const jsonMetadata = String(form.get('jsonMetadata') || '{}').trim() || '{}';
+      [memoKey, ownerKey, activeKey, postingKey].forEach((value) => {
+        if (!value || broadcast.isLikelyWif(value)) throw new Error('Authority fields accept public keys only; a WIF-looking private key was entered.');
+      });
+      try { JSON.parse(jsonMetadata); } catch (error) { throw new Error('json_metadata must be valid JSON.'); }
+      const owner = { weight_threshold: 1, account_auths: [], key_auths: [[ownerKey, 1]] };
+      const active = { weight_threshold: 1, account_auths: [], key_auths: [[activeKey, 1]] };
+      const posting = { weight_threshold: 1, account_auths: [], key_auths: [[postingKey, 1]] };
+      return broadcast.prepareWithPrivateKey(chain, account, 'owner', ownerWif, 'accountUpdate', [account, owner, active, posting, memoKey, jsonMetadata], { title: 'Authority update', warnings: ['Owner WIF is used only in memory and is excluded from preview/result. Store generated private keys outside dpos.space v3.'] });
+    });
 
     bindOperationForm(chain, 'manage-profile-form', (form) => {
       const account = auth.getCurrentLogin(chain);
@@ -856,7 +998,7 @@
       const duration = Number(form.get('days') || 1) * 86400;
       return broadcast.prepare(chain, 'regular', 'committeeWorkerCreateRequest', [auth.getCurrentLogin(chain), String(form.get('url') || '').trim(), worker, min, max, duration], { title: 'VIZ committee create request', to: worker, amount: `${min}..${max}` });
     });
-    setStatus(`${chain.title} manage готов: proxy/witness/profile${chain.id === 'viz' ? '/invite/committee' : ''} preview или real broadcast.`, 'ok');
+    setStatus(`${chain.title} manage готов: proxy/witness/settings/authority/profile${chain.id === 'viz' ? '/invite/committee' : ''} preview или real broadcast.`, 'ok');
   }
 
   async function renderExplorer(chain, account) {
@@ -896,6 +1038,20 @@
     setStatus(`${chain.title} explorer: ${state.kind} загружен.`, 'ok');
   }
 
+
+  function renderVizExchanges(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: обмен VIZ</h2>
+        <p>Статический перенос legacy <code>blockchains/viz/apps/exchanges/content.php</code>: в старой версии это была информационная страница без broadcast.</p>
+        <ol>
+          <li><a href="https://swap.viz.world/" target="_blank" rel="noopener">swap.viz.world — покупка VIZ</a></li>
+          <li><a href="https://control.viz.world/media/@urri77/покупка-viz-за-usdt-на-бирже-рудекс/" target="_blank" rel="noopener">Инструкция по покупке VIZ за USDT на RuDEX</a></li>
+          <li><a href="https://readdle.me/#viz://@denis-skripnik/60937915/publication/" target="_blank" rel="noopener">Материал о шлюзе через Minter</a></li>
+        </ol>
+      </section>`;
+    setStatus('VIZ exchanges загружен как статическая legacy-инфостраница.', 'ok');
+  }
 
   function renderImport(chain) {
     const draftKey = `${chain.id}_v3_import_draft`;
@@ -1006,6 +1162,7 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: регистрация</h2>
         ${isGolos || isViz ? `<p>Invite registration в v3 не использует legacy hardcoded WIF. Signer WIF берётся из этого поля только на время broadcast и не сохраняется, не показывается в preview/result/log. Для ${escapeHtml(chain.title)} нужен private WIF service/invite аккаунта, который имеет право выполнить invite registration.</p>` : '<p>Hive/Steem require account creator fee/delegation and generated authorities. v3 prepares the operation only from explicit current active key.</p>'}
+        ${isGolos ? '<p class="notice">Также добавлена форма обычного Golos account_create_with_delegation из старого manage/create-account: v3 принимает только публичный ключ нового аккаунта и не генерирует/показывает приватные ключи.</p>' : ''}
         <form id="register-form" class="stacked-form"><fieldset>
           <legend>Create account</legend>
           <div class="field"><label for="register-name">New account</label><input id="register-name" name="name" type="text" required></div>
@@ -1018,6 +1175,16 @@
           <button type="submit" name="intent" value="send">Создать аккаунт реально</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
+        ${isGolos ? `<form id="golos-register-delegation-form" class="stacked-form"><fieldset>
+          <legend>Golos account_create_with_delegation</legend>
+          <div class="field"><label for="golos-register-delegation-name">New account</label><input id="golos-register-delegation-name" name="name" type="text" required></div>
+          <div class="field"><label for="golos-register-delegation-fee">Fee</label><input id="golos-register-delegation-fee" name="fee" type="text" required value="1.000 GOLOS"></div>
+          <div class="field"><label for="golos-register-delegation-vesting">Delegation</label><input id="golos-register-delegation-vesting" name="delegation" type="text" required placeholder="0.000000 GESTS"></div>
+          <div class="field"><label for="golos-register-delegation-public-key">Public key for new account authorities</label><input id="golos-register-delegation-public-key" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Preview create with delegation</button>
+          <button type="submit" name="intent" value="send">Создать с делегированием реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>` : ''}
       </section>`;
 
     bindOperationForm(chain, 'register-form', (form) => {
@@ -1054,6 +1221,16 @@
       const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Account creation fee');
       return broadcast.prepare(chain, 'active', 'createAccount', [fee, creator, name, authObject, authObject, authObject, key, ''], { title: 'Create account', to: name, amount: fee, warnings: [publicKeyWarning] });
+    });
+
+    bindOperationForm(chain, 'golos-register-delegation-form', (form) => {
+      const name = normalizeAccountInput(chain, form.get('name'), 'New account');
+      const key = String(form.get('publicKey') || '').trim();
+      if (broadcast.isLikelyWif(key)) throw new Error('Public key field contains a WIF-looking private key. Paste the public key instead.');
+      const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
+      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Account creation fee');
+      const delegation = normalizeAssetInput(chain, form.get('delegation'), chain.vestingSymbol, 'Account delegation');
+      return broadcast.prepare(chain, 'active', 'accountCreateWithDelegation', [fee, delegation, auth.getCurrentLogin(chain), name, authObject, authObject, authObject, key, '', []], { title: 'Golos account_create_with_delegation', to: name, amount: `${fee}; ${delegation}`, warnings: ['v3 uses only public key input for the new account; private keys are not generated or displayed.'] });
     });
 
     setStatus(`${chain.title} registration route загружен: preview/send доступен без hardcoded WIF.`, 'ok');
@@ -1387,6 +1564,8 @@
         renderManage(chain);
       } else if (app.id === 'explorer') {
         await renderExplorer(chain, account);
+      } else if (chain.id === 'viz' && app.id === 'exchanges') {
+        renderVizExchanges(chain);
       } else if (app.id === 'import') {
         renderImport(chain);
       } else if (app.id === 'instant-view') {

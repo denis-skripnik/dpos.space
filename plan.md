@@ -361,3 +361,48 @@ Definition of done for this profile pass:
 - [x] Golos/Steem/Hive profile rendering keeps balances working and adds governance, authorities, metadata and activity sections.
 - [x] Minter/Decimal profile rendering includes available REST balances/details and optional delegation/reward/NFT/transaction raw lists.
 - [x] Syntax and smoke checks added/updated in `tests/v3-profiles-smoke.js`.
+
+## 2026-05-10 non-profile legacy service parity audit
+
+Legacy inventory for this audit:
+
+- Golos apps inspected: `activities`, `api`, `backup`, `calc`, `donate`, `donates`, `escrow`, `explorer`, `help`, `import`, `instant-view`, `manage`, `polls`, `post`, `randomblockchain`, `referrers`, `registration`, `stakebot`, `swap`, `top`, `wallet`, `witnesses-rewards`.
+- VIZ apps inspected: `analytics`, `awards`, `calc`, `custom-generator`, `exchanges`, `explorer`, `help`, `manage`, `polls`, `projects`, `randomblockchain`, `registration`, `search`, `top`, `vmp`, `voice-import`, `wallet`, `witnesses-rewards`.
+- Steem apps inspected: `backup`, `calc`, `explorer`, `help`, `manage`, `post`, `randomblockchain`, `swap`, `wallet`.
+- Hive apps inspected: `backup`, `calc`, `manage`, `post`, `randomblockchain`, `swap`, `wallet`.
+- Minter apps inspected: `broadcast`, `explorer`, `help`, `long`, `my-coin`, `randomblockchain`, `swap`, `validators`, `wallet`.
+- Decimal apps inspected: `explorer`, `profiles`, `randomblockchain`, `validators`, `wallet`.
+
+Checklist:
+
+- [x] Accounts/auth/localStorage compatibility remains legacy-compatible for Golos/VIZ/Steem/Hive plus Minter/Decimal seed accounts.
+- [x] Wallet transfer, vesting, rewards, savings, delegation/unbond and Minter/Decimal transfer/staking/token/NFT forms are exposed with preview and explicit real send.
+- [x] History/explorer routes cover account/history filtering plus account/block/tx or address/block/tx lookups where public API/library supports it.
+- [x] Broadcast/signing keeps legacy key/passphrase compatibility, requires explicit send confirm, and sanitizes WIF/private/seed/mnemonic values from preview/result.
+- [x] Editor/post publishing supports Golos/Steem/Hive comment + comment_options with import-draft preload.
+- [x] Donate/award supports Golos donate and VIZ award real broadcast paths.
+- [x] Manage/governance now includes proxy, witness vote, witness settings/update, profile metadata update, VIZ invite/committee flows, and authority/access update from explicit owner WIF in memory only.
+- [x] Registration now includes Golos/VIZ invite registration without legacy hardcoded signer WIF, Hive/Steem createAccount, and Golos accountCreateWithDelegation using explicit public keys instead of generated/displayed private keys.
+- [x] Calculator routes use dynamic vesting properties or static amount helpers instead of old PHP snippets.
+- [x] Import article and instant-view are implemented as static URL/text normalizers with local draft handoff to editor.
+- [x] Swap/market covers Golos/Hive/Steem create/cancel limit orders and Minter sell/swap-pool forms.
+- [x] VIZ `exchanges` is carried over as the original static informational links page; no transaction flow was present in legacy.
+- [x] Cyber and EVM are still not exposed in `v3/js/chains.js`.
+- [blocked] Full Minter LONG service migration remains backend-dependent. Evidence: `blockchains/minter/apps/long/content.php:4` fetches `http://178.20.43.121:3852/smartfarm`; `blockchains/minter/apps/long/pages/bids/content.php:5` fetches `http://178.20.43.121:3852/smartfarm/bids`; `blockchains/minter/apps/long/js/app.js:210` depends on legacy `blockchains/minter/apps/long/api.php/provider`.
+- [blocked] VIZ on-chain swap/DEX operation is not implemented because legacy `blockchains/viz/apps/exchanges` is only a static external-links page (`content.php` links to `swap.viz.world`, RuDEX instructions and a Minter gateway article), not a local broadcast/API flow.
+
+Additional implementation in this pass:
+
+- `v3/js/app.js` adds manage witness update, authority/access update, Golos account creation with delegation, and VIZ exchanges rendering.
+- `v3/js/chains.js` adds VIZ `exchanges` route and keeps only Golos/VIZ/Steem/Hive/Minter/Decimal enabled.
+- `tests/v3-route-coverage-smoke.js` asserts the newly required manage/registration parity hooks and owner-WIF-in-memory warning.
+
+### 2026-05-10 profile/history transaction table fix
+
+- [x] Replaced profile `Последние транзакции из API` mixed string list with accessible HTML transaction tables.
+- [x] Reused the same structured renderer for DPoS History routes, replacing the old one-cell mixed `key: value; ...` display.
+- [x] Tables include captions, scoped column headers, clear columns for date, operation, sender, recipient/validator, amount, memo/details, block and tx.
+- [x] Added in-app explorer links for tx/block values and profile links for account/address-like sender/recipient values where possible.
+- [x] Minter/Decimal profile REST transactions now stay structured in `DposProfiles.normalizeAccount` instead of being pre-stringified.
+- [x] `DposHistory.normalizeHistory` / REST history normalization now preserve block/height fields for explorer linking.
+- [x] Tests updated to assert structured REST transactions and accessible/linking hooks in the shared renderer.

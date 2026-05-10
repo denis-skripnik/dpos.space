@@ -70,3 +70,4 @@ const minterProfile = context.DposProfiles.normalizeAccount({ config: { id: 'min
 assert(minterProfile.balances.some(([label, value]) => label === 'BIP' && value === '1.23'), 'Minter balances normalize');
 assert(minterProfile.restRows.some(([label]) => label === 'Nonce'), 'Minter nonce is exposed');
 assert(minterProfile.rawLists.delegations.length === 1, 'Minter delegations are exposed as raw list');
+assert.strictEqual(minterProfile.rawLists.transactions[0].hash, 'MtHash', 'Minter transactions stay structured for table rendering');

@@ -116,6 +116,7 @@
         data: op[1] || {},
         timestamp: body.timestamp || '',
         trxId: body.trx_id || '',
+        block: body.block || body.block_num || body.blockNumber || '',
         raw: item
       };
     }).sort((a, b) => {
@@ -132,6 +133,7 @@
       data: item.data || item.message || item,
       timestamp: item.timestamp || item.time || item.created_at || '',
       trxId: item.hash || item.tx_hash || item.id || '',
+      block: item.block || item.block_id || item.blockId || item.block_number || item.height || '',
       raw: item
     }));
   }
