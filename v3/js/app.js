@@ -1386,20 +1386,58 @@
       <button type="submit" name="intent" value="preview">Preview swap</button><button type="submit" name="intent" value="send">Отправить swap реально</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
+    <form id="minter-liquidity-form" class="stacked-form"><fieldset>
+      <legend>Minter liquidity / pool</legend>
+      <div class="field"><label for="minter-liquidity-mode">Operation</label><select id="minter-liquidity-mode" name="mode"><option value="ADD_LIQUIDITY">add liquidity</option><option value="REMOVE_LIQUIDITY">remove liquidity</option><option value="CREATE_SWAP_POOL">create swap pool</option></select></div>
+      <div class="field"><label for="minter-liquidity-coin0">Coin 0</label><input id="minter-liquidity-coin0" name="coin0" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-liquidity-coin1">Coin 1</label><input id="minter-liquidity-coin1" name="coin1" type="text" required></div>
+      <div class="field"><label for="minter-liquidity-volume0">Volume 0 / liquidity</label><input id="minter-liquidity-volume0" name="volume0" type="text" required></div>
+      <div class="field"><label for="minter-liquidity-volume1">Maximum/initial volume 1</label><input id="minter-liquidity-volume1" name="volume1" type="text" value="0"></div>
+      <div class="field"><label for="minter-liquidity-gas">Gas coin</label><input id="minter-liquidity-gas" name="gasCoin" type="text" value="BIP"></div>
+      <button type="submit" name="intent" value="preview">Preview liquidity</button><button type="submit" name="intent" value="send">Отправить liquidity реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
+      <legend>Minter Hub withdraw</legend>
+      <p class="notice">Legacy withdraw sends tokens to the Minter Hub address with a JSON memo. v3 preserves that static transaction shape; external hub fees/templates are not fetched automatically.</p>
+      <div class="field"><label for="minter-hub-chain">Destination chain id</label><input id="minter-hub-chain" name="chainId" type="text" required placeholder="ethereum or bsc"></div>
+      <div class="field"><label for="minter-hub-to">Destination address on external chain</label><input id="minter-hub-to" name="to" type="text" required></div>
+      <div class="field"><label for="minter-hub-coin">Coin/token</label><input id="minter-hub-coin" name="coin" type="text" required></div>
+      <div class="field"><label for="minter-hub-amount">Amount including hub fee</label><input id="minter-hub-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-hub-fee">Hub fee in token units</label><input id="minter-hub-fee" name="hubFee" type="text" value="0"></div>
+      <div class="field"><label for="minter-hub-gas">Gas coin</label><input id="minter-hub-gas" name="gasCoin" type="text" value="BIP"></div>
+      <button type="submit" name="intent" value="preview">Preview hub withdraw</button><button type="submit" name="intent" value="send">Отправить hub withdraw реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
     <form id="minter-coin-form" class="stacked-form"><fieldset>
-      <legend>Minter token create/mint/burn</legend>
-      <div class="field"><label for="minter-coin-mode">Operation</label><select id="minter-coin-mode" name="mode"><option value="CREATE_TOKEN">create token</option><option value="MINT_TOKEN">mint token</option><option value="BURN_TOKEN">burn token</option></select></div>
+      <legend>Minter coin/token create/recreate/mint/burn/edit owner</legend>
+      <div class="field"><label for="minter-coin-mode">Operation</label><select id="minter-coin-mode" name="mode"><option value="CREATE_COIN">create coin</option><option value="RECREATE_COIN">recreate coin</option><option value="CREATE_TOKEN">create token</option><option value="RECREATE_TOKEN">recreate token</option><option value="MINT_TOKEN">mint token</option><option value="BURN_TOKEN">burn token</option><option value="EDIT_COIN_OWNER">edit owner</option></select></div>
       <div class="field"><label for="minter-coin-symbol">Symbol</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
       <div class="field"><label for="minter-coin-name">Name</label><input id="minter-coin-name" name="name" type="text"></div>
-      <div class="field"><label for="minter-coin-amount">Amount</label><input id="minter-coin-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-coin-amount">Initial amount / mint / burn amount</label><input id="minter-coin-amount" name="amount" type="text" required></div>
       <div class="field"><label for="minter-coin-max">Max supply</label><input id="minter-coin-max" name="max" type="text" value="1000000"></div>
+      <div class="field"><label for="minter-coin-reserve">Initial reserve (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-reserve" name="reserve" type="text" value="10000"></div>
+      <div class="field"><label for="minter-coin-crr">CRR percent (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-crr" name="crr" type="number" min="10" max="100" step="1" value="10"></div>
+      <div class="field"><label for="minter-coin-new-owner">New owner address (EDIT_COIN_OWNER)</label><input id="minter-coin-new-owner" name="newOwner" type="text"></div>
       <button type="submit" name="intent" value="preview">Preview coin op</button><button type="submit" name="intent" value="send">Отправить coin op реально</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>`;
   }
 
   function decimalNftForms() {
-    return `<form id="decimal-token-form" class="stacked-form"><fieldset>
+    return `<form id="decimal-convert-form" class="stacked-form"><fieldset>
+      <legend>Decimal convert / swap</legend>
+      <p class="notice">For non-DEL assets use Decimal EVM token contract address (0x...) as in the legacy SDK flow.</p>
+      <div class="field"><label for="decimal-convert-from">From: DEL or token address</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
+      <div class="field"><label for="decimal-convert-to">To: DEL or token address</label><input id="decimal-convert-to" name="to" type="text" required></div>
+      <div class="field"><label for="decimal-convert-amount">Amount to convert</label><input id="decimal-convert-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="decimal-convert-min">Minimum receive amount</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
+      <div class="field"><label for="decimal-convert-from-decimals">From token decimals</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
+      <div class="field"><label for="decimal-convert-to-decimals">To token decimals</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
+      <button type="submit" name="intent" value="preview">Preview convert</button><button type="submit" name="intent" value="send">Отправить convert реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="decimal-token-form" class="stacked-form"><fieldset>
       <legend>Decimal create token</legend>
       <div class="field"><label for="decimal-token-title">Title</label><input id="decimal-token-title" name="title" type="text" required></div>
       <div class="field"><label for="decimal-token-symbol">Symbol</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
@@ -1412,7 +1450,7 @@
       <legend>Decimal NFT stake</legend>
       <div class="field"><label for="decimal-nft-mode">Operation</label><select id="decimal-nft-mode" name="mode"><option value="delegate">delegate NFT</option><option value="unbond">unbond NFT</option></select></div>
       <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
-      <div class="field"><label for="decimal-nft-validator">Validator address</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
+      <div class="field"><label for="decimal-nft-validator">Validator id/address</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
       <button type="submit" name="intent" value="preview">Preview NFT</button><button type="submit" name="intent" value="send">Отправить NFT op реально</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>`;
@@ -1462,14 +1500,64 @@
       return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(txType, data, from, '')], { title: 'Minter swap', amount: `${amount} ${from} → ${to}`, txType, coin: from, warnings: route.length ? [`Route: ${[from].concat(route).concat([to]).join(' → ')}`] : [] });
     });
 
+    bindOperationForm(chain, 'minter-liquidity-form', (form) => {
+      const mode = String(form.get('mode') || 'ADD_LIQUIDITY');
+      const coin0 = normalizeCoinInput(form.get('coin0'), 'Coin 0');
+      const coin1 = normalizeCoinInput(form.get('coin1'), 'Coin 1');
+      const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Liquidity' : 'Volume 0');
+      const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Volume 1 должен быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Gas coin');
+      const data = mode === 'REMOVE_LIQUIDITY'
+        ? { coin0, coin1, liquidity: Number(volume0) }
+        : { coin0, coin1, volume0: Number(volume0), [mode === 'CREATE_SWAP_POOL' ? 'volume1' : 'maximumVolume1']: Number(volume1) };
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, gasCoin, '')], { title: `Minter ${mode}`, amount: `${volume0} ${coin0} / ${volume1} ${coin1}`, txType: mode, coin: gasCoin });
+    });
+
+    bindOperationForm(chain, 'minter-hub-withdraw-form', (form) => {
+      const destinationChain = String(form.get('chainId') || '').trim().toLowerCase();
+      if (!/^[a-z0-9_-]{2,32}$/.test(destinationChain)) throw new Error('Destination chain id is required, for example ethereum or bsc.');
+      const to = String(form.get('to') || '').trim();
+      if (!to) throw new Error('Destination address is required.');
+      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
+      const amount = normalizeAmountInput(form.get('amount'), 'Withdraw amount');
+      const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Hub fee должен быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Gas coin');
+      const [feeWhole, feeFrac = ''] = hubFee.split('.');
+      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
+      const memo = JSON.stringify({ recipient: to, type: `send_to_${destinationChain}`, fee: feeMinimal });
+      const tx = minterTx('SEND', { to: 'Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', value: Number(amount), coin }, gasCoin, memo);
+      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub withdraw', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Legacy hub withdraw address preserved: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
+    });
+
     bindOperationForm(chain, 'minter-coin-form', (form) => {
       const mode = String(form.get('mode') || 'CREATE_TOKEN');
       const symbol = normalizeCoinInput(form.get('symbol'), 'Symbol');
       const amount = normalizeAmountInput(form.get('amount'), 'Amount');
-      const data = mode === 'CREATE_TOKEN'
-        ? { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), mintable: true, burnable: true }
-        : { coin: symbol, value: Number(amount) };
+      let data;
+      if (mode === 'EDIT_COIN_OWNER') {
+        data = { symbol, newOwner: broadcast.validateAddress(chain, form.get('newOwner'), 'New owner') };
+      } else if (mode === 'CREATE_COIN' || mode === 'RECREATE_COIN') {
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Initial reserve')) };
+      } else if (mode === 'CREATE_TOKEN' || mode === 'RECREATE_TOKEN') {
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), mintable: true, burnable: true };
+      } else {
+        data = { coin: symbol, value: Number(amount) };
+      }
       return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
+    });
+
+    bindOperationForm(chain, 'decimal-convert-form', (form) => {
+      const from = String(form.get('from') || '').trim();
+      const to = String(form.get('to') || '').trim();
+      if (!from || !to) throw new Error('Decimal convert requires from and to assets. Use DEL or token 0x address.');
+      if (from.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(from)) throw new Error('From asset must be DEL or token 0x address.');
+      if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('To asset must be DEL or token 0x address.');
+      const amount = normalizeAmountInput(form.get('amount'), 'Convert amount');
+      const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Minimum receive amount должен быть неотрицательным числом.');
+      return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
     });
 
     bindOperationForm(chain, 'decimal-token-form', (form) => broadcast.prepare(chain, 'seed', 'decimalCreateToken', [{
@@ -1491,24 +1579,50 @@
   }
 
 
+  function parseJsonInput(value, label) {
+    try {
+      return JSON.parse(String(value || '').trim());
+    } catch (error) {
+      throw new Error(`${label || 'JSON'} должен быть корректным JSON.`);
+    }
+  }
+
   function renderMinterBroadcast(chain) {
-    const sdk = global.minterSDK || {};
-    const hasSignedTxPost = Boolean(sdk.postSignedTx || (sdk.Minter && sdk.Minter.prototype && sdk.Minter.prototype.postTx));
-    const hasMultisig = Boolean(sdk.Multisig || sdk.multisig || sdk.TX_TYPE);
-    appEl.innerHTML = `
-      <section class="panel">
-        <h2>${escapeHtml(chain.title)}: raw signed TX / multisig broadcast</h2>
-        <p class="notice">Этот маршрут отделён от generic wallet: <code>chain=minter&amp;app=broadcast</code> не открывает формы seed-wallet операций.</p>
-        <form id="minter-signed-tx-form" class="stacked-form"><fieldset>
-          <legend>Raw signed TX</legend>
-          <div class="field"><label for="minter-signed-tx">Signed transaction hex/base64</label><textarea id="minter-signed-tx" name="signedTx" rows="5" placeholder="Paste already signed TX"></textarea></div>
-          <button type="button" disabled>Broadcast signed TX pending</button>
-          <div class="operation-result" role="status">${hasSignedTxPost ? 'SDK has postTx-like method, but static route still needs explicit decode/postSigned integration before enabling real send.' : 'Blocked: bundled static minter SDK exposes no verified postSigned/decode method for arbitrary raw signed TX.'}</div>
-        </fieldset></form>
-        <section class="card"><h3>Multisig controls</h3><p>${hasMultisig ? 'SDK exposes multisig/tx primitives; create/sign/post controls remain pending until exact legacy multisig method mapping is verified.' : 'Blocked: no verified multisig controls are available in the bundled static browser SDK.'}</p></section>
-        <details><summary>Legacy evidence</summary><p>Legacy Minter broadcast app handled signed raw TX and multisig flows separately from wallet send/delegate forms. v3 keeps this route separate and disabled until exact static SDK decode/postSigned methods are confirmed, so it cannot fake a send.</p></details>
-      </section>`;
-    setStatus('Minter broadcast route loaded separately; signed TX/multisig are pending until SDK methods are verified.', 'info');
+    appEl.innerHTML = `<section class="panel">
+      <h2>Minter broadcast</h2>
+      <p>Отдельный перенос legacy broadcast: raw signed TX отправляется без seed, multisig submit принимает JSON транзакции и внешние подписи.</p>
+      <form id="minter-signed-tx-form" class="stacked-form"><fieldset>
+        <legend>Raw signed TX</legend>
+        <div class="field"><label for="minter-signed-tx">Signed TX hex/base64</label><textarea id="minter-signed-tx" name="tx" rows="4" required></textarea></div>
+        <button type="submit" name="intent" value="preview">Preview signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX реально</button>
+        <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+      </fieldset></form>
+      <form id="minter-multisig-form" class="stacked-form"><fieldset>
+        <legend>Multisig controls: transaction submit</legend>
+        <div class="field"><label for="minter-multisig-address">Multisig address</label><input id="minter-multisig-address" name="multisig" type="text" required></div>
+        <div class="field"><label for="minter-multisig-tx">Transaction JSON</label><textarea id="minter-multisig-tx" name="txJson" rows="6" required></textarea></div>
+        <div class="field"><label for="minter-multisig-signatures">Signatures, one per line</label><textarea id="minter-multisig-signatures" name="signatures" rows="5" required></textarea></div>
+        <button type="submit" name="intent" value="preview">Preview multisig submit</button><button type="submit" name="intent" value="send">Отправить multisig реально</button>
+        <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+      </fieldset></form>
+    </section>`;
+
+    bindOperationForm(chain, 'minter-signed-tx-form', (form) => {
+      const tx = String(form.get('tx') || '').trim();
+      if (!tx) throw new Error('Signed TX is required.');
+      const decoded = global.minterSDK && typeof global.minterSDK.decodeTx === 'function' ? global.minterSDK.decodeTx(tx) : null;
+      return broadcast.prepareExternal(chain, 'minterSignedTx', [{ tx }], { title: 'Minter raw signed TX', warnings: decoded ? [`Decoded TX: ${JSON.stringify(broadcast.sanitizeResult(decoded))}`] : ['minterSDK.decodeTx is unavailable; v3 can still submit the raw signed TX.'] });
+    });
+
+    bindOperationForm(chain, 'minter-multisig-form', (form) => {
+      const multisig = broadcast.validateAddress(chain, form.get('multisig'), 'Multisig address');
+      const tx = parseJsonInput(form.get('txJson'), 'Transaction JSON');
+      const signatures = String(form.get('signatures') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+      if (!signatures.length) throw new Error('At least one multisig signature is required.');
+      return broadcast.prepareExternal(chain, 'minterMultisigSubmit', [{ multisig, tx, signatures }], { title: 'Minter multisig submit', to: multisig, warnings: [`Signatures: ${signatures.length}`] });
+    });
+
+    setStatus('Minter broadcast route готов: raw signed TX и multisig submit вынесены отдельно от wallet.', 'ok');
   }
 
   async function renderCosmosValidators(chain) {

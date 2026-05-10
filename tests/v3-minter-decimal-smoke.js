@@ -72,11 +72,14 @@ async function run() {
 
   let minterPosted;
   context.minterSDK = {
-    TX_TYPE: { SEND: '0x01' },
+    TX_TYPE: { SEND: '0x01', ADD_LIQUIDITY: '0x15', REMOVE_LIQUIDITY: '0x16', CREATE_SWAP_POOL: '0x22' },
+    decodeTx(tx) { return { type: 1, tx }; },
     Minter: class {
       constructor(options) { this.options = options; }
       replaceCoinSymbol(tx) { return Promise.resolve(Object.assign({ replaced: true }, tx)); }
-      postTx(tx, options) { minterPosted = { tx, options }; return Promise.resolve({ hash: 'MtHash', seed: options.seedPhrase }); }
+      getNonce(address) { return Promise.resolve(address === 'Mx0000000000000000000000000000000000000000' ? 7 : 1); }
+      postSignedTx(tx) { minterPosted = { signedTx: tx }; return Promise.resolve({ hash: 'SignedHash' }); }
+      postTx(tx, options) { minterPosted = { tx, options }; return Promise.resolve({ hash: 'MtHash', seed: options && options.seedPhrase }); }
     }
   };
   const minterPrepared = context.DposBroadcast.prepare(minter, 'seed', 'minterTx', [{ chainId: 1, type: '0x01', data: { to: 'Mx0000000000000000000000000000000000000000', value: 1, coin: 'BIP' }, gasCoin: 'BIP' }], { title: 'Minter send' });
@@ -85,6 +88,15 @@ async function run() {
   const minterResult = await context.DposBroadcast.broadcast(minter, minterPrepared, { confirmExecute: true });
   assert.strictEqual(minterPosted.options.seedPhrase, MNEMONIC, 'minter broadcast signs with decrypted mnemonic');
   assert(!JSON.stringify(context.DposBroadcast.sanitizeResult(minterResult)).includes(MNEMONIC), 'minter result sanitizer redacts seed-like values by key');
+
+  const signedPrepared = context.DposBroadcast.prepareExternal(minter, 'minterSignedTx', [{ tx: 'f8deadbeef' }], { title: 'signed' });
+  await context.DposBroadcast.broadcast(minter, signedPrepared, { confirmExecute: true });
+  assert.strictEqual(minterPosted.signedTx, 'f8deadbeef', 'minter raw signed TX posts without seed authority');
+
+  const multisigPrepared = context.DposBroadcast.prepareExternal(minter, 'minterMultisigSubmit', [{ multisig: 'Mx0000000000000000000000000000000000000000', tx: { type: '0x01', data: {} }, signatures: ['sig1', 'sig2'] }]);
+  await context.DposBroadcast.broadcast(minter, multisigPrepared, { confirmExecute: true });
+  assert.strictEqual(minterPosted.tx.signatureType, 2, 'minter multisig submit sets multisig signature type');
+  assert.deepStrictEqual(minterPosted.tx.signatureData.signatures, ['sig1', 'sig2'], 'minter multisig submit attaches signatures');
 
   seedSeedAccount(context, 'decimal', 'decimal-seed');
   const decimalStatus = context.DposAuth.getKeyStatus(decimal, context.DposAuth.getCurrentUser(decimal));
@@ -111,6 +123,7 @@ async function run() {
       connect() { decimalCalls.push(['connect']); return Promise.resolve(); }
       sendDEL(data) { decimalCalls.push(['sendDEL', data, this.wallet.seed]); return Promise.resolve({ raw: 'send' }); }
       delegateDEL(validator, amount) { decimalCalls.push(['delegateDEL', validator, amount.toString(), this.wallet.seed]); return Promise.resolve({ raw: 'delegate' }); }
+      buyTokenForExactDEL(token, amount, min, recipient) { decimalCalls.push(['buyTokenForExactDEL', token, String(amount), String(min), recipient]); return Promise.resolve({ raw: 'convert' }); }
       broadcast(payload) { decimalCalls.push(['broadcast', payload]); return Promise.resolve({ hash: 'DxHash', privateKey: this.wallet.seed }); }
     }
   };
@@ -124,6 +137,10 @@ async function run() {
   const decimalDelegation = context.DposBroadcast.prepare(decimal, 'seed', 'decimalDelegate', [{ validator: 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d', amount: '2', coin: 'DEL' }]);
   await context.DposBroadcast.broadcast(decimal, decimalDelegation, { confirmExecute: true });
   assert(decimalCalls.some((call) => call[0] === 'delegateDEL'), 'decimal delegate dispatches SDK method with relaxed validator id');
+
+  const decimalConvert = context.DposBroadcast.prepare(decimal, 'seed', 'decimalConvert', [{ from: 'DEL', to: '0x0000000000000000000000000000000000000001', amount: '1.5', minAmount: '0' }]);
+  await context.DposBroadcast.broadcast(decimal, decimalConvert, { confirmExecute: true });
+  assert(decimalCalls.some((call) => call[0] === 'buyTokenForExactDEL'), 'decimal convert dispatches SDK method when available');
 
   const fetchCalls = [];
   context.fetch = async (url) => {
