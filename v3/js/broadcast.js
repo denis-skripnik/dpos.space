@@ -38,27 +38,27 @@
     const encrypted = (chain.id === 'minter' || chain.id === 'decimal') ? (user && user.seed) : getEncryptedField(user, authority);
 
     if (!login) {
-      throw new Error('Legacy-аккаунт не выбран. Откройте раздел «Аккаунты» и выберите сохранённый аккаунт.');
+      throw new Error('Аккаунт не выбран. Откройте раздел «Аккаунты» и выберите сохранённый аккаунт.');
     }
 
     if (type === 'vizonator') {
-      throw new Error('Vizonator-аккаунт найден, но v3 не извлекает приватный ключ из расширения. Для отправки используйте старый интерфейс или legacy localStorage-аккаунт.');
+      throw new Error('Vizonator-аккаунт найден, но приватный ключ из расширения недоступен. Для отправки выберите сохранённый аккаунт с локальным ключом.');
     }
 
     if (type === 'golos.app') {
-      throw new Error('golos.app OAuth найден, но v3 пока не умеет отправлять операции через OAuth. Нужен legacy localStorage-аккаунт с зашифрованным ключом.');
+      throw new Error('golos.app OAuth найден, но отправка через OAuth здесь недоступна. Выберите сохранённый аккаунт с локальным ключом.');
     }
 
     if ((chain.id === 'minter' || chain.id === 'decimal') && type === 'bip.to') {
-      throw new Error('BIP wallet linked account has no local seed in v3. Use preview/deep link in old interface or select a seed account.');
+      throw new Error('У подключённого BIP wallet аккаунта нет локального seed. Выберите аккаунт с seed для отправки.');
     }
 
     if (!encrypted) {
-      throw new Error(`В legacy localStorage нет зашифрованного ${authority}-ключа для @${login}.`);
+      throw new Error(`Для @${login} нет доступного ${authority}-ключа.`);
     }
 
     if (!global.sjcl || typeof global.sjcl.decrypt !== 'function') {
-      throw new Error('SJCL не загружен: невозможно расшифровать legacy-ключ.');
+      throw new Error('Не удалось загрузить модуль расшифровки ключа.');
     }
 
     try {
@@ -93,7 +93,7 @@
     const client = global[chain.libraryGlobal];
 
     if (chain.id === 'minter' || chain.id === 'decimal') {
-      if (!client) throw new Error(`SDK ${chain.libraryGlobal} недоступен.`);
+      if (!client) throw new Error('Библиотека для этой сети недоступна.');
       return client;
     }
 
@@ -149,9 +149,9 @@
     const warnings = [];
     if (chain.id === 'minter' || chain.id === 'decimal') {
       if (!isLikelyMnemonic(key) && !isLikelyWif(key)) {
-        throw new Error('Расшифрованный seed/private key не похож на legacy seed/WIF. Broadcast остановлен.');
+        throw new Error('Расшифрованный seed/private key имеет неожиданный формат. Отправка остановлена.');
       }
-      warnings.push('Для Minter/Decimal v3 проверяет legacy decrypt и формат seed/key; SDK сам выводит адрес и подпись из seed в памяти.');
+      warnings.push('Для Minter/Decimal seed используется только в памяти; адрес и подпись формируются библиотекой перед отправкой.');
       return { checked: true, publicKeyMatched: false, warnings };
     }
     if (!isLikelyWif(key)) {
@@ -319,7 +319,7 @@
 
   function prepareExternal(chain, operationName, params, meta) {
     return createPrepared(chain, 'external-signed-payload', 'signed-payload', '', operationName, params, Object.assign({ warnings: [
-      'This operation uses an already signed transaction or externally collected signatures; v3 does not decrypt or request a seed for this route.'
+      'Операция использует уже подписанную транзакцию или внешние подписи; seed для этого не нужен.'
     ] }, meta || {}));
   }
 
@@ -342,13 +342,13 @@
     const sdk = getClient(chain);
     const Minter = sdk.Minter;
     const txType = sdk.TX_TYPE || {};
-    if (!Minter) throw new Error('minterSDK.Minter недоступен.');
+    if (!Minter) throw new Error('Библиотека Minter недоступна.');
     const minter = new Minter({ apiType: 'node', baseURL: chain.apiBase || 'https://api.minter.one/v2' });
 
     if (prepared.operationName === 'minterSignedTx') {
       const signedTx = String((prepared.params[0] && prepared.params[0].tx) || '').trim();
       if (!signedTx) throw new Error('Signed TX is required.');
-      if (typeof minter.postSignedTx !== 'function') throw new Error('minterSDK.Minter.postSignedTx недоступен.');
+      if (typeof minter.postSignedTx !== 'function') throw new Error('Отправка signed TX недоступна в загруженной библиотеке Minter.');
       return minter.postSignedTx(signedTx);
     }
 
@@ -360,7 +360,7 @@
       if (typeof minter.getNonce === 'function') payload.tx.nonce = await minter.getNonce(payload.multisig);
       payload.tx.signatureType = 2;
       payload.tx.signatureData = { multisig: payload.multisig, signatures: payload.signatures };
-      if (typeof minter.postTx !== 'function') throw new Error('minterSDK.Minter.postTx недоступен.');
+      if (typeof minter.postTx !== 'function') throw new Error('Отправка multisig TX недоступна в загруженной библиотеке Minter.');
       return minter.postTx(payload.tx);
     }
 
@@ -370,12 +370,12 @@
       const idTx = await minter.replaceCoinSymbol(tx);
       return minter.postTx(idTx, { seedPhrase: prepared.getPrivateKey() });
     }
-    throw new Error('minterSDK replaceCoinSymbol/postTx недоступны.');
+    throw new Error('Нужные методы Minter для отправки транзакции недоступны.');
   }
 
   async function executeDecimal(chain, prepared) {
     const sdk = getClient(chain);
-    if (!sdk.Wallet || !sdk.DecimalEVM) throw new Error('DecimalSDK Wallet/DecimalEVM недоступны.');
+    if (!sdk.Wallet || !sdk.DecimalEVM) throw new Error('Библиотека Decimal недоступна.');
     const wallet = new sdk.Wallet(prepared.getPrivateKey());
     const network = sdk.DecimalNetworks ? sdk.DecimalNetworks.mainnet : undefined;
     const evm = new sdk.DecimalEVM(wallet, network);
@@ -409,17 +409,17 @@
       const amountOutMin = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.minAmount || '0'), Number(p.toDecimals || 18)) : decimalToMinimalString(p.minAmount || '0', 'Minimum receive amount', true);
       const recipient = wallet.evmAddress || wallet.address;
       if (!isFromDEL && isToDEL) {
-        if (typeof evm.sellExactTokensForDEL !== 'function') throw new Error('DecimalSDK sellExactTokensForDEL is not available.');
+        if (typeof evm.sellExactTokensForDEL !== 'function') throw new Error('Продажа токена за DEL недоступна в загруженной библиотеке Decimal.');
         txPayload = await evm.sellExactTokensForDEL(p.from, amountIn, amountOutMin, recipient);
       } else if (isFromDEL && !isToDEL) {
-        if (typeof evm.buyTokenForExactDEL !== 'function') throw new Error('DecimalSDK buyTokenForExactDEL is not available.');
+        if (typeof evm.buyTokenForExactDEL !== 'function') throw new Error('Покупка токена за DEL недоступна в загруженной библиотеке Decimal.');
         txPayload = await evm.buyTokenForExactDEL(p.to, amountIn, amountOutMin, recipient);
       } else {
-        if (typeof evm.convertToken !== 'function') throw new Error('DecimalSDK convertToken is not available.');
+        if (typeof evm.convertToken !== 'function') throw new Error('Конвертация токенов недоступна в загруженной библиотеке Decimal.');
         txPayload = await evm.convertToken(p.from, p.to, amountIn, amountOutMin, recipient);
       }
     } else {
-      throw new Error(`Decimal operation ${prepared.operationName} is not implemented in v3 helper.`);
+      throw new Error(`Операция Decimal ${prepared.operationName} пока недоступна.`);
     }
     return typeof evm.broadcast === 'function' ? evm.broadcast(txPayload) : txPayload;
   }
@@ -430,7 +430,7 @@
     if (settings.dryRun) {
       return {
         dryRun: true,
-        message: 'Preview готов: операция не отправлена. Нажмите кнопку реальной отправки, чтобы выполнить broadcast.',
+        message: 'Проверка готова: операция не отправлена. Нажмите кнопку реальной отправки, чтобы выполнить её.',
         operationName: prepared.operationName,
         authority: prepared.authority,
         params: prepared.params

@@ -14,7 +14,7 @@ assert(appSource.includes('renderExplorerResult(chain, state.kind, state.value, 
 assert(appSource.includes('renderExplorerResult(chain, state.kind, state.value, result)'), 'Cosmos-like explorer uses human-readable renderer');
 assert(!appSource.includes("document.getElementById('explorer-result').innerHTML = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`"), 'explorer no longer renders primary raw JSON dumps');
 assert(!appSource.includes('return `<pre>${escapeHtml(JSON.stringify(broadcast.sanitizePrepared(prepared), null, 2))}</pre>`'), 'broadcast prepared payload is not the primary preview');
-assert(appSource.includes('Технический payload для проверки'), 'broadcast technical payload is explicitly labelled as secondary');
+assert(appSource.includes('Данные операции для проверки'), 'operation payload is explicitly labelled as secondary');
 assert(appSource.includes('Кратко перед отправкой'), 'broadcast result includes a human-readable summary before technical payload');
 
 for (const label of [

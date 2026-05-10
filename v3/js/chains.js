@@ -10,12 +10,12 @@
     {
       id: 'accounts',
       title: 'Аккаунты',
-      description: 'Совместимый просмотр и выбор аккаунтов из legacy localStorage.'
+      description: 'Просмотр и выбор сохранённых аккаунтов браузера.'
     },
     {
       id: 'wallet',
       title: 'Кошелёк',
-      description: 'Баланс, финансовая история, preview и real broadcast операций.'
+      description: 'Баланс, финансовая история, проверка и отправка операций.'
     },
     {
       id: 'history',
@@ -25,7 +25,7 @@
     {
       id: 'broadcast',
       title: 'Broadcast',
-      description: 'Проверка legacy-ключей, preview и real broadcast операций.'
+      description: 'Проверка доступности ключей и отправка операций.'
     }
   ];
 
@@ -35,7 +35,7 @@
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор VIZ/SHARES/энергии.' },
     { id: 'manage', title: 'Управление', description: 'Manage-сервисы: proxy, witness vote, профиль, воркеры, multisig.' },
     { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' },
-    { id: 'exchanges', title: 'Обмен VIZ', description: 'Legacy статическая страница со ссылками покупки/продажи VIZ.' }
+    { id: 'exchanges', title: 'Обмен VIZ', description: 'Ссылки и инструкции по покупке/продаже VIZ.' }
   ];
 
   const golosApps = [
@@ -66,18 +66,18 @@
   const minterApps = [
     { id: 'validators', title: 'Валидаторы', description: 'Read-only список валидаторов и формы delegate/unbond.' },
     { id: 'explorer', title: 'Explorer', description: 'Read-only address/tx/block explorer через публичный API.' },
-    { id: 'swap', title: 'Swap', description: 'Minter sell/swap-pool operations через SDK.' },
-    { id: 'my-coin', title: 'Мои монеты', description: 'Create/recreate token, mint/burn/edit owner where SDK supports it.' },
-    { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор swap route/amount и local random-block helper.' },
+    { id: 'swap', title: 'Swap', description: 'Обмен монет и операции swap-pool.' },
+    { id: 'my-coin', title: 'Мои монеты', description: 'Создание, выпуск, сжигание токенов и смена владельца.' },
+    { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор маршрута обмена и сумм.' },
     { id: 'randomblockchain', title: 'Random blockchain', description: 'Генератор случайного числа по двум блокам.' },
-    { id: 'long', title: 'LONG', description: 'Legacy LONG сервисы отмечены как external/backend-dependent; wallet send memo поддержан.' }
+    { id: 'long', title: 'LONG', description: 'LONG-сервисы и отправка memo для операций кошелька.' }
   ];
 
   const decimalApps = [
     { id: 'validators', title: 'Валидаторы', description: 'Read-only валидаторы и delegate/unbond DEL/token/NFT.' },
     { id: 'explorer', title: 'Explorer', description: 'Read-only address/tx/block explorer через Decimal API.' },
-    { id: 'swap', title: 'Swap', description: 'Decimal SDK token conversion where SDK exposes methods.' },
-    { id: 'my-coin', title: 'Монеты/NFT', description: 'Create token and NFT delegation flows where SDK exposes methods.' },
+    { id: 'swap', title: 'Swap', description: 'Конвертация токенов Decimal.' },
+    { id: 'my-coin', title: 'Монеты/NFT', description: 'Создание токенов и операции с NFT.' },
     { id: 'calculator', title: 'Калькулятор', description: 'DEL/token amount helper.' }
   ];
 

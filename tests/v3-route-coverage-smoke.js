@@ -50,7 +50,7 @@ assert(appSource.includes('manage-witness-update-form'), 'manage includes witnes
 assert(appSource.includes('manage-authority-form'), 'manage includes authority/access update form');
 assert(appSource.includes('accountCreateWithDelegation'), 'Golos registration includes account_create_with_delegation flow');
 assert(appSource.includes("prepareWithPrivateKey(chain, account, 'owner'"), 'authority update uses explicit owner WIF in memory only');
-assert(appSource.includes('Owner WIF is used only in memory'), 'authority update warns about owner WIF handling');
+assert(appSource.includes('Owner WIF используется только в памяти'), 'authority update warns about owner WIF handling');
 
 assert(appSource.includes('renderTransactionsTable'), 'profiles/history use shared accessible transaction table renderer');
 assert(appSource.includes('<caption>'), 'transaction tables include captions');
