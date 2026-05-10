@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dpos.space v3</title>
+  <meta name="description" content="Статические read-only инструменты для DPoS блокчейнов.">
+  <link rel="stylesheet" href="v3/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <p class="eyebrow">Dpos.space v3</p>
+    <h1>Статические инструменты для DPoS блокчейнов</h1>
+    <p>Первая HTML+JS-версия без PHP/backend: read-only просмотр профилей Golos, VIZ, Steem и Hive.</p>
+  </header>
+
+  <nav class="panel" aria-label="Навигация по инструментам">
+    <form id="route-form" class="route-form">
+      <div class="field">
+        <label for="chain-select">Блокчейн</label>
+        <select id="chain-select" name="chain"></select>
+      </div>
+
+      <div class="field">
+        <label for="app-select">Раздел</label>
+        <select id="app-select" name="app"></select>
+      </div>
+
+      <div class="field field-grow">
+        <label for="account-input">Аккаунт</label>
+        <input id="account-input" name="account" type="text" autocomplete="username" spellcheck="false" placeholder="denis-skripnik">
+      </div>
+
+      <button type="submit">Открыть</button>
+    </form>
+  </nav>
+
+  <p id="status" class="status" role="status" aria-live="polite">Готово.</p>
+
+  <main id="app" tabindex="-1">
+    <section class="panel">
+      <h2>Загрузка</h2>
+      <p>Если страница не обновилась автоматически, включите JavaScript.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Legacy PHP-версия сохранена в репозитории. Эта страница — стартовая статическая миграция ветки v3.</p>
+  </footer>
+
+  <script src="v3/js/chains.js"></script>
+  <script src="v3/js/profiles.js"></script>
+  <script src="v3/js/app.js"></script>
+</body>
+</html>
