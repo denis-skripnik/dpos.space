@@ -792,6 +792,38 @@
     return client.memo.encode(privateKey, account.memo_key, text);
   }
 
+
+  async function encodeSteemMemoIfNeeded(chain, to, memo, privateKey) {
+    const text = String(memo || '');
+    if (text[0] !== '#') return text;
+    await loadScript(chain.libraryPath);
+    const connection = await profiles.connect(chain);
+    const api = connection.client && connection.client.api;
+    const client = connection.client || global[chain.libraryGlobal];
+    if (!privateKey) {
+      throw new Error('Зашифрованное memo (#...) не подготовлено: active-ключ недоступен.');
+    }
+    if (!api || typeof api.getAccountsAsync !== 'function' || !client || !client.memo || typeof client.memo.encode !== 'function') {
+      throw new Error('Зашифрованное memo (#...) не подготовлено: memo API Steem недоступен.');
+    }
+    const accounts = await api.getAccountsAsync([to]);
+    const account = accounts && accounts[0];
+    if (!account || !account.memo_key) {
+      throw new Error(`Зашифрованное memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
+    }
+    return client.memo.encode(privateKey, account.memo_key, text);
+  }
+
+  function isSteemMemoWif(chain, memo) {
+    const text = String(memo || '').trim();
+    if (!text) return false;
+    const client = global[chain.libraryGlobal];
+    if (client && client.auth && typeof client.auth.isWif === 'function') {
+      try { return Boolean(client.auth.isWif(text)); } catch (_error) { /* fallback below */ }
+    }
+    return /^5[1-9A-HJ-NP-Za-km-z]{45,55}$/.test(text);
+  }
+
   function generateVizInviteSecret() {
     const client = global.viz;
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
@@ -1440,11 +1472,61 @@
     });
   }
 
+  async function callSteemApi(connection, method, args) {
+    const api = connection.client && connection.client.api;
+    const asyncName = `${method}Async`;
+    if (!api) throw new Error('Steem API недоступен.');
+    if (typeof api[asyncName] === 'function') return api[asyncName](...args);
+    if (typeof api[method] === 'function') {
+      return new Promise((resolve, reject) => {
+        api[method](...args, (error, result) => error ? reject(error) : resolve(result));
+      });
+    }
+    throw new Error(`Метод Steem API ${method} недоступен.`);
+  }
+
+  async function fetchSteemDelegations(connection, account) {
+    const rows = await callSteemApi(connection, 'getVestingDelegations', [account, '', 100]);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function loadSteemWalletData(chain, account) {
+    const data = await loadGrapheneWalletData(chain, account);
+    try {
+      data.delegations = await fetchSteemDelegations({ client: global[chain.libraryGlobal] }, account);
+      data.delegationsError = '';
+    } catch (error) {
+      data.delegations = [];
+      data.delegationsError = profiles.formatError(error);
+    }
+    return data;
+  }
+
   async function renderSteemWallet(chain, account) {
-    return renderGrapheneWallet(chain, account, {
-      renderForms: renderSteemWalletForms,
-      bindForms: bindSteemWalletForms
-    });
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька Steem</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю Steem-кошелёк @${account}...`, 'loading');
+
+    const data = await loadSteemWalletData(chain, account);
+    const formsHtml = renderSteemWalletForms(chain, data.profile, data.delegations);
+
+    appEl.innerHTML = `
+      <section class="panel wallet-steem">
+        <h2>Steem: кошелёк @${escapeHtml(account)}</h2>
+        <p><strong>Нода:</strong> ${escapeHtml(data.profile.node)}</p>
+        <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, data.current)))}</p>
+        <p class="notice">Steem использует STEEM, SBD и SP. Все операции сначала проверяются, а реальная отправка требует отдельного подтверждения в браузере.</p>
+        <h3>Балансы Steem</h3>
+        ${renderSteemWalletBalances(data.profile, data.delegations, data.delegationsError)}
+        ${formsHtml}
+        <h3>Последние финансовые операции Steem</h3>
+        ${renderHistoryTable(data.walletItems, chain, 'Transfer/reward операции не найдены в последней выборке.')}
+      </section>
+    `;
+
+    bindSteemWalletForms(chain, data.profile, data.delegations);
+    bindMaxButtons(appEl);
+    bindCopyButtons(appEl);
+    setStatus(`Steem-кошелёк @${account} загружен: STEEM/SBD/SP, делегирования, rewards и savings доступны через проверку и подтверждение.`, 'ok');
   }
 
   async function renderGrapheneWalletByChain(chain, account) {
@@ -2026,8 +2108,216 @@
     return buildGrapheneWalletForms(chain, profile);
   }
 
+  function steemPowerRateFromProfile(profile) {
+    const raw = profile && profile.raw || {};
+    const context = raw._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const fund = Number.parseFloat(props.total_vesting_fund_steem) || 0;
+    const totalVests = Number.parseFloat(props.total_vesting_shares) || 0;
+    return fund && totalVests ? (1000000 * fund / totalVests) : 0;
+  }
+
+  function steemVestsToSp(profile, value, digits) {
+    const rate = steemPowerRateFromProfile(profile);
+    const vests = Number.parseFloat(String(value || '')) || 0;
+    if (!rate || !vests) return '';
+    return `${(vests / 1000000 * rate).toFixed(digits === undefined ? 6 : digits)} SP`;
+  }
+
+  function steemSpAmount(profile, value) {
+    const rate = steemPowerRateFromProfile(profile);
+    const vests = Number.parseFloat(String(value || '')) || 0;
+    return rate && vests ? (vests / 1000000 * rate) : 0;
+  }
+
+  function normalizeSteemPowerInput(profile, value, label) {
+    const text = String(value || '').trim().replace(',', '.').replace(/\s*SP$/i, '');
+    if (!/^\d+(?:\.\d{1,6})?$/.test(text) || Number(text) < 0) {
+      throw new Error(`${label || 'SP'}: нужно неотрицательное число, например 1.000000.`);
+    }
+    const rate = steemPowerRateFromProfile(profile);
+    if (!rate) throw new Error('Не удалось получить курс VESTS → SP для подготовки операции. Обновите кошелёк и попробуйте ещё раз.');
+    const vests = Number(text) * 1000000 / rate;
+    return `${vests.toFixed(6)} VESTS`;
+  }
+
+
+  function steemDelegationRows(profile, delegations) {
+    if (!Array.isArray(delegations) || delegations.length === 0) {
+      return '<p class="muted">Активные исходящие делегирования SP не найдены.</p>';
+    }
+    const rows = delegations.map((item, index) => {
+      const delegatee = item.delegatee || '';
+      const amount = steemVestsToSp(profile, item.vesting_shares) || item.vesting_shares || '';
+      const minTime = item.min_delegation_time || '';
+      return `<tr><td>@${escapeHtml(delegatee)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(minTime)}</td><td><form id="wallet-steem-cancel-delegation-${index}" class="inline-form"><input type="hidden" name="delegatee" value="${escapeHtml(delegatee)}"><button type="submit" name="intent" value="preview">Проверить отмену</button> <button type="submit" name="intent" value="send">Отменить</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></form></td></tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table><thead><tr><th>Кому</th><th>Сумма</th><th>Мин. время возврата</th><th>Действие</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function renderSteemWalletBalances(profile, delegations, delegationsError) {
+    const raw = (profile && profile.raw) || {};
+    const rows = [];
+    const add = (label, value, note) => {
+      if (value === undefined || value === null || value === '') return;
+      rows.push([label, value, note || '']);
+    };
+    const ownSp = steemSpAmount(profile, raw.vesting_shares);
+    const delegatedSp = steemSpAmount(profile, raw.delegated_vesting_shares);
+    const receivedSp = steemSpAmount(profile, raw.received_vesting_shares);
+    const withdrawRateSp = steemSpAmount(profile, raw.vesting_withdraw_rate);
+    const effectiveSp = ownSp || delegatedSp || receivedSp ? `${(ownSp - delegatedSp + receivedSp).toFixed(6)} SP` : '';
+    const fullWithdraw = withdrawRateSp ? `${(withdrawRateSp * 4).toFixed(6)} SP` : '';
+    const rewardSp = raw.reward_vesting_steem ? `${Number.parseFloat(raw.reward_vesting_steem).toFixed(6)} SP` : steemVestsToSp(profile, raw.reward_vesting_balance);
+
+    add('STEEM', raw.balance);
+    add('SBD', raw.sbd_balance);
+    add('SP', steemVestsToSp(profile, raw.vesting_shares) || raw.vesting_shares);
+    add('Savings STEEM', raw.savings_balance);
+    add('Savings SBD', raw.savings_sbd_balance);
+    add('Делегировано SP', steemVestsToSp(profile, raw.delegated_vesting_shares) || raw.delegated_vesting_shares);
+    add('Получено делегированием SP', steemVestsToSp(profile, raw.received_vesting_shares) || raw.received_vesting_shares);
+    add('Эффективная доля SP', effectiveSp);
+    add('Reward STEEM', raw.reward_steem_balance);
+    add('Reward SBD', raw.reward_sbd_balance);
+    add('Reward SP', rewardSp);
+    add('Выводится по', withdrawRateSp ? `${withdrawRateSp.toFixed(6)} SP` : '', fullWithdraw ? `итого примерно: ${fullWithdraw}` : '');
+    add('Следующий вывод', raw.next_vesting_withdrawal);
+
+    return `
+      <ul>${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
+      ${delegationsError ? `<p class="warning">Исходящие делегирования сейчас не загрузились: ${escapeHtml(delegationsError)}</p>` : ''}
+      <h4>Исходящие делегирования SP</h4>
+      ${steemDelegationRows(profile, delegations)}`;
+  }
+
+  function renderSteemTransferTemplates(chain, profile) {
+    const login = auth.getCurrentLogin(chain);
+    const builtIns = [{ id: 'self-sp', name: 'На свой аккаунт в SP', to: login || '', memo: '', toVesting: true }];
+    const options = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-to-vesting="${item.toVesting ? '1' : ''}">${escapeHtml(item.name)}</option>`).join('');
+    return `<div class="field"><label for="wallet-steem-template-select">Шаблон</label><select id="wallet-steem-template-select" name="template"><option value="">Без шаблона</option>${options}</select></div>`;
+  }
+
   function renderSteemWalletForms(chain, profile) {
-    return buildGrapheneWalletForms(chain, profile);
+    const raw = profile && profile.raw || {};
+    const liquidMax = pickBalance(profile, chain.liquidSymbol || 'STEEM');
+    const sbdMax = pickBalance(profile, chain.debtSymbol || 'SBD');
+    const ownSp = steemSpAmount(profile, raw.vesting_shares);
+    const delegatedSp = steemSpAmount(profile, raw.delegated_vesting_shares);
+    const withdrawRateSp = steemSpAmount(profile, raw.vesting_withdraw_rate);
+    const withdrawMax = ownSp ? `${Math.max(ownSp - delegatedSp - (withdrawRateSp * 4), 0).toFixed(6)} SP` : '';
+    const delegationMax = ownSp ? `${Math.max(ownSp - delegatedSp, 0).toFixed(6)} SP` : '';
+    const rewardSteem = raw.reward_steem_balance || '0.000 STEEM';
+    const rewardSbd = raw.reward_sbd_balance || '0.000 SBD';
+    const rewardVests = raw.reward_vesting_balance || '0.000000 VESTS';
+
+    const operations = [
+      operationDetails('Перевод STEEM/SBD', `
+        <form id="wallet-transfer-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод STEEM/SBD</legend>
+            ${renderSteemTransferTemplates(chain, profile)}
+            <div class="field"><label for="wallet-transfer-to">Кому</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-transfer-amount">Сумма</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 STEEM">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}${sbdMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(sbdMax)}">Максимум ${escapeHtml(sbdMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text" placeholder="#... для encrypted memo"></div>
+            <label class="inline-choice"><input id="wallet-steem-transfer-to-vesting" name="toVesting" type="checkbox"> Перевести STEEM в SP получателя</label>
+            <button type="submit" name="intent" value="preview">Проверить перевод</button>
+            <button type="submit" name="intent" value="send">Отправить перевод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, true),
+      operationDetails('STEEM в SP этого аккаунта', `
+        <form id="wallet-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод STEEM в SP</legend>
+            <div class="field"><label for="wallet-vesting-amount">Количество STEEM</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 STEEM">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить перевод в SP</button>
+            <button type="submit" name="intent" value="send">Отправить в SP</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Вывод SP в STEEM', `
+        <form id="wallet-withdraw-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Вывод SP</legend>
+            <p class="muted">Если вывод уже запущен, новая операция изменит сумму вывода.</p>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма SP</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 SP">${withdrawMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(withdrawMax)}">Максимум ${escapeHtml(withdrawMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить вывод SP</button>
+            <button type="submit" name="intent" value="send">Начать вывод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-steem-cancel-withdraw-form" class="stacked-form">
+          <fieldset>
+            <legend>Отмена вывода SP</legend>
+            <button type="submit" name="intent" value="preview">Проверить отмену вывода</button>
+            <button type="submit" name="intent" value="send">Отменить вывод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Делегирование SP', `
+        <form id="wallet-delegation-form" class="stacked-form">
+          <fieldset>
+            <legend>Делегирование SP</legend>
+            <div class="field"><label for="wallet-delegation-to">Кому</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма SP</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 SP">${delegationMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(delegationMax)}">Максимум ${escapeHtml(delegationMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить делегирование</button>
+            <button type="submit" name="intent" value="send">Делегировать</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Получение наград', `
+        <form id="wallet-claim-form" class="stacked-form">
+          <fieldset>
+            <legend>Получение наград</legend>
+            <p class="muted">Текущие награды: ${escapeHtml([rewardSteem, rewardSbd, steemVestsToSp(profile, rewardVests) || rewardVests].filter(Boolean).join(', '))}.</p>
+            <input name="liquid" type="hidden" value="${escapeHtml(rewardSteem)}">
+            <input name="debt" type="hidden" value="${escapeHtml(rewardSbd)}">
+            <input name="vesting" type="hidden" value="${escapeHtml(rewardVests)}">
+            <button type="submit" name="intent" value="preview">Проверить получение наград</button>
+            <button type="submit" name="intent" value="send">Получить награды</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Savings', `
+        <form id="wallet-savings-to-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод в savings</legend>
+            <div class="field"><label for="wallet-savings-to">Получатель savings</label><input id="wallet-savings-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+            <div class="field"><label for="wallet-savings-amount">Сумма STEEM/SBD</label><input id="wallet-savings-amount" name="amount" type="text" required placeholder="1.000 STEEM"></div>
+            <div class="field"><label for="wallet-savings-memo">Memo</label><input id="wallet-savings-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить перевод в savings</button>
+            <button type="submit" name="intent" value="send">Отправить в savings</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-savings-from-form" class="stacked-form">
+          <fieldset>
+            <legend>Вывод из savings</legend>
+            <div class="field"><label for="wallet-savings-request-id">ID запроса</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+            <div class="field"><label for="wallet-savings-from-to">Получатель</label><input id="wallet-savings-from-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+            <div class="field"><label for="wallet-savings-from-amount">Сумма STEEM/SBD</label><input id="wallet-savings-from-amount" name="amount" type="text" required placeholder="1.000 STEEM"></div>
+            <div class="field"><label for="wallet-savings-from-memo">Memo</label><input id="wallet-savings-from-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить вывод из savings</button>
+            <button type="submit" name="intent" value="send">Вывести из savings</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-savings-cancel-form" class="stacked-form">
+          <fieldset>
+            <legend>Отмена вывода из savings</legend>
+            <div class="field"><label for="wallet-savings-cancel-request-id">ID запроса</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+            <button type="submit" name="intent" value="preview">Проверить отмену вывода</button>
+            <button type="submit" name="intent" value="send">Отменить вывод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`)
+    ];
+
+    return `
+      <h3>Операции Steem</h3>
+      <p class="muted">Откройте нужный пункт, проверьте операцию, затем подтвердите отправку отдельной кнопкой.</p>
+      ${operations.join('')}`;
   }
 
   function bindGolosTemplateControls(chain) {
@@ -2458,8 +2748,124 @@
     bindGrapheneWalletForms(chain, profile);
   }
 
+  function bindSteemTransferTemplates() {
+    const select = document.getElementById('wallet-steem-template-select');
+    if (!select) return;
+    select.addEventListener('change', () => {
+      const option = select.selectedOptions && select.selectedOptions[0];
+      if (!option || !option.value) return;
+      const form = select.closest('form');
+      if (!form) return;
+      const to = form.querySelector('[name="to"]');
+      const memo = form.querySelector('[name="memo"]');
+      const toVesting = form.querySelector('[name="toVesting"]');
+      if (to) to.value = option.dataset.to || '';
+      if (memo) memo.value = option.dataset.memo || '';
+      if (toVesting) toVesting.checked = option.dataset.toVesting === '1';
+    });
+  }
+
+  function prefillSteemTransferFromUrl() {
+    const form = document.getElementById('wallet-transfer-form');
+    if (!form) return;
+    const params = new URLSearchParams(global.location && global.location.search || '');
+    const hashParams = new URLSearchParams(global.location && global.location.hash && global.location.hash.includes('?') ? global.location.hash.split('?').slice(1).join('?') : '');
+    const get = (name) => params.get(name) || hashParams.get(name) || '';
+    const to = get('to');
+    const amount = get('amount');
+    const memo = get('memo');
+    if (to) {
+      const input = form.querySelector('[name="to"]');
+      if (input) input.value = to.replace(/^@/, '');
+    }
+    if (amount) {
+      const input = form.querySelector('[name="amount"]');
+      if (input) input.value = amount;
+    }
+    if (memo) {
+      const input = form.querySelector('[name="memo"]');
+      if (input) input.value = decodeURIComponent(memo);
+    }
+  }
+
   function bindSteemWalletForms(chain, profile) {
-    bindGrapheneWalletForms(chain, profile);
+    bindSteemTransferTemplates();
+    prefillSteemTransferFromUrl();
+
+    bindOperationForm(chain, 'wallet-transfer-form', async (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому');
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода');
+      if (form.get('toVesting')) {
+        const steemAmount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма перевода в SP');
+        return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, steemAmount], { title: 'STEEM в SP получателя', to, amount: steemAmount });
+      }
+      const rawMemo = String(form.get('memo') || '');
+      if (isSteemMemoWif(chain, rawMemo)) {
+        throw new Error('Memo похоже на приватный ключ. Проверьте поле memo: приватные ключи нельзя отправлять в блокчейн.');
+      }
+      const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, rawMemo], { title: 'Steem transfer', to, amount });
+      prepared.params[3] = await encodeSteemMemoIfNeeded(chain, to, rawMemo, prepared.getPrivateKey());
+      return prepared;
+    });
+
+    bindOperationForm(chain, 'wallet-vesting-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Количество STEEM');
+      return broadcast.prepare(chain, 'active', 'transferToVesting', [from, from, amount], { title: 'STEEM в SP своего аккаунта', to: from, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => {
+      const amount = normalizeSteemPowerInput(profile, form.get('vesting'), 'Сумма SP');
+      return broadcast.prepare(chain, 'active', 'withdrawVesting', [auth.getCurrentLogin(chain), amount], { title: 'Вывод SP', amount });
+    });
+
+    bindOperationForm(chain, 'wallet-steem-cancel-withdraw-form', () => broadcast.prepare(chain, 'active', 'withdrawVesting', [
+      auth.getCurrentLogin(chain),
+      '0.000000 VESTS'
+    ], { title: 'Отмена вывода SP', amount: '0.000000 VESTS' }));
+
+    bindOperationForm(chain, 'wallet-delegation-form', (form) => {
+      const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому');
+      const amount = normalizeSteemPowerInput(profile, form.get('vesting'), 'Сумма SP');
+      return broadcast.prepare(chain, 'active', 'delegateVestingShares', [auth.getCurrentLogin(chain), to, amount], { title: 'Делегирование SP', to, amount });
+    });
+
+    document.querySelectorAll('form[id^="wallet-steem-cancel-delegation-"]').forEach((formEl) => {
+      bindOperationForm(chain, formEl.id, (form) => {
+        const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому');
+        return broadcast.prepare(chain, 'active', 'delegateVestingShares', [auth.getCurrentLogin(chain), to, '0.000000 VESTS'], { title: 'Отмена делегирования SP', to, amount: '0.000000 VESTS' });
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-claim-form', (form) => broadcast.prepare(chain, 'posting', 'claimRewardBalance', [
+      auth.getCurrentLogin(chain),
+      normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Reward STEEM'),
+      normalizeAssetInput(chain, form.get('debt'), chain.debtSymbol, 'Reward SBD'),
+      normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Reward VESTS')
+    ], { title: 'Получение наград Steem' }));
+
+    bindOperationForm(chain, 'wallet-savings-to-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель savings') : from;
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма savings');
+      return broadcast.prepare(chain, 'active', 'transferToSavings', [from, to, amount, String(form.get('memo') || '')], { title: 'Transfer to savings', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-savings-from-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель savings') : from;
+      const requestId = broadcast.validateRequestId(form.get('requestId'));
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма savings');
+      return broadcast.prepare(chain, 'active', 'transferFromSavings', [from, requestId, to, amount, String(form.get('memo') || '')], { title: 'Transfer from savings', to, amount, requestId });
+    });
+
+    bindOperationForm(chain, 'wallet-savings-cancel-form', (form) => broadcast.prepare(chain, 'active', 'cancelTransferFromSavings', [
+      auth.getCurrentLogin(chain),
+      broadcast.validateRequestId(form.get('requestId'))
+    ], { title: 'Cancel transfer from savings', requestId: broadcast.validateRequestId(form.get('requestId')) }));
   }
 
   function bindGrapheneWalletForms(chain, profile) {
