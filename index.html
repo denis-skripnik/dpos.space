@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dpos.space v3</title>
-  <meta name="description" content="Статические read-only инструменты для DPoS блокчейнов.">
+  <meta name="description" content="Статические DPoS инструменты: read-only данные, preview и подтверждённая отправка операций.">
   <link rel="stylesheet" href="v3/css/style.css">
 </head>
 <body>
   <header class="site-header">
     <p class="eyebrow">Dpos.space v3</p>
     <h1>Статические инструменты для DPoS блокчейнов</h1>
-    <p>Первая HTML+JS-версия без PHP/backend: read-only просмотр профилей Golos, VIZ, Steem и Hive.</p>
+    <p>HTML+JS-версия без PHP/backend: профили, аккаунты, кошельки, история и безопасная подготовка операций Golos, VIZ, Steem, Hive, Minter и Decimal.</p>
   </header>
 
   <nav class="panel" aria-label="Навигация по инструментам">
@@ -45,11 +45,14 @@
   </main>
 
   <footer class="site-footer">
-    <p>Legacy PHP-версия сохранена в репозитории. Эта страница — стартовая статическая миграция ветки v3.</p>
+    <p>Legacy PHP-версия сохранена в репозитории. v3 не меняет старую localStorage-схему и не отправляет write-транзакции без отдельного подтверждения.</p>
   </footer>
 
   <script src="v3/js/chains.js"></script>
+  <script src="v3/js/auth.js"></script>
+  <script src="v3/js/broadcast.js"></script>
   <script src="v3/js/profiles.js"></script>
+  <script src="v3/js/history.js"></script>
   <script src="v3/js/app.js"></script>
 </body>
 </html>
