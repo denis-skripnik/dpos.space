@@ -215,6 +215,14 @@
     return text;
   }
 
+  function validateDecimalValidator(value, label) {
+    const text = String(value || '').trim();
+    if (!text) throw new Error(`${label || 'Validator'} is required.`);
+    if (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text)) return text;
+    if (/^[A-Za-z0-9:_./+-]{8,128}$/.test(text)) return text;
+    throw new Error(`${label || 'Validator'} должен быть non-empty Decimal validator id/address.`);
+  }
+
   function validateCoinSymbol(value, label) {
     const text = String(value || '').trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9]{1,14}$/.test(text)) {
@@ -321,6 +329,7 @@
     const txType = sdk.TX_TYPE || {};
     if (!Minter) throw new Error('minterSDK.Minter недоступен.');
     const minter = new Minter({ apiType: 'node', baseURL: chain.apiBase || 'https://api.minter.one/v2' });
+
     const tx = Object.assign({ chainId: 1, gasCoin: prepared.meta.gasCoin || prepared.meta.coin || 'BIP' }, prepared.params[0] || {});
     if (typeof minter.replaceCoinSymbol === 'function') {
       tx.type = tx.type || txType[prepared.meta.txType] || prepared.meta.txType;
@@ -478,6 +487,7 @@
     validateAsset,
     validateRequestId,
     validateAddress,
+    validateDecimalValidator,
     validateAmount,
     validateCoinSymbol,
     verifyPreparedAuthority

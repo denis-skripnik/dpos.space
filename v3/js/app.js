@@ -107,7 +107,7 @@
     if (isAccountLikeKey(key)) return renderAccountCell(chain, value);
     if (String(key).toLowerCase().includes('block') || String(key).toLowerCase() === 'height') return explorerLink(chain, 'block', value, String(value));
     if (String(key).toLowerCase().includes('hash') || String(key).toLowerCase().includes('tx')) return explorerLink(chain, 'tx', value, String(value).slice(0, 16));
-    return escapeHtml(history.formatValue(value));
+    return escapeHtml(history.formatChainAmount ? history.formatChainAmount(chain, key, value) : history.formatValue(value));
   }
 
   function renderExplorerFields(chain, data, options = {}) {
@@ -250,7 +250,8 @@
             </tr>
           </thead>
           <tbody>${rows.map((row) => {
-            const amount = [row.amount, row.coin].filter(Boolean).join(' ');
+            const displayAmount = history.formatChainAmount ? history.formatChainAmount(chain, 'amount', row.amount) : row.amount;
+            const amount = [displayAmount, row.coin].filter(Boolean).join(' ');
             const details = row.memo || transactionDetails(row);
             return `<tr>
               <td>${escapeHtml(history.formatDate(row.timestamp))}</td>
@@ -1361,7 +1362,7 @@
         </fieldset></form>
         <form id="cosmos-delegate-form" class="stacked-form"><fieldset>
           <legend>Delegate / unbond</legend>
-          <div class="field"><label for="cosmos-validator">Validator ${isMinter ? 'public key MP...' : 'address 0x...'}</label><input id="cosmos-validator" name="validator" type="text" required></div>
+          <div class="field"><label for="cosmos-validator">Validator ${isMinter ? 'public key MP...' : 'operator id/address'}</label><input id="cosmos-validator" name="validator" type="text" required></div>
           <div class="field"><label for="cosmos-delegate-amount">Amount</label><input id="cosmos-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
           <div class="field"><label for="cosmos-delegate-coin">Coin</label><input id="cosmos-delegate-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
           <div class="field"><label for="cosmos-delegate-mode">Operation</label><select id="cosmos-delegate-mode" name="mode"><option value="delegate">delegate</option><option value="unbond">unbond</option></select></div>
@@ -1445,8 +1446,8 @@
         const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
         return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${mode}`, amount: `${amount} ${coin}`, txType, coin, validator });
       }
-      const validated = broadcast.validateAddress(chain, validator, 'Validator');
-      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator: validated, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator: validated });
+      const validated = broadcast.validateDecimalValidator(validator, 'Validator');
+      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator: validated, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator: validated, warnings: ['Decimal validator accepts API operator validator ids or validator addresses; account address validation is still enforced for transfers.'] });
     });
 
     bindOperationForm(chain, 'minter-swap-form', (form) => {
@@ -1481,12 +1482,33 @@
     }], { title: 'Decimal create token' }));
 
     bindOperationForm(chain, 'decimal-nft-form', (form) => {
-      const validator = broadcast.validateAddress(chain, form.get('validator'), 'Validator');
+      const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Validator');
       const nftId = String(form.get('nftId') || '').trim();
       if (!nftId) throw new Error('NFT ID is required.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
       return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
     });
+  }
+
+
+  function renderMinterBroadcast(chain) {
+    const sdk = global.minterSDK || {};
+    const hasSignedTxPost = Boolean(sdk.postSignedTx || (sdk.Minter && sdk.Minter.prototype && sdk.Minter.prototype.postTx));
+    const hasMultisig = Boolean(sdk.Multisig || sdk.multisig || sdk.TX_TYPE);
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: raw signed TX / multisig broadcast</h2>
+        <p class="notice">Этот маршрут отделён от generic wallet: <code>chain=minter&amp;app=broadcast</code> не открывает формы seed-wallet операций.</p>
+        <form id="minter-signed-tx-form" class="stacked-form"><fieldset>
+          <legend>Raw signed TX</legend>
+          <div class="field"><label for="minter-signed-tx">Signed transaction hex/base64</label><textarea id="minter-signed-tx" name="signedTx" rows="5" placeholder="Paste already signed TX"></textarea></div>
+          <button type="button" disabled>Broadcast signed TX pending</button>
+          <div class="operation-result" role="status">${hasSignedTxPost ? 'SDK has postTx-like method, but static route still needs explicit decode/postSigned integration before enabling real send.' : 'Blocked: bundled static minter SDK exposes no verified postSigned/decode method for arbitrary raw signed TX.'}</div>
+        </fieldset></form>
+        <section class="card"><h3>Multisig controls</h3><p>${hasMultisig ? 'SDK exposes multisig/tx primitives; create/sign/post controls remain pending until exact legacy multisig method mapping is verified.' : 'Blocked: no verified multisig controls are available in the bundled static browser SDK.'}</p></section>
+        <details><summary>Legacy evidence</summary><p>Legacy Minter broadcast app handled signed raw TX and multisig flows separately from wallet send/delegate forms. v3 keeps this route separate and disabled until exact static SDK decode/postSigned methods are confirmed, so it cannot fake a send.</p></details>
+      </section>`;
+    setStatus('Minter broadcast route loaded separately; signed TX/multisig are pending until SDK methods are verified.', 'info');
   }
 
   async function renderCosmosValidators(chain) {
@@ -1603,7 +1625,9 @@
     accountInput.value = account;
 
     try {
-      if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'broadcast' || app.id === 'swap' || app.id === 'my-coin')) {
+      if (chain.id === 'minter' && app.id === 'broadcast') {
+        renderMinterBroadcast(chain);
+      } else if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
         renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && app.id === 'validators') {
         await renderCosmosValidators(chain);
