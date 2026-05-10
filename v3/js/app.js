@@ -590,19 +590,54 @@
     return gateway.deposit || gateway.withdraw ? gateway : null;
   }
 
+  function golosSymbolFromAssetField(value) {
+    const parts = String(value || '').trim().split(/\s+/);
+    return parts.length > 1 ? parts[parts.length - 1] : '';
+  }
+
+  async function fetchAllGolosAssets(api, limit) {
+    const assets = [];
+    let from = '';
+    const pageLimit = limit || 200;
+    const hardCap = 5000;
+    for (let page = 0; page < 1000; page += 1) {
+      const chunk = await api.getAssetsAsync('', [], from, String(pageLimit), 'by_symbol_name');
+      if (!Array.isArray(chunk) || chunk.length === 0) break;
+      chunk.forEach((asset) => {
+        const symbol = golosSymbolFromAssetField(asset && asset.max_supply);
+        if (symbol && !assets.some((item) => golosSymbolFromAssetField(item && item.max_supply) === symbol)) assets.push(asset);
+      });
+      if (assets.length >= hardCap || chunk.length < pageLimit) break;
+      const lastSymbol = golosSymbolFromAssetField(chunk[chunk.length - 1] && chunk[chunk.length - 1].max_supply);
+      if (!lastSymbol || lastSymbol === from) break;
+      from = lastSymbol;
+    }
+    return assets;
+  }
+
   async function fetchGolosUiaGateways(chain, balanceRows) {
-    const symbols = Array.from(new Set((balanceRows || [])
+    const balanceSymbols = Array.from(new Set((balanceRows || [])
       .map((row) => row && row[2])
-      .filter((meta) => meta && meta.kind === 'uia' && meta.balanceType === 'main')
+      .filter((meta) => meta && meta.kind === 'uia')
       .map((meta) => normalizeGolosTokenSymbol(meta.symbol, 'UIA symbol'))));
-    if (!symbols.length) return [];
     try {
       await loadScript(chain.libraryPath);
       const connection = await profiles.connect(chain);
       const api = connection.client && connection.client.api;
       if (!api || typeof api.getAssetsAsync !== 'function') return [];
-      const assets = await api.getAssetsAsync('', symbols);
-      return (assets || []).map(buildGolosUiaGatewayFromAsset).filter(Boolean);
+      const assets = await fetchAllGolosAssets(api, 200);
+      const gatewayBySymbol = new Map((assets || [])
+        .map(buildGolosUiaGatewayFromAsset)
+        .filter(Boolean)
+        .map((gateway) => [gateway.symbol, gateway]));
+      if (balanceSymbols.length) {
+        const missing = balanceSymbols.filter((symbol) => !gatewayBySymbol.has(symbol));
+        if (missing.length) {
+          const balanceAssets = await api.getAssetsAsync('', missing);
+          (balanceAssets || []).map(buildGolosUiaGatewayFromAsset).filter(Boolean).forEach((gateway) => gatewayBySymbol.set(gateway.symbol, gateway));
+        }
+      }
+      return Array.from(gatewayBySymbol.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
     } catch (error) {
       console.warn('Golos UIA gateway metadata was not loaded:', error);
       return [];
@@ -635,7 +670,14 @@
     root.querySelectorAll('[data-fill-target]').forEach((button) => {
       button.addEventListener('click', () => {
         const target = root.querySelector(`#${button.dataset.fillTarget}`);
-        if (target) target.value = button.dataset.fillValue || '';
+        if (!target) return;
+        if (button.dataset.fillSelected) {
+          const select = root.querySelector(`#${button.dataset.fillSelected}`);
+          const option = select && select.selectedOptions && select.selectedOptions[0];
+          target.value = option && option.dataset.max ? amountFromBalance(option.dataset.max) : '';
+          return;
+        }
+        target.value = button.dataset.fillValue || '';
       });
     });
   }
@@ -1548,7 +1590,7 @@
             <p class="muted">Legacy parity: golos.broadcast.transferToTipAsync(active_key, from, to, amount, memo, []). Для UIA precision берётся из getAssetsAsync перед preview/send.</p>
             <div class="field"><label for="wallet-golos-transfer-to-tip-token">Токен</label><select id="wallet-golos-transfer-to-tip-token" name="token" required>${mainTokenOptions || '<option value="">Нет доступных main-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-transfer-to-tip-to">Кому</label><input id="wallet-golos-transfer-to-tip-to" name="to" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="wallet-golos-transfer-to-tip-amount">Сумма</label><input id="wallet-golos-transfer-to-tip-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-transfer-to-tip-amount">Сумма</label><input id="wallet-golos-transfer-to-tip-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-transfer-to-tip-token" data-fill-target="wallet-golos-transfer-to-tip-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-transfer-to-tip-memo">Memo</label><input id="wallet-golos-transfer-to-tip-memo" name="memo" type="text"></div>
             <button type="submit" name="intent" value="preview">Проверить transfer_to_tip</button>
             <button type="submit" name="intent" value="send">Отправить transfer_to_tip</button>
@@ -1562,7 +1604,7 @@
             <p class="muted">Legacy parity: golos.broadcast.transferFromTipAsync(active_key, from, to, amount, memo, []). Для GOLOS legacy подписывает действие как перевод в СГ, для UIA — на основной баланс.</p>
             <div class="field"><label for="wallet-golos-transfer-from-tip-token">Токен</label><select id="wallet-golos-transfer-from-tip-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-transfer-from-tip-to">Кому</label><input id="wallet-golos-transfer-from-tip-to" name="to" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="wallet-golos-transfer-from-tip-amount">Сумма</label><input id="wallet-golos-transfer-from-tip-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-transfer-from-tip-amount">Сумма</label><input id="wallet-golos-transfer-from-tip-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-transfer-from-tip-token" data-fill-target="wallet-golos-transfer-from-tip-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-transfer-from-tip-memo">Memo</label><input id="wallet-golos-transfer-from-tip-memo" name="memo" type="text"></div>
             <button type="submit" name="intent" value="preview">Проверить transfer_from_tip</button>
             <button type="submit" name="intent" value="send">Отправить transfer_from_tip</button>
@@ -1576,7 +1618,7 @@
             <p class="muted">Legacy parity: golos.broadcast.donateAsync(posting_key, from, to, amount, {app:'dpos-space', version:1, comment:memo, target:{type:'personal_donate'}}, []).</p>
             <div class="field"><label for="wallet-golos-token-donate-token">Токен</label><select id="wallet-golos-token-donate-token" name="token" required>${tipTokenOptions || '<option value="">Нет доступных TIP-балансов</option>'}</select></div>
             <div class="field"><label for="wallet-golos-token-donate-to">Кому</label><input id="wallet-golos-token-donate-to" name="to" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="wallet-golos-token-donate-amount">Сумма</label><input id="wallet-golos-token-donate-amount" name="amount" type="text" required placeholder="1.000"></div>
+            <div class="field"><label for="wallet-golos-token-donate-amount">Сумма</label><input id="wallet-golos-token-donate-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-token-donate-token" data-fill-target="wallet-golos-token-donate-amount">Максимум</button></div>
             <div class="field"><label for="wallet-golos-token-donate-memo">Комментарий</label><textarea id="wallet-golos-token-donate-memo" name="memo" rows="3"></textarea></div>
             <button type="submit" name="intent" value="preview">Проверить donate</button>
             <button type="submit" name="intent" value="send">Отправить donate</button>
