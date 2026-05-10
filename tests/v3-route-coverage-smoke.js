@@ -79,7 +79,12 @@ assert(appSource.includes('function renderHiveWallet'), 'Hive wallet has a dedic
 assert(appSource.includes('function renderSteemWallet'), 'Steem wallet has a dedicated renderer entry point');
 assert(appSource.includes('function buildGrapheneWalletForms'), 'Graphene wallet keeps shared form markup helper behind chain-specific renderers');
 assert(appSource.includes('function bindGolosWalletForms'), 'Golos wallet has a dedicated binding entry point');
+assert(appSource.includes('function renderGolosWalletBalances'), 'Golos wallet renders a dedicated balance list instead of generic Graphene rows');
+assert(appSource.includes('Golos показывает СГ в пользовательских единицах'), 'Golos wallet explains СГ terminology to users');
+assert(appSource.includes('Claim accumulative balance'), 'Golos wallet exposes legacy claim accumulative balance wording/operation');
+assert(appSource.includes('TIP/UIA: not yet ported'), 'Golos wallet marks TIP/UIA actions as not yet ported instead of pretending support');
 assert(appSource.includes('fetchGolosUiaBalances'), 'Golos wallet fetches UIA balances');
+assert(appSource.includes("{ kind: 'uia', symbol, balanceType: 'tip' }"), 'Golos UIA TIP balances carry metadata for dedicated rendering');
 assert(appSource.includes('normalizeGolosPowerInput'), 'Golos wallet accepts СГ amounts and converts them to GESTS for broadcast');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'validators').accountField, undefined, 'Minter validators do not show the global account field');

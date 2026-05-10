@@ -455,8 +455,8 @@
         const main = Number(value && value.balance) || 0;
         const tip = Number(value && value.tip_balance) || 0;
         const result = [];
-        if (main > 0) result.push([`UIA ${symbol}`, `${main} ${symbol}`]);
-        if (tip > 0) result.push([`UIA ${symbol} TIP`, `${tip} ${symbol}`]);
+        if (main > 0) result.push([`UIA ${symbol}`, `${main} ${symbol}`, { kind: 'uia', symbol, balanceType: 'main' }]);
+        if (tip > 0) result.push([`UIA ${symbol} TIP`, `${tip} ${symbol}`, { kind: 'uia', symbol, balanceType: 'tip' }]);
         return result;
       });
     } catch (error) {
@@ -890,11 +890,29 @@
   }
 
   async function renderGolosWallet(chain, account) {
-    return renderGrapheneWallet(chain, account, {
-      loadExtraBalances: fetchGolosUiaBalances,
-      renderForms: renderGolosWalletForms,
-      bindForms: bindGolosWalletForms
-    });
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька Golos</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю Golos-кошелёк @${account}...`, 'loading');
+
+    const data = await loadGrapheneWalletData(chain, account, { loadExtraBalances: fetchGolosUiaBalances });
+    const formsHtml = renderGolosWalletForms(chain, data.profile);
+
+    appEl.innerHTML = `
+      <section class="panel wallet-golos">
+        <h2>Golos: кошелёк @${escapeHtml(account)}</h2>
+        <p><strong>Нода:</strong> ${escapeHtml(data.profile.node)}</p>
+        <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, data.current)))}</p>
+        <p class="notice">Golos показывает СГ в пользовательских единицах. Перед отправкой можно проверить операцию; реальная отправка запускается отдельной кнопкой и подтверждается в браузере.</p>
+        <h3>Балансы Golos</h3>
+        ${renderGolosWalletBalances(data.profile, data.balanceRows)}
+        ${formsHtml}
+        <h3>Последние финансовые операции</h3>
+        ${renderHistoryTable(data.walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
+      </section>
+    `;
+
+    bindGolosWalletForms(chain, data.profile);
+    bindMaxButtons(appEl);
+    setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
   }
 
   async function renderVizWallet(chain, account) {
@@ -1052,8 +1070,118 @@
       ${operations.join('')}`;
   }
 
+  function renderGolosWalletBalances(profile, balanceRows) {
+    const raw = (profile && profile.raw) || {};
+    const rows = [];
+    const add = (label, value, note) => {
+      if (value === undefined || value === null || value === '') return;
+      rows.push([label, value, note || '']);
+    };
+
+    add('GOLOS', raw.balance);
+    add('GBG', raw.sbd_balance || raw.gbg_balance);
+    add('СГ', formatGolosPowerMax(profile, raw.vesting_shares));
+    add('Делегировано СГ', formatGolosPowerMax(profile, raw.delegated_vesting_shares));
+    add('Получено делегированием СГ', formatGolosPowerMax(profile, raw.received_vesting_shares));
+    add('TIP GOLOS', raw.tip_balance, 'donate / transfer_from_tip ещё не перенесены в этот slice полностью');
+    add('Накопления GOLOS', raw.accumulative_balance, 'claim accumulative balance');
+
+    (balanceRows || []).forEach((row) => {
+      const meta = row && row[2];
+      if (meta && meta.kind === 'uia') {
+        const suffix = meta.balanceType === 'tip' ? 'TIP' : 'основной';
+        add(`UIA ${meta.symbol} (${suffix})`, row[1], 'UIA actions/gateways: not yet ported');
+      }
+    });
+
+    return `<ul class="wallet-golos-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
+  }
+
   function renderGolosWalletForms(chain, profile) {
-    return buildGrapheneWalletForms(chain, profile);
+    const liquid = chain.liquidSymbol || 'GOLOS';
+    const debt = chain.debtSymbol || 'GBG';
+    const liquidMax = profile ? pickBalance(profile, liquid) : '';
+    const tipMax = profile && profile.raw ? profile.raw.tip_balance : '';
+    const vestingMax = formatGolosPowerMax(profile, profile && profile.raw && profile.raw.vesting_shares);
+    const claimMax = profile && profile.raw ? profile.raw.accumulative_balance : '';
+    const operations = [
+      operationDetails(`Перевод GOLOS/GBG`, `
+        <form id="wallet-transfer-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод GOLOS/GBG</legend>
+            <div class="field"><label for="wallet-transfer-to">Кому</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить перевод</button>
+            <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('GOLOS в СГ', `
+        <form id="wallet-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод GOLOS в СГ</legend>
+            <div class="field"><label for="wallet-vesting-to">Получатель СГ</label><input id="wallet-vesting-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+            <div class="field"><label for="wallet-vesting-amount">Сумма GOLOS</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить перевод в СГ</button>
+            <button type="submit" name="intent" value="send">Отправить перевод в СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Вывод СГ', `
+        <form id="wallet-withdraw-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Вывод СГ в GOLOS</legend>
+            <p class="muted">Если вывод уже запущен, новая операция изменит сумму вывода.</p>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма СГ</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 СГ">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить вывод СГ</button>
+            <button type="submit" name="intent" value="send">Отправить вывод СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Делегирование СГ', `
+        <form id="wallet-delegation-form" class="stacked-form">
+          <fieldset>
+            <legend>Делегирование СГ</legend>
+            <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма СГ</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 СГ">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить делегирование СГ</button>
+            <button type="submit" name="intent" value="send">Отправить делегирование СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Получить накопления GOLOS', `
+        <form id="wallet-golos-claim-form" class="stacked-form">
+          <fieldset>
+            <legend>Claim accumulative balance</legend>
+            <div class="field"><label for="wallet-golos-claim-to">Кому</label><input id="wallet-golos-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>
+            <div class="field"><label for="wallet-golos-claim-amount">Сумма GOLOS</label><input id="wallet-golos-claim-amount" name="amount" type="text" required placeholder="0.000 ${escapeHtml(liquid)}">${claimMax ? ` <button type="button" data-fill-target="wallet-golos-claim-amount" data-fill-value="${escapeHtml(claimMax)}">Максимум ${escapeHtml(claimMax)}</button>` : ''}</div>
+            <div class="field"><label><input name="toVesting" type="checkbox"> Получить в СГ</label></div>
+            <button type="submit" name="intent" value="preview">Проверить получение</button>
+            <button type="submit" name="intent" value="send">Получить в сети</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Донат из TIP-баланса GOLOS', `
+        <form id="wallet-golos-donate-form" class="stacked-form">
+          <fieldset>
+            <legend>Донат GOLOS из TIP-баланса</legend>
+            <div class="field"><label for="wallet-golos-donate-to">Кому</label><input id="wallet-golos-donate-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-golos-donate-amount">Сумма GOLOS</label><input id="wallet-golos-donate-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${tipMax ? ` <button type="button" data-fill-target="wallet-golos-donate-amount" data-fill-value="${escapeHtml(tipMax)}">Максимум ${escapeHtml(tipMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-golos-donate-memo">Комментарий</label><textarea id="wallet-golos-donate-memo" name="memo" rows="3"></textarea></div>
+            <button type="submit" name="intent" value="preview">Проверить донат</button>
+            <button type="submit" name="intent" value="send">Отправить донат</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('TIP/UIA: not yet ported', `
+        <p class="muted">TIP transfer / transfer_from_tip для UIA, UIA gateways/deposit/withdraw и шаблоны transfer/donate из legacy-кошелька пока не перенесены в v3. Балансы UIA/TIP отображаются выше, но действия не показываются как готовые, чтобы не имитировать неподдержанную feature.</p>`)
+    ];
+
+    return `
+      <h3>Операции Golos</h3>
+      <p class="muted">Это первый safe parity slice: основные GOLOS/GBG/СГ операции доступны через preview + подтверждение; UIA/TIP actions отмечены отдельно как not yet ported.</p>
+      ${operations.join('')}`;
   }
 
   function renderVizWalletForms(chain, profile) {
@@ -1069,7 +1197,64 @@
   }
 
   function bindGolosWalletForms(chain, profile) {
-    bindGrapheneWalletForms(chain, profile);
+    bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
+      auth.getCurrentLogin(chain),
+      normalizeAccountInput(chain, form.get('to'), 'Кому'),
+      normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода'),
+      String(form.get('memo') || '')
+    ], { title: 'Golos transfer', to: normalizeAccountInput(chain, form.get('to'), 'Кому'), amount: normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода') }));
+
+    bindOperationForm(chain, 'wallet-vesting-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель СГ') : from;
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма GOLOS в СГ');
+      return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'GOLOS в СГ', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => {
+      const amount = normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ');
+      return broadcast.prepare(chain, 'active', 'withdrawVesting', [
+        auth.getCurrentLogin(chain),
+        amount
+      ], { title: 'Вывод СГ', amount });
+    });
+
+    bindOperationForm(chain, 'wallet-delegation-form', (form) => {
+      const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому делегировать');
+      const amount = normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ');
+      return broadcast.prepare(chain, 'active', 'delegateVestingShares', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount
+      ], { title: 'Делегирование СГ', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-golos-claim-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Кому получить начисления') : account;
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма claim');
+      const toVesting = form.get('toVesting') === 'on';
+      return broadcast.prepare(chain, 'posting', 'claim', [account, to, amount, toVesting, []], {
+        title: 'Claim accumulative balance',
+        to,
+        amount,
+        warnings: toVesting ? ['Начисления будут получены в СГ.'] : []
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-golos-donate-form', (form) => {
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому донат');
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма доната');
+      return broadcast.prepare(chain, 'posting', 'donate', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        { app: 'dpos-space', version: 3, comment: String(form.get('memo') || ''), target: { type: 'personal_donate' } },
+        []
+      ], { title: 'Golos donate', to, amount });
+    });
   }
 
   function bindVizWalletForms(chain, profile) {
