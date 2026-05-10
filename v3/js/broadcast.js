@@ -317,10 +317,25 @@
     return createPrepared(chain, signer, authority, key, operationName, params, meta);
   }
 
+  function prepareExternal(chain, operationName, params, meta) {
+    return createPrepared(chain, 'external-signed-payload', 'signed-payload', '', operationName, params, Object.assign({ warnings: [
+      'This operation uses an already signed transaction or externally collected signatures; v3 does not decrypt or request a seed for this route.'
+    ] }, meta || {}));
+  }
+
   function amountToWeiString(amount) {
     const text = validateAmount(amount, 'Amount');
     const [whole, frac = ''] = text.split('.');
     return `${whole}${frac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '');
+  }
+
+  function decimalToMinimalString(amount, label, allowZero) {
+    const text = String(amount ?? '').trim().replace(',', '.');
+    if (!/^\d+(?:\.\d{1,18})?$/.test(text) || (!allowZero && Number(text) <= 0)) {
+      throw new Error(`${label || 'Amount'} должен быть ${allowZero ? 'неотрицательным' : 'положительным'} числом.`);
+    }
+    const [whole, frac = ''] = text.split('.');
+    return `${whole}${frac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
   }
 
   async function executeMinter(chain, prepared) {
@@ -329,6 +344,25 @@
     const txType = sdk.TX_TYPE || {};
     if (!Minter) throw new Error('minterSDK.Minter недоступен.');
     const minter = new Minter({ apiType: 'node', baseURL: chain.apiBase || 'https://api.minter.one/v2' });
+
+    if (prepared.operationName === 'minterSignedTx') {
+      const signedTx = String((prepared.params[0] && prepared.params[0].tx) || '').trim();
+      if (!signedTx) throw new Error('Signed TX is required.');
+      if (typeof minter.postSignedTx !== 'function') throw new Error('minterSDK.Minter.postSignedTx недоступен.');
+      return minter.postSignedTx(signedTx);
+    }
+
+    if (prepared.operationName === 'minterMultisigSubmit') {
+      const payload = prepared.params[0] || {};
+      if (!payload.multisig || !payload.tx || !Array.isArray(payload.signatures) || payload.signatures.length === 0) {
+        throw new Error('Multisig submit requires multisig address, transaction JSON and at least one signature.');
+      }
+      if (typeof minter.getNonce === 'function') payload.tx.nonce = await minter.getNonce(payload.multisig);
+      payload.tx.signatureType = 2;
+      payload.tx.signatureData = { multisig: payload.multisig, signatures: payload.signatures };
+      if (typeof minter.postTx !== 'function') throw new Error('minterSDK.Minter.postTx недоступен.');
+      return minter.postTx(payload.tx);
+    }
 
     const tx = Object.assign({ chainId: 1, gasCoin: prepared.meta.gasCoin || prepared.meta.coin || 'BIP' }, prepared.params[0] || {});
     if (typeof minter.replaceCoinSymbol === 'function') {
@@ -367,6 +401,23 @@
       txPayload = await evm.delegateNFT({ nftId: p.nftId, address: p.validator });
     } else if (prepared.operationName === 'decimalUnbondNFT') {
       txPayload = await evm.withdrawStakeNFT({ nftId: p.nftId, address: p.validator });
+    } else if (prepared.operationName === 'decimalConvert') {
+      const isFromDEL = String(p.from || '').toUpperCase() === 'DEL';
+      const isToDEL = String(p.to || '').toUpperCase() === 'DEL';
+      if (isFromDEL && isToDEL) throw new Error('Decimal convert DEL → DEL is not valid.');
+      const amountIn = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.amount), Number(p.fromDecimals || 18)) : decimalToMinimalString(p.amount, 'Decimal convert amount');
+      const amountOutMin = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.minAmount || '0'), Number(p.toDecimals || 18)) : decimalToMinimalString(p.minAmount || '0', 'Minimum receive amount', true);
+      const recipient = wallet.evmAddress || wallet.address;
+      if (!isFromDEL && isToDEL) {
+        if (typeof evm.sellExactTokensForDEL !== 'function') throw new Error('DecimalSDK sellExactTokensForDEL is not available.');
+        txPayload = await evm.sellExactTokensForDEL(p.from, amountIn, amountOutMin, recipient);
+      } else if (isFromDEL && !isToDEL) {
+        if (typeof evm.buyTokenForExactDEL !== 'function') throw new Error('DecimalSDK buyTokenForExactDEL is not available.');
+        txPayload = await evm.buyTokenForExactDEL(p.to, amountIn, amountOutMin, recipient);
+      } else {
+        if (typeof evm.convertToken !== 'function') throw new Error('DecimalSDK convertToken is not available.');
+        txPayload = await evm.convertToken(p.from, p.to, amountIn, amountOutMin, recipient);
+      }
     } else {
       throw new Error(`Decimal operation ${prepared.operationName} is not implemented in v3 helper.`);
     }
@@ -391,6 +442,9 @@
     }
 
     const client = getClient(chain);
+    if (chain.id === 'minter' && (prepared.operationName === 'minterSignedTx' || prepared.operationName === 'minterMultisigSubmit')) {
+      return executeMinter(chain, prepared);
+    }
     const authorityCheck = await verifyPreparedAuthority(chain, prepared);
     if (authorityCheck.warnings.length) {
       prepared.meta.warnings = prepared.meta.warnings.concat(authorityCheck.warnings);
@@ -480,6 +534,7 @@
     derivePublicKey,
     isLikelyWif,
     prepare,
+    prepareExternal,
     prepareWithPrivateKey,
     sanitizePrepared,
     sanitizeResult,
