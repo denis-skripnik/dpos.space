@@ -59,6 +59,13 @@ assert(appSource.includes("explorerLink(chain, 'tx'"), 'transaction rows link tx
 assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link block values to explorer route');
 assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');
 assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter broadcast has a separate route and does not collapse to wallet');
+assert(appSource.includes('function appRequiresAccount'), 'route form has contextual account-field helper');
+assert(appSource.includes('accountInput.disabled = !visible'), 'hidden account field is disabled and removed from tab order');
+assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
+assert.strictEqual(chains.minter.apps.find((app) => app.id === 'validators').accountField, undefined, 'Minter validators do not show the global account field');
+assert.strictEqual(chains.minter.apps.find((app) => app.id === 'profiles').accountField, true, 'profiles keep the global account field');
+assert.strictEqual(chains.minter.apps.find((app) => app.id === 'wallet').accountField, true, 'wallet keeps the global account field');
+assert.strictEqual(chains.minter.apps.find((app) => app.id === 'history').accountField, true, 'history keeps the global account field');
 assert(appSource.includes('minter-liquidity-form'), 'Minter liquidity/create pool form is present');
 assert(appSource.includes('minter-hub-withdraw-form'), 'Minter hub withdraw static transaction form is present');
 assert(appSource.includes('EDIT_COIN_OWNER'), 'Minter edit coin owner operation is present');
@@ -70,3 +77,9 @@ assert(appSource.includes('Raw signed TX'), 'Minter broadcast route labels raw s
 assert(appSource.includes('Multisig controls'), 'Minter broadcast route labels multisig controls');
 assert(appSource.includes("chain.id === 'minter' && app.id === 'broadcast'"), 'Minter broadcast does not collapse to generic wallet route');
 assert(appSource.includes("chain.id === 'decimal' && app.id === 'broadcast'"), 'Decimal broadcast uses Decimal wallet/SDK forms instead of Graphene wallet forms');
+assert(appSource.includes('function renderMinterLong'), 'Minter LONG has a dedicated v3 renderer');
+assert(appSource.includes("fetchLongJson('/bids'"), 'Minter LONG bids endpoint is wired');
+assert(appSource.includes("fetchLongJson('/deferred-txs'"), 'Minter LONG deferred-txs endpoint is wired');
+assert(appSource.includes('https://backend.dpos.space/smartfarm'), 'Minter LONG uses HTTPS backend endpoint');
+assert(!appSource.includes('http://178.20.43.121:3852/smartfarm'), 'Minter LONG v3 does not use legacy mixed-content backend URL');
+assert(!/LONG[\s\S]{0,400}(гарантированн(?:ый|ого) доход|обещаем доход|profit promise)/i.test(appSource), 'LONG copy does not contain income promise phrases');
