@@ -807,7 +807,6 @@
         <p class="notice">Перед отправкой можно проверить операцию. Реальная отправка запускается отдельной кнопкой и подтверждается в браузере.</p>
         <h3>Балансы</h3>
         <ul>${profile.balances.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
-        ${walletCapabilities(chain)}
         ${walletPrepareForms(chain, profile)}
         <h3>Последние финансовые операции</h3>
         ${renderHistoryTable(walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
@@ -819,17 +818,12 @@
     setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки «Максимум» и отправка в сеть.`, 'ok');
   }
 
-  function walletCapabilities(chain) {
-    const capabilities = {
-      golos: ['балансы GOLOS/GBG', 'vesting/СГ', 'делегирование', 'перевод', 'power up', 'донат', 'TIP операции пока недоступны'],
-      viz: ['баланс VIZ', 'SHARES', 'энергия/награды', 'перевод', 'power up', 'делегирование', 'invite операции пока недоступны'],
-      hive: ['балансы HIVE/HBD', 'HP/VESTS', 'savings', 'получение наград', 'делегирование', 'перевод', 'power up'],
-      steem: ['балансы STEEM/SBD', 'SP/VESTS', 'savings', 'получение наград', 'делегирование', 'перевод', 'power up']
-    }[chain.id] || [];
-
+  function operationDetails(title, body, open) {
     return `
-      <h3>Особенности кошелька ${escapeHtml(chain.title)}</h3>
-      <ul>${capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+      <details class="operation-details" ${open ? 'open' : ''}>
+        <summary>${escapeHtml(title)}</summary>
+        ${body}
+      </details>`;
   }
 
   function walletPrepareForms(chain, profile) {
@@ -839,95 +833,115 @@
     const supportsClaim = chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem';
     const supportsSavings = chain.id !== 'viz';
     const liquidMax = profile ? pickBalance(profile, liquid) : '';
-    const debtMax = profile && debt ? pickBalance(profile, debt) : '';
     const vestingMax = profile ? pickBalance(profile, vesting) : '';
+    const operations = [
+      operationDetails(`Перевод (${liquid})`, `
+        <form id="wallet-transfer-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод (${escapeHtml(liquid)})</legend>
+            <div class="field"><label for="wallet-transfer-to">Получатель</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить перевод</button>
+            <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Перевод в соцкапитал / power up', `
+        <form id="wallet-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод в соцкапитал / power up</legend>
+            <div class="field"><label for="wallet-vesting-to">Получатель power up</label><input id="wallet-vesting-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+            <div class="field"><label for="wallet-vesting-amount">Сумма с символом</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить перевод в соцкапитал</button>
+            <button type="submit" name="intent" value="send">Отправить power up в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Вывод vesting / power down', `
+        <form id="wallet-withdraw-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Вывод vesting / power down</legend>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить вывод vesting</button>
+            <button type="submit" name="intent" value="send">Отправить power down в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Делегирование', `
+        <form id="wallet-delegation-form" class="stacked-form">
+          <fieldset>
+            <legend>Делегирование</legend>
+            <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить делегирование</button>
+            <button type="submit" name="intent" value="send">Отправить делегирование в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`)
+    ];
+
+    if (supportsClaim) {
+      operations.push(operationDetails('Получение наград', `
+        <form id="wallet-claim-form" class="stacked-form">
+          <fieldset>
+            <legend>Получение наград</legend>
+            <p class="muted">Введите балансы наград ровно в формате сети. Для Golos: liquid/vesting/to; для Hive/Steem: liquid, debt и vesting-награды.</p>
+            <div class="field"><label for="wallet-claim-liquid">Ликвидная награда</label><input id="wallet-claim-liquid" name="liquid" type="text" required placeholder="0.000 ${escapeHtml(liquid)}"></div>
+            <div class="field"><label for="wallet-claim-debt">Долговая награда</label><input id="wallet-claim-debt" name="debt" type="text" placeholder="0.000 ${escapeHtml(debt)}"></div>
+            <div class="field"><label for="wallet-claim-vesting">Награда в соцкапитале</label><input id="wallet-claim-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}"></div>
+            ${chain.id === 'golos' ? '<div class="field"><label for="wallet-claim-to">Получатель награды</label><input id="wallet-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>' : ''}
+            <button type="submit" name="intent" value="preview">Проверить получение награды</button>
+            <button type="submit" name="intent" value="send">Получить награды в сети</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`));
+    }
+
+    if (supportsSavings) {
+      operations.push(
+        operationDetails('Перевод в savings', `
+          <form id="wallet-savings-to-form" class="stacked-form">
+            <fieldset>
+              <legend>Перевод в savings</legend>
+              <div class="field"><label for="wallet-savings-to">Получатель savings</label><input id="wallet-savings-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+              <div class="field"><label for="wallet-savings-amount">Сумма с символом</label><input id="wallet-savings-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
+              <div class="field"><label for="wallet-savings-memo">Memo</label><input id="wallet-savings-memo" name="memo" type="text"></div>
+              <button type="submit" name="intent" value="preview">Проверить перевод в savings</button>
+              <button type="submit" name="intent" value="send">Отправить в savings в сеть</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset>
+          </form>`),
+        operationDetails('Вывод из savings', `
+          <form id="wallet-savings-from-form" class="stacked-form">
+            <fieldset>
+              <legend>Вывод из savings</legend>
+              <div class="field"><label for="wallet-savings-request-id">ID запроса</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+              <div class="field"><label for="wallet-savings-from-to">Получатель</label><input id="wallet-savings-from-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+              <div class="field"><label for="wallet-savings-from-amount">Сумма с символом</label><input id="wallet-savings-from-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
+              <div class="field"><label for="wallet-savings-from-memo">Memo</label><input id="wallet-savings-from-memo" name="memo" type="text"></div>
+              <button type="submit" name="intent" value="preview">Проверить вывод из savings</button>
+              <button type="submit" name="intent" value="send">Вывести из savings в сеть</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset>
+          </form>`),
+        operationDetails('Отмена вывода из savings', `
+          <form id="wallet-savings-cancel-form" class="stacked-form">
+            <fieldset>
+              <legend>Отмена вывода из savings</legend>
+              <div class="field"><label for="wallet-savings-cancel-request-id">ID запроса</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+              <button type="submit" name="intent" value="preview">Проверить отмену вывода из savings</button>
+              <button type="submit" name="intent" value="send">Отменить вывод в сети</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset>
+          </form>`)
+      );
+    }
+
     return `
       <h3>Операции кошелька</h3>
-      <form id="wallet-transfer-form" class="stacked-form">
-        <fieldset>
-          <legend>Перевод (${escapeHtml(liquid)})</legend>
-          <div class="field"><label for="wallet-transfer-to">Получатель</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
-          <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
-          <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить перевод</button>
-          <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      <form id="wallet-vesting-form" class="stacked-form">
-        <fieldset>
-          <legend>Перевод в соцкапитал / power up</legend>
-          <div class="field"><label for="wallet-vesting-to">Получатель power up</label><input id="wallet-vesting-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
-          <div class="field"><label for="wallet-vesting-amount">Сумма с символом</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить перевод в соцкапитал</button>
-          <button type="submit" name="intent" value="send">Отправить power up в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      <form id="wallet-withdraw-vesting-form" class="stacked-form">
-        <fieldset>
-          <legend>Вывод vesting / power down</legend>
-          <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить вывод vesting</button>
-          <button type="submit" name="intent" value="send">Отправить power down в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      <form id="wallet-delegation-form" class="stacked-form">
-        <fieldset>
-          <legend>Делегирование</legend>
-          <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
-          <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить делегирование</button>
-          <button type="submit" name="intent" value="send">Отправить делегирование в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      ${supportsClaim ? `<form id="wallet-claim-form" class="stacked-form">
-        <fieldset>
-          <legend>Получение наград</legend>
-          <p class="muted">Введите балансы наград ровно в формате сети. Для Golos: liquid/vesting/to; для Hive/Steem: liquid, debt и vesting-награды.</p>
-          <div class="field"><label for="wallet-claim-liquid">Ликвидная награда</label><input id="wallet-claim-liquid" name="liquid" type="text" required placeholder="0.000 ${escapeHtml(liquid)}"></div>
-          <div class="field"><label for="wallet-claim-debt">Долговая награда</label><input id="wallet-claim-debt" name="debt" type="text" placeholder="0.000 ${escapeHtml(debt)}"></div>
-          <div class="field"><label for="wallet-claim-vesting">Награда в соцкапитале</label><input id="wallet-claim-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}"></div>
-          ${chain.id === 'golos' ? '<div class="field"><label for="wallet-claim-to">Получатель награды</label><input id="wallet-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>' : ''}
-          <button type="submit" name="intent" value="preview">Проверить получение награды</button>
-          <button type="submit" name="intent" value="send">Получить награды в сети</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>` : ''}
-      ${supportsSavings ? `<form id="wallet-savings-to-form" class="stacked-form">
-        <fieldset>
-          <legend>Перевод в savings</legend>
-          <div class="field"><label for="wallet-savings-to">Получатель savings</label><input id="wallet-savings-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
-          <div class="field"><label for="wallet-savings-amount">Сумма с символом</label><input id="wallet-savings-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
-          <div class="field"><label for="wallet-savings-memo">Memo</label><input id="wallet-savings-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить перевод в savings</button>
-          <button type="submit" name="intent" value="send">Отправить в savings в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      <form id="wallet-savings-from-form" class="stacked-form">
-        <fieldset>
-          <legend>Вывод из savings</legend>
-          <div class="field"><label for="wallet-savings-request-id">ID запроса</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
-          <div class="field"><label for="wallet-savings-from-to">Получатель</label><input id="wallet-savings-from-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
-          <div class="field"><label for="wallet-savings-from-amount">Сумма с символом</label><input id="wallet-savings-from-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
-          <div class="field"><label for="wallet-savings-from-memo">Memo</label><input id="wallet-savings-from-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить вывод из savings</button>
-          <button type="submit" name="intent" value="send">Вывести из savings в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>
-      <form id="wallet-savings-cancel-form" class="stacked-form">
-        <fieldset>
-          <legend>Отмена вывода из savings</legend>
-          <div class="field"><label for="wallet-savings-cancel-request-id">ID запроса</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
-          <button type="submit" name="intent" value="preview">Проверить отмену вывода из savings</button>
-          <button type="submit" name="intent" value="send">Отменить вывод в сети</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset>
-      </form>` : ''}`;
+      <p class="muted">Операции свернуты, чтобы страница кошелька не была громоздкой. Откройте нужный пункт и сначала проверьте операцию перед отправкой.</p>
+      ${operations.join('')}`;
   }
 
   function bindWalletForms(chain) {
