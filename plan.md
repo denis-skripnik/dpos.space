@@ -780,3 +780,12 @@ After semantic correctness:
 ### Current next action
 
 Parent review Stage 1 split: chain-specific Graphene wallet renderers and form-builder/binding entry points are in place with minimal behavior changes. After parent approval, commit/push may happen; only then start Stage 2 as a legacy-wallet-dir evidence pass, not in the Stage 1 subagent.
+
+### 2026-05-10 Golos wallet UIA gateways/templates increment
+
+- [x] Transfer/donate templates ported with legacy localStorage keys `<TOKEN>_transfer_templates` and `<TOKEN>_donate_templates`; built-in GOLOS templates preserved.
+- [x] UIA gateway metadata is loaded from asset `json_metadata` and rendered in the Golos wallet.
+- [x] UIA deposit supports fixed metadata, `/golos/api/uia-deposit` API address lookup, and optional legacy 0.001 GOLOS address-request transfer when `deposit.to_transfer` + `deposit.memo_transfer` are present.
+- [x] UIA withdraw supports metadata ways and builds memo exactly like legacy `buildWithdrawMemoFromMetadata`: `prefix + main`, plus ` space + postfix` when postfix is filled.
+- [x] Re-checked `origin/master:blockchains/golos/js/blockchain.js` and related legacy Golos JS via grep for `action_uia_withdraw_start`, `uia_withdraw`, `buildWithdrawMemoFromMetadata`, `transferAsync`, `withdrawal`, `gateway`: no `action_uia_withdraw_start` handler found outside wallet content/render code; v3 therefore prepares the inferred active `transfer` to `withdrawal.account` with the metadata memo instead of inventing any other op.
+- [x] No commit/push in this pass.
