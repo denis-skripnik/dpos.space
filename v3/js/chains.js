@@ -122,8 +122,7 @@
       vestingSymbol: 'SHARES',
       powerTitle: 'SHARES',
       nodes: [
-        'https://api.viz.world/',
-        'https://viz.lexai.host/',
+        'https://api.viz.world',
         'https://node.viz.cx'
       ],
       apps: apps(vizApps)
