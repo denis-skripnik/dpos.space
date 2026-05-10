@@ -135,8 +135,9 @@
 
   function getAuthorityObject(account, authority) {
     if (!account) return null;
-    if (authority === 'regular') return account.regular || account.posting || null;
-    return account[authority] || null;
+    if (authority === 'regular') return account.regular_authority || account.regular || account.posting || null;
+    if (authority === 'active') return account.active_authority || account.active || null;
+    return account[authority] || account[`${authority}_authority`] || null;
   }
 
   function publicKeyMatchesAuthority(publicKey, authorityObject) {
