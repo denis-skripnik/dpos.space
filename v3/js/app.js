@@ -15,6 +15,7 @@
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
   const LONG_API_BASE = '/api/smartfarm';
+  const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
 
   function escapeHtml(value) {
@@ -2017,6 +2018,7 @@
     appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
       <p>Раздел показывает параметры LONG по данным backend и публичной сети Minter. Это информационный расчёт: итоговые значения зависят от состояния блокчейна, ликвидности, правил сервиса и доступности backend.</p>
       <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a></p>
+      <article class="card"><h3>Кошелёк рассылки</h3><p>Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: ${accountLink(chains.minter, LONG_FARMING_SENDER)}</p><p class="muted">Из-за комиссий в BIP и LONG накопленные суммы могут отправляться отложенно. Смотрите раздел «Отложенные транзакции».</p></article>
       <article class="card"><h3>Основные параметры</h3><ul>
         <li><strong>Максимальная дневная сумма по backend:</strong> ${formatLongNumber(data.max_amount)} LONG</li>
         <li><strong>Резерв для лотереи и бонусных инвест. дней:</strong> ${formatLongNumber(toNumber(data.max_prize) * 2)} LONG</li>
@@ -2060,7 +2062,7 @@
     if (coin) {
       try { activeBids = await fetchLongJson('/bids/active', { coin }); } catch (error) { activeBids = []; }
     }
-    const address = data.address || 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
+    const address = data.address || LONG_FARMING_SENDER;
     appEl.innerHTML = `<section class="panel"><h2>LONG: ставки на токены и пулы</h2>${renderLongNav('bids')}
       <p>Сервис принимает транзакции Minter с memo. Перед отправкой проверяйте монету, сумму, адрес и memo в кошельке.</p>
       <article class="card"><h3>Разрешённые монеты для отправки</h3>${renderLongAllowedCoins(data, coin)}</article>
