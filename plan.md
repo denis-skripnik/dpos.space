@@ -789,3 +789,91 @@ Parent review Stage 1 split: chain-specific Graphene wallet renderers and form-b
 - [x] UIA withdraw supports metadata ways and builds memo exactly like legacy `buildWithdrawMemoFromMetadata`: `prefix + main`, plus ` space + postfix` when postfix is filled.
 - [x] Re-checked `origin/master:blockchains/golos/js/blockchain.js` and related legacy Golos JS via grep for `action_uia_withdraw_start`, `uia_withdraw`, `buildWithdrawMemoFromMetadata`, `transferAsync`, `withdrawal`, `gateway`: no `action_uia_withdraw_start` handler found outside wallet content/render code; v3 therefore prepares the inferred active `transfer` to `withdrawal.account` with the metadata memo instead of inventing any other op.
 - [x] No commit/push in this pass.
+
+## 2026-05-10 — VIZ wallet legacy parity/adaptation plan
+
+### Preconditions verified
+
+- Repository status before work: clean `git status --short`.
+- Branch: `v3`.
+- Starting commit: `52258fcff2522e7e70b476d79a52947954f63a62` (`Filter Golos gateway selects and add withdraw max`).
+- Current v3 wallet files inspected before implementation:
+  - `v3/js/app.js`: `renderGrapheneWallet`, thin `renderVizWallet`, `renderVizWalletForms`, `bindVizWalletForms`, generic Graphene forms, Golos-specific wallet renderer/forms/bindings, VIZ award/manage invite/committee bindings.
+  - `v3/js/profiles.js`: VIZ balance normalization (`VIZ`, `SHARES`, delegated/received, `Энергия`, `Reward SHARES`) and generic profile enrichment.
+  - Tests inspected by grep/list: `tests/v3-route-coverage-smoke.js`, `tests/v3-auth-broadcast-smoke.js`, `tests/v3-profiles-smoke.js`, `tests/v3-golos-uia-gateways-smoke.js`, plus full tests directory list.
+
+### Legacy VIZ wallet files inspected exhaustively
+
+`git ls-tree -r --name-only origin/master:blockchains/viz/apps/wallet` returned and each file was inspected with `git show`:
+
+- `blockchains/viz/apps/wallet/config.json` — title/description/category only.
+- `blockchains/viz/apps/wallet/content.php` — complete wallet DOM: auth messages, balance/SHARES action menus, deposit via invite, withdraw SHARES, transfer VIZ, transfer templates, VIZ→SHARES, delegate SHARES, create invite, received/delegated delegation tables, withdraw status, witness vote prompt, transfer/award/reward history filters.
+- `blockchains/viz/apps/wallet/css/jquery-ui.css` — legacy UI theme only, no business logic.
+- `blockchains/viz/apps/wallet/css/style.css` — modal/layout CSS only, no business logic.
+- `blockchains/viz/apps/wallet/index.php` — guard stub only.
+- `blockchains/viz/apps/wallet/js/app.js` — complete wallet behavior: encrypted memo, URL params, pass_gen invite WIF, transfer template localStorage, cancel delegation, load balances/delegations/withdraw schedule, invite use/claim, withdraw/cancel withdraw, transfer/transfer_to_vesting, template save/remove, own VIZ→SHARES, delegate, createInvite, witness vote, transfer URL prefill, encrypted memo decode for history, walletData history fetch/filter/render, getInviteByKey.
+
+Related shared VIZ files inspected:
+
+- `origin/master:blockchains/viz/js/blockchain.js` — nodes, old localStorage auth/decrypt, VIZ regular/active variables, Vizonator bridge methods for withdraw/delegate/transfer/transfer_to_vesting/committee/custom/award, account selection.
+- `origin/master:blockchains/viz/js/modal-accounts.js` was covered in earlier auth matrix and relevant localStorage/passphrase rules remain in this plan.
+- `origin/master:blockchains/viz/apps/awards/{content.php,js/app.js,pages/*}` by targeted grep/show snippets for award energy/custom_sequence/memo/beneficiaries and `viz.broadcast.awardAsync`/`fixedAwardAsync` param order.
+- `origin/master:blockchains/viz/apps/manage/pages/many-invites/{content.php,footer.js}` for bulk invite operation names and object keys.
+- `origin/master:blockchains/viz/apps/manage/pages/workers/{content.php,footer.js}` for committee request/vote methods already exposed in v3 manage.
+- `origin/master:blockchains/viz/apps/manage/pages/create-account/footer.js` for accountCreate/invite-registration context; wallet should not embed legacy hardcoded inviteRegistration signer.
+
+### Exhaustive legacy wallet checklist and v3 mapping
+
+Implemented now in VIZ wallet (`renderVizWallet`, `renderVizWalletForms`, `bindVizWalletForms`):
+
+- Dedicated VIZ renderer, no longer a thin alias to generic Graphene wallet.
+- VIZ-native labels: `VIZ`, `SHARES`, `Energy`; no Golos `СГ` wording in VIZ wallet UI.
+- Balance section: `balance`, `vesting_shares`, `delegated_vesting_shares`, `received_vesting_shares`, effective SHARES, current/regenerated energy, `reward_vesting_balance`, `vesting_withdraw_rate`, `next_vesting_withdrawal`.
+- Delegation lists via `viz.api.getVestingDelegations(account, '', 100, 'received'|'delegated')`, with safe fallback diagnostic and cancel-delegation prefill.
+- Transfer VIZ: legacy templates and localStorage key `viz_transfer_templates`; built-ins `xchng`, `gls.xchng`, `gph.xchng`, `vmp`; custom save/remove.
+- Encrypted memo for transfer: if memo starts `#`, fetch recipient `memo_key` with `getAccountsAsync([to])` and encode with `viz.memo.encode(activeKey, to_public_memo_key, memo)`.
+- Optional transfer to vesting from transfer form: `transferToVesting(active_key, from, to, amount)`.
+- Own VIZ→SHARES form: `transferToVesting(active_key, from, from, amount)`.
+- Withdraw SHARES: `withdrawVesting(active_key, account, vesting_shares)`.
+- Cancel withdraw: `withdrawVesting(active_key, account, '0.000000 SHARES')`.
+- Delegate SHARES / cancel by zero: `delegateVestingShares(active_key, delegator, delegatee, vesting_shares)`.
+- Use invite into SHARES: `useInviteBalance(active_key, initiator, receiver, invite_secret)`.
+- Claim invite into VIZ: `claimInviteBalance(active_key, initiator, receiver, invite_secret)`.
+- Check invite data: `viz.auth.wifToPublic(secret)` then `viz.api.getInviteByKey(publicKey)`.
+- Create invite: generate or paste secret WIF, derive public key with `viz.auth.wifToPublic(secret)`, then `createInvite(active_key, creator, balance, invite_key)`; secret is not included in prepared operation params.
+- Witness vote prompt from legacy wallet: `accountWitnessVote(active_key, account, 'denis-skripnik', true)`.
+- History: VIZ wallet uses shared history table; legacy-specific award/reward operation types remain covered by global history filtering/display rather than old jQuery row filters.
+
+Broadcast/API methods and exact param order from legacy evidence:
+
+- `viz.broadcast.transfer(active_key, viz_login, to, amount, memo, cb)` → v3 prepared `transfer`: `[from, to, amount, memo]`.
+- `viz.broadcast.transferToVesting(active_key, viz_login, to, amount, cb)` → v3 `transferToVesting`: `[from, to, amount]`.
+- `viz.broadcast.withdrawVesting(active_key, viz_login, vesting_shares, cb)` → v3 `withdrawVesting`: `[account, vesting_shares]`.
+- `viz.broadcast.delegateVestingShares(active_key, viz_login, delegatee, vesting_shares, cb)` → v3 `delegateVestingShares`: `[delegator, delegatee, vesting_shares]`.
+- `viz.broadcast.createInvite(active_key, viz_login, balance, invite_key, cb)` → v3 `createInvite`: `[creator, balance, invite_key]`.
+- `viz.broadcast.useInviteBalance(active_key, viz_login, viz_login/receiver, invite_secret, cb)` → v3 `useInviteBalance`: `[initiator, receiver, invite_secret]`.
+- `viz.broadcast.claimInviteBalance(active_key, viz_login, viz_login/receiver, invite_secret, cb)` → v3 `claimInviteBalance`: `[initiator, receiver, invite_secret]`.
+- `viz.broadcast.accountWitnessVote(active_key, viz_login, 'denis-skripnik', true, cb)` → v3 `accountWitnessVote`: `[account, witness, approve]`.
+- Awards related, not wallet DOM form in legacy wallet but required by VIZ feature evidence: `viz.broadcast.awardAsync(posting_key, viz_login, target, energy, custom_sequence, memo, beneficiaries, cb)` and `fixedAwardAsync(posting_key, viz_login, target, reward_amount, energy, custom_sequence, memo, beneficiaries, cb)`; v3 award route already prepares `award` with `[initiator, receiver, energy, custom_sequence, memo, beneficiaries]`.
+- Delegation read API: `viz.api.getVestingDelegations(viz_login, '', 100, type, cb)`.
+- Invite read API: `viz.api.getInviteByKey(publicInviteKey, cb)`.
+- History API: `viz.api.getAccountHistoryAsync(viz_login, from, limit)` and filters on transfer-like ops plus `award`, `receive_award`, `benefactor_award`, `witness_reward`.
+
+Blocked/later with exact reasons:
+
+- Vizonator extension signing: legacy routes call `sendToVizonator(...)`; v3 has no safe extension bridge object contract and broadcast layer only supports locally saved encrypted keys. Not implemented to avoid silently failing or leaking operations.
+- `inviteRegistration` from wallet JS: legacy uses a hardcoded WIF literal in `inviteRegPage`; not wallet main flow and not safe to reproduce. Registration remains a separate v3 service requiring explicit signer input.
+- Bulk many-invites: legacy manage page builds raw `operations` arrays and sends one tx; outside wallet main DOM, not added to wallet. Manage route can cover invite primitives separately.
+- Fixed award and award payout calculators: legacy award app functionality, not wallet DOM. Existing v3 award route covers normal award preview/send; fixed award can be a later VIZ award-service parity slice.
+- Old modal/fancybox/jQuery UI CSS and exact visual hiding/filter behavior: intentionally not ported; v3 keeps accessible details/forms/status regions.
+- Decrypted history memo prompting/saving memo key: read-only encrypted history decode can expose private memo-key handling and is not needed for safe wallet sends; transfer encrypted memo encoding is implemented.
+
+### Acceptance criteria for this VIZ wallet slice
+
+- `renderVizWallet` is a dedicated renderer and does not call `renderGrapheneWallet` as a thin alias.
+- VIZ wallet UI contains VIZ-native labels and operation sections for VIZ transfer/templates/encrypted memo, VIZ→SHARES, SHARES withdraw/cancel withdraw, delegation/cancel prefill, invite check/use/claim/create, delegations, witness vote, and notes for omitted legacy flows.
+- VIZ operation bindings use legacy method names/param order above through `bindOperationForm`; no real send bypasses preview + explicit confirm.
+- No Golos `СГ` labels appear inside VIZ-specific wallet renderer/forms.
+- Invite create preview params contain only public `invite_key`; invite use/claim warns that secret is sensitive and relies on existing sanitized preview/result path.
+- Tests assert dedicated VIZ wallet renderer, labels/forms/method names, legacy evidence checklist in `plan.md`, and generic Golos behavior remains present.
+- Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all tests, `git diff --check`.

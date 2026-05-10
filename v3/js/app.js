@@ -774,6 +774,43 @@
     return client.memo.encode(privateKey, account.memo_key, text);
   }
 
+  async function encodeVizMemoIfNeeded(chain, to, memo, privateKey) {
+    const text = String(memo || '');
+    if (text[0] !== '#') return text;
+    await loadScript(chain.libraryPath);
+    const connection = await profiles.connect(chain);
+    const api = connection.client && connection.client.api;
+    const client = connection.client || global[chain.libraryGlobal];
+    if (!api || typeof api.getAccountsAsync !== 'function' || !client || !client.memo || typeof client.memo.encode !== 'function') {
+      throw new Error('Legacy encrypted memo (#...) не подготовлено: viz.api.getAccountsAsync или viz.memo.encode недоступны.');
+    }
+    const accounts = await api.getAccountsAsync([to]);
+    const account = accounts && accounts[0];
+    if (!account || !account.memo_key) {
+      throw new Error(`Legacy encrypted memo (#...) не подготовлено: memo_key аккаунта @${to} не получен.`);
+    }
+    return client.memo.encode(privateKey, account.memo_key, text);
+  }
+
+  function generateVizInviteSecret() {
+    const client = global.viz;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
+    let seed = '';
+    for (let i = 0; i < 100; i += 1) seed += charset.charAt(Math.floor(Math.random() * charset.length));
+    if (client && client.auth && typeof client.auth.toWif === 'function') return client.auth.toWif('', seed, '');
+    throw new Error('viz.auth.toWif недоступен: invite secret можно только вставить вручную.');
+  }
+
+  function vizInvitePublic(secret) {
+    const client = global.viz;
+    const text = String(secret || '').trim();
+    if (!text) throw new Error('Нужен invite secret WIF.');
+    if (!client || !client.auth || typeof client.auth.wifToPublic !== 'function') {
+      throw new Error('viz.auth.wifToPublic недоступен: create_invite не подготовлен, чтобы не отправить неверный invite_key.');
+    }
+    return client.auth.wifToPublic(text);
+  }
+
   function golosAmountNumber(value) {
     const match = String(value || '').match(/-?\d+(?:\.\d+)?/);
     return match ? Number(match[0]) : 0;
@@ -1246,6 +1283,35 @@
     return { current, profile, balanceRows, walletItems };
   }
 
+  async function fetchVizVestingDelegations(connection, account, type) {
+    const api = connection.client && connection.client.api;
+    if (!api) throw new Error('viz.api недоступен для getVestingDelegations.');
+    if (typeof api.getVestingDelegationsAsync === 'function') return api.getVestingDelegationsAsync(account, '', 100, type);
+    if (typeof api.getVestingDelegations === 'function') {
+      return new Promise((resolve, reject) => {
+        api.getVestingDelegations(account, '', 100, type, (error, result) => error ? reject(error) : resolve(result));
+      });
+    }
+    throw new Error('viz.api.getVestingDelegations недоступен в загруженной библиотеке.');
+  }
+
+  async function loadVizWalletData(chain, account) {
+    const data = await loadGrapheneWalletData(chain, account);
+    data.delegations = { received: [], delegated: [], error: '' };
+    try {
+      const connection = await profiles.connect(chain);
+      const [received, delegated] = await Promise.all([
+        fetchVizVestingDelegations(connection, account, 'received'),
+        fetchVizVestingDelegations(connection, account, 'delegated')
+      ]);
+      data.delegations.received = Array.isArray(received) ? received : [];
+      data.delegations.delegated = Array.isArray(delegated) ? delegated : [];
+    } catch (error) {
+      data.delegations.error = profiles.formatError(error);
+    }
+    return data;
+  }
+
   async function renderGrapheneWallet(chain, account, options) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю кошелёк ${chain.title}: @${account}...`, 'loading');
@@ -1301,10 +1367,30 @@
   }
 
   async function renderVizWallet(chain, account) {
-    return renderGrapheneWallet(chain, account, {
-      renderForms: renderVizWalletForms,
-      bindForms: bindVizWalletForms
-    });
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька VIZ</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю VIZ-кошелёк @${account}...`, 'loading');
+
+    const data = await loadVizWalletData(chain, account);
+    const formsHtml = renderVizWalletForms(chain, data.profile, data.delegations);
+
+    appEl.innerHTML = `
+      <section class="panel wallet-viz">
+        <h2>VIZ: кошелёк @${escapeHtml(account)}</h2>
+        <p><strong>Нода:</strong> ${escapeHtml(data.profile.node)}</p>
+        <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, data.current)))}</p>
+        <p class="notice">VIZ использует VIZ, SHARES и energy. Все активные операции доступны только через проверку и отдельное подтверждение отправки.</p>
+        <h3>Балансы VIZ</h3>
+        ${renderVizWalletBalances(data.profile, data.delegations)}
+        ${formsHtml}
+        <h3>Последние финансовые операции VIZ</h3>
+        ${renderHistoryTable(data.walletItems, chain, 'Transfer/award/reward операции не найдены в последней выборке.')}
+      </section>
+    `;
+
+    bindVizWalletForms(chain, data.profile);
+    bindMaxButtons(appEl);
+    bindCopyButtons(appEl);
+    setStatus(`VIZ-кошелёк @${account} загружен: VIZ/SHARES, делегирования, invite и transfer templates доступны через проверку и подтверждение.`, 'ok');
   }
 
   async function renderHiveWallet(chain, account) {
@@ -1689,8 +1775,214 @@
       ${operations.join('')}`;
   }
 
+  function vizAsset(raw, field) {
+    return raw && raw[field] ? raw[field] : '';
+  }
+
+  function vizSharesMax(profile, field) {
+    const value = vizAsset(profile && profile.raw, field || 'vesting_shares');
+    return value ? `${(Number.parseFloat(value) || 0).toFixed(6)} SHARES` : '';
+  }
+
+  function vizEffectiveShares(profile) {
+    const raw = (profile && profile.raw) || {};
+    const own = Number.parseFloat(raw.vesting_shares) || 0;
+    const delegated = Number.parseFloat(raw.delegated_vesting_shares) || 0;
+    const received = Number.parseFloat(raw.received_vesting_shares) || 0;
+    return `${(own - delegated + received).toFixed(6)} SHARES`;
+  }
+
+  function vizCurrentEnergy(profile) {
+    const raw = (profile && profile.raw) || {};
+    const base = Number(raw.energy);
+    if (!Number.isFinite(base)) return '';
+    const lastVoteTime = Date.parse(raw.last_vote_time || raw.last_account_update || raw.created || '');
+    if (!Number.isFinite(lastVoteTime)) return `${(base / 100).toFixed(2)}%`;
+    const deltaSeconds = Math.max(0, (Date.now() - lastVoteTime) / 1000);
+    const regenerated = Math.min(10000, Math.trunc(base + (deltaSeconds * 10000 / 432000)));
+    return `${(regenerated / 100).toFixed(2)}%`;
+  }
+
+  function renderVizDelegations(title, rows, direction) {
+    if (!rows || !rows.length) return `<p class="muted">${escapeHtml(title)}: список пуст или не попал в лимит getVestingDelegations.</p>`;
+    const body = rows.map((item) => {
+      const peer = direction === 'received' ? item.delegator : item.delegatee;
+      const cancel = direction === 'delegated'
+        ? ` <button type="button" data-viz-cancel-delegation="${escapeHtml(peer || '')}">Отменить делегирование</button>`
+        : '';
+      return `<tr><td>@${escapeHtml(peer || '')}</td><td>${escapeHtml(item.vesting_shares || '')}</td><td>${escapeHtml(item.min_delegation_time || '')}${cancel}</td></tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table><caption>${escapeHtml(title)}</caption><thead><tr><th scope="col">Аккаунт</th><th scope="col">SHARES</th><th scope="col">Мин. время возврата</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  function renderVizWalletBalances(profile, delegations) {
+    const raw = (profile && profile.raw) || {};
+    const rows = [];
+    const add = (label, value, note) => {
+      if (value === undefined || value === null || value === '') return;
+      rows.push([label, value, note || '']);
+    };
+    const withdrawRate = Number.parseFloat(raw.vesting_withdraw_rate) || 0;
+    const fullWithdraw = withdrawRate ? `${(withdrawRate * 28).toFixed(6)} SHARES` : '';
+
+    add('VIZ', raw.balance);
+    add('SHARES', raw.vesting_shares);
+    add('Делегировано SHARES', raw.delegated_vesting_shares);
+    add('Получено делегированием SHARES', raw.received_vesting_shares);
+    add('Итоговые SHARES для наград', vizEffectiveShares(profile));
+    add('Energy', vizCurrentEnergy(profile) || (raw.energy !== undefined ? `${Number(raw.energy) / 100}%` : ''));
+    add('Reward SHARES', raw.reward_vesting_balance);
+    add('Выводится по', raw.vesting_withdraw_rate, fullWithdraw ? `итого за 28 интервалов: ${fullWithdraw}` : '');
+    add('Следующий вывод', raw.next_vesting_withdrawal);
+
+    const list = `<ul class="wallet-viz-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
+    const delegationError = delegations && delegations.error ? `<p class="muted">getVestingDelegations: ${escapeHtml(delegations.error)}</p>` : '';
+    return `${list}${delegationError}${renderVizDelegations('Кто делегировал вам SHARES', delegations && delegations.received, 'received')}${renderVizDelegations('Кому вы делегировали SHARES', delegations && delegations.delegated, 'delegated')}`;
+  }
+
+  function readVizTransferTemplates() {
+    const raw = global.localStorage && global.localStorage.getItem('viz_transfer_templates');
+    const parsed = raw ? parseGolosJsonMetadata(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => item && item.name) : [];
+  }
+
+  function writeVizTransferTemplates(templates) {
+    if (global.localStorage) global.localStorage.setItem('viz_transfer_templates', JSON.stringify(Array.isArray(templates) ? templates : []));
+  }
+
+  function renderVizTransferTemplateSelect(login) {
+    const builtIns = [
+      { id: 'xchng_market', name: 'Биржа, XCHNG.VIZ (memo: log:)', to: 'xchng', memo: 'log:' },
+      { id: 'golos_xchng_market', name: 'VIZUIA на Голосе (memo: log:)', to: 'gls.xchng', memo: 'log:' },
+      { id: 'gph_xchng_market', name: 'Graphene биржа, XCHNG.VIZ (memo: log:)', to: 'gph.xchng', memo: 'log:' },
+      { id: 'vmp_market', name: 'Шлюз в Minter (memo начинается с Mx)', to: 'vmp', memo: 'Mx' },
+      { id: 'self_shares', name: 'На свой аккаунт в SHARES', to: login || '', memo: '', toVesting: true }
+    ];
+    const builtInOptions = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-to-vesting="${item.toVesting ? '1' : ''}">${escapeHtml(item.name)}</option>`).join('');
+    const customOptions = readVizTransferTemplates().map((item, index) => `<option value="${index + 1}" data-to="${escapeHtml(item.to || '')}" data-memo="${escapeHtml(item.memo || '')}" data-to-vesting="${item.transfer_to_vesting ? '1' : ''}">${escapeHtml(item.name)}</option>`).join('');
+    return `<div class="field"><label for="wallet-viz-transfer-template">Шаблон перевода VIZ</label><select id="wallet-viz-transfer-template"><option value="">Выберите шаблон</option>${builtInOptions}${customOptions}</select> <button type="button" id="wallet-viz-template-remove" hidden>Удалить текущий шаблон</button></div>`;
+  }
+
   function renderVizWalletForms(chain, profile) {
-    return buildGrapheneWalletForms(chain, profile);
+    const liquidMax = profile ? pickBalance(profile, chain.liquidSymbol) : '';
+    const sharesMax = vizSharesMax(profile, 'vesting_shares');
+    const delegatedMax = (() => {
+      const raw = (profile && profile.raw) || {};
+      const value = (Number.parseFloat(raw.vesting_shares) || 0) - (Number.parseFloat(raw.delegated_vesting_shares) || 0);
+      return value > 0 ? `${value.toFixed(6)} SHARES` : '';
+    })();
+    const withdrawMax = (() => {
+      const raw = (profile && profile.raw) || {};
+      const pending = (Number.parseFloat(raw.vesting_withdraw_rate) || 0) * 28;
+      const value = (Number.parseFloat(raw.vesting_shares) || 0) - (Number.parseFloat(raw.delegated_vesting_shares) || 0) - pending;
+      return value > 0 ? `${value.toFixed(6)} SHARES` : '';
+    })();
+    const login = auth.getCurrentLogin(chain);
+    const operations = [
+      operationDetails('Перевод VIZ / VIZ в SHARES', `
+        <form id="wallet-transfer-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод VIZ</legend>
+            ${renderVizTransferTemplateSelect(login)}
+            <div class="field"><label for="wallet-transfer-to">Кому</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-transfer-amount">Сумма VIZ</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 VIZ">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-transfer-memo">Memo / заметка</label><input id="wallet-transfer-memo" name="memo" type="text" placeholder="#... для encrypted memo"></div>
+            <label class="inline-choice"><input id="wallet-viz-transfer-to-vesting" name="toVesting" type="checkbox"> Перевести в SHARES получателя</label>
+            <button type="submit" name="intent" value="preview">Проверить перевод</button>
+            <button type="submit" name="intent" value="send">Отправить перевод</button>
+            <button type="button" id="wallet-viz-template-save">Создать шаблон перевода</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, true),
+      operationDetails('VIZ в SHARES этого аккаунта', `
+        <form id="wallet-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод VIZ в SHARES</legend>
+            <div class="field"><label for="wallet-vesting-amount">Количество VIZ</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 VIZ">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить перевод в SHARES</button>
+            <button type="submit" name="intent" value="send">Отправить в SHARES</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Вывод SHARES в VIZ', `
+        <form id="wallet-withdraw-vesting-form" class="stacked-form">
+          <fieldset>
+            <legend>Вывод SHARES</legend>
+            <p class="muted">Legacy warning: если вывод уже есть, новая операция сбросит сумму на вывод.</p>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма SHARES</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 SHARES">${withdrawMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(withdrawMax)}">Максимум ${escapeHtml(withdrawMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить вывод SHARES</button>
+            <button type="submit" name="intent" value="send">Начать вывод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-viz-cancel-withdraw-form" class="stacked-form">
+          <fieldset>
+            <legend>Отмена вывода SHARES</legend>
+            <button type="submit" name="intent" value="preview">Проверить отмену вывода</button>
+            <button type="submit" name="intent" value="send">Отменить вывод</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Делегирование SHARES', `
+        <form id="wallet-delegation-form" class="stacked-form">
+          <fieldset>
+            <legend>Делегирование SHARES</legend>
+            <div class="field"><label for="wallet-delegation-to">Кому</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма SHARES</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 SHARES">${delegatedMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(delegatedMax)}">Максимум ${escapeHtml(delegatedMax)}</button>` : ''}</div>
+            <button type="submit" name="intent" value="preview">Проверить делегирование</button>
+            <button type="submit" name="intent" value="send">Делегировать</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Инвайт-коды / пополнение VIZ', `
+        <form id="wallet-viz-use-invite-form" class="stacked-form">
+          <fieldset>
+            <legend>Использовать invite code</legend>
+            <p class="muted">Legacy wallet пополнял баланс через claim_invite_balance или use_invite_balance. Секрет invite не сохраняется и не попадает в preview/result без необходимости.</p>
+            <div class="field"><label for="wallet-viz-invite-secret">Инвайт-код / secret WIF</label><input id="wallet-viz-invite-secret" name="secret" type="password" required autocomplete="off" placeholder="5K..."></div>
+            <div class="field"><label for="wallet-viz-invite-receiver">Получатель</label><input id="wallet-viz-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
+            <label class="inline-choice"><input name="toVesting" type="checkbox"> Перевести в SHARES; иначе в баланс VIZ</label>
+            <button type="button" id="wallet-viz-invite-check">Проверить invite на ноде</button>
+            <div id="wallet-viz-invite-check-result" class="operation-result" role="status" aria-live="polite"></div>
+            <button type="submit" name="intent" value="preview">Проверить use/claim invite</button>
+            <button type="submit" name="intent" value="send">Использовать invite</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-viz-create-invite-form" class="stacked-form">
+          <fieldset>
+            <legend>Создать invite</legend>
+            <div class="field"><label for="wallet-viz-create-invite-amount">Баланс invite</label><input id="wallet-viz-create-invite-amount" name="amount" type="text" required placeholder="1.000 VIZ">${liquidMax ? ` <button type="button" data-fill-target="wallet-viz-create-invite-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-viz-create-invite-secret">Invite secret WIF</label><input id="wallet-viz-create-invite-secret" name="secret" type="text" required autocomplete="off" placeholder="нажмите Генерировать или вставьте WIF"></div>
+            <button type="button" id="wallet-viz-generate-invite">Генерировать invite secret</button>
+            <button type="button" data-copy-from="wallet-viz-create-invite-secret">Скопировать secret</button>
+            <button type="submit" name="intent" value="preview">Проверить создание invite</button>
+            <button type="submit" name="intent" value="send">Создать invite</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Голос за witness denis-skripnik', `
+        <form id="wallet-viz-witness-vote-form" class="stacked-form">
+          <fieldset>
+            <legend>Witness vote</legend>
+            <p class="muted">Legacy wallet предлагал проголосовать за создателя проекта dpos.space.</p>
+            <button type="submit" name="intent" value="preview">Проверить голос</button>
+            <button type="submit" name="intent" value="send">Проголосовать</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Legacy wallet scope notes', `
+        <ul>
+          <li>История переводов и award/reward операций отображается через общий history renderer; фильтры legacy UI заменены полем фильтра в разделе History.</li>
+          <li>Registration through inviteRegistration требует service signer WIF из legacy hardcoded flow — оставлено в VIZ registration/manage, не в кошельке.</li>
+          <li>Vizonator extension signing в v3 не реализуется: нет безопасного web extension bridge в текущей статической версии.</li>
+        </ul>`)
+    ];
+
+    return `
+      <h3>Операции VIZ</h3>
+      <p class="muted">Legacy VIZ wallet: transfer, transfer_to_vesting, withdraw_vesting, delegate_vesting_shares, create/use/claim invite, encrypted memo, templates, delegations и witness vote перенесены в безопасный preview + confirm flow.</p>
+      ${operations.join('')}`;
   }
 
   function renderHiveWalletForms(chain, profile) {
@@ -1946,7 +2238,179 @@
   }
 
   function bindVizWalletForms(chain, profile) {
-    bindGrapheneWalletForms(chain, profile);
+    const bindVizTemplateControls = () => {
+      const select = document.getElementById('wallet-viz-transfer-template');
+      const remove = document.getElementById('wallet-viz-template-remove');
+      if (select) {
+        select.addEventListener('change', () => {
+          const option = select.selectedOptions && select.selectedOptions[0];
+          const form = select.closest('form');
+          if (!option || !option.value || !form) {
+            if (remove) remove.hidden = true;
+            return;
+          }
+          const to = form.querySelector('[name="to"]');
+          const memo = form.querySelector('[name="memo"]');
+          const toVesting = form.querySelector('[name="toVesting"]');
+          if (to) to.value = option.dataset.to || '';
+          if (memo) memo.value = option.dataset.memo || '';
+          if (toVesting) toVesting.checked = option.dataset.toVesting === '1';
+          if (remove) remove.hidden = option.dataset.builtin === '1';
+        });
+      }
+      const save = document.getElementById('wallet-viz-template-save');
+      if (save) {
+        save.addEventListener('click', () => {
+          const form = save.closest('form');
+          const name = global.prompt ? global.prompt('Введите название шаблона') : '';
+          if (!form || !name) return;
+          const templates = readVizTransferTemplates();
+          const item = {
+            name: String(name).trim(),
+            to: String((form.querySelector('[name="to"]') || {}).value || '').trim(),
+            memo: String((form.querySelector('[name="memo"]') || {}).value || ''),
+            transfer_to_vesting: Boolean((form.querySelector('[name="toVesting"]') || {}).checked)
+          };
+          const index = templates.findIndex((template) => template.name === item.name);
+          if (index >= 0) templates[index] = item;
+          else templates.push(item);
+          writeVizTransferTemplates(templates);
+          renderRoute();
+        });
+      }
+      if (remove) {
+        remove.addEventListener('click', () => {
+          if (!select) return;
+          const option = select.selectedOptions && select.selectedOptions[0];
+          if (!option || option.dataset.builtin === '1') return;
+          const templates = readVizTransferTemplates();
+          const index = Number(option.value) - 1;
+          if (index >= 0 && index < templates.length) templates.splice(index, 1);
+          writeVizTransferTemplates(templates);
+          renderRoute();
+        });
+      }
+    };
+
+    bindVizTemplateControls();
+
+    document.querySelectorAll('[data-copy-from]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const input = document.getElementById(button.dataset.copyFrom);
+        const value = input && input.value ? input.value : '';
+        if (!value) return;
+        try {
+          if (global.navigator && global.navigator.clipboard) await global.navigator.clipboard.writeText(value);
+          button.textContent = 'Скопировано';
+          global.setTimeout(() => { button.textContent = 'Скопировать secret'; }, 2000);
+        } catch (_error) {
+          button.textContent = 'Не удалось скопировать';
+        }
+      });
+    });
+
+    const generateInvite = document.getElementById('wallet-viz-generate-invite');
+    if (generateInvite) {
+      generateInvite.addEventListener('click', async () => {
+        try {
+          await loadScript(chain.libraryPath);
+          const input = document.getElementById('wallet-viz-create-invite-secret');
+          if (input) input.value = generateVizInviteSecret();
+        } catch (error) {
+          setStatus(profiles.formatError(error), 'error');
+        }
+      });
+    }
+
+    const inviteCheck = document.getElementById('wallet-viz-invite-check');
+    if (inviteCheck) {
+      inviteCheck.addEventListener('click', async () => {
+        const result = document.getElementById('wallet-viz-invite-check-result');
+        if (result) result.textContent = 'Проверяю invite...';
+        try {
+          await loadScript(chain.libraryPath);
+          const secret = document.getElementById('wallet-viz-invite-secret');
+          const publicKey = vizInvitePublic(secret && secret.value);
+          const connection = await profiles.connect(chain);
+          const api = connection.client && connection.client.api;
+          if (!api || typeof api.getInviteByKey !== 'function') throw new Error('viz.api.getInviteByKey недоступен.');
+          const info = await new Promise((resolve, reject) => api.getInviteByKey(publicKey, (error, data) => error ? reject(error) : resolve(data)));
+          if (result) result.textContent = info && info.receiver ? `Invite уже получил @${info.receiver}. Баланс: ${info.balance || 'n/a'}.` : `Invite доступен. Баланс: ${(info && info.balance) || 'n/a'}, creator: ${(info && info.creator) || 'n/a'}.`;
+        } catch (error) {
+          if (result) result.textContent = `Не удалось проверить invite: ${profiles.formatError(error)}`;
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-viz-cancel-delegation]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const delegatee = button.dataset.vizCancelDelegation || '';
+        const toInput = document.getElementById('wallet-delegation-to');
+        const amountInput = document.getElementById('wallet-delegation-vesting');
+        if (toInput) toInput.value = delegatee;
+        if (amountInput) amountInput.value = '0.000000 SHARES';
+        setStatus(`Для отмены делегирования @${delegatee} проверьте и отправьте форму «Делегирование SHARES» с 0.000000 SHARES.`, 'info');
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-transfer-form', async (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому');
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма VIZ');
+      if (form.get('toVesting') === 'on') {
+        return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'VIZ в SHARES получателя', to, amount });
+      }
+      const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, String(form.get('memo') || '')], { title: 'VIZ transfer', to, amount });
+      prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
+      return prepared;
+    });
+
+    bindOperationForm(chain, 'wallet-vesting-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Количество VIZ');
+      return broadcast.prepare(chain, 'active', 'transferToVesting', [from, from, amount], { title: 'VIZ в SHARES своего аккаунта', to: from, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => {
+      const amount = normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
+      return broadcast.prepare(chain, 'active', 'withdrawVesting', [auth.getCurrentLogin(chain), amount], { title: 'Вывод SHARES', amount });
+    });
+
+    bindOperationForm(chain, 'wallet-viz-cancel-withdraw-form', () => broadcast.prepare(chain, 'active', 'withdrawVesting', [
+      auth.getCurrentLogin(chain),
+      '0.000000 SHARES'
+    ], { title: 'Отмена вывода SHARES', amount: '0.000000 SHARES' }));
+
+    bindOperationForm(chain, 'wallet-delegation-form', (form) => {
+      const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому делегировать');
+      const amount = normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
+      return broadcast.prepare(chain, 'active', 'delegateVestingShares', [auth.getCurrentLogin(chain), to, amount], { title: 'Делегирование SHARES', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-viz-use-invite-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      const rawReceiver = String(form.get('receiver') || '').trim().replace(/^@/, '');
+      const receiver = rawReceiver ? normalizeAccountInput(chain, rawReceiver, 'Получатель invite') : account;
+      const method = form.get('toVesting') === 'on' ? 'useInviteBalance' : 'claimInviteBalance';
+      return broadcast.prepare(chain, 'active', method, [account, receiver, String(form.get('secret') || '').trim()], {
+        title: method,
+        to: receiver,
+        warnings: ['Invite secret нужен в параметрах операции, но не сохраняется в localStorage. Не публикуйте preview/result.']
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-viz-create-invite-form', async (form) => {
+      await loadScript(chain.libraryPath);
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Баланс invite');
+      const inviteKey = vizInvitePublic(form.get('secret'));
+      return broadcast.prepare(chain, 'active', 'createInvite', [auth.getCurrentLogin(chain), amount, inviteKey], { title: 'Создание invite', amount });
+    });
+
+    bindOperationForm(chain, 'wallet-viz-witness-vote-form', () => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
+      auth.getCurrentLogin(chain),
+      'denis-skripnik',
+      true
+    ], { title: 'Witness vote denis-skripnik', to: 'denis-skripnik' }));
   }
 
   function bindHiveWalletForms(chain, profile) {
