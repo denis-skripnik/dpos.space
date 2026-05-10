@@ -13,13 +13,13 @@
 - совместимость со старым localStorage auth без миграции схемы;
 - broadcast layer: decrypt/prepare, optional preview/dry-run и real broadcast по явной кнопке/confirm;
 - первые рабочие переносы service routes для VIZ и Golos;
-- прямое подключение существующих browser JS libraries из `blockchains/<chain>/js/`;
+- прямое подключение vendored browser JS libraries из `v3/vendor/<chain>/`;
 - текстовые статусы загрузки и ошибок для screen reader;
 - минимальная локальная проверка без build step.
 
 ## Non-goals for current pass
 
-- Не удалять старую PHP-версию.
+- Не восстанавливать старую PHP-версию; v3 должна оставаться статической.
 - Не переносить backend-зависимые рейтинги, топы, истории, witness rewards, проекты, Telegram-ботов, daemon/cron workflows.
 - Не отправлять реальные write-транзакции автоматически в тестах или без явного UI submit/confirm.
 - Не держать real broadcast за постоянным dry-run барьером: preview — только optional помощь перед отправкой.
@@ -39,7 +39,7 @@ Static SPA:
 - `v3/js/history.js` exposes `window.DposHistory` with read-only account history normalization.
 - `v3/js/app.js` owns routing, forms, dynamic script loading, DOM updates, aria-live statuses, and operation previews and real broadcast result blocks.
 - URL state uses hash parameters: `#chain=viz&app=profiles&account=denis-skripnik`.
-- The old PHP tree remains available as migration source material.
+- The old PHP tree was removed from branch `v3`; required browser libraries are vendored under `v3/vendor/`.
 
 ## Legacy auth compatibility rules
 
@@ -502,3 +502,23 @@ Validation additions in this pass:
 
 - `tests/v3-minter-decimal-smoke.js`: raw signed TX, multisig submit, Decimal convert, validator ids, Decimal txs-by-address response shape, amount formatting.
 - `tests/v3-route-coverage-smoke.js`: separate Minter broadcast route and new Minter/Decimal controls.
+
+
+## Legacy cleanup pass — 2026-05-10
+
+Scope: remove old v2/PHP runtime files from branch `v3` without breaking the static v3 app.
+
+Preserved for runtime:
+
+- `index.html`;
+- `v3/js`, `v3/css`;
+- required browser libraries copied into `v3/vendor/<chain>/`;
+- `tests`, `README.md`, `favicon.ico`, `LICENSE`, `AGENTS.md`, `plan.md`.
+
+Removed as legacy/non-runtime for v3:
+
+- old `blockchains/` app/content trees after vendoring required JS libraries;
+- PHP/backend folders and files: `api/`, `vendor/`, `template/`, `json/`, `viz-manual/`, root PHP/config/content/menu/composer files;
+- stale maintenance and old SEO artifacts tied to legacy routes.
+
+Validation expectation: v3 runtime source must not reference `blockchains/` paths; `tests/v3-route-coverage-smoke.js` enforces vendored `v3/vendor/` paths.
