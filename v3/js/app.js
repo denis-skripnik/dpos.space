@@ -39,8 +39,16 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query'];
+
   function navigate(nextState) {
-    const params = new URLSearchParams(parseHash());
+    const current = parseHash();
+    const params = new URLSearchParams(current);
+    const nextChain = nextState.chain || current.chain;
+    const nextApp = nextState.app || current.app;
+    if ((nextState.chain && nextChain !== current.chain) || (nextState.app && nextApp !== current.app)) {
+      APP_SCOPED_HASH_PARAMS.forEach((key) => params.delete(key));
+    }
     Object.entries(nextState).forEach(([key, value]) => {
       if (value === undefined || value === null || value === '') params.delete(key);
       else params.set(key, value);

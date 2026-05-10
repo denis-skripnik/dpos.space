@@ -66,6 +66,7 @@ assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link
 assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');
 assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter: отправка has a separate route and does not collapse to wallet');
 assert(appSource.includes('function appRequiresAccount'), 'route form has contextual account-field helper');
+assert(appSource.includes('APP_SCOPED_HASH_PARAMS'), 'route navigation clears app-scoped hash params such as longPage when changing app');
 assert(appSource.includes('function appUsesAuthorizedAccount'), 'route form has authorized-account selector helper for wallet/manage/broadcast tools');
 assert(appSource.includes('accountInput.disabled = !inputVisible'), 'hidden account field is disabled and removed from tab order');
 assert(appSource.includes('selectSavedAccount(chain, accountSelect.value)'), 'route submit switches current user from the authorized-account selector');
