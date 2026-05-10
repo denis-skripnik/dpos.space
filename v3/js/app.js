@@ -84,10 +84,11 @@
   }
 
   function detailsSection(title, rows, emptyText) {
+    const hasRows = Array.isArray(rows) && rows.length > 0;
     return `
-      <details open>
+      <details ${hasRows ? 'open' : ''}>
         <summary>${escapeHtml(title)}</summary>
-        <ul>${profileRows(rows && rows.length ? rows : [[emptyText || 'Данные', 'Нет данных.']])}</ul>
+        ${hasRows ? `<ul>${profileRows(rows)}</ul>` : `<p class="muted">${escapeHtml(emptyText || 'Нет данных.')}</p>`}
       </details>`;
   }
 
