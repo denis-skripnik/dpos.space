@@ -94,6 +94,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(html.includes('BIP/LONG') && html.includes('BIP') && html.includes('LONG'), 'LONG renders BIP/LONG pool composition');
   assert(html.includes('Будущий фарминг'), 'LONG renders old farming projection column');
   assert(html.includes('Бонус 50 дней'), 'LONG renders old 50-day bonus column');
+  assert(html.includes('Кошелёк рассылки') && html.includes('Mx01029d73e128e2f53ff1fcc2d52a423283ad9439'), 'LONG renders old farming sender wallet link');
   assert(!/^\s*<pre[\s>]/i.test(html), 'LONG primary output is not raw JSON');
 
   const parsed = context.DposV3.long.parseJsonMaybeText(JSON.stringify(JSON.stringify({ ok: true })), 'test');
