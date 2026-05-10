@@ -101,12 +101,18 @@ async function run() {
       },
       api: {
         getAccountsAsync(accounts) {
-          return Promise.resolve(accounts.map((account) => ({
-            name: account,
-            posting: { key_auths: [[publicFromWif(POSTING_WIF), 1]] },
-            regular: { key_auths: [[publicFromWif(REGULAR_WIF), 1]] },
-            active: { key_auths: [[publicFromWif(ACTIVE_WIF), 1], [publicFromWif(SERVICE_WIF), 1]] }
-          })));
+          return Promise.resolve(accounts.map((account) => {
+            const regularAuthority = { key_auths: [[publicFromWif(REGULAR_WIF), 1]] };
+            const activeAuthority = { key_auths: [[publicFromWif(ACTIVE_WIF), 1], [publicFromWif(SERVICE_WIF), 1]] };
+            return chainId === 'viz'
+              ? { name: account, regular_authority: regularAuthority, active_authority: activeAuthority }
+              : {
+                name: account,
+                posting: { key_auths: [[publicFromWif(POSTING_WIF), 1]] },
+                regular: regularAuthority,
+                active: activeAuthority
+              };
+          }));
         }
       },
       broadcast: {
