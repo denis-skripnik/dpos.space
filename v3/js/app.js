@@ -865,6 +865,26 @@
     return (gateways || []).filter((gateway) => gateway && gateway[type]);
   }
 
+  function golosGatewayHasDepositAction(gateway) {
+    const deposit = gateway && gateway.deposit;
+    if (!deposit) return false;
+    const type = String(deposit.to_type || '').toLowerCase();
+    return (type === 'fixed' && Boolean(deposit.to_fixed))
+      || type === 'api'
+      || Boolean(deposit.to_transfer && deposit.memo_transfer);
+  }
+
+  function golosMainBalanceMap(balanceRows) {
+    const map = new Map();
+    (balanceRows || []).forEach((row) => {
+      const meta = row && row[2];
+      if (meta && meta.kind === 'uia' && meta.balanceType === 'main' && golosAmountNumber(row[1]) > 0) {
+        map.set(normalizeGolosTokenSymbol(meta.symbol, 'UIA symbol'), row[1]);
+      }
+    });
+    return map;
+  }
+
 
   function refreshRouteAfterBroadcast(hashAtSend) {
     if (typeof global.setTimeout !== 'function') return;
@@ -1478,7 +1498,7 @@
   }
 
   function renderGolosUiaDepositSection(gateways) {
-    const depositGateways = getGolosGatewayOptions(gateways, 'deposit');
+    const depositGateways = getGolosGatewayOptions(gateways, 'deposit').filter(golosGatewayHasDepositAction);
     if (!depositGateways.length) return '';
     const options = depositGateways.map((gateway) => `<option value="${escapeHtml(gateway.symbol)}">${escapeHtml(gateway.symbol)}</option>`).join('');
     const panels = depositGateways.map((gateway, index) => {
@@ -1504,10 +1524,12 @@
     return operationDetails('UIA deposit / пополнение через gateways', `<div class="field"><label for="wallet-golos-uia-deposit-token">Токен/gateway</label><select id="wallet-golos-uia-deposit-token">${options}</select></div>${panels}`);
   }
 
-  function renderGolosUiaWithdrawSection(gateways) {
-    const withdrawGateways = getGolosGatewayOptions(gateways, 'withdraw').filter((gateway) => gateway.withdraw.account && gateway.withdraw.ways.length);
+  function renderGolosUiaWithdrawSection(gateways, balanceRows) {
+    const mainBalances = golosMainBalanceMap(balanceRows);
+    const withdrawGateways = getGolosGatewayOptions(gateways, 'withdraw')
+      .filter((gateway) => gateway.withdraw.account && gateway.withdraw.ways.length && mainBalances.has(gateway.symbol));
     if (!withdrawGateways.length) return '';
-    const options = withdrawGateways.flatMap((gateway) => gateway.withdraw.ways.map((way, index) => `<option value="${escapeHtml(gateway.symbol)}:${index}" data-token="${escapeHtml(gateway.symbol)}" data-account="${escapeHtml(gateway.withdraw.account)}" data-prefix="${escapeHtml(way.prefix || '')}" data-memo-label="${escapeHtml(way.memo || 'Данные для вывода')}" data-postfix-label="${escapeHtml(way.postfix_title || '')}" data-postfix-placeholder="${escapeHtml(way.postfix || '')}">${escapeHtml(gateway.symbol)} — ${escapeHtml(way.name || `Способ ${index + 1}`)}</option>`)).join('');
+    const options = withdrawGateways.flatMap((gateway) => gateway.withdraw.ways.map((way, index) => `<option value="${escapeHtml(gateway.symbol)}:${index}" data-token="${escapeHtml(gateway.symbol)}" data-max="${escapeHtml(mainBalances.get(gateway.symbol) || '')}" data-account="${escapeHtml(gateway.withdraw.account)}" data-prefix="${escapeHtml(way.prefix || '')}" data-memo-label="${escapeHtml(way.memo || 'Данные для вывода')}" data-postfix-label="${escapeHtml(way.postfix_title || '')}" data-postfix-placeholder="${escapeHtml(way.postfix || '')}">${escapeHtml(gateway.symbol)} — ${escapeHtml(way.name || `Способ ${index + 1}`)} — максимум ${escapeHtml(mainBalances.get(gateway.symbol) || '')}</option>`)).join('');
     const descriptions = withdrawGateways.map((gateway) => {
       const w = gateway.withdraw;
       const extras = [w.details, w.min_amount && `Минимальная сумма: ${w.min_amount}`, w.fee && `Комиссия: ${w.fee}`, `Аккаунт шлюза: ${w.account}`].filter(Boolean);
@@ -1520,7 +1542,7 @@
           <p class="muted">Legacy content.php содержит форму и memo builder; handler #action_uia_withdraw_start в legacy wallet js/php/css не найден. V3 отправляет только logically determined active transfer: UIA на withdrawal.account, memo = prefix + main + optional postfix.</p>
           <ul>${descriptions}</ul>
           <div class="field"><label for="wallet-golos-uia-withdraw-way">Токен и способ</label><select id="wallet-golos-uia-withdraw-way" name="way" required>${options}</select></div>
-          <div class="field"><label for="wallet-golos-uia-withdraw-amount">Сумма UIA</label><input id="wallet-golos-uia-withdraw-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="wallet-golos-uia-withdraw-amount">Сумма UIA</label><input id="wallet-golos-uia-withdraw-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-uia-withdraw-way" data-fill-target="wallet-golos-uia-withdraw-amount">Максимум</button></div>
           <div class="field"><label for="wallet-golos-uia-withdraw-main" data-withdraw-main-label>Данные для вывода</label><input id="wallet-golos-uia-withdraw-main" name="main" type="text" required autocomplete="off"></div>
           <div class="field" data-withdraw-postfix-field hidden><label for="wallet-golos-uia-withdraw-postfix" data-withdraw-postfix-label>Дополнительно</label><input id="wallet-golos-uia-withdraw-postfix" name="postfix" type="text"></div>
           <button type="submit" name="intent" value="preview">Проверить вывод</button>
@@ -1658,7 +1680,7 @@
           </fieldset>
         </form>`, Boolean(tipTokenOptions)),
       renderGolosUiaDepositSection(uiaGateways),
-      renderGolosUiaWithdrawSection(uiaGateways)
+      renderGolosUiaWithdrawSection(uiaGateways, balanceRows)
     ];
 
     return `

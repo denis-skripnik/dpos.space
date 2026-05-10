@@ -7,6 +7,11 @@ const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 
 assert(appSource.includes('function bindCopyButtons'), 'Golos fixed/API deposit values have copy-button binding');
 assert(appSource.includes('data-copy-value'), 'Golos deposit address/memo renders copy buttons');
+assert(appSource.includes('function golosGatewayHasDepositAction'), 'Golos deposit select filters out UIA without actionable deposit gateways');
+assert(appSource.includes("filter(golosGatewayHasDepositAction)"), 'Golos deposit select only includes actionable deposit gateways');
+assert(appSource.includes('function golosMainBalanceMap'), 'Golos withdraw select can filter by non-zero main balances');
+assert(appSource.includes('mainBalances.has(gateway.symbol)'), 'Golos withdraw select only includes tokens with main balance and withdraw metadata');
+assert(appSource.includes('data-fill-selected="wallet-golos-uia-withdraw-way"'), 'Golos UIA withdraw has a selected-token maximum button');
 assert(appSource.includes('function buildGolosUiaGatewayFromAsset'), 'Golos UIA gateways are built from asset json_metadata');
 assert(appSource.includes('function fetchAllGolosAssets'), 'Golos UIA gateways can be loaded from the full asset list, not only wallet balances');
 assert(appSource.includes("getAssetsAsync('', [], from, String(pageLimit), 'by_symbol_name')"), 'Golos full UIA list uses legacy getAssetsAsync paging by_symbol_name');
