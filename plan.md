@@ -877,3 +877,62 @@ Blocked/later with exact reasons:
 - Invite create preview params contain only public `invite_key`; invite use/claim warns that secret is sensitive and relies on existing sanitized preview/result path.
 - Tests assert dedicated VIZ wallet renderer, labels/forms/method names, legacy evidence checklist in `plan.md`, and generic Golos behavior remains present.
 - Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all tests, `git diff --check`.
+
+## Steem wallet parity/adaptation evidence (2026-05-10)
+
+### Preconditions
+- Branch checked: `v3`.
+- `git status --short` before edits: clean.
+- Current v3 inspected before implementation: `v3/js/app.js`, `v3/js/profiles.js`, `v3/js/broadcast.js`, existing wallet-related smoke tests under `tests/`.
+- Last known parent commit context: `4b5745f Remove developer notes from wallet UI`.
+
+### Legacy files inspected exhaustively
+- `origin/master:blockchains/steem/apps/wallet/config.json` — title/description/menu metadata for Steem wallet.
+- `origin/master:blockchains/steem/apps/wallet/content.php` — auth/active warnings, balances, action modals, claim UI, delegation/withdraw status, transfer history filters.
+- `origin/master:blockchains/steem/apps/wallet/css/jquery-ui.css` — bundled UI CSS only; no wallet logic.
+- `origin/master:blockchains/steem/apps/wallet/css/style.css` — modal/layout CSS only; no wallet logic.
+- `origin/master:blockchains/steem/apps/wallet/index.php` — guard-only placeholder.
+- `origin/master:blockchains/steem/apps/wallet/js/app.js` — wallet behavior and exact Steem API/broadcast calls.
+
+### Related Steem shared files inspected
+- `origin/master:blockchains/steem/js/blockchain.js` — working node selection for `https://api.steemit.com`, localStorage key `steem_node`, old account key decrypt passphrases.
+- `origin/master:blockchains/steem/js/modal-accounts.js` — account lookup/auth modal behavior, includes `steem.api.getAccounts`.
+- `origin/master:blockchains/steem/js/jquery-ui.js` — UI library only.
+- `origin/master:blockchains/steem/js/sjcl.min.js` — crypto library only.
+- `origin/master:blockchains/steem/js/steem.min.js` — confirms Steem operation schema/method availability for wallet operations, including savings and witness/proxy operations.
+
+### Legacy Steem wallet checklist
+- Balances: `STEEM`, `SBD`, converted `SP`, received/delegated SP, effective full SP, reward STEEM/SBD/SP, pending power down status, delegated-out list.
+- Actions: transfer STEEM/SBD, optional transfer STEEM to recipient SP, transfer own STEEM to own SP, withdraw SP to STEEM, cancel withdraw via zero VESTS, delegate SP, cancel delegation via zero VESTS, claim rewards.
+- Safety/UX: active-key warning, WIF-in-memo warning, max buttons, URL prefill for transfer `to`/`amount`/`memo`, concise alerts.
+- History: `getAccountHistoryAsync(login, from, limit)` filtered for transfer-like ops plus `curation_reward`, `author_reward`, `comment_benefactor_reward`, `producer_reward`; filters: all, incoming, outgoing, author, curator, witness, benefactor.
+- Savings: legacy wallet UI did not render savings actions, but shared `steem.min.js` includes exact operations `transfer_to_savings`, `transfer_from_savings`, `cancel_transfer_from_savings`; v3 can expose them safely through preview/confirm.
+- Witness/proxy: present in shared Steem operation schema as `account_witness_vote(account,witness,approve)` and `account_witness_proxy(account,proxy)`, but not part of legacy wallet app UI; handled elsewhere in v3 manage routes, not duplicated in wallet.
+- Encrypted memo: legacy wallet only detects WIF in memo with `steem.auth.isWif`; shared Steem client exposes memo support, so v3 may encode `#...` memo when `client.memo.encode` is available, otherwise stop before send.
+
+### Exact legacy broadcast/API evidence and param order
+- `steem.api.getAccounts([steem_login], cb)`.
+- `steem.api.getDynamicGlobalProperties(cb)`.
+- `steem.api.getVestingDelegations(steem_login, '', 100, cb)`.
+- `steem.api.getAccountHistoryAsync(steem_login, from, limitReal)`.
+- `steem.broadcast.transfer(active_key, steem_login, to, amount, memo, cb)`.
+- `steem.broadcast.transferToVesting(active_key, steem_login, to, amount, cb)`.
+- `steem.broadcast.withdrawVesting(active_key, steem_login, vesting_shares, cb)`.
+- `steem.broadcast.delegateVestingShares(active_key, steem_login, delegatee, vesting_shares, cb)`.
+- `steem.broadcast.claimRewardBalance(posting_key, steem_login, reward_steem_balance, reward_sbd_balance, reward_vesting_balance, cb)`.
+- Shared Steem schema confirms `transfer_to_savings(from,to,amount,memo)`, `transfer_from_savings(from,request_id,to,amount,memo)`, `cancel_transfer_from_savings(from,request_id)`, `account_witness_vote(account,witness,approve)`, `account_witness_proxy(account,proxy)`.
+
+### v3 mapping
+- Implement now: dedicated `renderSteemWallet` (not generic alias), dedicated data loader with `getVestingDelegations`, STEEM/SBD/SP balance section, reward claim summary, delegated-out table with cancellation forms, power-down status/cancel form, Steem-native forms for transfer, transfer to SP, withdraw SP, delegate SP, rewards, savings transfer/from/cancel, WIF memo guard, optional encrypted `#...` memo encoding, URL transfer prefill.
+- Implement now via existing v3 facilities: account history table uses normalized wallet operations; real sends go only through `bindOperationForm` preview + explicit browser confirm.
+- Later: full legacy “load more until match” transfer-history filtering UI; v3 currently shows the last normalized financial operations without adding the old jQuery filter buttons.
+- Later: duplicate witness/proxy controls in wallet; they are not in legacy wallet UI and already exist in v3 manage flows.
+- Blocked: none for static/frontend-safe wallet functionality; unavailable memo encoder stops before send with a user-actionable error instead of sending plaintext accidentally.
+
+### Acceptance criteria
+- Steem wallet is no longer a thin alias to generic Graphene wallet.
+- User-facing Steem wallet uses STEEM, SBD, SP and savings wording; no Golos `СГ`, VIZ `SHARES`, or dev notes.
+- Steem broadcast method names and parameter order match legacy/shared Steem evidence.
+- WIF/private keys are not shown; WIF-looking memo is blocked before preview/send.
+- Real network sends require preview/confirm through `bindOperationForm`.
+- Tests assert Steem-specific renderer/forms/method labels and this evidence section.
