@@ -682,6 +682,33 @@
     });
   }
 
+  function bindCopyButtons(root) {
+    root.querySelectorAll('[data-copy-value]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const value = button.dataset.copyValue || '';
+        try {
+          if (global.navigator && global.navigator.clipboard && typeof global.navigator.clipboard.writeText === 'function') {
+            await global.navigator.clipboard.writeText(value);
+          } else {
+            const area = document.createElement('textarea');
+            area.value = value;
+            area.setAttribute('readonly', '');
+            area.style.position = 'absolute';
+            area.style.left = '-9999px';
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand('copy');
+            document.body.removeChild(area);
+          }
+          button.textContent = 'Скопировано';
+          global.setTimeout(() => { button.textContent = 'Скопировать'; }, 2000);
+        } catch (error) {
+          button.textContent = 'Не удалось скопировать';
+        }
+      });
+    });
+  }
+
   function normalizeAccountInput(chain, value, label) {
     return broadcast.validateAccountName(chain, value, label);
   }
@@ -1249,6 +1276,7 @@
 
     bindGolosWalletForms(chain, data.profile, uiaGateways);
     bindMaxButtons(appEl);
+    bindCopyButtons(appEl);
     setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
   }
 
@@ -1287,6 +1315,10 @@
         <summary>${escapeHtml(title)}</summary>
         ${body}
       </details>`;
+  }
+
+  function copyButton(value, label) {
+    return `<button type="button" data-copy-value="${escapeHtml(value || '')}">Скопировать ${escapeHtml(label || 'значение')}</button>`;
   }
 
   function buildGrapheneWalletForms(chain, profile) {
@@ -1456,8 +1488,8 @@
       if (extras.length) body += `<ul>${extras.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
       if (String(deposit.to_type || '').toLowerCase() === 'fixed') {
         body += '<p>Данные для пополнения:</p><ul>';
-        if (deposit.to_fixed) body += `<li>Адрес/получатель: <code>${escapeHtml(deposit.to_fixed)}</code></li>`;
-        if (deposit.memo_fixed) body += `<li>Memo: <code>${escapeHtml(deposit.memo_fixed)}</code></li>`;
+        if (deposit.to_fixed) body += `<li>Адрес/получатель: <code>${escapeHtml(deposit.to_fixed)}</code> ${copyButton(deposit.to_fixed, 'адрес')}</li>`;
+        if (deposit.memo_fixed) body += `<li>Memo: <code>${escapeHtml(deposit.memo_fixed)}</code> ${copyButton(deposit.memo_fixed, 'memo')}</li>`;
         body += '</ul>';
       } else if (String(deposit.to_type || '').toLowerCase() === 'api') {
         body += `<p>Адрес запрашивается через <code>/golos/api/uia-deposit</code>.</p><p><button type="button" data-uia-deposit-api="${escapeHtml(gateway.symbol)}">Получить адрес</button></p><div id="wallet-golos-uia-deposit-result-${escapeHtml(gateway.symbol)}" class="operation-result" role="status" aria-live="polite"></div>`;
@@ -1719,7 +1751,10 @@
             const error = data && data.error;
             throw new Error(error && error.message ? error.message : `deposit API HTTP ${response.status}`);
           }
-          if (result) result.innerHTML = `<p>Адрес: <code>${escapeHtml(data.address)}</code></p>${data.memo ? `<p>Memo: <code>${escapeHtml(data.memo)}</code></p>` : ''}`;
+          if (result) {
+            result.innerHTML = `<p>Адрес: <code>${escapeHtml(data.address)}</code> ${copyButton(data.address, 'адрес')}</p>${data.memo ? `<p>Memo: <code>${escapeHtml(data.memo)}</code> ${copyButton(data.memo, 'memo')}</p>` : ''}`;
+            bindCopyButtons(result);
+          }
         } catch (error) {
           if (result) result.textContent = `Адрес пополнения недоступен: ${profiles.formatError(error)}`;
         }

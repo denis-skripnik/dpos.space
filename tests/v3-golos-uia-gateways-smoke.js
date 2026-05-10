@@ -5,6 +5,8 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 
+assert(appSource.includes('function bindCopyButtons'), 'Golos fixed/API deposit values have copy-button binding');
+assert(appSource.includes('data-copy-value'), 'Golos deposit address/memo renders copy buttons');
 assert(appSource.includes('function buildGolosUiaGatewayFromAsset'), 'Golos UIA gateways are built from asset json_metadata');
 assert(appSource.includes('function fetchAllGolosAssets'), 'Golos UIA gateways can be loaded from the full asset list, not only wallet balances');
 assert(appSource.includes("getAssetsAsync('', [], from, String(pageLimit), 'by_symbol_name')"), 'Golos full UIA list uses legacy getAssetsAsync paging by_symbol_name');
