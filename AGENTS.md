@@ -20,7 +20,9 @@ Static v3 files:
 - `index.html` — static SPA entry point.
 - `v3/css/style.css` — v3-only styles.
 - `v3/js/chains.js` — supported chains, apps, nodes, and library paths.
+- `v3/js/auth.js` — compatibility layer for old `localStorage` auth/account records.
 - `v3/js/profiles.js` — read-only profile/account data loading.
+- `v3/js/history.js` — read-only account history loading and normalization.
 - `v3/js/app.js` — accessible router and UI wiring.
 - `plan.md` — migration plan.
 
@@ -30,6 +32,8 @@ Static v3 files:
 - Do not add build tooling or npm dependencies unless there is a concrete need.
 - Do not require PHP, Composer, MongoDB, cron, pm2, private tokens, or bots for v3 runtime.
 - Use direct public RPC/API calls from the browser where possible.
+- Preserve the old account storage schema: `<chain>_current_user`, `<chain>_users`, `<chain>_node`, and existing SJCL-encrypted key payloads.
+- Do not invent a new auth/key storage format unless Denis explicitly approves a migration plan.
 - Keep old PHP files unless the task explicitly asks for removal.
 - Keep code transparent: small functions, clear names, no speculative abstractions.
 
@@ -45,7 +49,9 @@ git status --short --branch
 
 # JavaScript syntax checks
 node --check v3/js/chains.js
+node --check v3/js/auth.js
 node --check v3/js/profiles.js
+node --check v3/js/history.js
 node --check v3/js/app.js
 
 # static smoke server
@@ -76,6 +82,7 @@ Denis uses a screen reader. Treat accessibility as a core requirement:
 - Work on branch `v3` for the static migration.
 - Reuse existing public blockchain JS libraries when they work in the browser.
 - Add one migrated feature at a time and validate it before widening scope.
+- Keep auth compatibility with the legacy localStorage scheme. v3 may perform real broadcast from explicit UI submit/confirm flows when the operation is mapped; preview/dry-run is optional and must not be a permanent blocker.
 - Record assumptions and known gaps in `plan.md` or the final report.
 - Use SSH remotes.
 

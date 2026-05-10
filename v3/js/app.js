@@ -2,7 +2,10 @@
   'use strict';
 
   const chains = global.DposChains;
+  const auth = global.DposAuth;
+  const broadcast = global.DposBroadcast;
   const profiles = global.DposProfiles;
+  const history = global.DposHistory;
   const chainSelect = document.getElementById('chain-select');
   const appSelect = document.getElementById('app-select');
   const routeForm = document.getElementById('route-form');
@@ -20,9 +23,9 @@
       .replaceAll("'", '&#039;');
   }
 
-  function setStatus(message, type) {
+  function setStatus(message, state) {
     statusEl.textContent = message;
-    statusEl.dataset.type = type || 'info';
+    statusEl.dataset.state = state || 'info';
   }
 
   function parseHash() {
@@ -40,7 +43,7 @@
   }
 
   function loadScript(src) {
-    if (loadedScripts.has(src)) return Promise.resolve();
+    if (!src || loadedScripts.has(src)) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src;
@@ -64,6 +67,10 @@
     appSelect.innerHTML = chain.apps.map((app) => (
       `<option value="${escapeHtml(app.id)}" ${app.id === selectedAppId ? 'selected' : ''}>${escapeHtml(app.title)}</option>`
     )).join('');
+  }
+
+  function getRouteAccount(state, chain) {
+    return state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
   }
 
   function renderProfile(profile) {
@@ -110,40 +117,1255 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: ${escapeHtml(app.title)}</h2>
-        <p>Этот раздел пока не перенесён в статическую версию.</p>
+        <p>Этот раздел не входит в текущий статический перенос или требует отдельного подтверждённого flow.</p>
       </section>
     `;
+  }
+
+  function renderPrepared(prepared) {
+    return `<pre>${escapeHtml(JSON.stringify(broadcast.sanitizePrepared(prepared), null, 2))}</pre>`;
+  }
+
+  function setOperationResult(form, message, state, prepared, result) {
+    const resultEl = form.querySelector('[data-operation-result]');
+    resultEl.dataset.state = state || 'info';
+    const warnings = prepared && prepared.meta && prepared.meta.warnings && prepared.meta.warnings.length
+      ? `<ul class="warnings">${prepared.meta.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+      : '';
+    const summary = prepared ? `<p><strong>Summary:</strong> ${escapeHtml(operationSummary(prepared))}</p>` : '';
+    const resultBlock = result ? `<details><summary>Результат broadcast</summary><pre>${escapeHtml(JSON.stringify(broadcast.sanitizeResult(result), null, 2))}</pre></details>` : '';
+    resultEl.innerHTML = `<p>${escapeHtml(message)}</p>${summary}${warnings}${prepared ? renderPrepared(prepared) : ''}${resultBlock}`;
+    setStatus(message, state || 'info');
+  }
+
+  function operationSummary(prepared) {
+    const meta = prepared.meta || {};
+    const parts = [
+      `${prepared.chain}: ${meta.title || prepared.operationName}`,
+      `authority ${prepared.authority}`,
+      `аккаунт @${prepared.from}`
+    ];
+    if (meta.to) parts.push(`получатель @${meta.to}`);
+    if (meta.amount) parts.push(`сумма ${meta.amount}`);
+    if (meta.requestId !== undefined) parts.push(`request id ${meta.requestId}`);
+    if (Array.isArray(meta.warnings) && meta.warnings.length) parts.push(`warnings: ${meta.warnings.join('; ')}`);
+    return parts.join(', ');
+  }
+
+  function amountFromBalance(raw) {
+    const match = String(raw || '').match(/\d+(?:\.\d+)?\s+[A-Z]+/);
+    return match ? match[0] : '';
+  }
+
+  function pickBalance(profile, symbol) {
+    const fields = [
+      'balance', 'sbd_balance', 'hbd_balance', 'vesting_shares', 'delegated_vesting_shares',
+      'reward_balance', 'reward_sbd_balance', 'reward_hbd_balance', 'reward_steem_balance', 'reward_vesting_balance',
+      'savings_balance', 'savings_sbd_balance', 'savings_hbd_balance'
+    ];
+    for (const field of fields) {
+      if (profile.raw && typeof profile.raw[field] === 'string' && profile.raw[field].endsWith(` ${symbol}`)) return profile.raw[field];
+    }
+    return '';
+  }
+
+  function bindMaxButtons(root) {
+    root.querySelectorAll('[data-fill-target]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = root.querySelector(`#${button.dataset.fillTarget}`);
+        if (target) target.value = button.dataset.fillValue || '';
+      });
+    });
+  }
+
+  function normalizeAccountInput(chain, value, label) {
+    return broadcast.validateAccountName(chain, value, label);
+  }
+
+  function normalizeAssetInput(chain, value, symbols, label) {
+    return broadcast.validateAsset(chain, value, symbols, label);
+  }
+
+
+  function bindOperationForm(chain, formId, buildPrepared) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await loadScript(chain.cryptoPath);
+        await loadScript(chain.walletPath);
+        await loadScript(chain.libraryPath);
+        const prepared = buildPrepared(new FormData(form));
+        const submitter = event.submitter;
+        const intent = submitter && submitter.value === 'send' ? 'send' : 'preview';
+
+        if (intent === 'preview') {
+          const result = await broadcast.broadcast(chain, prepared, { dryRun: true });
+          setOperationResult(form, result.message, 'ok', prepared);
+          return;
+        }
+
+        const confirmed = global.confirm(`Отправить реальную транзакцию?\n${operationSummary(prepared)}\nПроверьте получателя, сумму и memo перед отправкой.`);
+        if (!confirmed) {
+          setOperationResult(form, 'Отправка отменена пользователем. Preview операции ниже.', 'info', prepared);
+          return;
+        }
+
+        if (submitter) submitter.disabled = true;
+        setOperationResult(form, 'Подключаю публичную ноду для broadcast...', 'loading', prepared);
+        await profiles.connect(chain);
+        setOperationResult(form, 'Отправляю транзакцию в сеть...', 'loading', prepared);
+        const result = await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+        setOperationResult(form, 'Транзакция отправлена. Ответ сети ниже.', 'ok', prepared, result);
+      } catch (error) {
+        setOperationResult(form, profiles.formatError(error), 'error');
+      } finally {
+        const buttons = form.querySelectorAll('button[type="submit"]');
+        buttons.forEach((button) => { button.disabled = false; });
+      }
+    });
+  }
+
+  function keyStatusText(status) {
+    const regularOrPosting = status.hasRegularOrPosting ? 'есть' : 'нет или не расшифрован';
+    const active = status.hasActive ? 'есть' : 'нет или не расшифрован';
+    return `${status.regularOrPostingLabel}: ${regularOrPosting}; active: ${active}; источник: ${status.source}`;
+  }
+
+  async function renderAccounts(chain) {
+    await loadScript(chain.cryptoPath);
+    const users = auth.getUsers(chain);
+    const current = auth.getCurrentUser(chain);
+    const currentLogin = auth.getUserLogin(current);
+    const rows = users.map((user, index) => {
+      const login = auth.getUserLogin(user);
+      const type = auth.getUserType(user);
+      const checked = auth.isSameUser(user, current) ? 'checked' : '';
+      const status = auth.getKeyStatus(chain, user);
+      return `
+        <li>
+          <label class="inline-choice">
+            <input type="radio" name="legacy-account" value="${index}" ${checked}>
+            @${escapeHtml(login)}${type !== 'standard' ? ` (${escapeHtml(type)})` : ''}
+          </label>
+          <br><span class="muted">${escapeHtml(keyStatusText(status))}</span>
+        </li>`;
+    }).join('');
+
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: legacy-аккаунты</h2>
+        <p>v3 читает те же ключи localStorage, что и старый сайт: <code>${escapeHtml(chain.id)}_current_user</code> и <code>${escapeHtml(chain.id)}_users</code>. Новая схема не создаётся.</p>
+        ${currentLogin ? `<p><strong>Текущий аккаунт:</strong> @${escapeHtml(currentLogin)}. ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>` : '<p><strong>Текущий аккаунт не выбран.</strong></p>'}
+        ${users.length ? `
+          <form id="legacy-account-form">
+            <fieldset>
+              <legend>Сохранённые аккаунты</legend>
+              <ul>${rows}</ul>
+            </fieldset>
+            <button type="submit">Выбрать аккаунт</button>
+          </form>` : '<p>В legacy localStorage для этой сети аккаунты не найдены.</p>'}
+        <p class="notice">Добавление и удаление аккаунтов в v3 пока не реализованы, чтобы не сломать старый формат. Используйте старый интерфейс для изменения списка.</p>
+      </section>
+    `;
+
+    const form = document.getElementById('legacy-account-form');
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const selected = form.querySelector('input[name="legacy-account"]:checked');
+        if (!selected) {
+          setStatus('Выберите аккаунт.', 'error');
+          return;
+        }
+        const user = users[Number(selected.value)];
+        auth.selectUser(chain, auth.getUserLogin(user), auth.getUserType(user));
+        accountInput.value = auth.getUserLogin(user);
+        navigate({ chain: chain.id, app: 'accounts', account: auth.getUserLogin(user) });
+        setStatus(`Аккаунт @${auth.getUserLogin(user)} выбран в legacy localStorage.`, 'ok');
+      });
+    }
+
+    setStatus(users.length ? 'Список legacy-аккаунтов загружен.' : 'Legacy-аккаунты не найдены.', users.length ? 'ok' : 'info');
+  }
+
+  function renderHistoryTable(items, chain, emptyText) {
+    if (!items.length) {
+      return `<p>${escapeHtml(emptyText || 'Операции не найдены.')}</p>`;
+    }
+
+    const rows = items.map((item) => `
+      <tr>
+        <td>${escapeHtml(history.formatDate(item.timestamp))}</td>
+        <td>${escapeHtml(history.operationTitle(item.type))}</td>
+        <td><code>${escapeHtml(item.type)}</code></td>
+        <td class="longtext">${escapeHtml(Object.entries(item.data || {}).map(([key, value]) => `${key}: ${history.formatValue(value)}`).join('; '))}</td>
+        <td>${item.trxId ? `<a href="/${escapeHtml(chain.id)}/explorer/tx/${escapeHtml(item.trxId)}" target="_blank" rel="noopener">tx</a>` : ''}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Операция</th>
+              <th>Код</th>
+              <th>Данные</th>
+              <th>Tx</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  async function getConnection(chain) {
+    await loadScript(chain.libraryPath);
+    return profiles.connect(chain);
+  }
+
+  async function renderWallet(chain, account) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю кошелёк ${chain.title}: @${account}...`, 'loading');
+
+    await loadScript(chain.cryptoPath);
+    const current = auth.getCurrentUser(chain);
+    const connection = await getConnection(chain);
+    const rawAccount = await profiles.fetchAccount(connection, account);
+    const profile = profiles.normalizeAccount(connection, rawAccount);
+    const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
+    const walletItems = history.getWalletOperations(chain, items).slice(0, 50);
+
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: кошелёк @${escapeHtml(account)}</h2>
+        <p><strong>Нода:</strong> ${escapeHtml(profile.node)}</p>
+        <p><strong>Legacy auth:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>
+        <p class="notice">Формы ниже умеют делать preview и реальный broadcast. Реальная отправка запускается отдельной кнопкой и обычным confirm в браузере.</p>
+        <h3>Балансы</h3>
+        <ul>${profile.balances.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
+        ${walletCapabilities(chain)}
+        ${walletPrepareForms(chain, profile)}
+        <h3>Последние финансовые операции</h3>
+        ${renderHistoryTable(walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
+      </section>
+    `;
+
+    bindWalletForms(chain);
+    bindMaxButtons(appEl);
+    setStatus(`Кошелёк @${account} загружен: доступны preview, Max buttons и real broadcast формы.`, 'ok');
+  }
+
+  function walletCapabilities(chain) {
+    const capabilities = {
+      golos: ['GOLOS/GBG balances', 'vesting/СГ', 'delegation', 'transfer', 'transfer_to_vesting', 'donate там, где старый API доступен', 'TIP операции pending'],
+      viz: ['VIZ balance', 'SHARES', 'energy/awards', 'transfer', 'transfer_to_vesting', 'delegate_vesting_shares', 'invite operations pending'],
+      hive: ['HIVE/HBD balances', 'HP/VESTS', 'savings', 'reward claim', 'delegations', 'transfer', 'transfer_to_vesting'],
+      steem: ['STEEM/SBD balances', 'SP/VESTS', 'savings', 'reward claim', 'delegations', 'transfer', 'transfer_to_vesting']
+    }[chain.id] || [];
+
+    return `
+      <h3>Особенности кошелька ${escapeHtml(chain.title)}</h3>
+      <ul>${capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+  }
+
+  function walletPrepareForms(chain, profile) {
+    const liquid = chain.liquidSymbol || 'TOKEN';
+    const debt = chain.debtSymbol || 'TOKEN';
+    const vesting = chain.vestingSymbol || 'VESTS';
+    const supportsClaim = chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem';
+    const supportsSavings = chain.id !== 'viz';
+    const liquidMax = profile ? pickBalance(profile, liquid) : '';
+    const debtMax = profile && debt ? pickBalance(profile, debt) : '';
+    const vestingMax = profile ? pickBalance(profile, vesting) : '';
+    return `
+      <h3>Операции кошелька</h3>
+      <form id="wallet-transfer-form" class="stacked-form">
+        <fieldset>
+          <legend>Transfer (${escapeHtml(liquid)})</legend>
+          <div class="field"><label for="wallet-transfer-to">Получатель</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
+          <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Max ${escapeHtml(liquidMax)}</button>` : ''}</div>
+          <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
+          <button type="submit" name="intent" value="preview">Preview transfer</button>
+          <button type="submit" name="intent" value="send">Отправить transfer реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <form id="wallet-vesting-form" class="stacked-form">
+        <fieldset>
+          <legend>Transfer_to_vesting / power up</legend>
+          <div class="field"><label for="wallet-vesting-to">Получатель power up</label><input id="wallet-vesting-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+          <div class="field"><label for="wallet-vesting-amount">Сумма с символом</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Max ${escapeHtml(liquidMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Preview transfer_to_vesting</button>
+          <button type="submit" name="intent" value="send">Отправить power up реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <form id="wallet-withdraw-vesting-form" class="stacked-form">
+        <fieldset>
+          <legend>Withdraw vesting / power down</legend>
+          <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Max ${escapeHtml(vestingMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Preview withdraw_vesting</button>
+          <button type="submit" name="intent" value="send">Отправить power down реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <form id="wallet-delegation-form" class="stacked-form">
+        <fieldset>
+          <legend>Delegation</legend>
+          <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
+          <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Max ${escapeHtml(vestingMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Preview delegate_vesting_shares</button>
+          <button type="submit" name="intent" value="send">Отправить delegation реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      ${supportsClaim ? `<form id="wallet-claim-form" class="stacked-form">
+        <fieldset>
+          <legend>Claim rewards</legend>
+          <p class="muted">Введите reward balances ровно в формате сети. Для Golos: liquid/vesting/to; для Hive/Steem: liquid, debt и vesting rewards.</p>
+          <div class="field"><label for="wallet-claim-liquid">Liquid reward</label><input id="wallet-claim-liquid" name="liquid" type="text" required placeholder="0.000 ${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="wallet-claim-debt">Debt reward</label><input id="wallet-claim-debt" name="debt" type="text" placeholder="0.000 ${escapeHtml(debt)}"></div>
+          <div class="field"><label for="wallet-claim-vesting">Vesting reward</label><input id="wallet-claim-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}"></div>
+          ${chain.id === 'golos' ? '<div class="field"><label for="wallet-claim-to">Получатель claim</label><input id="wallet-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>' : ''}
+          <button type="submit" name="intent" value="preview">Preview claim</button>
+          <button type="submit" name="intent" value="send">Claim rewards реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>` : ''}
+      ${supportsSavings ? `<form id="wallet-savings-to-form" class="stacked-form">
+        <fieldset>
+          <legend>Transfer to savings</legend>
+          <div class="field"><label for="wallet-savings-to">Получатель savings</label><input id="wallet-savings-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+          <div class="field"><label for="wallet-savings-amount">Сумма с символом</label><input id="wallet-savings-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="wallet-savings-memo">Memo</label><input id="wallet-savings-memo" name="memo" type="text"></div>
+          <button type="submit" name="intent" value="preview">Preview transfer_to_savings</button>
+          <button type="submit" name="intent" value="send">Отправить в savings реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <form id="wallet-savings-from-form" class="stacked-form">
+        <fieldset>
+          <legend>Transfer from savings</legend>
+          <div class="field"><label for="wallet-savings-request-id">Request ID</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+          <div class="field"><label for="wallet-savings-from-to">Получатель</label><input id="wallet-savings-from-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
+          <div class="field"><label for="wallet-savings-from-amount">Сумма с символом</label><input id="wallet-savings-from-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="wallet-savings-from-memo">Memo</label><input id="wallet-savings-from-memo" name="memo" type="text"></div>
+          <button type="submit" name="intent" value="preview">Preview transfer_from_savings</button>
+          <button type="submit" name="intent" value="send">Вывести из savings реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <form id="wallet-savings-cancel-form" class="stacked-form">
+        <fieldset>
+          <legend>Cancel transfer from savings</legend>
+          <div class="field"><label for="wallet-savings-cancel-request-id">Request ID</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+          <button type="submit" name="intent" value="preview">Preview cancel_transfer_from_savings</button>
+          <button type="submit" name="intent" value="send">Отменить вывод реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>` : ''}`;
+  }
+
+  function bindWalletForms(chain) {
+    bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
+      auth.getCurrentLogin(chain),
+      normalizeAccountInput(chain, form.get('to'), 'Получатель'),
+      normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма transfer'),
+      String(form.get('memo') || '')
+    ], { title: 'Transfer', to: normalizeAccountInput(chain, form.get('to'), 'Получатель'), amount: normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма transfer') }));
+
+    bindOperationForm(chain, 'wallet-vesting-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель power up') : from;
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма power up');
+      return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'Power up', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => broadcast.prepare(chain, 'active', 'withdrawVesting', [
+      auth.getCurrentLogin(chain),
+      normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма vesting')
+    ], { title: 'Withdraw vesting', amount: normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма vesting') }));
+
+    bindOperationForm(chain, 'wallet-delegation-form', (form) => broadcast.prepare(chain, 'active', 'delegateVestingShares', [
+      auth.getCurrentLogin(chain),
+      normalizeAccountInput(chain, form.get('delegatee'), 'Delegatee'),
+      normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation')
+    ], { title: 'Delegation', to: normalizeAccountInput(chain, form.get('delegatee'), 'Delegatee'), amount: normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма delegation') }));
+
+    bindOperationForm(chain, 'wallet-claim-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      if (chain.id === 'golos') {
+        return broadcast.prepare(chain, 'posting', 'claim', [
+          account,
+          String(form.get('to') || '').trim().replace(/^@/, '') || account,
+          normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Liquid reward'),
+          normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Vesting reward'),
+          []
+        ]);
+      }
+
+      return broadcast.prepare(chain, 'posting', 'claimRewardBalance', [
+        account,
+        normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Liquid reward'),
+        normalizeAssetInput(chain, form.get('debt'), chain.debtSymbol, 'Debt reward'),
+        normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Vesting reward')
+      ]);
+    });
+
+    bindOperationForm(chain, 'wallet-savings-to-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель savings') : from;
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма savings');
+      return broadcast.prepare(chain, 'active', 'transferToSavings', [from, to, amount, String(form.get('memo') || '')], { title: 'Transfer to savings', to, amount });
+    });
+
+    bindOperationForm(chain, 'wallet-savings-from-form', (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const rawTo = String(form.get('to') || '').trim().replace(/^@/, '');
+      const to = rawTo ? normalizeAccountInput(chain, rawTo, 'Получатель savings') : from;
+      const requestId = broadcast.validateRequestId(form.get('requestId'));
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма savings');
+      return broadcast.prepare(chain, 'active', 'transferFromSavings', [from, requestId, to, amount, String(form.get('memo') || '')], { title: 'Transfer from savings', to, amount, requestId });
+    });
+
+    bindOperationForm(chain, 'wallet-savings-cancel-form', (form) => broadcast.prepare(chain, 'active', 'cancelTransferFromSavings', [
+      auth.getCurrentLogin(chain),
+      broadcast.validateRequestId(form.get('requestId'))
+    ], { title: 'Cancel transfer from savings', requestId: broadcast.validateRequestId(form.get('requestId')) }));
+  }
+
+  async function renderBroadcast(chain) {
+    await loadScript(chain.cryptoPath);
+    const current = auth.getCurrentUser(chain);
+    const keys = broadcast.getAvailableKeys(chain, current);
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: broadcast layer</h2>
+        <p>v3 использует старые localStorage ключи и старые passphrase: без миграции и без новой схемы хранения.</p>
+        <ul>
+          <li><strong>Аккаунт:</strong> ${keys.login ? `@${escapeHtml(keys.login)}` : 'не выбран'}</li>
+          <li><strong>${escapeHtml(keys.regularOrPostingLabel)}:</strong> ${keys.regularOrPosting ? 'доступен' : 'нет или не расшифрован'}</li>
+          <li><strong>active:</strong> ${keys.active ? 'доступен' : 'нет или не расшифрован'}</li>
+          <li><strong>Источник:</strong> ${escapeHtml(keys.source)}</li>
+        </ul>
+        <p class="notice">Приватные ключи не выводятся в UI, не попадают в JSON preview и не логируются.</p>
+        ${walletPrepareForms(chain)}
+      </section>`;
+    bindWalletForms(chain);
+    bindMaxButtons(appEl);
+    setStatus('Broadcast helper загружен: доступны preview и real broadcast.', 'ok');
+  }
+
+  function renderVizAward(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>VIZ: award</h2>
+        <p>Перенесённая форма award через legacy regular key: preview или реальная отправка.</p>
+        <form id="viz-award-form" class="stacked-form">
+          <fieldset>
+            <legend>Award</legend>
+            <div class="field"><label for="award-target">Кого наградить</label><input id="award-target" name="target" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="award-energy">Энергия, %</label><input id="award-energy" name="energy" type="number" min="0.01" max="100" step="0.01" required></div>
+            <div class="field"><label for="award-memo">Memo</label><textarea id="award-memo" name="memo" rows="4"></textarea></div>
+            <button type="submit" name="intent" value="preview">Preview award</button>
+            <button type="submit" name="intent" value="send">Отправить award реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    bindOperationForm(chain, 'viz-award-form', (form) => broadcast.prepare(chain, 'regular', 'award', [
+      auth.getCurrentLogin(chain),
+      String(form.get('target') || '').trim().replace(/^@/, ''),
+      Number(form.get('energy')) * 100,
+      0,
+      String(form.get('memo') || ''),
+      []
+    ]));
+    setStatus('VIZ award готов: preview или real broadcast.', 'ok');
+  }
+
+  function renderGolosDonate(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>Golos: донат</h2>
+        <p>Перенесённая форма donate через legacy posting key: preview или реальная отправка.</p>
+        <form id="golos-donate-form" class="stacked-form">
+          <fieldset>
+            <legend>Donate</legend>
+            <div class="field"><label for="donate-to">Получатель</label><input id="donate-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="donate-amount">Сумма</label><input id="donate-amount" name="amount" type="text" required placeholder="1.000 GOLOS"></div>
+            <div class="field"><label for="donate-memo">Комментарий</label><textarea id="donate-memo" name="memo" rows="4"></textarea></div>
+            <button type="submit" name="intent" value="preview">Preview donate</button>
+            <button type="submit" name="intent" value="send">Отправить donate реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    bindOperationForm(chain, 'golos-donate-form', (form) => broadcast.prepare(chain, 'posting', 'donate', [
+      auth.getCurrentLogin(chain),
+      String(form.get('to') || '').trim().replace(/^@/, ''),
+      String(form.get('amount') || '').trim(),
+      { app: 'dpos-space', version: 3, comment: String(form.get('memo') || ''), target: { type: 'personal_donate' } },
+      []
+    ]));
+    setStatus('Golos donate готов: preview или real broadcast.', 'ok');
+  }
+
+  function renderEditor(chain) {
+    const debt = chain.debtSymbol || 'HBD';
+    let draft = null;
+    try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: редактор</h2>
+        <p>Перенесённый редактор: операции comment/comment_options через posting key, preview или реальная отправка.</p>
+        <form id="editor-form" class="stacked-form">
+          <fieldset>
+            <legend>Публикация поста</legend>
+            <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
+            <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" required></div>
+            <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space"></div>
+            <div class="field"><label for="editor-body">Текст поста</label><textarea id="editor-body" name="body" rows="8" required>${escapeHtml(draft && draft.body ? draft.body : '')}</textarea></div>
+            <button type="submit" name="intent" value="preview">Preview публикации</button>
+            <button type="submit" name="intent" value="send">Опубликовать реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        ${draft ? `<p class="notice">Загружен draft из import: ${escapeHtml(draft.sourceUrl || draft.importedAt || '')}</p>` : ''}
+        <p class="muted">Для ${escapeHtml(chain.title)} max payout будет подготовлен как 1000000.000 ${escapeHtml(debt)}; тонкая настройка beneficiaries/payout — следующий этап.</p>
+      </section>`;
+    bindOperationForm(chain, 'editor-form', (form) => {
+      const author = auth.getCurrentLogin(chain);
+      const tags = String(form.get('tags') || '').split(/\s+/).filter(Boolean);
+      const permlink = String(form.get('permlink') || '').trim();
+      const operations = [
+        ['comment', {
+          parent_author: '',
+          parent_permlink: tags[0] || 'dpos',
+          author,
+          permlink,
+          title: String(form.get('title') || '').trim(),
+          body: String(form.get('body') || ''),
+          json_metadata: JSON.stringify({ tags, app: 'dpos.space/v3' })
+        }],
+        ['comment_options', {
+          author,
+          permlink,
+          max_accepted_payout: `1000000.000 ${debt}`,
+          percent_steem_dollars: chain.id === 'steem' ? 10000 : undefined,
+          percent_hbd: chain.id === 'hive' ? 10000 : undefined,
+          allow_votes: true,
+          allow_curation_rewards: true,
+          extensions: []
+        }]
+      ].map(([name, payload]) => [name, Object.fromEntries(Object.entries(payload).filter(([, value]) => typeof value !== 'undefined'))]);
+      return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
+    });
+    setStatus(`${chain.title} editor готов: preview или real broadcast.`, 'ok');
+  }
+
+  async function renderCalculator(chain, account) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора</h2><p>Читаю chain properties...</p></section>';
+    const connection = await getConnection(chain);
+    const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
+    const totalFund = parseFloat(props.total_vesting_fund_steem || props.total_vesting_fund_hive || props.total_vesting_fund || '0');
+    const totalShares = parseFloat(props.total_vesting_shares || '0');
+    const perMillion = totalFund && totalShares ? (1000000 * totalFund / totalShares) : 0;
+
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: калькулятор ${escapeHtml(chain.powerTitle || chain.vestingSymbol)}</h2>
+        <p>Быстрый перенос vesting-калькулятора из старых Hive/Steem/Golos/VIZ сервисов. Формула использует текущие dynamic global properties.</p>
+        <ul>
+          <li><strong>1 000 000 ${escapeHtml(chain.vestingSymbol || 'VESTS')} ≈</strong> ${escapeHtml(perMillion.toFixed(6))} ${escapeHtml(chain.powerTitle || chain.liquidSymbol || 'POWER')}</li>
+          <li><strong>total_vesting_fund:</strong> ${escapeHtml(totalFund)}</li>
+          <li><strong>total_vesting_shares:</strong> ${escapeHtml(totalShares)}</li>
+        </ul>
+        <form id="calculator-form" class="stacked-form">
+          <fieldset>
+            <legend>Конвертация vesting → power</legend>
+            <div class="field"><label for="calculator-vesting">Количество ${escapeHtml(chain.vestingSymbol || 'VESTS')}</label><input id="calculator-vesting" name="vesting" type="number" min="0" step="0.000001" value="1000000"></div>
+            <button type="submit">Рассчитать</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+
+    document.getElementById('calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const value = Number(new FormData(event.currentTarget).get('vesting') || 0);
+      const power = totalShares ? (value * totalFund / totalShares) : 0;
+      setOperationResult(event.currentTarget, `${value} ${chain.vestingSymbol || 'VESTS'} ≈ ${power.toFixed(6)} ${chain.powerTitle || chain.liquidSymbol || 'POWER'}`, 'ok');
+    });
+    setStatus(`${chain.title} calculator загружен для @${account}.`, 'ok');
+  }
+
+  function renderManage(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: управление</h2>
+        <p>Рабочий перенос manage: proxy, witness vote и profile metadata update. Для VIZ добавлены committee/invite flows из старого wallet/manage.</p>
+        <form id="manage-proxy-form" class="stacked-form">
+          <fieldset>
+            <legend>Witness proxy</legend>
+            <div class="field"><label for="manage-proxy-login">Прокси-аккаунт</label><input id="manage-proxy-login" name="proxy" type="text" autocomplete="off" placeholder="пусто = снять proxy"></div>
+            <button type="submit" name="intent" value="preview">Preview proxy</button>
+            <button type="submit" name="intent" value="send">Установить proxy реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-witness-form" class="stacked-form">
+          <fieldset>
+            <legend>Witness vote</legend>
+            <div class="field"><label for="manage-witness-login">Witness</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
+            <label class="inline-choice"><input name="approve" type="checkbox" checked> approve vote</label>
+            <button type="submit" name="intent" value="preview">Preview vote</button>
+            <button type="submit" name="intent" value="send">Отправить vote реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-profile-form" class="stacked-form">
+          <fieldset>
+            <legend>Profile metadata</legend>
+            <div class="field"><label for="manage-profile-name">Display name</label><input id="manage-profile-name" name="name" type="text"></div>
+            <div class="field"><label for="manage-profile-about">About</label><textarea id="manage-profile-about" name="about" rows="3"></textarea></div>
+            <div class="field"><label for="manage-profile-location">Location</label><input id="manage-profile-location" name="location" type="text"></div>
+            <div class="field"><label for="manage-profile-website">Website</label><input id="manage-profile-website" name="website" type="url"></div>
+            <button type="submit" name="intent" value="preview">Preview profile update</button>
+            <button type="submit" name="intent" value="send">Обновить profile реально</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        ${chain.id === 'viz' ? `<form id="viz-create-invite-form" class="stacked-form"><fieldset>
+          <legend>VIZ create invite</legend>
+          <div class="field"><label for="viz-invite-balance">Баланс инвайта</label><input id="viz-invite-balance" name="balance" type="text" required placeholder="1.000 VIZ"></div>
+          <div class="field"><label for="viz-invite-public">Invite public key</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Preview create_invite</button><button type="submit" name="intent" value="send">Создать invite реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-use-invite-form" class="stacked-form"><fieldset>
+          <legend>VIZ use/claim invite balance</legend>
+          <div class="field"><label for="viz-use-invite-secret">Invite secret</label><input id="viz-use-invite-secret" name="secret" type="text" required></div>
+          <div class="field"><label for="viz-use-invite-receiver">Receiver</label><input id="viz-use-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
+          <label class="inline-choice"><input name="toVesting" type="checkbox" checked> use_invite_balance в SHARES; иначе claim_invite_balance в VIZ</label>
+          <button type="submit" name="intent" value="preview">Preview invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-committee-form" class="stacked-form"><fieldset>
+          <legend>VIZ committee worker request/vote</legend>
+          <div class="field"><label for="viz-committee-mode">Mode</label><select id="viz-committee-mode" name="mode"><option value="create">create request</option><option value="vote">vote request</option></select></div>
+          <div class="field"><label for="viz-committee-id">Request ID for vote</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
+          <div class="field"><label for="viz-committee-url">URL</label><input id="viz-committee-url" name="url" type="url"></div>
+          <div class="field"><label for="viz-committee-worker">Worker</label><input id="viz-committee-worker" name="worker" type="text"></div>
+          <div class="field"><label for="viz-committee-min">Reward min</label><input id="viz-committee-min" name="min" type="text" placeholder="1.000 VIZ"></div>
+          <div class="field"><label for="viz-committee-max">Reward max</label><input id="viz-committee-max" name="max" type="text" placeholder="2.000 VIZ"></div>
+          <div class="field"><label for="viz-committee-days">Duration days</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
+          <div class="field"><label for="viz-committee-vote">Vote percent</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
+          <button type="submit" name="intent" value="preview">Preview committee</button><button type="submit" name="intent" value="send">Отправить committee реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>` : ''}
+      </section>`;
+
+    bindOperationForm(chain, 'manage-proxy-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessProxy', [
+      auth.getCurrentLogin(chain),
+      String(form.get('proxy') || '').trim().replace(/^@/, '')
+    ]));
+    bindOperationForm(chain, 'manage-witness-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
+      auth.getCurrentLogin(chain),
+      String(form.get('witness') || '').trim().replace(/^@/, ''),
+      form.get('approve') === 'on'
+    ]));
+
+    bindOperationForm(chain, 'manage-profile-form', (form) => {
+      const account = auth.getCurrentLogin(chain);
+      const metadata = { profile: {
+        name: String(form.get('name') || '').trim(),
+        about: String(form.get('about') || '').trim(),
+        location: String(form.get('location') || '').trim(),
+        website: String(form.get('website') || '').trim()
+      } };
+      const json = JSON.stringify(metadata);
+      if (chain.id === 'hive' || chain.id === 'steem') {
+        return broadcast.prepare(chain, 'active', 'accountUpdate', [account, undefined, undefined, undefined, undefined, json], { title: 'Profile update', warnings: ['Updates json_metadata through account_update; posting_json_metadata is library/version-dependent and not used here.'] });
+      }
+      return broadcast.prepare(chain, 'posting', 'accountMetadata', [account, json], { title: 'Profile metadata update' });
+    });
+
+    bindOperationForm(chain, 'viz-create-invite-form', (form) => broadcast.prepare(chain, 'active', 'createInvite', [
+      auth.getCurrentLogin(chain),
+      normalizeAssetInput(chain, form.get('balance'), chain.liquidSymbol, 'Invite balance'),
+      String(form.get('publicKey') || '').trim()
+    ], { title: 'VIZ create invite', amount: normalizeAssetInput(chain, form.get('balance'), chain.liquidSymbol, 'Invite balance'), warnings: ['Use invite public key only. Private invite secret must be stored outside preview/result.'] }));
+
+    bindOperationForm(chain, 'viz-use-invite-form', (form) => {
+      const receiver = String(form.get('receiver') || '').trim().replace(/^@/, '') || auth.getCurrentLogin(chain);
+      const method = form.get('toVesting') === 'on' ? 'useInviteBalance' : 'claimInviteBalance';
+      return broadcast.prepare(chain, 'active', method, [auth.getCurrentLogin(chain), normalizeAccountInput(chain, receiver, 'Receiver'), String(form.get('secret') || '').trim()], { title: method, to: receiver, warnings: ['Invite secret is required for signing this chain operation; it is shown in preview params, so avoid sharing the preview publicly.'] });
+    });
+
+    bindOperationForm(chain, 'viz-committee-form', (form) => {
+      const mode = String(form.get('mode') || 'create');
+      if (mode === 'vote') {
+        const requestId = broadcast.validateRequestId(form.get('requestId'));
+        const vote = Math.round(Number(form.get('vote') || 0) * 100);
+        return broadcast.prepare(chain, 'regular', 'committeeVoteRequest', [auth.getCurrentLogin(chain), requestId, vote], { title: 'VIZ committee vote', requestId });
+      }
+      const worker = normalizeAccountInput(chain, form.get('worker'), 'Worker');
+      const min = normalizeAssetInput(chain, form.get('min'), chain.liquidSymbol, 'Reward min');
+      const max = normalizeAssetInput(chain, form.get('max'), chain.liquidSymbol, 'Reward max');
+      const duration = Number(form.get('days') || 1) * 86400;
+      return broadcast.prepare(chain, 'regular', 'committeeWorkerCreateRequest', [auth.getCurrentLogin(chain), String(form.get('url') || '').trim(), worker, min, max, duration], { title: 'VIZ committee create request', to: worker, amount: `${min}..${max}` });
+    });
+    setStatus(`${chain.title} manage готов: proxy/witness/profile${chain.id === 'viz' ? '/invite/committee' : ''} preview или real broadcast.`, 'ok');
+  }
+
+  async function renderExplorer(chain, account) {
+    const state = parseHash();
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: explorer</h2>
+        <form id="explorer-form" class="route-form">
+          <div class="field"><label for="explorer-kind">Тип</label><select id="explorer-kind" name="kind"><option value="account" ${state.kind === 'account' ? 'selected' : ''}>account</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>block</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>tx</option></select></div>
+          <div class="field field-grow"><label for="explorer-value">Значение</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div>
+          <button type="submit">Открыть</button>
+        </form>
+        <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Введите account, номер блока или tx id.</div>
+      </section>`;
+
+    document.getElementById('explorer-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim().replace(/^@/, '') });
+    });
+
+    if (!state.kind || !state.value) {
+      setStatus(`${chain.title} explorer готов.`, 'info');
+      return;
+    }
+
+    const connection = await getConnection(chain);
+    let result;
+    if (state.kind === 'block') {
+      result = await profiles.apiCall(connection, 'getBlock', [Number(state.value)]);
+    } else if (state.kind === 'tx') {
+      result = await profiles.apiCall(connection, 'getTransaction', [String(state.value).trim()]);
+    } else {
+      result = await profiles.fetchAccount(connection, String(state.value).trim().replace(/^@/, ''));
+    }
+    document.getElementById('explorer-result').innerHTML = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    setStatus(`${chain.title} explorer: ${state.kind} загружен.`, 'ok');
+  }
+
+
+  function renderImport(chain) {
+    const draftKey = `${chain.id}_v3_import_draft`;
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: импорт статьи</h2>
+        <p>Статический перенос: вставьте URL или текст. URL читается через browser fetch, если сайт разрешает CORS; результат можно сохранить как draft для редактора.</p>
+        <form id="import-form" class="stacked-form">
+          <fieldset>
+            <legend>Источник</legend>
+            <div class="field"><label for="import-url">URL статьи</label><input id="import-url" name="url" type="url" placeholder="https://example.com/post"></div>
+            <div class="field"><label for="import-text">Или вставьте текст/HTML</label><textarea id="import-text" name="text" rows="10"></textarea></div>
+            <button type="submit">Нормализовать preview</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+
+    document.getElementById('import-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const data = new FormData(form);
+      let source = String(data.get('text') || '');
+      const url = String(data.get('url') || '').trim();
+      if (!source && url) {
+        const response = await fetch(url);
+        source = await response.text();
+      }
+      const titleMatch = source.match(/<title[^>]*>([^<]+)<\/title>/i) || source.match(/^#\s+(.+)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : '';
+      const body = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s{3,}/g, '\n\n').trim();
+      const draft = { title, body, sourceUrl: url, importedAt: new Date().toISOString() };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+      setOperationResult(form, `Draft сохранён в localStorage: ${draftKey}. Откройте редактор ${chain.title}, чтобы скопировать title/body.`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'importDraft', params: [{ title, body: body.slice(0, 1000), sourceUrl: url }], meta: { title: 'Import draft', warnings: url ? ['Если fetch упал — сайт не разрешает CORS; вставьте текст вручную.'] : [] } });
+    });
+    setStatus(`${chain.title} import готов: URL/text → draft/preview.`, 'ok');
+  }
+
+  function renderInstantView(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: Instant View</h2>
+        <p>Локальная нормализация HTML/Markdown в readable preview без backend и без write-операций.</p>
+        <form id="instant-view-form" class="stacked-form">
+          <fieldset>
+            <legend>Preview</legend>
+            <div class="field"><label for="instant-view-source">HTML/Markdown</label><textarea id="instant-view-source" name="source" rows="12" required></textarea></div>
+            <button type="submit">Показать Instant View</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    document.getElementById('instant-view-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const source = String(new FormData(form).get('source') || '');
+      const text = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      setOperationResult(form, 'Instant View preview готов.', 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'instantView', params: [{ text }], meta: { title: 'Instant View preview', warnings: [] } });
+    });
+    setStatus(`${chain.title} instant-view готов.`, 'ok');
+  }
+
+  function renderSwap(chain) {
+    if (chain.id === 'viz') {
+      renderServicePlaceholder(chain, { id: 'swap', title: 'Swap', description: 'У VIZ в старом коде нет ясного DEX/swap flow.' });
+      return;
+    }
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: market/swap</h2>
+        <p>Перенос базовых market operations: create_limit_order и cancel_order через active key.</p>
+        <form id="swap-create-form" class="stacked-form"><fieldset>
+          <legend>Create limit order</legend>
+          <div class="field"><label for="swap-order-id">Order ID</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
+          <div class="field"><label for="swap-sell">Sell amount</label><input id="swap-sell" name="sell" type="text" required placeholder="1.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+          <div class="field"><label for="swap-buy">Min receive</label><input id="swap-buy" name="buy" type="text" required placeholder="1.000 ${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
+          <label class="inline-choice"><input name="fillOrKill" type="checkbox"> fill or kill</label>
+          <div class="field"><label for="swap-expiration">Expiration UTC</label><input id="swap-expiration" name="expiration" type="datetime-local" required></div>
+          <button type="submit" name="intent" value="preview">Preview order</button><button type="submit" name="intent" value="send">Создать order реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="swap-cancel-form" class="stacked-form"><fieldset>
+          <legend>Cancel order</legend>
+          <div class="field"><label for="swap-cancel-id">Order ID</label><input id="swap-cancel-id" name="orderId" type="number" min="0" step="1" required></div>
+          <button type="submit" name="intent" value="preview">Preview cancel</button><button type="submit" name="intent" value="send">Отменить order реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+    bindOperationForm(chain, 'swap-create-form', (form) => {
+      const owner = auth.getCurrentLogin(chain);
+      const orderId = broadcast.validateRequestId(form.get('orderId'));
+      const sell = normalizeAssetInput(chain, form.get('sell'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Sell amount');
+      const buy = normalizeAssetInput(chain, form.get('buy'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Min receive');
+      const expiration = `${String(form.get('expiration') || '').replace('T', ' ')}:00`;
+      return broadcast.prepare(chain, 'active', 'createLimitOrder', [owner, orderId, sell, buy, form.get('fillOrKill') === 'on', expiration], { title: 'Create limit order', amount: `${sell} → ${buy}`, requestId: orderId });
+    });
+    bindOperationForm(chain, 'swap-cancel-form', (form) => {
+      const orderId = broadcast.validateRequestId(form.get('orderId'));
+      return broadcast.prepare(chain, 'active', 'cancelOrder', [auth.getCurrentLogin(chain), orderId], { title: 'Cancel limit order', requestId: orderId });
+    });
+    setStatus(`${chain.title} swap/market готов: create/cancel order.`, 'ok');
+  }
+
+  function renderRegister(chain) {
+    const isGolos = chain.id === 'golos';
+    const isViz = chain.id === 'viz';
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: регистрация</h2>
+        ${isGolos || isViz ? `<p>Invite registration в v3 не использует legacy hardcoded WIF. Signer WIF берётся из этого поля только на время broadcast и не сохраняется, не показывается в preview/result/log. Для ${escapeHtml(chain.title)} нужен private WIF service/invite аккаунта, который имеет право выполнить invite registration.</p>` : '<p>Hive/Steem require account creator fee/delegation and generated authorities. v3 prepares the operation only from explicit current active key.</p>'}
+        <form id="register-form" class="stacked-form"><fieldset>
+          <legend>Create account</legend>
+          <div class="field"><label for="register-name">New account</label><input id="register-name" name="name" type="text" required></div>
+          ${isGolos || isViz ? '<div class="field"><label for="register-invite">Invite secret/code</label><input id="register-invite" name="invite" type="text" required></div>' : `<div class="field"><label for="register-fee">Fee</label><input id="register-fee" name="fee" type="text" required placeholder="3.000 ${escapeHtml(chain.liquidSymbol)}"></div>`}
+          ${isGolos ? '<div class="field"><label for="register-signer">Service signer account</label><input id="register-signer" name="signer" type="text" required value="dpos.space-reg"></div>' : ''}
+          ${isViz ? '<div class="field"><label for="register-signer">Invite signer account</label><input id="register-signer" name="signer" type="text" required value="invite"></div>' : ''}
+          ${isGolos || isViz ? '<div class="field"><label for="register-signer-wif">Private WIF for service/invite signer</label><input id="register-signer-wif" name="signerWif" type="password" autocomplete="off" required><small>Используется только в памяти для подписи. Не вставляйте сюда ключ нового аккаунта.</small></div>' : ''}
+          <div class="field"><label for="register-public-key">Public key for new account authorities</label><input id="register-public-key" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Preview registration</button>
+          <button type="submit" name="intent" value="send">Создать аккаунт реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+
+    bindOperationForm(chain, 'register-form', (form) => {
+      const name = normalizeAccountInput(chain, form.get('name'), 'New account');
+      const key = String(form.get('publicKey') || '').trim();
+      const publicKeyWarning = 'Use a public key for the new account only; never paste the new account private WIF into public-key fields.';
+
+      if (isGolos || isViz) {
+        const signer = String(form.get('signer') || '').trim();
+        const signerWif = String(form.get('signerWif') || '').trim();
+        const inviteSecret = String(form.get('invite') || '').trim();
+        if (!inviteSecret) throw new Error('Invite secret/code is required.');
+        if (broadcast.isLikelyWif(key)) throw new Error('Public key field contains a WIF-looking private key. Paste the public key instead.');
+
+        if (isViz) {
+          return broadcast.prepareWithPrivateKey(chain, signer, 'active', signerWif, 'inviteRegistration', [signer, name, inviteSecret, key], {
+            title: 'VIZ invite registration',
+            to: name,
+            keySource: 'explicit service/invite signer WIF input, used only in memory',
+            warnings: [publicKeyWarning, 'Private signer WIF is intentionally excluded from preview/result and is not stored.']
+          });
+        }
+
+        const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
+        return broadcast.prepareWithPrivateKey(chain, signer, 'active', signerWif, 'accountCreateWithInvite', [inviteSecret, signer, name, authObject, authObject, authObject, key, '', []], {
+          title: 'Golos account_create_with_invite',
+          to: name,
+          keySource: 'explicit service signer WIF input, used only in memory',
+          warnings: [publicKeyWarning, 'Private signer WIF is intentionally excluded from preview/result and is not stored.']
+        });
+      }
+
+      const creator = auth.getCurrentLogin(chain);
+      const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
+      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Account creation fee');
+      return broadcast.prepare(chain, 'active', 'createAccount', [fee, creator, name, authObject, authObject, authObject, key, ''], { title: 'Create account', to: name, amount: fee, warnings: [publicKeyWarning] });
+    });
+
+    setStatus(`${chain.title} registration route загружен: preview/send доступен без hardcoded WIF.`, 'ok');
+  }
+
+  function renderServicePlaceholder(chain, app) {
+    const details = {
+      registration: 'VIZ registration: нужен аккуратный перенос invite/create-account flows и валидации ключей.',
+      calculator: `${chain.title} calculator: формулы зависят от liquid/vesting symbols и chain properties; UI добавлен, расчёт переносится следующим этапом.`,
+      manage: `${chain.title} manage: proxy, witness vote, profile metadata и witness settings требуют отдельных форм и authority checks.`,
+      explorer: `${chain.title} explorer: read-only блоки/tx зависят от API методов getBlock/getTransaction и старых PHP snippets.`,
+      import: 'Golos import article: нужен безопасный fetch/proxy replacement без PHP или явный backend endpoint.',
+      escrow: 'Golos escrow помечен optional: старый UI большой, перенос позже после wallet/editor/donate.',
+      'instant-view': 'Golos Instant View: нужен отдельный парсер/preview слой.',
+      swap: `${chain.title} swap: market operations требуют отдельной проверки ордеров и precision.`,
+      register: `${chain.title} register/account creation: route добавлен, write-flow отложен до отдельной проверки owner/active keys и старых библиотечных методов.`
+    };
+
+    if (chain.id === 'hive' || chain.id === 'steem') {
+      details.import = `${chain.title} import article: перенесён отдельной формой URL/text → editor draft.`;
+      details['instant-view'] = `${chain.title} Instant View: перенесён как локальный preview/normalizer.`;
+    }
+
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: ${escapeHtml(app.title)}</h2>
+        <p>${escapeHtml(details[app.id] || app.description || 'Раздел требует отдельного подтверждённого flow.')}</p>
+        <p class="notice">Маршрут не выполняет write-операций без явной перенесённой формы и не ломает старый сайт.</p>
+      </section>`;
+    setStatus(`${chain.title}: ${app.title} добавлен как pending-раздел.`, 'info');
+  }
+
+  function isCosmosChain(chain) {
+    return chain.id === 'minter' || chain.id === 'decimal';
+  }
+
+  function normalizeCoinInput(value, label) {
+    return broadcast.validateCoinSymbol(value, label);
+  }
+
+  function normalizeAmountInput(value, label) {
+    return broadcast.validateAmount(value, label);
+  }
+
+  function renderCosmosWallet(chain, account) {
+    const isMinter = chain.id === 'minter';
+    const liquid = chain.liquidSymbol;
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: кошелёк ${escapeHtml(account)}</h2>
+        <p><strong>Legacy auth:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
+        <p class="notice">Seed читается из старой localStorage-схемы <code>${escapeHtml(chain.id)}_users</code>/<code>${escapeHtml(chain.id)}_current_user</code> и расшифровывается старой passphrase. В preview/result seed/private key не выводится.</p>
+        <form id="cosmos-send-form" class="stacked-form"><fieldset>
+          <legend>Transfer</legend>
+          <div class="field"><label for="cosmos-send-to">Получатель address</label><input id="cosmos-send-to" name="to" type="text" required></div>
+          <div class="field"><label for="cosmos-send-amount">Amount</label><input id="cosmos-send-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="cosmos-send-coin">Coin</label><input id="cosmos-send-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
+          ${isMinter ? '<div class="field"><label for="cosmos-send-memo">Memo</label><input id="cosmos-send-memo" name="memo" type="text"></div><div class="field"><label for="cosmos-send-gas">Gas coin</label><input id="cosmos-send-gas" name="gasCoin" type="text" value="BIP"></div>' : ''}
+          <button type="submit" name="intent" value="preview">Preview transfer</button><button type="submit" name="intent" value="send">Отправить transfer реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="cosmos-delegate-form" class="stacked-form"><fieldset>
+          <legend>Delegate / unbond</legend>
+          <div class="field"><label for="cosmos-validator">Validator ${isMinter ? 'public key MP...' : 'address 0x...'}</label><input id="cosmos-validator" name="validator" type="text" required></div>
+          <div class="field"><label for="cosmos-delegate-amount">Amount</label><input id="cosmos-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="cosmos-delegate-coin">Coin</label><input id="cosmos-delegate-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="cosmos-delegate-mode">Operation</label><select id="cosmos-delegate-mode" name="mode"><option value="delegate">delegate</option><option value="unbond">unbond</option></select></div>
+          <button type="submit" name="intent" value="preview">Preview stake</button><button type="submit" name="intent" value="send">Отправить stake реально</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        ${isMinter ? minterSwapForms() : decimalNftForms()}
+      </section>`;
+    bindCosmosForms(chain);
+    setStatus(`${chain.title} wallet/service forms готовы: transfer/delegate/unbond${isMinter ? '/swap/coin' : '/NFT/token'}.`, 'ok');
+  }
+
+  function minterSwapForms() {
+    return `<form id="minter-swap-form" class="stacked-form"><fieldset>
+      <legend>Minter swap / sell</legend>
+      <div class="field"><label for="minter-swap-from">Coin to sell</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-swap-to">Coin to buy</label><input id="minter-swap-to" name="to" type="text" required></div>
+      <div class="field"><label for="minter-swap-amount">Amount to sell</label><input id="minter-swap-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-swap-min">Minimum buy amount</label><input id="minter-swap-min" name="min" type="text" value="0"></div>
+      <div class="field"><label for="minter-swap-route">Swap pool route (optional comma-separated)</label><input id="minter-swap-route" name="route" type="text"></div>
+      <button type="submit" name="intent" value="preview">Preview swap</button><button type="submit" name="intent" value="send">Отправить swap реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="minter-coin-form" class="stacked-form"><fieldset>
+      <legend>Minter token create/mint/burn</legend>
+      <div class="field"><label for="minter-coin-mode">Operation</label><select id="minter-coin-mode" name="mode"><option value="CREATE_TOKEN">create token</option><option value="MINT_TOKEN">mint token</option><option value="BURN_TOKEN">burn token</option></select></div>
+      <div class="field"><label for="minter-coin-symbol">Symbol</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
+      <div class="field"><label for="minter-coin-name">Name</label><input id="minter-coin-name" name="name" type="text"></div>
+      <div class="field"><label for="minter-coin-amount">Amount</label><input id="minter-coin-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-coin-max">Max supply</label><input id="minter-coin-max" name="max" type="text" value="1000000"></div>
+      <button type="submit" name="intent" value="preview">Preview coin op</button><button type="submit" name="intent" value="send">Отправить coin op реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>`;
+  }
+
+  function decimalNftForms() {
+    return `<form id="decimal-token-form" class="stacked-form"><fieldset>
+      <legend>Decimal create token</legend>
+      <div class="field"><label for="decimal-token-title">Title</label><input id="decimal-token-title" name="title" type="text" required></div>
+      <div class="field"><label for="decimal-token-symbol">Symbol</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
+      <div class="field"><label for="decimal-token-init">Initial supply</label><input id="decimal-token-init" name="initSupply" type="text" required></div>
+      <div class="field"><label for="decimal-token-max">Max supply</label><input id="decimal-token-max" name="maxSupply" type="text" required></div>
+      <button type="submit" name="intent" value="preview">Preview token</button><button type="submit" name="intent" value="send">Создать token реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="decimal-nft-form" class="stacked-form"><fieldset>
+      <legend>Decimal NFT stake</legend>
+      <div class="field"><label for="decimal-nft-mode">Operation</label><select id="decimal-nft-mode" name="mode"><option value="delegate">delegate NFT</option><option value="unbond">unbond NFT</option></select></div>
+      <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
+      <div class="field"><label for="decimal-nft-validator">Validator address</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
+      <button type="submit" name="intent" value="preview">Preview NFT</button><button type="submit" name="intent" value="send">Отправить NFT op реально</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>`;
+  }
+
+  function minterTx(typeName, data, gasCoin, memo) {
+    const txType = global.minterSDK && global.minterSDK.TX_TYPE;
+    return { chainId: 1, type: txType ? txType[typeName] : typeName, data, gasCoin: gasCoin || 'BIP', payload: memo || '' };
+  }
+
+  function bindCosmosForms(chain) {
+    bindOperationForm(chain, 'cosmos-send-form', (form) => {
+      const to = broadcast.validateAddress(chain, form.get('to'), 'Recipient');
+      const amount = normalizeAmountInput(form.get('amount'), 'Amount');
+      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
+      if (chain.id === 'minter') {
+        const tx = minterTx('SEND', { to, value: Number(amount), coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Gas coin'), String(form.get('memo') || ''));
+        return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter send', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin: tx.gasCoin });
+      }
+      return broadcast.prepare(chain, 'seed', 'decimalSend', [{ to, amount, coin }], { title: 'Decimal send', to, amount: `${amount} ${coin}` });
+    });
+
+    bindOperationForm(chain, 'cosmos-delegate-form', (form) => {
+      const mode = String(form.get('mode') || 'delegate');
+      const amount = normalizeAmountInput(form.get('amount'), 'Stake');
+      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
+      const validator = String(form.get('validator') || '').trim();
+      if (chain.id === 'minter') {
+        if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator key должен быть MP + 64 hex chars.');
+        const txType = mode === 'unbond' ? 'UNBOND' : 'DELEGATE';
+        const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
+        return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${mode}`, amount: `${amount} ${coin}`, txType, coin, validator });
+      }
+      const validated = broadcast.validateAddress(chain, validator, 'Validator');
+      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator: validated, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator: validated });
+    });
+
+    bindOperationForm(chain, 'minter-swap-form', (form) => {
+      const from = normalizeCoinInput(form.get('from'), 'Coin to sell');
+      const to = normalizeCoinInput(form.get('to'), 'Coin to buy');
+      const amount = normalizeAmountInput(form.get('amount'), 'Amount to sell');
+      const min = String(form.get('min') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Minimum buy amount должен быть неотрицательным числом.');
+      const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
+      const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
+      const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(txType, data, from, '')], { title: 'Minter swap', amount: `${amount} ${from} → ${to}`, txType, coin: from, warnings: route.length ? [`Route: ${[from].concat(route).concat([to]).join(' → ')}`] : [] });
+    });
+
+    bindOperationForm(chain, 'minter-coin-form', (form) => {
+      const mode = String(form.get('mode') || 'CREATE_TOKEN');
+      const symbol = normalizeCoinInput(form.get('symbol'), 'Symbol');
+      const amount = normalizeAmountInput(form.get('amount'), 'Amount');
+      const data = mode === 'CREATE_TOKEN'
+        ? { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), mintable: true, burnable: true }
+        : { coin: symbol, value: Number(amount) };
+      return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
+    });
+
+    bindOperationForm(chain, 'decimal-token-form', (form) => broadcast.prepare(chain, 'seed', 'decimalCreateToken', [{
+      title: String(form.get('title') || '').trim(),
+      symbol: normalizeCoinInput(form.get('symbol'), 'Symbol'),
+      initSupply: normalizeAmountInput(form.get('initSupply'), 'Initial supply'),
+      maxSupply: normalizeAmountInput(form.get('maxSupply'), 'Max supply'),
+      reserve: '0',
+      crr: 0
+    }], { title: 'Decimal create token' }));
+
+    bindOperationForm(chain, 'decimal-nft-form', (form) => {
+      const validator = broadcast.validateAddress(chain, form.get('validator'), 'Validator');
+      const nftId = String(form.get('nftId') || '').trim();
+      if (!nftId) throw new Error('NFT ID is required.');
+      const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
+      return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
+    });
+  }
+
+  async function renderCosmosValidators(chain) {
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} validators</h2><p>Загружаю...</p></section>`;
+    const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
+    const data = await response.json();
+    const list = data.data || data.result || data.validators || [];
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} validators</h2><p>Delegate/unbond формы доступны в Wallet/Broadcast.</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul></section>`;
+    setStatus(`${chain.title} validators loaded: ${list.length}.`, 'ok');
+  }
+
+  async function renderCosmosExplorer(chain, account) {
+    const state = parseHash();
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} explorer</h2>
+      <form id="explorer-form" class="route-form"><div class="field"><label for="explorer-kind">Тип</label><select id="explorer-kind" name="kind"><option value="address">address</option><option value="tx">tx</option><option value="block">block</option></select></div><div class="field field-grow"><label for="explorer-value">Значение</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div><button type="submit">Открыть</button></form>
+      <div id="explorer-result" class="operation-result" role="status" aria-live="polite"></div></section>`;
+    document.getElementById('explorer-form').addEventListener('submit', (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim() }); });
+    if (!state.kind || !state.value) return;
+    let url;
+    if (chain.id === 'minter') {
+      const base = chain.explorerBase;
+      url = state.kind === 'tx' ? `${base}/transactions/${state.value}` : state.kind === 'block' ? `${base}/blocks/${state.value}` : `${base}/addresses/${state.value}`;
+    } else {
+      const base = chain.apiBase;
+      url = state.kind === 'tx' ? `${base}/txs/${state.value}` : state.kind === 'block' ? `${base}/blocks/${state.value}` : `${base}/addresses/${state.value}/balances`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Explorer API HTTP ${response.status}`);
+    const result = await response.json();
+    document.getElementById('explorer-result').innerHTML = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    setStatus(`${chain.title} explorer loaded.`, 'ok');
+  }
+
+  function renderCosmosCalculator(chain) {
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} calculator</h2><form id="calculator-form" class="stacked-form"><fieldset><legend>Amount helper</legend><div class="field"><label for="calc-amount">Amount</label><input id="calc-amount" name="amount" type="text" value="1"></div><button type="submit">Convert to 10^18 units</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></fieldset></form></section>`;
+    document.getElementById('calculator-form').addEventListener('submit', (event) => { event.preventDefault(); const form = event.currentTarget; const amount = normalizeAmountInput(new FormData(form).get('amount'), 'Amount'); const wei = amount.replace('.', '').padEnd((amount.split('.')[0] || '').length + 18, '0'); setOperationResult(form, `${amount} ${chain.liquidSymbol} ≈ ${wei} minimal units`, 'ok'); });
+    setStatus(`${chain.title} calculator ready.`, 'ok');
+  }
+
+  async function renderHistory(chain, account) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка истории</h2><p>Читаю последние операции аккаунта...</p></section>';
+    setStatus(`Загружаю историю ${chain.title}: @${account}...`, 'loading');
+
+    const state = parseHash();
+    const selectedOps = state.ops ? state.ops.split(',').map((item) => item.trim()).filter(Boolean) : [];
+    const query = state.query || '';
+    const connection = await getConnection(chain);
+    let items = await history.fetchAccountHistory(connection, account, { limit: 100, ops: selectedOps });
+
+    if (query) {
+      const needle = query.toLowerCase();
+      items = items.filter((item) => JSON.stringify(item).toLowerCase().includes(needle));
+    }
+
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: история @${escapeHtml(account)}</h2>
+        <form id="history-filter" class="route-form">
+          <div class="field field-grow">
+            <label for="history-ops">Операции через запятую</label>
+            <input id="history-ops" name="ops" type="text" value="${escapeHtml(selectedOps.join(','))}" placeholder="transfer,award">
+          </div>
+          <div class="field field-grow">
+            <label for="history-query">Поиск по JSON</label>
+            <input id="history-query" name="query" type="text" value="${escapeHtml(query)}" placeholder="memo или аккаунт">
+          </div>
+          <button type="submit">Фильтровать</button>
+        </form>
+        ${renderHistoryTable(items, chain, 'Операции не найдены в последней выборке.')}
+      </section>
+    `;
+
+    document.getElementById('history-filter').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      navigate({
+        chain: chain.id,
+        app: 'history',
+        account,
+        ops: String(form.get('ops') || '').trim(),
+        query: String(form.get('query') || '').trim()
+      });
+    });
+
+    setStatus(`История @${account} загружена: ${items.length} операций.`, 'ok');
+  }
+
+  async function renderProfileRoute(chain, account) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка профиля</h2><p>Подключаю библиотеку и публичную ноду...</p></section>';
+    setStatus(`Загружаю ${chain.title}: @${account}...`, 'loading');
+
+    const connection = await getConnection(chain);
+    const rawAccount = await profiles.fetchAccount(connection, account);
+    renderProfile(profiles.normalizeAccount(connection, rawAccount));
+    setStatus(`Профиль ${chain.title}: @${account} загружен.`, 'ok');
   }
 
   async function renderRoute() {
     const state = parseHash();
     const chain = chains[state.chain] || chains.viz;
     const app = chain.apps.find((item) => item.id === state.app) || chain.apps[0];
-    const account = state.account || chain.defaultAccount || '';
+    const account = getRouteAccount(state, chain);
 
     fillChainSelect(chain.id);
     fillAppSelect(chain, app.id);
     accountInput.value = account;
 
-    if (app.id !== 'profiles') {
-      renderUnsupported(chain, app);
-      setStatus('Раздел пока не перенесён.', 'info');
-      return;
-    }
-
-    appEl.innerHTML = '<section class="panel"><h2>Загрузка профиля</h2><p>Подключаю библиотеку и публичную ноду...</p></section>';
-    setStatus(`Загружаю ${chain.title}: @${account}...`, 'loading');
-
     try {
-      await loadScript(chain.libraryPath);
-      const connection = await profiles.connect(chain);
-      const rawAccount = await profiles.fetchAccount(connection, account);
-      renderProfile(profiles.normalizeAccount(connection, rawAccount));
-      setStatus(`Профиль ${chain.title}: @${account} загружен.`, 'ok');
+      if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'broadcast' || app.id === 'swap' || app.id === 'my-coin')) {
+        renderCosmosWallet(chain, account);
+      } else if (isCosmosChain(chain) && app.id === 'validators') {
+        await renderCosmosValidators(chain);
+      } else if (isCosmosChain(chain) && app.id === 'explorer') {
+        await renderCosmosExplorer(chain, account);
+      } else if (isCosmosChain(chain) && app.id === 'calculator') {
+        renderCosmosCalculator(chain);
+      } else if (isCosmosChain(chain) && app.id === 'randomblockchain') {
+        renderServicePlaceholder(chain, app);
+      } else if (app.id === 'profiles') {
+        await renderProfileRoute(chain, account);
+      } else if (app.id === 'accounts') {
+        await renderAccounts(chain);
+      } else if (app.id === 'wallet') {
+        await renderWallet(chain, account);
+      } else if (app.id === 'history') {
+        await renderHistory(chain, account);
+      } else if (app.id === 'broadcast') {
+        await renderBroadcast(chain);
+      } else if (chain.id === 'viz' && app.id === 'award') {
+        renderVizAward(chain);
+      } else if (chain.id === 'golos' && app.id === 'donate') {
+        renderGolosDonate(chain);
+      } else if (app.id === 'editor') {
+        renderEditor(chain);
+      } else if (app.id === 'calculator') {
+        await renderCalculator(chain, account);
+      } else if (app.id === 'manage') {
+        renderManage(chain);
+      } else if (app.id === 'explorer') {
+        await renderExplorer(chain, account);
+      } else if (app.id === 'import') {
+        renderImport(chain);
+      } else if (app.id === 'instant-view') {
+        renderInstantView(chain);
+      } else if (app.id === 'swap') {
+        renderSwap(chain);
+      } else if (app.id === 'register' || app.id === 'registration') {
+        renderRegister(chain);
+      } else {
+        renderServicePlaceholder(chain, app);
+      }
     } catch (error) {
       appEl.innerHTML = `
         <section class="panel error-panel">
-          <h2>Не удалось загрузить профиль</h2>
+          <h2>Не удалось загрузить раздел</h2>
           <p>${escapeHtml(profiles.formatError(error))}</p>
           <p>Возможные причины: публичная нода недоступна, WebSocket/CORS ограничен, аккаунт не найден.</p>
         </section>
@@ -156,7 +1378,7 @@
   chainSelect.addEventListener('change', () => {
     const chain = chains[chainSelect.value];
     fillAppSelect(chain, chain.apps[0].id);
-    accountInput.value = chain.defaultAccount || '';
+    accountInput.value = auth.getCurrentLogin(chain) || chain.defaultAccount || '';
   });
 
   routeForm.addEventListener('submit', (event) => {
