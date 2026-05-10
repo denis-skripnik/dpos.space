@@ -1,4 +1,4 @@
-# dpos.space
+# Dpos space
 
 Статическая v3-версия DPoS-инструментов для Golos, VIZ, Steem, Hive, Minter и Decimal.
 
