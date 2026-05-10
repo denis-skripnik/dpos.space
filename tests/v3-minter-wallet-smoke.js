@@ -9,7 +9,7 @@ const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const renderMinterWallet = (appSource.match(/async function renderMinterWallet[\s\S]*?\n  function renderCosmosWallet/) || [''])[0];
 const renderMinterForms = (appSource.match(/function renderMinterWalletForms[\s\S]*?\n  async function renderMinterWallet/) || [''])[0];
-const bindMinterForms = (appSource.match(/function bindMinterWalletForms[\s\S]*?\n  function bindCosmosForms/) || [''])[0];
+const bindMinterForms = (appSource.match(/function bindMinterWalletForms[\s\S]*?\n  function bindDecimalWalletForms/) || [''])[0];
 
 assert(renderMinterWallet.includes('loadMinterWalletData'), 'Minter wallet uses a dedicated data loader');
 assert(renderMinterWallet.includes('wallet-minter'), 'Minter wallet has a dedicated root marker');
