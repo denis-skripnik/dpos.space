@@ -161,6 +161,23 @@ textarea {
   margin-bottom: 0.75rem;
 }
 
+.operation-details {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--panel);
+}
+
+.operation-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.operation-details .stacked-form {
+  margin-bottom: 0;
+}
+
 .operation-result {
   margin-top: 0.75rem;
 }
