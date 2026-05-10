@@ -169,7 +169,7 @@
     const asyncName = `${method}Async`;
 
     if (!api) {
-      return Promise.reject(new Error('Blockchain API library is not available.'));
+      return Promise.reject(new Error('Библиотека Blockchain API недоступна.'));
     }
 
     if (typeof api[asyncName] === 'function') {
@@ -185,7 +185,7 @@
       });
     }
 
-    return Promise.reject(new Error(`API method ${method} is not available.`));
+    return Promise.reject(new Error(`Метод API ${method} недоступен.`));
   }
 
   async function fetchAccountHistory(chain, accountName, options = {}) {

@@ -217,16 +217,16 @@
 
   function validateDecimalValidator(value, label) {
     const text = String(value || '').trim();
-    if (!text) throw new Error(`${label || 'Validator'} is required.`);
+    if (!text) throw new Error(`${label || 'Валидатор'} is required.`);
     if (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text)) return text;
     if (/^[A-Za-z0-9:_./+-]{8,128}$/.test(text)) return text;
-    throw new Error(`${label || 'Validator'} должен быть non-empty Decimal validator id/address.`);
+    throw new Error(`${label || 'Валидатор'} должен быть non-empty Decimal validator id/address.`);
   }
 
   function validateCoinSymbol(value, label) {
     const text = String(value || '').trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9]{1,14}$/.test(text)) {
-      throw new Error(`${label || 'Coin'} должен быть coin/ticker symbol 2-15 A-Z/0-9.`);
+      throw new Error(`${label || 'Монета'}: нужен coin/ticker symbol 2-15 A-Z/0-9.`);
     }
     return text;
   }
@@ -234,7 +234,7 @@
   function validateAmount(value, label) {
     const text = String(value || '').trim().replace(',', '.');
     if (!/^\d+(?:\.\d{1,18})?$/.test(text) || Number(text) <= 0) {
-      throw new Error(`${label || 'Amount'} должен быть положительным числом.`);
+      throw new Error(`${label || 'Сумма'}: нужно положительное число.`);
     }
     return text;
   }
@@ -263,7 +263,7 @@
   function validateRequestId(value) {
     const id = Number(value);
     if (!Number.isSafeInteger(id) || id < 0) {
-      throw new Error('Request ID должен быть целым неотрицательным числом.');
+      throw new Error('ID запроса должен быть целым неотрицательным числом.');
     }
     return id;
   }
@@ -311,7 +311,7 @@
     const signer = validateAccountName(chain, from, 'Signer account');
     const key = String(privateKey || '').trim();
     if (!key) {
-      throw new Error('Private WIF signer key is required for this invite/service operation. It is used only in memory for broadcast and is not stored.');
+      throw new Error('Для этой invite/service операции нужен приватный WIF подписанта. Он используется только в памяти для broadcast и не сохраняется.');
     }
     const authority = getAuthorityName(chain, requestedAuthority);
     return createPrepared(chain, signer, authority, key, operationName, params, meta);
@@ -324,7 +324,7 @@
   }
 
   function amountToWeiString(amount) {
-    const text = validateAmount(amount, 'Amount');
+    const text = validateAmount(amount, 'Сумма');
     const [whole, frac = ''] = text.split('.');
     return `${whole}${frac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '');
   }
@@ -332,7 +332,7 @@
   function decimalToMinimalString(amount, label, allowZero) {
     const text = String(amount ?? '').trim().replace(',', '.');
     if (!/^\d+(?:\.\d{1,18})?$/.test(text) || (!allowZero && Number(text) <= 0)) {
-      throw new Error(`${label || 'Amount'} должен быть ${allowZero ? 'неотрицательным' : 'положительным'} числом.`);
+      throw new Error(`${label || 'Сумма'}: нужно ${allowZero ? 'неотрицательное' : 'положительное'} число.`);
     }
     const [whole, frac = ''] = text.split('.');
     return `${whole}${frac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
@@ -347,7 +347,7 @@
 
     if (prepared.operationName === 'minterSignedTx') {
       const signedTx = String((prepared.params[0] && prepared.params[0].tx) || '').trim();
-      if (!signedTx) throw new Error('Signed TX is required.');
+      if (!signedTx) throw new Error('Нужна signed TX.');
       if (typeof minter.postSignedTx !== 'function') throw new Error('Отправка signed TX недоступна в загруженной библиотеке Minter.');
       return minter.postSignedTx(signedTx);
     }
@@ -355,7 +355,7 @@
     if (prepared.operationName === 'minterMultisigSubmit') {
       const payload = prepared.params[0] || {};
       if (!payload.multisig || !payload.tx || !Array.isArray(payload.signatures) || payload.signatures.length === 0) {
-        throw new Error('Multisig submit requires multisig address, transaction JSON and at least one signature.');
+        throw new Error('Для multisig submit нужны адрес multisig, JSON транзакции и хотя бы одна подпись.');
       }
       if (typeof minter.getNonce === 'function') payload.tx.nonce = await minter.getNonce(payload.multisig);
       payload.tx.signatureType = 2;
@@ -406,7 +406,7 @@
       const isToDEL = String(p.to || '').toUpperCase() === 'DEL';
       if (isFromDEL && isToDEL) throw new Error('Decimal convert DEL → DEL is not valid.');
       const amountIn = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.amount), Number(p.fromDecimals || 18)) : decimalToMinimalString(p.amount, 'Decimal convert amount');
-      const amountOutMin = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.minAmount || '0'), Number(p.toDecimals || 18)) : decimalToMinimalString(p.minAmount || '0', 'Minimum receive amount', true);
+      const amountOutMin = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.minAmount || '0'), Number(p.toDecimals || 18)) : decimalToMinimalString(p.minAmount || '0', 'Минимальная сумма получения', true);
       const recipient = wallet.evmAddress || wallet.address;
       if (!isFromDEL && isToDEL) {
         if (typeof evm.sellExactTokensForDEL !== 'function') throw new Error('Продажа токена за DEL недоступна в загруженной библиотеке Decimal.');
@@ -430,7 +430,7 @@
     if (settings.dryRun) {
       return {
         dryRun: true,
-        message: 'Проверка готова: операция не отправлена. Нажмите кнопку реальной отправки, чтобы выполнить её.',
+        message: 'Проверка готова: операция не отправлена. Нажмите кнопку отправки в сеть, чтобы выполнить её.',
         operationName: prepared.operationName,
         authority: prepared.authority,
         params: prepared.params

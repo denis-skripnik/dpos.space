@@ -61,7 +61,7 @@ assert(appSource.includes('scope=\"col\"'), 'transaction tables include scoped c
 assert(appSource.includes("explorerLink(chain, 'tx'"), 'transaction rows link tx values to explorer route');
 assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link block values to explorer route');
 assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');
-assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter broadcast has a separate route and does not collapse to wallet');
+assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter: отправка has a separate route and does not collapse to wallet');
 assert(appSource.includes('function appRequiresAccount'), 'route form has contextual account-field helper');
 assert(appSource.includes('accountInput.disabled = !visible'), 'hidden account field is disabled and removed from tab order');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
@@ -75,10 +75,10 @@ assert(appSource.includes('EDIT_COIN_OWNER'), 'Minter edit coin owner operation 
 assert(appSource.includes('decimal-convert-form'), 'Decimal convert/swap form is present');
 assert(appSource.includes('validateDecimalValidator'), 'Decimal validators do not reuse account-address-only validation');
 
-assert(appSource.includes('function renderMinterBroadcast'), 'Minter broadcast route has dedicated renderMinterBroadcast');
-assert(appSource.includes('Raw signed TX'), 'Minter broadcast route labels raw signed TX controls');
-assert(appSource.includes('Multisig controls'), 'Minter broadcast route labels multisig controls');
-assert(appSource.includes("chain.id === 'minter' && app.id === 'broadcast'"), 'Minter broadcast does not collapse to generic wallet route');
+assert(appSource.includes('function renderMinterBroadcast'), 'Minter: отправка route has dedicated renderMinterBroadcast');
+assert(appSource.includes('Готовая signed TX'), 'Minter: отправка route labels raw signed TX controls');
+assert(appSource.includes('Multisig: отправка транзакции'), 'Minter: отправка route labels multisig controls');
+assert(appSource.includes("chain.id === 'minter' && app.id === 'broadcast'"), 'Minter: отправка does not collapse to generic wallet route');
 assert(appSource.includes("chain.id === 'decimal' && app.id === 'broadcast'"), 'Decimal broadcast uses Decimal wallet/SDK forms instead of Graphene wallet forms');
 assert(appSource.includes('function renderMinterLong'), 'Minter LONG has a dedicated v3 renderer');
 assert(appSource.includes("fetchLongJson('/bids'"), 'Minter LONG bids endpoint is wired');

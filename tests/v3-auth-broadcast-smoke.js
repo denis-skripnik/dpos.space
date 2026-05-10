@@ -141,7 +141,7 @@ async function run() {
 
     assert.strictEqual(context.DposBroadcast.validateAccountName(chain, login, 'Account'), login, `${chainId}: validates account`);
     assert.strictEqual(context.DposBroadcast.validateAsset(chain, `1.000 ${chain.liquidSymbol}`, chain.liquidSymbol, 'Amount'), `1.000 ${chain.liquidSymbol}`, `${chainId}: validates liquid amount`);
-    assert.throws(() => context.DposBroadcast.validateRequestId(-1), /Request ID/, `${chainId}: validates request id`);
+    assert.throws(() => context.DposBroadcast.validateRequestId(-1), /ID запроса/, `${chainId}: validates request id`);
   }
 
   const golos = chains.golos;
