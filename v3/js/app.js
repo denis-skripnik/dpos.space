@@ -73,40 +73,74 @@
     return state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
   }
 
-  function renderProfile(profile) {
-    const balances = profile.balances.map(([label, value]) => (
-      `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`
-    )).join('');
+  function profileRows(rows) {
+    if (!rows || !rows.length) return '<li>Нет данных.</li>';
+    return rows.map(([label, value]) => {
+      const rendered = Array.isArray(value)
+        ? (value.length ? `<ul>${value.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '')
+        : (typeof value === 'object' && value !== null ? `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>` : escapeHtml(value));
+      return `<li><strong>${escapeHtml(label)}:</strong> ${rendered}</li>`;
+    }).join('');
+  }
 
-    const witnessVotes = profile.witnessVotes.length
-      ? `<details><summary>Голоса за делегатов (${profile.witnessVotes.length})</summary><p>${profile.witnessVotes.map(escapeHtml).join(', ')}</p></details>`
-      : '';
+  function detailsSection(title, rows, emptyText) {
+    return `
+      <details open>
+        <summary>${escapeHtml(title)}</summary>
+        <ul>${profileRows(rows && rows.length ? rows : [[emptyText || 'Данные', 'Нет данных.']])}</ul>
+      </details>`;
+  }
+
+  function rawListSection(title, items) {
+    if (!items || !items.length) return '';
+    return `
+      <details>
+        <summary>${escapeHtml(title)} (${items.length})</summary>
+        <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      </details>`;
+  }
+
+  function renderProfile(profile) {
+    const balanceRows = profile.balances.map(([label, value]) => [label, value]);
+    const socialRows = profile.socials.map(([label, value]) => [label, value]);
+    const metadataHasData = Object.keys(profile.metadataJson || {}).length || Object.keys(profile.postingMetadataJson || {}).length;
 
     appEl.innerHTML = `
       <section class="panel">
-        <h2>${escapeHtml(profile.chain)}: @${escapeHtml(profile.name)}</h2>
-        <p><strong>Нода:</strong> ${escapeHtml(profile.node)}</p>
-        <div class="cards">
-          <article class="card">
-            <h3>Профиль</h3>
-            <ul>
-              <li><strong>Отображаемое имя:</strong> ${escapeHtml(profile.displayName)}</li>
-              ${profile.about ? `<li><strong>О себе:</strong> ${escapeHtml(profile.about)}</li>` : ''}
-              ${profile.location ? `<li><strong>Локация:</strong> ${escapeHtml(profile.location)}</li>` : ''}
-              ${profile.website ? `<li><strong>Сайт:</strong> <a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener">${escapeHtml(profile.website)}</a></li>` : ''}
-              ${profile.created ? `<li><strong>Создан:</strong> ${escapeHtml(profile.created)}</li>` : ''}
-              ${profile.lastVoteTime ? `<li><strong>Последнее голосование:</strong> ${escapeHtml(profile.lastVoteTime)}</li>` : ''}
-            </ul>
-          </article>
-          <article class="card">
-            <h3>Балансы</h3>
-            <ul>${balances || '<li>Нет данных о балансах.</li>'}</ul>
-          </article>
-        </div>
-        ${profile.proxy ? `<p><strong>Прокси:</strong> ${escapeHtml(profile.proxy)}</p>` : ''}
-        ${witnessVotes}
+        <h2>${escapeHtml(profile.chain)}: ${profile.chainId === 'minter' || profile.chainId === 'decimal' ? escapeHtml(profile.name) : `@${escapeHtml(profile.name)}`}</h2>
+        <p><strong>Нода/API:</strong> ${escapeHtml(profile.node)}</p>
+        <article class="card">
+          <h3>Кратко</h3>
+          <ul>
+            <li><strong>Отображаемое имя:</strong> ${escapeHtml(profile.displayName)}</li>
+            ${profile.about ? `<li><strong>О себе:</strong> ${escapeHtml(profile.about)}</li>` : ''}
+            ${profile.location ? `<li><strong>Локация:</strong> ${escapeHtml(profile.location)}</li>` : ''}
+            ${profile.website ? `<li><strong>Сайт:</strong> <a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener">${escapeHtml(profile.website)}</a></li>` : ''}
+            ${profile.created ? `<li><strong>Создан:</strong> ${escapeHtml(profile.created)}</li>` : ''}
+            ${profile.lastVoteTime ? `<li><strong>Последнее голосование/награда:</strong> ${escapeHtml(profile.lastVoteTime)}</li>` : ''}
+            ${profile.proxy ? `<li><strong>Прокси:</strong> ${escapeHtml(profile.proxy)}</li>` : ''}
+          </ul>
+        </article>
+        ${detailsSection('Балансы', balanceRows, 'Нет данных о балансах.')}
+        ${detailsSection('Экономика / vesting / staking', profile.economyRows, 'Нет доступных экономических полей.')}
+        ${detailsSection('Профиль и публичная metadata', profile.profileRows, 'Профильная metadata не заполнена.')}
+        ${socialRows.length ? detailsSection('Социальные ссылки из metadata', socialRows) : ''}
+        ${profile.restRows && profile.restRows.length ? detailsSection('Адрес / REST-детали', profile.restRows) : ''}
+        ${detailsSection('Governance / witness / proxy', profile.governanceRows, 'Нет governance-данных.')}
+        ${detailsSection('Authorities / публичные ключи', profile.authorityRows, 'Нет данных authorities.')}
+        ${detailsSection('Активность и статистика', profile.activityRows, 'Нет статистики активности.')}
+        ${rawListSection('Делегирования / stakes из API', profile.rawLists && profile.rawLists.delegations)}
+        ${rawListSection('Последние транзакции из API', profile.rawLists && profile.rawLists.transactions)}
+        ${rawListSection('Rewards из API', profile.rawLists && profile.rawLists.rewards)}
+        ${rawListSection('NFT из API', profile.rawLists && profile.rawLists.nfts)}
+        ${metadataHasData ? `
+          <details>
+            <summary>JSON metadata</summary>
+            ${Object.keys(profile.metadataJson || {}).length ? `<h3>json_metadata</h3><pre>${escapeHtml(JSON.stringify(profile.metadataJson, null, 2))}</pre>` : ''}
+            ${Object.keys(profile.postingMetadataJson || {}).length ? `<h3>posting_json_metadata</h3><pre>${escapeHtml(JSON.stringify(profile.postingMetadataJson, null, 2))}</pre>` : ''}
+          </details>` : ''}
         <details>
-          <summary>Сырой JSON аккаунта</summary>
+          <summary>Сырой JSON аккаунта/API</summary>
           <pre>${escapeHtml(JSON.stringify(profile.raw, null, 2))}</pre>
         </details>
       </section>
@@ -1304,8 +1338,10 @@
 
     const connection = await getConnection(chain);
     const rawAccount = await profiles.fetchAccount(connection, account);
-    renderProfile(profiles.normalizeAccount(connection, rawAccount));
-    setStatus(`Профиль ${chain.title}: @${account} загружен.`, 'ok');
+    const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);
+    renderProfile(profiles.normalizeAccount(connection, enrichedAccount));
+    const accountLabel = chain.id === 'minter' || chain.id === 'decimal' ? account : `@${account}`;
+    setStatus(`Профиль ${chain.title}: ${accountLabel} загружен.`, 'ok');
   }
 
   async function renderRoute() {

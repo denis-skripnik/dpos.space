@@ -322,3 +322,42 @@ Status markers: `[x]` implemented in v3, `[blocked]` only where static v3 cannot
 - [x] Static server + curl smoke for `/` and `/v3/js/app.js`.
 - [x] No automated real transactions.
 - [x] No commit/push.
+
+## 2026-05-10 profile parity expansion checklist
+
+Legacy profile inventory inspected for this pass:
+
+- `blockchains/viz/apps/profiles/{content.php,index.php,page/userinfo.php,page/delegat.php,page/witness.php,page/delegations.php,page/awards.php,page/shares.php,page/accounts.php,page/subscriptions.php,page/dao.php}` and `blockchains/viz/apps/profiles/js/app.js`.
+- `blockchains/golos/apps/profiles/{content.php,index.php,page/userinfo.php,page/delegat.php,page/witness.php,page/delegations.php,page/gp.php,page/feed.php,page/accounts.php}` and `blockchains/golos/apps/profiles/js/app.js`.
+- `blockchains/steem/apps/profiles/{content.php,index.php,page/userinfo.php,page/delegat.php,page/witness.php,page/delegations.php,page/sp.php,page/feed.php,page/accounts.php}` and `blockchains/steem/apps/profiles/js/app.js`.
+- `blockchains/hive/apps/profiles/{content.php,index.php,page/userinfo.php,page/delegat.php,page/witness.php,page/delegations.php,page/hp.php,page/feed.php,page/accounts.php}` and `blockchains/hive/apps/profiles/js/app.js`.
+- `blockchains/minter/apps/profiles/{content.php,index.php,page/content.php,page/js/app.js}`.
+- `blockchains/decimal/apps/profiles/{content.php,index.php,page/content.php,page/js/app.js}`.
+
+Checklist by chain:
+
+- VIZ legacy showed: economy table with current energy, social capital, delegated/received SHARES, withdraw rate/next withdrawal, bandwidth, min award hints, balance, witness vote count/list; profile metadata with nickname/about/location/birthday/interests/services/profile image/site; account stats with created, last update, recovery/registrar, last award, `custom_sequence`, `custom_sequence_block_num`; witness/proxy/DAO pages as separate legacy modals/pages.
+  - v3 now shows statically available account/API fields: VIZ balance, SHARES, delegated/received, calculated current energy, raw energy, computed own/received/delegated/effective social capital when dynamic props are available, withdraw rate/next withdrawal, average bandwidth, witness votes/count/proxy/proxied votes, regular/active/owner/memo public authority data, nickname/about/location/site/birthday/interests/services/profile image/cover image, created/last update/last vote/recovery/custom sequence/block, raw metadata and raw account JSON.
+  - Not ported as exact legacy computed hints: award amount/min-energy/bandwidth human formula and modal histories need reward fund/config/history calculations and were left as raw/available fields rather than guessed.
+- Golos legacy showed: current battery, СГ converted from VESTS, delegated/received/emission delegation, rewards forecast, balances/savings/TIP/UIA, witness votes, profile metadata/socials/image/website, follow count, reputation, post count, last post/vote, recovery, frozen status.
+  - v3 now shows balances, savings, rewards, TIP, raw VESTS, current battery, computed СГ when dynamic props are available, delegated/received/emission fields, frozen, witness/proxy data, authorities/public keys, metadata/socials/image/website, follow count when library API exposes it, raw reputation/post/activity/recovery fields, raw JSON.
+  - UIA balances and exact reward forecast are not reliably available through the current static JS library path without old backend helpers; omitted rather than faked.
+- Steem/Hive legacy showed: battery, SP/HP conversion, delegated/received, savings, reward balances, witness votes/proxy, profile/socials/image/website, reputation/follow counts/post stats/activity/recovery.
+  - v3 now shows balances/savings/rewards, current battery, computed SP/HP when dynamic props are available, delegated/received/effective power, witness/proxy data, authorities/public keys, metadata/socials/image/website, reputation/post/activity/recovery and raw account JSON.
+  - Exact payout forecast/follow modals are best-effort only because public library support differs by node.
+- Minter legacy showed: balances, HUB on Ethereum/BSC, yesterday delegation rewards, nonce, transaction history.
+  - v3 now fetches address details, balances, optional delegations, optional first transaction page and optional yesterday rewards from public explorer API; it renders address/nonce/rest details, balances and raw details in accessible `<details>` sections.
+  - Cross-chain HUB balances via Etherscan/BscScan are not ported because the legacy endpoints are external explorer APIs and may require keys/rate-limit handling.
+- Decimal legacy showed: balances, rewards calculator/history, nonce, transaction history and NFT transaction types.
+  - v3 now fetches optional address/balances/transactions/rewards/NFT endpoints and renders nonce/address/rest details, balances, rewards/NFT/transaction raw lists and raw API JSON.
+  - Exact client-side rewards calculator remains omitted because endpoint availability/order differs; v3 exposes rewards data when API returns it.
+
+Definition of done for this profile pass:
+
+- [x] No Cyber/EVM added to v3.
+- [x] Legacy PHP/JS kept intact.
+- [x] v3 profile renderer uses summary card plus accessible details/summary sections.
+- [x] VIZ profile includes the previously missing static fields: energy, social capital/SHARES, regular authority, witness/proxy data, custom sequence/block, profile services/birthday/interests, activity/recovery and raw metadata/account.
+- [x] Golos/Steem/Hive profile rendering keeps balances working and adds governance, authorities, metadata and activity sections.
+- [x] Minter/Decimal profile rendering includes available REST balances/details and optional delegation/reward/NFT/transaction raw lists.
+- [x] Syntax and smoke checks added/updated in `tests/v3-profiles-smoke.js`.
