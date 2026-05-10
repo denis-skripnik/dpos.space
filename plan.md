@@ -936,3 +936,52 @@ Blocked/later with exact reasons:
 - WIF/private keys are not shown; WIF-looking memo is blocked before preview/send.
 - Real network sends require preview/confirm through `bindOperationForm`.
 - Tests assert Steem-specific renderer/forms/method labels and this evidence section.
+
+### 2026-05-10 Hive wallet legacy parity/adaptation pass
+
+Preconditions:
+- Branch confirmed: `v3`.
+- Working tree before edits: clean (`git status --short` produced no entries).
+- Current v3 files inspected before implementation: `v3/js/app.js`, `v3/js/profiles.js`, `v3/js/broadcast.js`, `tests/v3-steem-wallet-smoke.js`, `tests/v3-viz-wallet-smoke.js`, `tests/v3-route-coverage-smoke.js`, `tests/v3-auth-broadcast-smoke.js`, existing `plan.md` wallet sections.
+
+Legacy Hive wallet evidence inspected exhaustively:
+- `blockchains/hive/apps/wallet/config.json` — title/description/menu for wallet.
+- `blockchains/hive/apps/wallet/content.php` — UI sections for auth/active warnings, main balances, HIVE/HBD/HP action spoilers, transfer modals, HP power up/down/delegation, rewards claim, delegation list/cancel, withdraw status/cancel, transfer/reward history filters and table.
+- `blockchains/hive/apps/wallet/css/jquery-ui.css` — legacy UI dependency only; no wallet business logic.
+- `blockchains/hive/apps/wallet/css/style.css` — modal/layout CSS only; no wallet business logic.
+- `blockchains/hive/apps/wallet/index.php` — direct-access guard only.
+- `blockchains/hive/apps/wallet/js/app.js` — all wallet data loading, conversions, broadcast calls, URL prefill, history filters/rendering.
+- Related shared Hive files inspected/grepped: `blockchains/hive/js/blockchain.js`, `blockchains/hive/js/modal-accounts.js`, `blockchains/hive/js/hive.min.js`, `blockchains/hive/js/jquery-ui.js`, `blockchains/hive/js/sjcl.min.js`.
+
+Legacy Hive checklist:
+- Balances/sections: `balance` as HIVE, `hbd_balance` as HBD, `vesting_shares` converted to HP using `total_vesting_fund_hive / total_vesting_shares`, `received_vesting_shares`, `delegated_vesting_shares`, effective HP (`own - delegated + received`), `vesting_withdraw_rate`, `next_vesting_withdrawal`, estimated full withdrawal, reward HIVE/HBD/VESTS converted/displayed as HP, outgoing delegations with `min_delegation_time`.
+- Actions: HIVE transfer, HBD transfer, transfer HIVE to HP recipient via checkbox, transfer HIVE to HP of current account, withdraw HP to HIVE, cancel HP withdraw with `0.000000 VESTS`, delegate HP, cancel delegation with `0.000000 VESTS`, claim rewards, transfer URL prefill (`to`, `amount`, `memo`).
+- History: `getAccountHistoryAsync(login, from, limit)` paged; filters for all/incoming/outgoing/author_reward/curation_reward/comment_benefactor_reward/producer_reward; transfer/transfer_to_vesting rows and reward rows; reward VESTS converted to HP.
+- Safety/UX: legacy warns if memo looks like WIF via `hive.auth.isWif`; encrypted memo is not implemented in old wallet UI, but shared `hive.min.js` has `memo.encode/decode`, so v3 may safely prepare `#...` encrypted memo when API and memo_key are available. No Hive Keychain calls found.
+- Savings: `hive.min.js` supports `transfer_to_savings(from,to,amount,memo)`, `transfer_from_savings(from,request_id,to,amount,memo)`, `cancel_transfer_from_savings(from,request_id)`; the old Hive wallet UI did not expose savings forms, but profiles/shared account fields expose savings balances/status.
+- Witness/proxy: wallet app has no witness/proxy form; shared operation list supports `account_witness_vote(account,witness,approve)` and `account_witness_proxy(account,proxy)`, already handled in v3 manage, not wallet.
+
+Exact legacy API/broadcast method evidence and parameter order:
+- `hive.api.getAccounts([hive_login], cb)`.
+- `hive.api.getDynamicGlobalProperties(cb)` and fields `total_vesting_fund_hive`, `total_vesting_shares`.
+- `hive.api.getVestingDelegations(hive_login, '', 100, cb)`.
+- `hive.api.getAccountHistoryAsync(hive_login, from, limitReal)`.
+- `hive.broadcast.transfer(active_key, hive_login, to, amount, memo, cb)`.
+- `hive.broadcast.transferToVesting(active_key, hive_login, to, amount, cb)`.
+- `hive.broadcast.withdrawVesting(active_key, hive_login, vesting_shares, cb)`.
+- `hive.broadcast.delegateVestingShares(active_key, hive_login, delegatee, vesting_shares, cb)`.
+- `hive.broadcast.claimRewardBalance(posting_key, hive_login, reward_hive_balance, reward_hbd_balance, reward_vesting_balance, cb)`.
+- Shared Hive operation serializer order: `transfer_to_savings(from,to,amount,memo)`, `transfer_from_savings(from,request_id,to,amount,memo)`, `cancel_transfer_from_savings(from,request_id)`.
+
+v3 mapping:
+- Implemented now: dedicated `renderHiveWallet` instead of generic alias; dedicated Hive data loader with `getVestingDelegations`; dedicated HIVE/HBD/HP balances; outgoing delegation table and cancel forms; HIVE/HBD transfer with optional HIVE-to-HP checkbox and URL prefill; HIVE-to-HP current-account form; HP power down/cancel; HP delegation/cancel; rewards claim using current raw reward balances; savings transfer/from/cancel using shared Hive operation order; WIF-in-memo guard; optional encrypted `#...` memo preparation through `hive.memo.encode` when available; history continues via shared `DposHistory` wallet table.
+- Implemented elsewhere / not duplicated in wallet: witness/proxy vote/update remains in v3 manage, matching legacy wallet absence.
+- Later: exact legacy paged wallet-history filters/buttons are not reimplemented in the wallet panel because v3 has a separate accessible `history` route with operation filters and the wallet already shows latest financial operations; duplicating it would broaden scope and risk inconsistent history UX.
+- Blocked: none for safe static/frontend wallet functionality found in legacy Hive wallet.
+
+Acceptance criteria:
+- Hive wallet has dedicated renderer/forms/binders and is not a thin `renderGrapheneWallet` alias.
+- User-facing Hive wallet copy uses HIVE, HBD, HP, rewards and savings labels; no Golos СГ, VIZ SHARES or Steem SP in Hive UI.
+- All real Hive wallet sends use `bindOperationForm` preview + explicit confirm, with no private key display/leakage.
+- Tests assert Hive renderer labels/forms/method names, legacy evidence in `plan.md`, and no developer notes in user-facing wallet UI.
+- Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all `tests/*.js`, `git diff --check`.
