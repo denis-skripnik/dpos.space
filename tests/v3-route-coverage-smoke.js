@@ -69,3 +69,4 @@ assert(appSource.includes('function renderMinterBroadcast'), 'Minter broadcast r
 assert(appSource.includes('Raw signed TX'), 'Minter broadcast route labels raw signed TX controls');
 assert(appSource.includes('Multisig controls'), 'Minter broadcast route labels multisig controls');
 assert(appSource.includes("chain.id === 'minter' && app.id === 'broadcast'"), 'Minter broadcast does not collapse to generic wallet route');
+assert(appSource.includes("chain.id === 'decimal' && app.id === 'broadcast'"), 'Decimal broadcast uses Decimal wallet/SDK forms instead of Graphene wallet forms');

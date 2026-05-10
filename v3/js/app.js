@@ -1741,6 +1741,8 @@
     try {
       if (chain.id === 'minter' && app.id === 'broadcast') {
         renderMinterBroadcast(chain);
+      } else if (chain.id === 'decimal' && app.id === 'broadcast') {
+        renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
         renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && app.id === 'validators') {
