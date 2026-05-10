@@ -1283,31 +1283,71 @@
     return { current, profile, balanceRows, walletItems };
   }
 
+  function callVizApi(api, method, args) {
+    const asyncName = `${method}Async`;
+    if (typeof api[asyncName] === 'function') return api[asyncName](...args);
+    if (typeof api[method] === 'function') {
+      return new Promise((resolve, reject) => {
+        api[method](...args, (error, result) => error ? reject(error) : resolve(result));
+      });
+    }
+    return Promise.reject(new Error(`viz.api.${method} недоступен в загруженной библиотеке.`));
+  }
+
+  function setVizApiNode(client, nodeUrl) {
+    const api = client && client.api;
+    if (api && typeof api.stop === 'function') {
+      try { api.stop(); } catch (_error) { /* optional */ }
+    }
+    if (client && client.config && typeof client.config.set === 'function') {
+      client.config.set('websocket', nodeUrl);
+    } else if (api && typeof api.setOptions === 'function') {
+      api.setOptions({ url: nodeUrl });
+    }
+  }
+
   async function fetchVizVestingDelegations(connection, account, type) {
     const api = connection.client && connection.client.api;
     if (!api) throw new Error('viz.api недоступен для getVestingDelegations.');
-    if (typeof api.getVestingDelegationsAsync === 'function') return api.getVestingDelegationsAsync(account, '', 100, type);
-    if (typeof api.getVestingDelegations === 'function') {
-      return new Promise((resolve, reject) => {
-        api.getVestingDelegations(account, '', 100, type, (error, result) => error ? reject(error) : resolve(result));
-      });
+    return callVizApi(api, 'getVestingDelegations', [account, '', 100, type]);
+  }
+
+  async function fetchVizDelegationsWithNodeFallback(chain, baseConnection, account) {
+    const client = baseConnection.client;
+    const api = client && client.api;
+    if (!api) throw new Error('viz.api недоступен для getVestingDelegations.');
+    const nodes = [baseConnection.node].concat((chain.nodes || []).filter((nodeUrl) => nodeUrl && nodeUrl !== baseConnection.node));
+    let lastError = null;
+    for (const nodeUrl of nodes) {
+      try {
+        setVizApiNode(client, nodeUrl);
+        await callVizApi(api, 'getDynamicGlobalProperties', []);
+        const [received, delegated] = await Promise.all([
+          fetchVizVestingDelegations({ client }, account, 'received'),
+          fetchVizVestingDelegations({ client }, account, 'delegated')
+        ]);
+        global.localStorage.setItem(`${chain.id}_node`, nodeUrl);
+        return {
+          received: Array.isArray(received) ? received : [],
+          delegated: Array.isArray(delegated) ? delegated : [],
+          node: nodeUrl,
+          error: ''
+        };
+      } catch (error) {
+        lastError = error;
+      }
     }
-    throw new Error('viz.api.getVestingDelegations недоступен в загруженной библиотеке.');
+    throw lastError || new Error('VIZ delegation API недоступен на всех нодах.');
   }
 
   async function loadVizWalletData(chain, account) {
     const data = await loadGrapheneWalletData(chain, account);
-    data.delegations = { received: [], delegated: [], error: '' };
+    data.delegations = { received: [], delegated: [], error: '', unavailable: false, node: data.profile.node };
     try {
-      const connection = await profiles.connect(chain);
-      const [received, delegated] = await Promise.all([
-        fetchVizVestingDelegations(connection, account, 'received'),
-        fetchVizVestingDelegations(connection, account, 'delegated')
-      ]);
-      data.delegations.received = Array.isArray(received) ? received : [];
-      data.delegations.delegated = Array.isArray(delegated) ? delegated : [];
+      data.delegations = await fetchVizDelegationsWithNodeFallback(chain, { client: global[chain.libraryGlobal], node: data.profile.node }, account);
     } catch (error) {
       data.delegations.error = profiles.formatError(error);
+      data.delegations.unavailable = true;
     }
     return data;
   }
@@ -1803,8 +1843,9 @@
     return `${(regenerated / 100).toFixed(2)}%`;
   }
 
-  function renderVizDelegations(title, rows, direction) {
-    if (!rows || !rows.length) return `<p class="muted">${escapeHtml(title)}: список пуст или не попал в лимит getVestingDelegations.</p>`;
+  function renderVizDelegations(title, rows, direction, unavailable) {
+    if (unavailable) return `<p class="muted">${escapeHtml(title)}: не удалось загрузить список с доступных VIZ-нод. Управление всё равно доступно через форму «Делегирование SHARES»: для отмены укажите аккаунт и сумму 0.000000 SHARES.</p>`;
+    if (!rows || !rows.length) return `<p class="muted">${escapeHtml(title)}: список пуст. Если нужно отменить делегирование, используйте форму «Делегирование SHARES» с суммой 0.000000 SHARES.</p>`;
     const body = rows.map((item) => {
       const peer = direction === 'received' ? item.delegator : item.delegatee;
       const cancel = direction === 'delegated'
@@ -1836,8 +1877,9 @@
     add('Следующий вывод', raw.next_vesting_withdrawal);
 
     const list = `<ul class="wallet-viz-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
-    const delegationError = delegations && delegations.error ? `<p class="muted">getVestingDelegations: ${escapeHtml(delegations.error)}</p>` : '';
-    return `${list}${delegationError}${renderVizDelegations('Кто делегировал вам SHARES', delegations && delegations.received, 'received')}${renderVizDelegations('Кому вы делегировали SHARES', delegations && delegations.delegated, 'delegated')}`;
+    const delegationError = delegations && delegations.error ? `<p class="muted">getVestingDelegations недоступен после fallback по VIZ-нодам: ${escapeHtml(delegations.error)}</p>` : '';
+    const delegationNote = '<p class="muted">Управление делегированием SHARES находится ниже: форма «Делегирование SHARES» создаёт/изменяет делегирование, а сумма 0.000000 SHARES отменяет делегирование выбранному аккаунту.</p>';
+    return `${list}${delegationNote}${delegationError}${renderVizDelegations('Кто делегировал вам SHARES', delegations && delegations.received, 'received', delegations && delegations.unavailable)}${renderVizDelegations('Кому вы делегировали SHARES', delegations && delegations.delegated, 'delegated', delegations && delegations.unavailable)}`;
   }
 
   function readVizTransferTemplates() {

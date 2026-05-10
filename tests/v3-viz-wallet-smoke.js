@@ -49,7 +49,10 @@ for (const method of [
 assert(appSource.includes('encodeVizMemoIfNeeded'), 'VIZ encrypted memo helper is present');
 assert(appSource.includes('viz.memo.encode'), 'VIZ encrypted memo uses viz.memo.encode');
 assert(appSource.includes('viz_transfer_templates'), 'VIZ transfer templates keep the legacy localStorage key');
-assert(appSource.includes('getVestingDelegations(account, \'\', 100, type'), 'VIZ wallet reads legacy vesting delegation API order');
+assert(appSource.includes("callVizApi(api, 'getVestingDelegations', [account, '', 100, type])"), 'VIZ wallet reads legacy vesting delegation API order');
+assert(appSource.includes('fetchVizDelegationsWithNodeFallback'), 'VIZ delegation loader falls back across VIZ nodes');
+assert(appSource.includes('getVestingDelegations недоступен после fallback'), 'VIZ delegation errors are not rendered as empty lists');
+assert(appSource.includes('0.000000 SHARES отменяет делегирование'), 'VIZ wallet explains delegation cancellation management');
 assert(appSource.includes('getInviteByKey(publicKey'), 'VIZ wallet can inspect invite by public key');
 assert(appSource.includes('wifToPublic'), 'VIZ create/check invite derives public invite key from secret WIF');
 
