@@ -310,6 +310,23 @@
     return `${((own + received - delegated) * fund / totalVests).toFixed(3)} ${chain.config.liquidSymbol || chain.config.powerTitle || ''}`.trim();
   }
 
+
+  function golosPowerRate(account) {
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const fund = assetAmount(props.total_vesting_fund_steem);
+    const totalVests = assetAmount(props.total_vesting_shares);
+    if (!fund || !totalVests) return 0;
+    return 1000000 * fund / totalVests;
+  }
+
+  function formatGolosPower(account, field) {
+    const rate = golosPowerRate(account);
+    const vests = assetAmount(account[field]);
+    if (!rate || !vests) return account[field] || '';
+    return `${(vests / 1000000 * rate).toFixed(6)} СГ`;
+  }
+
   function getBalances(chain, account) {
     const chainId = chain.config.id;
 
@@ -317,9 +334,9 @@
       return [
         ['GOLOS', account.balance],
         ['GBG', account.sbd_balance || account.gbg_balance],
-        ['СГ / vesting', account.vesting_shares],
-        ['Делегировано', account.delegated_vesting_shares],
-        ['Получено делегированием', account.received_vesting_shares],
+        ['СГ', formatGolosPower(account, 'vesting_shares')],
+        ['Делегировано СГ', formatGolosPower(account, 'delegated_vesting_shares')],
+        ['Получено делегированием СГ', formatGolosPower(account, 'received_vesting_shares')],
         ['Emission delegated', account.emission_delegated_vesting_shares],
         ['Emission received', account.emission_received_vesting_shares],
         ['TIP-баланс', account.tip_balance],
@@ -597,6 +614,7 @@
     enrichAccount,
     fetchAccount,
     formatError,
+    golosPowerRate,
     normalizeAccount
   });
 })(window);
