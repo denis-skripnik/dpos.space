@@ -4075,6 +4075,201 @@
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
   }
 
+
+  function unwrapDecimalData(value) {
+    if (!value || typeof value !== 'object') return value;
+    if (Object.prototype.hasOwnProperty.call(value, 'Result')) return unwrapDecimalData(value.Result);
+    if (Object.prototype.hasOwnProperty.call(value, 'result')) return unwrapDecimalData(value.result);
+    if (Object.prototype.hasOwnProperty.call(value, 'data')) return unwrapDecimalData(value.data);
+    return value;
+  }
+
+  function formatDecimalAmount(value, digits = 3) {
+    if (value === undefined || value === null || value === '') return '0';
+    const raw = String(value).trim();
+    if (/^\d+$/.test(raw) && raw.length > 12) {
+      try {
+        const bi = BigInt(raw);
+        const base = 10n ** 18n;
+        const intPart = bi / base;
+        const fracPart = bi % base;
+        const frac = fracPart.toString().padStart(18, '0').slice(0, digits === 8 ? 8 : 6).replace(/0+$/, '');
+        return frac ? `${intPart}.${frac}` : intPart.toString();
+      } catch (error) { /* fall back below */ }
+    }
+    const num = Number(raw);
+    if (!Number.isFinite(num)) return raw || '0';
+    return num < 0.001 && num > 0 ? num.toFixed(8) : num.toFixed(digits);
+  }
+
+  function decimalPayloadList(payload, keys) {
+    const value = unwrapDecimalData(payload);
+    if (Array.isArray(value)) return value;
+    for (const key of keys) {
+      if (value && Array.isArray(value[key])) return value[key];
+    }
+    if (value && Array.isArray(value.items)) return value.items;
+    return [];
+  }
+
+  function getDecimalStakeAddress(chain, address) {
+    try {
+      const user = auth.getCurrentUser(chain);
+      if (!user || !user.seed || user.type === 'bip.to' || !global.DecimalSDK || typeof global.DecimalSDK.Wallet !== 'function') return address;
+      const login = auth.getUserLogin(user);
+      const sourceChain = user.importFrom || chain.id;
+      const seed = auth.tryDecrypt(`dpos.space_${sourceChain}_${login}_seed`, user.seed);
+      if (!seed) return address;
+      const wallet = new global.DecimalSDK.Wallet(seed);
+      if (wallet.address && String(wallet.address).toLowerCase() !== String(address).toLowerCase()) return address;
+      return wallet.evmAddress || address;
+    } catch (error) {
+      return address;
+    }
+  }
+
+  async function loadDecimalWalletData(chain, account) {
+    const address = broadcast.validateAddress(chain, account, 'Decimal address');
+    const stakeAddress = getDecimalStakeAddress(chain, address);
+    const api = chain.apiBase || 'https://api.decimalchain.com/api/v1';
+    const [balancesData, stakesCoinsData, stakesNftsData, transactionsData, rewardsData, nftsData] = await Promise.all([
+      fetchJsonText(`${api}/addresses/${encodeURIComponent(address)}/balances`, 'Decimal balances API').catch((error) => ({ _error: error.message })),
+      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/coins`, 'Decimal stakes coins API').catch((error) => ({ _error: error.message })),
+      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/nfts`, 'Decimal stakes NFTs API').catch((error) => ({ _error: error.message })),
+      fetchJsonText(`${api}/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0`, 'Decimal history API').catch((error) => ({ _error: error.message })),
+      fetchJsonText(`${api}/rewards/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal rewards API').catch((error) => ({ _error: error.message })),
+      fetchJsonText(`${api}/nfts/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal NFTs API').catch((error) => ({ _error: error.message }))
+    ]);
+    return {
+      address,
+      balances: decimalPayloadList(balancesData, ['balances', 'balance']),
+      coinStakes: decimalPayloadList(stakesCoinsData, ['items', 'stakes']),
+      nftStakes: decimalPayloadList(stakesNftsData, ['items', 'stakes', 'nfts']),
+      transactions: decimalPayloadList(transactionsData, ['txs', 'Txs']).slice(0, 20),
+      rewards: decimalPayloadList(rewardsData, ['rewards', 'items']).slice(0, 20),
+      nfts: decimalPayloadList(nftsData, ['nfts', 'items']).slice(0, 20),
+      errors: {
+        balances: balancesData && balancesData._error,
+        coinStakes: stakesCoinsData && stakesCoinsData._error,
+        nftStakes: stakesNftsData && stakesNftsData._error,
+        transactions: transactionsData && transactionsData._error,
+        rewards: rewardsData && rewardsData._error,
+        nfts: nftsData && nftsData._error
+      }
+    };
+  }
+
+  function renderDecimalWalletBalances(data) {
+    const balances = Array.isArray(data.balances) ? data.balances : [];
+    const balanceRows = balances.map((item) => {
+      const symbol = String(item.denom || item.symbol || item.ticker || item.coin || item.currency || '').toUpperCase();
+      const amount = formatDecimalAmount(item.amount ?? item.value ?? 0, Number(item.amount || item.value || 0) < 0.001 ? 8 : 3);
+      const type = item.type || (item.coin && item.coin.type) || 'coin/token';
+      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type)}</td><td>${escapeHtml('перевод, конвертация, stake')}</td></tr>`;
+    }).join('');
+
+    const coinStakeRows = [];
+    (data.coinStakes || []).forEach((group) => {
+      const validator = group.validator || {};
+      const validatorAddress = validator.address || group.validatorId || group.validator_id || group.address || '';
+      const validatorName = validator.name || validator.details || group.name || '';
+      const stakes = Array.isArray(group.items) ? group.items : (Array.isArray(group.stakes) ? group.stakes : [group]);
+      stakes.forEach((stake) => {
+        const symbol = String(stake.symbol || stake.coin_symbol || stake.denom || stake.coin || '').toUpperCase();
+        const tokenAddress = stake.address || stake.tokenAddress || '';
+        const amount = formatDecimalAmount(stake.delegatedCoins || stake.amount || stake.value || 0);
+        if (!symbol && !amount) return;
+        coinStakeRows.push(`<tr><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(amount)} ${escapeHtml(symbol)}</td><td>${escapeHtml(tokenAddress)}</td></tr>`);
+      });
+    });
+
+    const nftStakeRows = (data.nftStakes || []).map((stake) => {
+      const validator = stake.validator || {};
+      const validatorAddress = stake.validatorId || validator.address || stake.address || '';
+      const validatorName = validator.details || validator.name || '';
+      const nftLabel = [stake.nftCollection || stake.collection, stake.nftId || stake.tokenId || stake.id].filter(Boolean).join('/');
+      return `<tr><td>${escapeHtml(nftLabel || 'NFT')}</td><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(validator.status || stake.status || '')}</td></tr>`;
+    }).join('');
+
+    const rewardRows = (data.rewards || []).map((item) => {
+      const amount = formatDecimalAmount(item.amount || item.value || item.reward || 0);
+      const coin = String(item.coin || item.denom || item.symbol || 'DEL').toUpperCase();
+      const validator = item.validator || item.validatorId || item.address || '';
+      return `<tr><td>${escapeHtml(amount)} ${escapeHtml(coin)}</td><td>${escapeHtml(validator)}</td><td>${escapeHtml(history.formatDate(item.timestamp || item.time || item.created_at || ''))}</td></tr>`;
+    }).join('');
+
+    const nftRows = (data.nfts || []).map((item) => `<tr><td>${escapeHtml(item.collection || item.nftCollection || '')}</td><td>${escapeHtml(item.id || item.nftId || item.tokenId || '')}</td><td>${escapeHtml(item.title || item.name || item.creator || '')}</td></tr>`).join('');
+
+    return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.decimal, data.address)}</p><p><button type="button" id="decimal-copy-address">Копировать адрес</button></p></article>
+      <article class="card"><h3>Балансы</h3>${data.errors.balances ? `<p class="muted">Балансы сейчас не загрузились: ${escapeHtml(data.errors.balances)}</p>` : ''}${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Decimal"><caption>Балансы Decimal</caption><thead><tr><th scope="col">Монета/токен</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
+      <article class="card"><h3>Stake монет</h3>${data.errors.coinStakes ? `<p class="muted">Stake монет сейчас не загрузился: ${escapeHtml(data.errors.coinStakes)}</p>` : ''}${coinStakeRows.length ? `<div class="table-wrap"><table aria-label="Stake монет Decimal"><caption>Stake монет Decimal</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Stake</th><th scope="col">Адрес токена</th></tr></thead><tbody>${coinStakeRows.join('')}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
+      <article class="card"><h3>Stake NFT</h3>${data.errors.nftStakes ? `<p class="muted">Stake NFT сейчас не загрузился: ${escapeHtml(data.errors.nftStakes)}</p>` : ''}${nftStakeRows ? `<div class="table-wrap"><table aria-label="Stake NFT Decimal"><caption>Stake NFT Decimal</caption><thead><tr><th scope="col">NFT</th><th scope="col">Валидатор</th><th scope="col">Статус</th></tr></thead><tbody>${nftStakeRows}</tbody></table></div>` : '<p class="muted">Делегированных NFT нет.</p>'}</article>
+      <article class="card"><h3>Начисления</h3>${data.errors.rewards ? `<p class="muted">Начисления сейчас не загрузились: ${escapeHtml(data.errors.rewards)}</p>` : ''}${rewardRows ? `<div class="table-wrap"><table aria-label="Начисления Decimal"><caption>Начисления Decimal</caption><thead><tr><th scope="col">Сумма</th><th scope="col">Валидатор</th><th scope="col">Дата</th></tr></thead><tbody>${rewardRows}</tbody></table></div>` : '<p class="muted">Начисления не найдены.</p>'}</article>
+      <article class="card"><h3>NFT</h3>${data.errors.nfts ? `<p class="muted">NFT сейчас не загрузились: ${escapeHtml(data.errors.nfts)}</p>` : ''}${nftRows ? `<div class="table-wrap"><table aria-label="NFT Decimal"><caption>NFT Decimal</caption><thead><tr><th scope="col">Коллекция</th><th scope="col">ID</th><th scope="col">Описание</th></tr></thead><tbody>${nftRows}</tbody></table></div>` : '<p class="muted">NFT не найдены.</p>'}</article>
+      <article class="card"><h3>Последние транзакции</h3>${data.errors.transactions ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.errors.transactions)}</p>` : renderTransactionsTable(data.transactions, chains.decimal, { caption: 'Последние транзакции Decimal', emptyText: 'Транзакции не найдены.' })}</article>`;
+  }
+
+  function decimalBalanceMaximum(data, symbol) {
+    const target = String(symbol || 'DEL').toUpperCase();
+    const balances = Array.isArray(data && data.balances) ? data.balances : [];
+    for (const item of balances) {
+      const itemSymbol = String(item.denom || item.denomRaw || item.symbol || item.ticker || item.coin || item.currency || '').toUpperCase();
+      if (itemSymbol === target) return formatDecimalAmount(item.amount ?? item.value ?? 0, 8);
+    }
+    return '';
+  }
+
+  function renderDecimalWalletForms(chain, data) {
+    const delMax = decimalBalanceMaximum(data, 'DEL');
+    const delMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-send-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
+    const delStakeMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-delegate-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
+    return `<form id="decimal-send-form" class="stacked-form"><fieldset>
+      <legend>Decimal: перевод DEL / coin / token</legend>
+      <div class="field"><label for="decimal-send-to">Адрес получателя</label><input id="decimal-send-to" name="to" type="text" required placeholder="dx... или 0x..."></div>
+      <div class="field"><label for="decimal-send-amount">Сумма</label><input id="decimal-send-amount" name="amount" type="text" required placeholder="1.000">${delMaxButton}</div>
+      <div class="field"><label for="decimal-send-coin">Монета/токен</label><input id="decimal-send-coin" name="coin" type="text" required value="DEL"></div>
+      <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    <form id="decimal-delegate-form" class="stacked-form"><fieldset>
+      <legend>Decimal: stake / unbond</legend>
+      <div class="field"><label for="decimal-validator">Адрес валидатора</label><input id="decimal-validator" name="validator" type="text" required placeholder="0x... или d0valoper..."></div>
+      <div class="field"><label for="decimal-delegate-amount">Сумма stake</label><input id="decimal-delegate-amount" name="amount" type="text" required placeholder="1.000">${delStakeMaxButton}</div>
+      <div class="field"><label for="decimal-delegate-coin">Монета/токен</label><input id="decimal-delegate-coin" name="coin" type="text" required value="DEL"></div>
+      <div class="field"><label for="decimal-delegate-mode">Операция</label><select id="decimal-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Анбонд</option></select></div>
+      <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </fieldset></form>
+    ${decimalNftForms()}`;
+  }
+
+  async function renderDecimalWallet(chain, account) {
+    appEl.innerHTML = '<section class="panel wallet-decimal"><h2>Decimal: кошелёк</h2><p>Загружаю балансы, stake, NFT и последние транзакции...</p></section>';
+    setStatus(`Загружаю Decimal кошелёк: ${account}...`, 'loading');
+    const data = await loadDecimalWalletData(chain, account);
+    appEl.innerHTML = `<section class="panel wallet-decimal">
+      <h2>Decimal: кошелёк ${escapeHtml(data.address)}</h2>
+      <p><strong>Доступ к отправке:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
+      ${renderDecimalWalletBalances(data)}
+      <h3>Операции</h3>
+      ${renderDecimalWalletForms(chain, data)}
+    </section>`;
+    const copyButton = document.getElementById('decimal-copy-address');
+    if (copyButton) {
+      copyButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(data.address);
+          setStatus('Decimal address copied.', 'ok');
+        } catch (error) {
+          setStatus('Не удалось скопировать адрес автоматически.', 'error');
+        }
+      });
+    }
+    bindDecimalWalletForms(chain);
+    bindMaxButtons(appEl);
+    setStatus(`Decimal кошелёк ${data.address} загружен.`, 'ok');
+  }
+
   function renderCosmosWallet(chain, account) {
     const isMinter = chain.id === 'minter';
     const liquid = chain.liquidSymbol;
@@ -4159,13 +4354,13 @@
   function decimalNftForms() {
     return `<form id="decimal-convert-form" class="stacked-form"><fieldset>
       <legend>Decimal: convert / swap</legend>
-      <p class="notice">Для активов кроме DEL укажите EVM contract address токена в формате 0x...</p>
+      <p class="notice">Для токенов кроме DEL укажите адрес токена в формате 0x...</p>
       <div class="field"><label for="decimal-convert-from">Из: DEL или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
       <div class="field"><label for="decimal-convert-to">В: DEL или адрес токена</label><input id="decimal-convert-to" name="to" type="text" required></div>
       <div class="field"><label for="decimal-convert-amount">Сумма для конвертации</label><input id="decimal-convert-amount" name="amount" type="text" required></div>
       <div class="field"><label for="decimal-convert-min">Минимальная сумма получения</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
-      <div class="field"><label for="decimal-convert-from-decimals">Decimals исходного токена</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
-      <div class="field"><label for="decimal-convert-to-decimals">Decimals целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
+      <div class="field"><label for="decimal-convert-from-decimals">Знаков после запятой у исходного токена</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
+      <div class="field"><label for="decimal-convert-to-decimals">Знаков после запятой у целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
       <button type="submit" name="intent" value="preview">Проверить конвертацию</button><button type="submit" name="intent" value="send">Отправить convert в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
@@ -4276,6 +4471,53 @@
         data = { coin: symbol, value: Number(amount) };
       }
       return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
+    });
+  }
+
+
+  function bindDecimalWalletForms(chain) {
+    bindOperationForm(chain, 'decimal-send-form', (form) => {
+      const to = broadcast.validateAddress(chain, form.get('to'), 'Получатель');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета/токен');
+      return broadcast.prepare(chain, 'seed', 'decimalSend', [{ to, amount, coin }], { title: 'Decimal send', to, amount: `${amount} ${coin}` });
+    });
+
+    bindOperationForm(chain, 'decimal-delegate-form', (form) => {
+      const mode = String(form.get('mode') || 'delegate');
+      const amount = normalizeAmountInput(form.get('amount'), 'Stake');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета/токен');
+      const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
+      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator });
+    });
+
+    bindOperationForm(chain, 'decimal-convert-form', (form) => {
+      const from = String(form.get('from') || '').trim();
+      const to = String(form.get('to') || '').trim();
+      if (!from || !to) throw new Error('Для Decimal convert нужны исходный и целевой активы. Используйте DEL или адрес токена 0x.');
+      if (from.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(from)) throw new Error('Исходный актив должен быть DEL или адресом токена 0x.');
+      if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
+      const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
+      return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
+    });
+
+    bindOperationForm(chain, 'decimal-token-form', (form) => broadcast.prepare(chain, 'seed', 'decimalCreateToken', [{
+      title: String(form.get('title') || '').trim(),
+      symbol: normalizeCoinInput(form.get('symbol'), 'Symbol'),
+      initSupply: normalizeAmountInput(form.get('initSupply'), 'Начальная эмиссия'),
+      maxSupply: normalizeAmountInput(form.get('maxSupply'), 'Максимальная эмиссия'),
+      reserve: '0',
+      crr: 0
+    }], { title: 'Decimal: создание токена' }));
+
+    bindOperationForm(chain, 'decimal-nft-form', (form) => {
+      const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
+      const nftId = String(form.get('nftId') || '').trim();
+      if (!nftId) throw new Error('Нужен NFT ID.');
+      const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
+      return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
     });
   }
 
@@ -4808,9 +5050,11 @@
       if (chain.id === 'minter' && app.id === 'broadcast') {
         renderMinterBroadcast(chain);
       } else if (chain.id === 'decimal' && app.id === 'broadcast') {
-        renderCosmosWallet(chain, account);
+        await renderDecimalWallet(chain, account);
       } else if (chain.id === 'minter' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
         await renderMinterWallet(chain, account);
+      } else if (chain.id === 'decimal' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
+        await renderDecimalWallet(chain, account);
       } else if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
         renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && app.id === 'validators') {

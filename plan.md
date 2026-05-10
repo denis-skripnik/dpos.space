@@ -1116,3 +1116,148 @@ Blocked / later with exact reasons:
 - Seed/private key values are never included in prepared preview/result JSON.
 - Existing Golos/VIZ/Steem/Hive/Decimal paths are not broadly rewritten.
 - Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all `tests/*.js`, `git diff --check`.
+
+## Decimal wallet parity evidence pass
+
+### Files inspected
+
+Current v3 files inspected before editing:
+
+- `v3/js/app.js`: routing, generic Cosmos wallet, Minter dedicated wallet pattern, Decimal forms, renderer helpers.
+- `v3/js/profiles.js`: Decimal account loader uses `/addresses/{address}`, `/addresses/{address}/balances`, `/txs/txs-by-address/{address}`, `/rewards/{address}`, `/nfts/{address}`.
+- `v3/js/broadcast.js`: Decimal SDK execution guard and exact SDK method dispatch.
+- `v3/js/chains.js`: Decimal chain config, `apiBase`, vendor SDK path, apps.
+- Tests inspected: `tests/v3-minter-decimal-smoke.js`, `tests/v3-minter-wallet-smoke.js`, related v3 smoke tests.
+
+Legacy Decimal wallet files inspected from `origin/master:blockchains/decimal/apps/wallet`:
+
+- `config.json`: wallet title/description/category.
+- `content.php`: wallet DOM for auth message, current address/copy, balances, action modals, transfer, convert, delegate, delegate NFT, unbond NFT, transaction history.
+- `css/jquery-ui.css`: jQuery UI vendor CSS, no wallet business logic.
+- `css/style.css`: generic modal/container styles only.
+- `delegation/config.json`: delegation page title/description.
+- `delegation/content.php`: delegated coins/NFT tables, delegate/anbond forms and modal IDs.
+- `index.php`: app subpage loader for delegation.
+- `js/app.js`: wallet behavior, balances/history/delegations/templates/max buttons/action handlers.
+- `js/jquery-ui.js`: jQuery UI vendor bundle for autocomplete, no Decimal wallet transaction logic.
+
+Related shared Decimal files inspected from `origin/master:blockchains/decimal/js`:
+
+- `blockchain.js`: Decimal SDK wallet/EVM initialization, seed decrypt path, sender shape, exact SDK methods for send/convert/delegate/anbond/NFT/token creation, TX status lookup.
+- `axios.min.js`: HTTP helper vendor bundle.
+- `decimal-sdk-web.js`: DecimalSDK browser bundle exposing `Wallet`, `DecimalEVM`, `DecimalNetworks`, `TX_TYPE`.
+- `decimal.js`: decimal arithmetic library; no wallet-specific transaction flow.
+- `info.js`: shared informational helper, no wallet parity blocker found.
+- `jquery-ui.js`: jQuery UI vendor bundle.
+- `modal-accounts.js`: legacy account selection/import wiring; seed storage compatibility already handled by v3 auth.
+- `sjcl.min.js`: encryption vendor bundle.
+
+### Legacy Decimal wallet checklist
+
+Read-only sections / UX elements:
+
+- Auth message when no seed; wallet is seed-backed via `decimal_current_user` and `dpos.space_${chain}_${login}_seed`.
+- Current Decimal address with copy button and profile/explorer link.
+- Balances list from `/addresses/{evmAddress}/balances`, amount formatted from 18 decimals, `DEL` tracked as fee balance.
+- Per-token action list: transfer, convert, delegate.
+- Delegation page and tables for delegated coins and delegated NFT.
+- Transaction history table with pagination from `/txs/txs-by-address/{sender.address}?limit=10&offset=<offset>`.
+- Transfer/delegate templates in localStorage keys `<TOKEN>_decimal_transfer_templates` and `<TOKEN>_decimal_delegate_templates`.
+- Max buttons for transfer, convert, delegate, anbond with live fee adjustment.
+- Token autocomplete/index for convert using `/coins/coins?limit=1000&offset=<offset>` and `/coins/{symbol}`.
+
+Write actions found:
+
+- Transfer coin/token.
+- Convert DEL/token/token using EVM token addresses for token legs.
+- Delegate DEL/token stake.
+- Anbond/unbond DEL/token stake.
+- Delegate NFT and unbond NFT.
+- Create token/coin helper exists in shared `blockchain.js`; wallet content has token creation in v3 app area, not in inspected legacy wallet page DOM.
+
+### Exact legacy API/SDK evidence
+
+HTTP endpoints copied or mapped:
+
+- Balances: `GET https://api.decimalchain.com/api/v1/addresses/{address}/balances`.
+- History: `GET https://api.decimalchain.com/api/v1/txs/txs-by-address/{address}?limit=10&offset={offset}`.
+- Coin stakes: `GET https://api.decimalchain.com/api/v1/validators/wallet/{evmAddress}/stakes/coins`.
+- NFT stakes: `GET https://api.decimalchain.com/api/v1/validators/wallet/{evmAddress}/stakes/nfts`.
+- Coin index: `GET https://api.decimalchain.com/api/v1/coins/coins?limit=1000&offset={offset}`.
+- Coin detail/decimals: `GET https://api.decimalchain.com/api/v1/coins/{symbol}`.
+- TX status/detail: `GET https://api.decimalchain.com/api/v1/txs/{txHash}`.
+- v3 also exposes profile-side `GET /rewards/{address}?limit=20&offset=0` and `GET /nfts/{address}?limit=20&offset=0`; these are safe read-only wallet panels.
+
+SDK globals and seed/account evidence:
+
+- `const { Wallet, DecimalEVM, DecimalNetworks, TX_TYPE } = window.DecimalSDK`.
+- `decimalWallet = new Wallet(secret)`.
+- `sender = { address: decimalWallet.address, evmAddress: decimalWallet.evmAddress, privateKey: ... }`.
+- `decimalEVM = new DecimalEVM(decimalWallet, DecimalNetworks.mainnet)`.
+- `ensureDecimalEVM()` optionally calls `decimalEVM.connect()`.
+
+Exact legacy method names / param order:
+
+- `send(to, amount, coin, memo, mode)`:
+  - DEL fee: `decimalEVM.estimateFeeSendDEL({ to, amount })`.
+  - token fee: `decimalEVM.estimateFeeTransferToken({ to, coin, amount })`.
+  - DEL send: `decimalEVM.sendDEL({ to, amount: amountInSmallestUnit })`.
+  - token send: `decimalEVM.transferToken({ to, coin, amount: amountInSmallestUnit })`.
+- `convert(fromLeg, toLeg, value, minimum_buy_amount, mode)`:
+  - token -> DEL: `evm.sellExactTokensForDEL(tokenAddress, amountIn, amountOutMin, recipient)`.
+  - DEL -> token: `evm.buyTokenForExactDEL(tokenAddress, amountDel, amountOutMin, recipient)`.
+  - token -> token: `evm.convertToken(tokenAddress1, tokenAddress2, amountIn, amountOutMin, recipient, sign || undefined)` after optional `getSignPermitToken(tokenAddress1, tokenCenterAddress, amountIn)`.
+- `delegate(coin, address, stake, mode)`:
+  - DEL: `decimalEVM.delegateDEL(validator, stakeWei)`.
+  - token: `decimalEVM.delegateToken(validator, coin, stakeWei)`.
+  - fee branch uses `delegateDEL(address, amount, true)` or `delegateToken({ address, coin, amount }, true)`.
+- `anbond(coin, address, stake, mode)`:
+  - DEL unbond: `decimalEVM.withdrawStakeToken(address, '0x0000000000000000000000000000000000000000', stakeInSmallestUnit)`.
+  - token unbond: `decimalEVM.withdrawStakeToken(address, coin, stakeInSmallestUnit)`.
+- `createCoin(title, ticker, initSupply, maxSupply, options, mode)`:
+  - `decimalEVM.createToken({ title, symbol: ticker, initSupply, maxSupply, reserve: options.initialReserve, crr: options.constantReserveRatio })`.
+- `delegateNFT(nftId, address, mode)`:
+  - `decimalEVM.delegateNFT({ nftId, address })`.
+- `withdrawStakeNFT(nftId, address, mode)`:
+  - `decimalEVM.withdrawStakeNFT({ nftId, address })`.
+
+### v3 mapping for this pass
+
+Implemented now:
+
+- Dedicated Decimal wallet path: `loadDecimalWalletData`, `renderDecimalWalletBalances`, `renderDecimalWalletForms`, `renderDecimalWallet`, `bindDecimalWalletForms`.
+- Decimal wallet route for `wallet`, `swap`, and `my-coin` now dispatches to the dedicated Decimal renderer before the generic Cosmos fallback.
+- Read-only wallet panels for address/copy, balances, coin stake, NFT stake, rewards, NFTs and recent transactions.
+- Legacy Decimal endpoints mapped for balances, coin stakes, NFT stakes, and tx history; rewards/NFT lists reused from the existing v3 Decimal profile API mapping.
+- Safe static operation forms for transfer, delegate/unbond, convert, create token, delegate/unbond NFT.
+- Real sends remain behind existing `bindOperationForm` preview + explicit send and `DposBroadcast.broadcast` confirmation guard.
+- Decimal-native UI labels: DEL, монета/токен, адрес, валидатор, stake, анбонд, NFT.
+- Smoke assertions added for Decimal renderer, exact endpoints, form labels, method names/param order, plan evidence, and absence of developer/evidence notes in the user-facing renderer.
+
+Kept from earlier v3 Decimal work:
+
+- Decimal chain config and vendor SDK wiring.
+- Seed auth compatibility and preview/result sanitization.
+- Decimal address validation for `dx...` and `0x...`; validator validation via Decimal-specific guard.
+- Decimal broadcast methods in `v3/js/broadcast.js` using existing SDK calls.
+
+Blocked / later with exact reasons:
+
+- Live fee estimates and max-button auto-adjustment: legacy uses EVM fee methods plus mutable modal state and token-fee conversion; v3 can safely prepare exact operations, but automatic amount rewriting needs a focused UX/API pass to avoid silently changing user-entered amounts.
+- Token symbol autocomplete and automatic symbol -> 0x resolution for convert: legacy builds a cached `/coins/coins` index and resolves decimals; v3 currently accepts explicit `DEL` or token `0x` addresses to avoid guessing the wrong token. Add later with visible token selection and collision handling.
+- Token -> token permit signing in UI: broadcast currently calls `convertToken` without exposing the optional permit signature path from legacy. Implementing `getSignPermitToken` safely needs SDK-version verification and preview text for the extra approval semantics.
+- TX status polling after broadcast: legacy polls `/txs/{hash}` for success/failure; v3 returns sanitized broadcast result. Add later as a generic post-broadcast receipt checker.
+- Transfer/delegate template management: legacy templates are per-token localStorage modals; useful, but not required for safe parity and should be added as a small reusable wallet-template component.
+- `bip.to` account type: legacy has a branch that shows seed page for `type === 'bip.to'`; v3 local seed flow is the current supported send path. External wallet-link flow needs separate design.
+- Legacy labels sometimes say `Публичный ключ валидатора` / `MP...` in Decimal delegation content, but shared Decimal code validates and uses EVM validator `0x...`; v3 uses Decimal-native `Адрес валидатора` and accepts `0x...`/`d0valoper...` via existing validator guard.
+
+### Acceptance criteria
+
+- Decimal wallet route is no longer a generic Cosmos renderer alias for wallet/swap/my-coin.
+- Decimal wallet UI contains no developer/evidence/plan notes; detailed legacy mapping stays in this `plan.md` section.
+- Balances, stake, NFT, rewards, history and forms use Decimal-native terminology.
+- Implemented endpoints and SDK method names/param order match inspected legacy evidence.
+- All write operations pass through v3 preview + explicit send/confirm guard.
+- Seed/private key values are not shown in prepared previews or broadcast results.
+- Existing Golos/VIZ/Steem/Hive/Minter paths are not broadly rewritten.
+- Required gates pass: `node --check v3/js/*.js`, `node --check tests/*.js`, all `tests/*.js`, `git diff --check`.
