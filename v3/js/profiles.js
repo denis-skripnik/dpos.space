@@ -412,9 +412,6 @@
     addField(rows, 'Выбранные теги', Array.isArray(profile.select_tags) ? profile.select_tags.join(', ') : profile.select_tags);
     addField(rows, 'Изображение профиля', profile.profile_image);
     addField(rows, 'Cover image', profile.cover_image);
-    if (chain.config.id === 'minter' || chain.config.id === 'decimal') {
-      addField(rows, 'Адрес', account.address || account.name);
-    }
     return rows;
   }
 
@@ -505,7 +502,17 @@
     addField(rows, 'Multisig', account.multisig);
     addField(rows, 'Validator public key', account.public_key || account.validator_public_key || account.validatorPubKey);
     addField(rows, 'Validator status', account.status || account.validator_status);
-    return rows;
+    return uniqueRows(rows);
+  }
+
+  function uniqueRows(rows) {
+    const seen = new Set();
+    return rows.filter(([label, value]) => {
+      const key = `${label}\u0000${typeof value === 'object' ? JSON.stringify(value) : String(value)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function previewList(items, limit) {

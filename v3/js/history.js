@@ -32,20 +32,95 @@
     author_reward: 'Авторская награда',
     award: 'Награда',
     benefactor_award: 'Бенефициарская награда',
+    buy_coin: 'Покупка монет',
     claim: 'Получение награды',
     comment_benefactor_reward: 'Бенефициарская награда',
+    create_coin: 'Создание монеты',
+    create_token: 'Создание токена',
+    create_transaction: 'Создание мультисиг транзакции',
+    create_wallet: 'Создание мультисига',
     curation_reward: 'Кураторская награда',
+    declare_candidate: 'Объявление кандидата в валидаторы',
+    delegate: 'Делегирование',
+    delegate_nft: 'Делегирование NFT',
     delegate_vesting_shares: 'Делегирование доли',
+    edit_candidate: 'Редактирование кандидата',
     fill_order: 'Исполнение ордера',
+    issue_check: 'Создание чека',
+    mint_nft: 'Создание NFT',
+    multisend_coin: 'Мультисенд (мульти-отправка)',
     receive_award: 'Получение награды',
+    redeem_check: 'Получение чека',
+    sell_all_coin: 'Продажа всех монет',
+    sell_coin: 'Продажа монеты',
+    send: 'Отправка',
+    send_coin: 'Отправка',
+    set_offline: 'Установка кандидата в статусе оффлайн',
+    set_online: 'Установка кандидата в статусе онлайн',
+    sign_transaction: 'Подпись мультисигом транзакции',
     transfer: 'Перевод',
     transfer_from_savings: 'Перевод из сбережений',
     transfer_from_tip: 'Перевод из tip-баланса',
+    transfer_nft: 'Передача NFT',
     transfer_to_savings: 'Перевод в сбережения',
     transfer_to_tip: 'Перевод в tip-баланс',
     transfer_to_vesting: 'Перевод в соцкапитал',
+    unbond: 'Анбонд',
+    unbond_nft: 'Анбонд NFT',
     withdraw_vesting: 'Вывод соцкапитала',
-    witness_reward: 'Награда делегата'
+    witness_reward: 'Награда делегата',
+    '/decimal.coin.v1.MsgBuyCoin': 'Конвертация',
+    '/decimal.coin.v1.MsgMultiSendCoin': 'Мультисенд (мульти-отправка)',
+    '/decimal.coin.v1.MsgSellAllCoin': 'Конвертация',
+    '/decimal.coin.v1.MsgSellCoin': 'Конвертация',
+    '/decimal.coin.v1.MsgSendCoin': 'Отправка',
+    MsgSubmitProposal: 'Отправленный пропозал',
+    MsgVote: 'Голосование по пропозалу',
+    msg_burn: 'Сжигание NFT',
+    msg_edit_metadata: 'Редактирование мета-данных NFT',
+    msg_initialize: 'Инициализация свопа',
+    msg_mint: 'Создание NFT',
+    msg_redeem_v2: 'Получение свопа',
+    msg_transfer: 'Передача NFT',
+    1: 'Отправка',
+    2: 'Продажа монеты',
+    3: 'Продажа всех монет',
+    4: 'Покупка монет',
+    5: 'Создание монеты',
+    6: 'Объявление кандидата в валидаторы',
+    7: 'Делегирование',
+    8: 'Анбонд',
+    9: 'Получение чека',
+    10: 'Установка кандидата в статусе онлайн',
+    11: 'Установка кандидата в статусе оффлайн',
+    12: 'Создание мультисига',
+    13: 'Мультисенд (мульти-отправка)',
+    14: 'Редактирование кандидата',
+    15: 'Установка блока остановки',
+    16: 'Пересоздание монеты',
+    17: 'Изменение владельца монеты',
+    18: 'Редактирование мультисига',
+    19: 'Голосование за цену',
+    20: 'Изменение публичного ключа кандидата',
+    21: 'Добавление ликвидности',
+    22: 'Удаление ликвидности',
+    23: 'Продажа через пул',
+    24: 'Покупка через пул',
+    25: 'Продажа всех монет через пул',
+    26: 'Изменение комиссии кандидата',
+    27: 'Перемещение стейка',
+    28: 'Эмиссия токена',
+    29: 'Сжигание токена',
+    30: 'Создание токена',
+    31: 'Пересоздание токена',
+    32: 'Голосование за комиссию',
+    33: 'Голосование за обновление',
+    34: 'Создание пула ликвидности',
+    35: 'Добавление лимитного ордера',
+    36: 'Удаление лимитного ордера',
+    37: 'Блокировка стейка',
+    38: 'Блокировка токенов',
+    39: 'Перенос стейка'
   };
 
   function callApi(chain, method, args) {
@@ -149,7 +224,15 @@
   }
 
   function operationTitle(type) {
-    return opNames[type] || type;
+    if (type === null || typeof type === 'undefined' || type === '') return '';
+    if (opNames[type]) return opNames[type];
+    const numeric = Number(type);
+    if (Number.isFinite(numeric) && opNames[numeric]) return opNames[numeric];
+    if (typeof type === 'string' && /^0x[0-9a-f]+$/i.test(type)) {
+      const fromHex = Number.parseInt(type, 16);
+      if (opNames[fromHex]) return opNames[fromHex];
+    }
+    return String(type);
   }
 
   function formatDate(timestamp) {

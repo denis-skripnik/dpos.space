@@ -69,5 +69,7 @@ const minterProfile = context.DposProfiles.normalizeAccount({ config: { id: 'min
 });
 assert(minterProfile.balances.some(([label, value]) => label === 'BIP' && value === '1.23'), 'Minter balances normalize');
 assert(minterProfile.restRows.some(([label]) => label === 'Nonce'), 'Minter nonce is exposed');
+assert(!minterProfile.profileRows.some(([label, value]) => label === 'Адрес' && value === minterProfile.name), 'Minter profile metadata does not duplicate the address');
+assert.strictEqual(minterProfile.restRows.filter(([label]) => label === 'Адрес').length, 1, 'Minter REST details contain a single address row');
 assert(minterProfile.rawLists.delegations.length === 1, 'Minter delegations are exposed as raw list');
 assert.strictEqual(minterProfile.rawLists.transactions[0].hash, 'MtHash', 'Minter transactions stay structured for table rendering');

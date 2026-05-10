@@ -32,7 +32,7 @@ function createContext() {
   };
   context.window = context;
   vm.createContext(context);
-  for (const file of ['v3/js/auth.js', 'v3/js/broadcast.js']) {
+  for (const file of ['v3/js/auth.js', 'v3/js/broadcast.js', 'v3/js/history.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   return context;
@@ -62,6 +62,9 @@ async function run() {
   assert.throws(() => context.DposBroadcast.validateAddress(minter, 'dx0000000000000000000000000000000000000000'), /Minter address/);
   assert.strictEqual(context.DposBroadcast.validateCoinSymbol('LONG'), 'LONG');
   assert.strictEqual(context.DposBroadcast.validateAmount('1.000'), '1.000');
+  assert.strictEqual(context.DposHistory.operationTitle(13), 'Мультисенд (мульти-отправка)', 'minter numeric type 13 is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('0x0D'), 'Мультисенд (мульти-отправка)', 'minter hex type 0x0D is readable');
+  assert.strictEqual(context.DposHistory.operationTitle(21), 'Добавление ликвидности', 'minter pool ops are readable');
 
   let minterPosted;
   context.minterSDK = {
@@ -84,6 +87,8 @@ async function run() {
   assert.strictEqual(decimalStatus.hasActive, true, 'decimal: legacy seed decrypts via old passphrase');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'dx0000000000000000000000000000000000000000'), 'dx0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, '0x0000000000000000000000000000000000000000'), '0x0000000000000000000000000000000000000000');
+  assert.strictEqual(context.DposHistory.operationTitle('/decimal.coin.v1.MsgSendCoin'), 'Отправка', 'decimal OpenAPI message type is readable');
+  assert.strictEqual(context.DposHistory.operationTitle('delegate_nft'), 'Делегирование NFT', 'decimal NFT op is readable');
 
   const decimalCalls = [];
   context.DecimalSDK = {
