@@ -11,6 +11,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8'), con
 
 const chains = context.DposChains;
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+const loadGrapheneWalletDataSource = (appSource.match(/function loadGrapheneWalletData[\s\S]*?\n  async function renderGrapheneWallet/) || [''])[0];
 
 assert.deepStrictEqual(Object.keys(chains).sort(), ['decimal', 'golos', 'hive', 'minter', 'steem', 'viz'], 'v3 exposes only the six requested chains');
 assert.strictEqual(chains.viz.nodes[0], 'https://api.viz.world', 'VIZ uses api.viz.world as the first public node without trailing slash');
@@ -80,11 +81,28 @@ assert(appSource.includes('function renderSteemWallet'), 'Steem wallet has a ded
 assert(appSource.includes('function buildGrapheneWalletForms'), 'Graphene wallet keeps shared form markup helper behind chain-specific renderers');
 assert(appSource.includes('function bindGolosWalletForms'), 'Golos wallet has a dedicated binding entry point');
 assert(appSource.includes('function renderGolosWalletBalances'), 'Golos wallet renders a dedicated balance list instead of generic Graphene rows');
+assert(loadGrapheneWalletDataSource.includes('const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);'), 'wallet loading enriches accounts with dynamic properties before rendering СГ/max values');
+assert(loadGrapheneWalletDataSource.includes('profiles.normalizeAccount(connection, enrichedAccount)'), 'wallet rendering uses enriched account data for СГ/max values');
 assert(appSource.includes('Golos показывает СГ в пользовательских единицах'), 'Golos wallet explains СГ terminology to users');
 assert(appSource.includes('Claim accumulative balance'), 'Golos wallet exposes legacy claim accumulative balance wording/operation');
 assert(appSource.includes('TIP/UIA: not yet ported'), 'Golos wallet marks TIP/UIA actions as not yet ported instead of pretending support');
 assert(appSource.includes('fetchGolosUiaBalances'), 'Golos wallet fetches UIA balances');
-assert(appSource.includes("{ kind: 'uia', symbol, balanceType: 'tip' }"), 'Golos UIA TIP balances carry metadata for dedicated rendering');
+assert(appSource.includes("{ kind: 'uia', symbol: token, balanceType: 'tip' }"), 'Golos UIA TIP balances carry metadata for dedicated rendering');
+assert(appSource.includes('function parseGolosUiaBalanceRows'), 'Golos wallet has a dedicated UIA balance parser');
+assert(appSource.includes('get_accounts_balances'), 'Golos wallet falls back to direct get_accounts_balances RPC when vendored helper is unavailable');
+assert(appSource.includes("{ kind: 'uia-status' }"), 'Golos wallet reports UIA loading diagnostics instead of silently hiding balances');
+{
+  const helpersSource = ['numericAssetValue', 'formatUiaAmount', 'parseGolosUiaBalanceRows'].map((name) => {
+    const match = appSource.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n  }`));
+    assert(match, `${name} helper is present for UIA balance smoke`);
+    return match[0];
+  }).join('\n');
+  const parseGolosUiaBalanceRows = Function(`${helpersSource}; return parseGolosUiaBalanceRows;`)();
+  const uiaRows = parseGolosUiaBalanceRows([{ TEST: { balance: '12.345', tip_balance: '0.500' }, ZERO: { balance: '0', tip_balance: '0' } }], 'alice');
+  assert(uiaRows.some(([label, value, meta]) => label === 'UIA TEST' && value === '12.345 TEST' && meta.balanceType === 'main'), 'Golos UIA main balance row is parsed');
+  assert(uiaRows.some(([label, value, meta]) => label === 'UIA TEST TIP' && value === '0.500 TEST' && meta.balanceType === 'tip'), 'Golos UIA TIP balance row is parsed');
+  assert(!uiaRows.some(([label]) => label.includes('ZERO')), 'zero UIA balances are not rendered as balance rows');
+}
 assert(appSource.includes('normalizeGolosPowerInput'), 'Golos wallet accepts СГ amounts and converts them to GESTS for broadcast');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'validators').accountField, undefined, 'Minter validators do not show the global account field');

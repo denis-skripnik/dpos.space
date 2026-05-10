@@ -73,3 +73,22 @@ assert(!minterProfile.profileRows.some(([label, value]) => label === 'Адрес
 assert.strictEqual(minterProfile.restRows.filter(([label]) => label === 'Адрес').length, 1, 'Minter REST details contain a single address row');
 assert(minterProfile.rawLists.delegations.length === 1, 'Minter delegations are exposed as raw list');
 assert.strictEqual(minterProfile.rawLists.transactions[0].hash, 'MtHash', 'Minter transactions stay structured for table rendering');
+
+const golosChain = { config: { id: 'golos', title: 'Golos', liquidSymbol: 'GOLOS', powerTitle: 'СГ' }, node: 'https://golos.test' };
+const golosProfile = context.DposProfiles.normalizeAccount(golosChain, {
+  name: 'denis',
+  balance: '1.000 GOLOS',
+  sbd_balance: '2.000 GBG',
+  vesting_shares: '1000000.000000 GESTS',
+  delegated_vesting_shares: '250000.000000 GESTS',
+  received_vesting_shares: '125000.000000 GESTS',
+  _v3ProfileContext: {
+    dynamicProperties: {
+      total_vesting_fund_steem: '10.000 GOLOS',
+      total_vesting_shares: '1000000.000000 GESTS'
+    }
+  }
+});
+assert(golosProfile.balances.some(([label, value]) => label === 'СГ' && value === '10.000000 СГ'), 'Golos СГ balance is computed from enriched dynamic properties');
+assert(golosProfile.balances.some(([label, value]) => label === 'Делегировано СГ' && value === '2.500000 СГ'), 'Golos delegated СГ is computed when present');
+assert(golosProfile.balances.some(([label, value]) => label === 'Получено делегированием СГ' && value === '1.250000 СГ'), 'Golos received СГ is computed when present');
