@@ -92,6 +92,68 @@
       </details>`;
   }
 
+  function rawJsonDetails(title, value) {
+    return `<details class="raw-json"><summary>${escapeHtml(title || 'Raw JSON')}</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
+  }
+
+  function isAccountLikeKey(key) {
+    return ['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'to', 'recipient', 'receiver', 'target', 'validator', 'public_key', 'benefactor', 'new_account_name', 'witness', 'author', 'curator', 'publisher'].includes(String(key || '').toLowerCase());
+  }
+
+  function formatExplorerValue(chain, key, value) {
+    if (value === undefined || value === null || value === '') return '';
+    if (Array.isArray(value)) return value.length ? `<ul>${value.map((item) => `<li>${formatExplorerValue(chain, key, item)}</li>`).join('')}</ul>` : '';
+    if (typeof value === 'object') return renderExplorerFields(chain, value, { compact: true });
+    if (isAccountLikeKey(key)) return renderAccountCell(chain, value);
+    if (String(key).toLowerCase().includes('block') || String(key).toLowerCase() === 'height') return explorerLink(chain, 'block', value, String(value));
+    if (String(key).toLowerCase().includes('hash') || String(key).toLowerCase().includes('tx')) return explorerLink(chain, 'tx', value, String(value).slice(0, 16));
+    return escapeHtml(history.formatValue(value));
+  }
+
+  function renderExplorerFields(chain, data, options = {}) {
+    const skip = new Set(options.skip || []);
+    const entries = Object.entries(data || {}).filter(([key, value]) => !skip.has(key) && value !== undefined && value !== null && value !== '');
+    if (!entries.length) return `<p class="muted">${escapeHtml(options.emptyText || 'Нет данных для отображения.')}</p>`;
+    const visible = entries.slice(0, options.limit || (options.compact ? 12 : 40));
+    return `<dl class="kv-list">${visible.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${formatExplorerValue(chain, key, value)}</dd></div>`).join('')}</dl>`;
+  }
+
+  function normalizeOperation(op, index) {
+    if (Array.isArray(op)) return { index, type: op[0] || `operation_${index + 1}`, data: op[1] || {} };
+    if (typeof op !== 'object' || op === null) return { index, type: 'item', data: { value: op } };
+    const data = op && (op.data || op.message || op.payload || op);
+    return { index: op && (op.index ?? op.id ?? index), type: (op && (op.type || op.tx_type || op.message_type)) || `operation_${index + 1}`, data: data || {} };
+  }
+
+  function renderOperationsTable(ops, chain, caption) {
+    const rows = Array.isArray(ops) ? ops.map(normalizeOperation) : [];
+    if (!rows.length) return '<p class="muted">Операции не найдены.</p>';
+    return `<div class="table-wrap"><table aria-label="${escapeHtml(caption || 'Операции')}"><caption>${escapeHtml(caption || 'Операции')}</caption><thead><tr><th scope="col">#</th><th scope="col">Операция</th><th scope="col">Данные</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.index)}</td><td><code>${escapeHtml(row.type)}</code><br><span class="muted">${escapeHtml(history.operationTitle(row.type))}</span></td><td>${renderExplorerFields(chain, row.data, { compact: true })}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function renderExplorerResult(chain, kind, value, result) {
+    if (!result) return '<p class="muted">Данных нет.</p>';
+    if (kind === 'tx') {
+      const tx = result.result || result.data || result;
+      const operations = tx.operations || tx.ops || tx.messages || (tx.data && tx.data.list) || (tx.data ? [tx.data] : []);
+      const summaryRows = [
+        ['Tx', tx.trx_id || tx.tx_id || tx.hash || tx.transaction_hash || value],
+        ['Блок', tx.block_num || tx.block || tx.blockId || tx.height],
+        ['Создана', history.formatDate(tx.timestamp || tx.time || tx.created_at)],
+        ['Тип', tx.type || tx.tx_type || tx.transaction_type],
+        ['Отправитель', tx.from || tx.sender || tx.address],
+        ['Комиссия', tx.fee && typeof tx.fee === 'object' ? history.formatValue(tx.fee) : tx.fee]
+      ].filter(([, item]) => item !== undefined && item !== null && item !== '');
+      return `<article class="card"><h3>Транзакция ${escapeHtml(value)}</h3>${profileRows(summaryRows)}</article>${renderOperationsTable(operations, chain, `Операции транзакции ${value}`)}${rawJsonDetails('Raw JSON транзакции', result)}`;
+    }
+    if (kind === 'block') {
+      const block = result.result || result.data || result;
+      const transactions = block.transactions || block.ops || block.operations || [];
+      return `<article class="card"><h3>Блок ${escapeHtml(value)}</h3>${renderExplorerFields(chain, block, { skip: ['transactions', 'ops', 'operations'] })}</article>${transactions.length ? renderOperationsTable(transactions, chain, `Операции блока ${value}`) : '<p class="muted">В блоке нет операций или API не вернул их списком.</p>'}${rawJsonDetails('Raw JSON блока', result)}`;
+    }
+    return `<article class="card"><h3>${chain.id === 'minter' || chain.id === 'decimal' ? 'Адрес' : 'Аккаунт'} ${escapeHtml(value)}</h3>${renderExplorerFields(chain, result.result || result.data || result)}</article>${rawJsonDetails('Raw JSON аккаунта', result)}`;
+  }
+
   function rawListSection(title, items) {
     if (!items || !items.length) return '';
     return `
@@ -266,7 +328,7 @@
   }
 
   function renderPrepared(prepared) {
-    return `<pre>${escapeHtml(JSON.stringify(broadcast.sanitizePrepared(prepared), null, 2))}</pre>`;
+    return rawJsonDetails('Технический payload для проверки', broadcast.sanitizePrepared(prepared));
   }
 
   function setOperationResult(form, message, state, prepared, result) {
@@ -275,8 +337,8 @@
     const warnings = prepared && prepared.meta && prepared.meta.warnings && prepared.meta.warnings.length
       ? `<ul class="warnings">${prepared.meta.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : '';
-    const summary = prepared ? `<p><strong>Summary:</strong> ${escapeHtml(operationSummary(prepared))}</p>` : '';
-    const resultBlock = result ? `<details><summary>Результат broadcast</summary><pre>${escapeHtml(JSON.stringify(broadcast.sanitizeResult(result), null, 2))}</pre></details>` : '';
+    const summary = prepared ? `<p><strong>Кратко перед отправкой:</strong> ${escapeHtml(operationSummary(prepared))}</p>` : '';
+    const resultBlock = result ? rawJsonDetails('Технический ответ broadcast', broadcast.sanitizeResult(result)) : '';
     resultEl.innerHTML = `<p>${escapeHtml(message)}</p>${summary}${warnings}${prepared ? renderPrepared(prepared) : ''}${resultBlock}`;
     setStatus(message, state || 'info');
   }
@@ -1010,11 +1072,11 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: explorer</h2>
         <form id="explorer-form" class="route-form">
-          <div class="field"><label for="explorer-kind">Тип</label><select id="explorer-kind" name="kind"><option value="account" ${state.kind === 'account' ? 'selected' : ''}>account</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>block</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>tx</option></select></div>
-          <div class="field field-grow"><label for="explorer-value">Значение</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div>
+          <div class="field"><label for="explorer-kind">Что открыть</label><select id="explorer-kind" name="kind"><option value="account" ${state.kind === 'account' ? 'selected' : ''}>Аккаунт</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>Блок</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>Транзакция</option></select></div>
+          <div class="field field-grow"><label for="explorer-value">Аккаунт, номер блока или tx id</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div>
           <button type="submit">Открыть</button>
         </form>
-        <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Введите account, номер блока или tx id.</div>
+        <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Выберите, что открыть, и введите аккаунт, номер блока или tx id.</div>
       </section>`;
 
     document.getElementById('explorer-form').addEventListener('submit', (event) => {
@@ -1037,7 +1099,7 @@
     } else {
       result = await profiles.fetchAccount(connection, String(state.value).trim().replace(/^@/, ''));
     }
-    document.getElementById('explorer-result').innerHTML = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
     setStatus(`${chain.title} explorer: ${state.kind} загружен.`, 'ok');
   }
 
@@ -1439,10 +1501,14 @@
   async function renderCosmosExplorer(chain, account) {
     const state = parseHash();
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} explorer</h2>
-      <form id="explorer-form" class="route-form"><div class="field"><label for="explorer-kind">Тип</label><select id="explorer-kind" name="kind"><option value="address">address</option><option value="tx">tx</option><option value="block">block</option></select></div><div class="field field-grow"><label for="explorer-value">Значение</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div><button type="submit">Открыть</button></form>
-      <div id="explorer-result" class="operation-result" role="status" aria-live="polite"></div></section>`;
+      <p>Откройте адрес, транзакцию или блок. Основные данные показаны первыми; raw JSON спрятан в details для проверки.</p>
+      <form id="explorer-form" class="route-form"><div class="field"><label for="explorer-kind">Что открыть</label><select id="explorer-kind" name="kind"><option value="address" ${state.kind === 'address' ? 'selected' : ''}>Адрес</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>Транзакция</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>Блок</option></select></div><div class="field field-grow"><label for="explorer-value">Адрес, tx hash или номер блока</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div><button type="submit">Открыть</button></form>
+      <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Выберите, что открыть, и введите адрес, tx hash или номер блока.</div></section>`;
     document.getElementById('explorer-form').addEventListener('submit', (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim() }); });
-    if (!state.kind || !state.value) return;
+    if (!state.kind || !state.value) {
+      setStatus(`${chain.title} explorer готов.`, 'info');
+      return;
+    }
     let url;
     if (chain.id === 'minter') {
       const base = chain.explorerBase;
@@ -1454,7 +1520,7 @@
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Explorer API HTTP ${response.status}`);
     const result = await response.json();
-    document.getElementById('explorer-result').innerHTML = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
     setStatus(`${chain.title} explorer loaded.`, 'ok');
   }
 

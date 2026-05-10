@@ -451,3 +451,21 @@ Additional implementation in this pass:
 - [x] No Cyber/EVM route added to v3.
 - [x] No real transaction performed in automated checks.
 - [x] No `[blocked]` items remain for this static pass.
+
+## 2026-05-10 UX/usability pass checklist
+
+Критерий: v3 должен быть не только технически рабочим, но и понятным человеку и screen reader. Старый сайт используем как UX-референс там, где он давал более читаемые страницы вместо raw JSON.
+
+Проверить и исправить в этом pass:
+
+- [x] Первые экраны routes: понятный `h2`, короткое объяснение назначения, действие по умолчанию и пустое состояние без «пустого div».
+- [x] Explorer account/block/tx: primary view — человекочитаемые поля, ссылки на account/block/tx, таблицы операций; raw JSON только во вторичном `<details>`.
+- [x] Transaction/detail screens: показывать блок, дату/тип/отправителя/комиссию где API отдаёт эти поля; операции/данные показывать таблицей или списком, а не первичным JSON dump.
+- [x] Broadcast forms: перед реальной отправкой visible summary должен быть выше технического payload; raw prepared/result JSON — только secondary details.
+- [x] Поля форм: заменить непонятные универсальные подписи вроде «Тип/Значение» там, где можно дать контекст (`Что открыть`, `Аккаунт / блок / tx`).
+- [x] Empty/error states: не оставлять пустую область результата; писать, что ввести или почему данных нет.
+- [x] Tables vs JSON dumps: таблицы с `caption` и `scope="col"` для списков; JSON — только для отладки/проверки.
+- [x] Повторяющиеся/сырые поля: не дублировать одно и то же в primary sections; технические поля переносить в details.
+- [x] Порядок секций: сначала summary/actionable info, затем списки/таблицы, затем raw/debug details.
+- [x] Проверки: добавить static smoke, который ловит возврат primary raw JSON в explorer/broadcast и наличие осмысленных labels/headings для core routes.
+
