@@ -36,9 +36,9 @@ const vizAccount = {
 
 const vizProfile = context.DposProfiles.normalizeAccount(vizChain, vizAccount);
 assert.strictEqual(vizProfile.displayName, 'Denis');
-assert(vizProfile.balances.some(([label]) => label === 'Energy'), 'VIZ energy is exposed');
+assert(vizProfile.balances.some(([label]) => label === 'Энергия'), 'VIZ energy is exposed');
 assert(vizProfile.economyRows.some(([label]) => label === 'custom_sequence'), 'VIZ custom sequence is exposed');
-assert(vizProfile.governanceRows.some(([label]) => label === 'Witness votes'), 'witness votes are exposed');
+assert(vizProfile.governanceRows.some(([label]) => label === 'Голоса за witness'), 'witness votes are exposed');
 assert(vizProfile.authorityRows.some(([label]) => label === 'Regular authority'), 'VIZ regular authority is exposed');
 assert(vizProfile.profileRows.some(([label]) => label === 'День рождения'), 'VIZ birthday metadata is exposed');
 assert(vizProfile.socials.some(([label]) => label === 'telegram'), 'VIZ profile.services socials are exposed');

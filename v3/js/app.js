@@ -260,7 +260,7 @@
               <th scope="col">Получатель / валидатор</th>
               <th scope="col">Сумма</th>
               <th scope="col">Memo / детали</th>
-              <th scope="col">Block</th>
+              <th scope="col">Блок</th>
               <th scope="col">Tx</th>
             </tr>
           </thead>
@@ -324,7 +324,7 @@
         ${rawListSection('NFT из API', profile.rawLists && profile.rawLists.nfts)}
         ${metadataHasData ? `
           <details>
-            <summary>JSON metadata</summary>
+            <summary>JSON-метаданные</summary>
             ${Object.keys(profile.metadataJson || {}).length ? `<h3>json_metadata</h3><pre>${escapeHtml(JSON.stringify(profile.metadataJson, null, 2))}</pre>` : ''}
             ${Object.keys(profile.postingMetadataJson || {}).length ? `<h3>posting_json_metadata</h3><pre>${escapeHtml(JSON.stringify(profile.postingMetadataJson, null, 2))}</pre>` : ''}
           </details>` : ''}
@@ -555,7 +555,7 @@
 
     bindWalletForms(chain);
     bindMaxButtons(appEl);
-    setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки Max и отправка в сеть.`, 'ok');
+    setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки «Максимум» и отправка в сеть.`, 'ok');
   }
 
   function walletCapabilities(chain) {
@@ -584,86 +584,86 @@
       <h3>Операции кошелька</h3>
       <form id="wallet-transfer-form" class="stacked-form">
         <fieldset>
-          <legend>Transfer (${escapeHtml(liquid)})</legend>
+          <legend>Перевод (${escapeHtml(liquid)})</legend>
           <div class="field"><label for="wallet-transfer-to">Получатель</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
-          <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Max ${escapeHtml(liquidMax)}</button>` : ''}</div>
+          <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
           <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить transfer</button>
-          <button type="submit" name="intent" value="send">Отправить transfer реально</button>
+          <button type="submit" name="intent" value="preview">Проверить перевод</button>
+          <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       <form id="wallet-vesting-form" class="stacked-form">
         <fieldset>
-          <legend>Transfer_to_vesting / power up</legend>
+          <legend>Перевод в соцкапитал / power up</legend>
           <div class="field"><label for="wallet-vesting-to">Получатель power up</label><input id="wallet-vesting-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
-          <div class="field"><label for="wallet-vesting-amount">Сумма с символом</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Max ${escapeHtml(liquidMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить transfer_to_vesting</button>
-          <button type="submit" name="intent" value="send">Отправить power up реально</button>
+          <div class="field"><label for="wallet-vesting-amount">Сумма с символом</label><input id="wallet-vesting-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-vesting-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Проверить перевод в соцкапитал</button>
+          <button type="submit" name="intent" value="send">Отправить power up в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       <form id="wallet-withdraw-vesting-form" class="stacked-form">
         <fieldset>
-          <legend>Withdraw vesting / power down</legend>
-          <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Max ${escapeHtml(vestingMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить withdraw_vesting</button>
-          <button type="submit" name="intent" value="send">Отправить power down реально</button>
+          <legend>Вывод vesting / power down</legend>
+          <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма vesting с символом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Проверить вывод vesting</button>
+          <button type="submit" name="intent" value="send">Отправить power down в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       <form id="wallet-delegation-form" class="stacked-form">
         <fieldset>
-          <legend>Delegation</legend>
+          <legend>Делегирование</legend>
           <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
-          <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Max ${escapeHtml(vestingMax)}</button>` : ''}</div>
-          <button type="submit" name="intent" value="preview">Проверить delegate_vesting_shares</button>
-          <button type="submit" name="intent" value="send">Отправить delegation реально</button>
+          <div class="field"><label for="wallet-delegation-vesting">Сумма vesting с символом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+          <button type="submit" name="intent" value="preview">Проверить делегирование</button>
+          <button type="submit" name="intent" value="send">Отправить делегирование в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       ${supportsClaim ? `<form id="wallet-claim-form" class="stacked-form">
         <fieldset>
-          <legend>Claim rewards</legend>
-          <p class="muted">Введите reward balances ровно в формате сети. Для Golos: liquid/vesting/to; для Hive/Steem: liquid, debt и vesting rewards.</p>
-          <div class="field"><label for="wallet-claim-liquid">Liquid reward</label><input id="wallet-claim-liquid" name="liquid" type="text" required placeholder="0.000 ${escapeHtml(liquid)}"></div>
-          <div class="field"><label for="wallet-claim-debt">Debt reward</label><input id="wallet-claim-debt" name="debt" type="text" placeholder="0.000 ${escapeHtml(debt)}"></div>
-          <div class="field"><label for="wallet-claim-vesting">Vesting reward</label><input id="wallet-claim-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}"></div>
-          ${chain.id === 'golos' ? '<div class="field"><label for="wallet-claim-to">Получатель claim</label><input id="wallet-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>' : ''}
-          <button type="submit" name="intent" value="preview">Проверить claim</button>
-          <button type="submit" name="intent" value="send">Claim rewards реально</button>
+          <legend>Получение наград</legend>
+          <p class="muted">Введите балансы наград ровно в формате сети. Для Golos: liquid/vesting/to; для Hive/Steem: liquid, debt и vesting-награды.</p>
+          <div class="field"><label for="wallet-claim-liquid">Ликвидная награда</label><input id="wallet-claim-liquid" name="liquid" type="text" required placeholder="0.000 ${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="wallet-claim-debt">Долговая награда</label><input id="wallet-claim-debt" name="debt" type="text" placeholder="0.000 ${escapeHtml(debt)}"></div>
+          <div class="field"><label for="wallet-claim-vesting">Награда в соцкапитале</label><input id="wallet-claim-vesting" name="vesting" type="text" required placeholder="0.000000 ${escapeHtml(vesting)}"></div>
+          ${chain.id === 'golos' ? '<div class="field"><label for="wallet-claim-to">Получатель награды</label><input id="wallet-claim-to" name="to" type="text" placeholder="пусто = текущий аккаунт"></div>' : ''}
+          <button type="submit" name="intent" value="preview">Проверить получение награды</button>
+          <button type="submit" name="intent" value="send">Получить награды в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>` : ''}
       ${supportsSavings ? `<form id="wallet-savings-to-form" class="stacked-form">
         <fieldset>
-          <legend>Transfer to savings</legend>
+          <legend>Перевод в savings</legend>
           <div class="field"><label for="wallet-savings-to">Получатель savings</label><input id="wallet-savings-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
           <div class="field"><label for="wallet-savings-amount">Сумма с символом</label><input id="wallet-savings-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
           <div class="field"><label for="wallet-savings-memo">Memo</label><input id="wallet-savings-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить transfer_to_savings</button>
-          <button type="submit" name="intent" value="send">Отправить в savings реально</button>
+          <button type="submit" name="intent" value="preview">Проверить перевод в savings</button>
+          <button type="submit" name="intent" value="send">Отправить в savings в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       <form id="wallet-savings-from-form" class="stacked-form">
         <fieldset>
-          <legend>Transfer from savings</legend>
-          <div class="field"><label for="wallet-savings-request-id">Request ID</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+          <legend>Вывод из savings</legend>
+          <div class="field"><label for="wallet-savings-request-id">ID запроса</label><input id="wallet-savings-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
           <div class="field"><label for="wallet-savings-from-to">Получатель</label><input id="wallet-savings-from-to" name="to" type="text" autocomplete="off" placeholder="пусто = текущий аккаунт"></div>
           <div class="field"><label for="wallet-savings-from-amount">Сумма с символом</label><input id="wallet-savings-from-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}"></div>
           <div class="field"><label for="wallet-savings-from-memo">Memo</label><input id="wallet-savings-from-memo" name="memo" type="text"></div>
-          <button type="submit" name="intent" value="preview">Проверить transfer_from_savings</button>
-          <button type="submit" name="intent" value="send">Вывести из savings реально</button>
+          <button type="submit" name="intent" value="preview">Проверить вывод из savings</button>
+          <button type="submit" name="intent" value="send">Вывести из savings в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>
       <form id="wallet-savings-cancel-form" class="stacked-form">
         <fieldset>
-          <legend>Cancel transfer from savings</legend>
-          <div class="field"><label for="wallet-savings-cancel-request-id">Request ID</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
-          <button type="submit" name="intent" value="preview">Проверить cancel_transfer_from_savings</button>
-          <button type="submit" name="intent" value="send">Отменить вывод реально</button>
+          <legend>Отмена вывода из savings</legend>
+          <div class="field"><label for="wallet-savings-cancel-request-id">ID запроса</label><input id="wallet-savings-cancel-request-id" name="requestId" type="number" min="0" step="1" required value="0"></div>
+          <button type="submit" name="intent" value="preview">Проверить отмену вывода из savings</button>
+          <button type="submit" name="intent" value="send">Отменить вывод в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>` : ''}`;
@@ -702,17 +702,17 @@
         return broadcast.prepare(chain, 'posting', 'claim', [
           account,
           String(form.get('to') || '').trim().replace(/^@/, '') || account,
-          normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Liquid reward'),
-          normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Vesting reward'),
+          normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Ликвидная награда'),
+          normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Награда в соцкапитале'),
           []
         ]);
       }
 
       return broadcast.prepare(chain, 'posting', 'claimRewardBalance', [
         account,
-        normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Liquid reward'),
-        normalizeAssetInput(chain, form.get('debt'), chain.debtSymbol, 'Debt reward'),
-        normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Vesting reward')
+        normalizeAssetInput(chain, form.get('liquid'), chain.liquidSymbol, 'Ликвидная награда'),
+        normalizeAssetInput(chain, form.get('debt'), chain.debtSymbol, 'Долговая награда'),
+        normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Награда в соцкапитале')
       ]);
     });
 
@@ -764,16 +764,16 @@
   function renderVizAward(chain) {
     appEl.innerHTML = `
       <section class="panel">
-        <h2>VIZ: award</h2>
+        <h2>VIZ: награда</h2>
         <p>Награждение VIZ: сначала проверка операции, затем отправка по подтверждению.</p>
         <form id="viz-award-form" class="stacked-form">
           <fieldset>
-            <legend>Award</legend>
+            <legend>Награда</legend>
             <div class="field"><label for="award-target">Кого наградить</label><input id="award-target" name="target" type="text" required autocomplete="off"></div>
             <div class="field"><label for="award-energy">Энергия, %</label><input id="award-energy" name="energy" type="number" min="0.01" max="100" step="0.01" required></div>
             <div class="field"><label for="award-memo">Memo</label><textarea id="award-memo" name="memo" rows="4"></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить award</button>
-            <button type="submit" name="intent" value="send">Отправить award реально</button>
+            <button type="submit" name="intent" value="preview">Проверить награду</button>
+            <button type="submit" name="intent" value="send">Отправить награду в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
@@ -786,7 +786,7 @@
       String(form.get('memo') || ''),
       []
     ]));
-    setStatus('VIZ award готов: проверка или отправка по подтверждению.', 'ok');
+    setStatus('VIZ-награда готова: проверка или отправка по подтверждению.', 'ok');
   }
 
   function renderGolosDonate(chain) {
@@ -796,12 +796,12 @@
         <p>Донат GOLOS: сначала проверка операции, затем отправка по подтверждению.</p>
         <form id="golos-donate-form" class="stacked-form">
           <fieldset>
-            <legend>Donate</legend>
+            <legend>Донат</legend>
             <div class="field"><label for="donate-to">Получатель</label><input id="donate-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="donate-amount">Сумма</label><input id="donate-amount" name="amount" type="text" required placeholder="1.000 GOLOS"></div>
             <div class="field"><label for="donate-memo">Комментарий</label><textarea id="donate-memo" name="memo" rows="4"></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить donate</button>
-            <button type="submit" name="intent" value="send">Отправить donate реально</button>
+            <button type="submit" name="intent" value="preview">Проверить донат</button>
+            <button type="submit" name="intent" value="send">Отправить донат в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
@@ -813,7 +813,7 @@
       { app: 'dpos-space', version: 3, comment: String(form.get('memo') || ''), target: { type: 'personal_donate' } },
       []
     ]));
-    setStatus('Golos donate готов: проверка или отправка по подтверждению.', 'ok');
+    setStatus('Golos-донат готов: проверка или отправка по подтверждению.', 'ok');
   }
 
   function renderEditor(chain) {
@@ -832,7 +832,7 @@
             <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space"></div>
             <div class="field"><label for="editor-body">Текст поста</label><textarea id="editor-body" name="body" rows="8" required>${escapeHtml(draft && draft.body ? draft.body : '')}</textarea></div>
             <button type="submit" name="intent" value="preview">Проверить публикацию</button>
-            <button type="submit" name="intent" value="send">Опубликовать реально</button>
+            <button type="submit" name="intent" value="send">Опубликовать в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
@@ -866,11 +866,11 @@
       ].map(([name, payload]) => [name, Object.fromEntries(Object.entries(payload).filter(([, value]) => typeof value !== 'undefined'))]);
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
     });
-    setStatus(`${chain.title} editor готов: проверка или отправка по подтверждению.`, 'ok');
+    setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
   }
 
   async function renderCalculator(chain, account) {
-    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора</h2><p>Читаю chain properties...</p></section>';
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора</h2><p>Читаю параметры сети...</p></section>';
     const connection = await getConnection(chain);
     const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
     const totalFund = parseFloat(props.total_vesting_fund_steem || props.total_vesting_fund_hive || props.total_vesting_fund || '0');
@@ -902,7 +902,7 @@
       const power = totalShares ? (value * totalFund / totalShares) : 0;
       setOperationResult(event.currentTarget, `${value} ${chain.vestingSymbol || 'VESTS'} ≈ ${power.toFixed(6)} ${chain.powerTitle || chain.liquidSymbol || 'POWER'}`, 'ok');
     });
-    setStatus(`${chain.title} calculator загружен для @${account}.`, 'ok');
+    setStatus(`${chain.title} калькулятор загружен для @${account}.`, 'ok');
   }
 
   function renderManage(chain) {
@@ -915,86 +915,86 @@
             <legend>Witness proxy</legend>
             <div class="field"><label for="manage-proxy-login">Прокси-аккаунт</label><input id="manage-proxy-login" name="proxy" type="text" autocomplete="off" placeholder="пусто = снять proxy"></div>
             <button type="submit" name="intent" value="preview">Проверить proxy</button>
-            <button type="submit" name="intent" value="send">Установить proxy реально</button>
+            <button type="submit" name="intent" value="send">Установить proxy в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         <form id="manage-witness-form" class="stacked-form">
           <fieldset>
-            <legend>Witness vote</legend>
+            <legend>Голосование за witness</legend>
             <div class="field"><label for="manage-witness-login">Witness</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
-            <label class="inline-choice"><input name="approve" type="checkbox" checked> approve vote</label>
-            <button type="submit" name="intent" value="preview">Проверить vote</button>
-            <button type="submit" name="intent" value="send">Отправить vote реально</button>
+            <label class="inline-choice"><input name="approve" type="checkbox" checked> подтвердить голос</label>
+            <button type="submit" name="intent" value="preview">Проверить голос</button>
+            <button type="submit" name="intent" value="send">Отправить голос в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         <form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
-            <legend>Witness settings / activation</legend>
+            <legend>Настройки / активация witness</legend>
             <p class="muted">Настройки witness: URL, публичный signing key и параметры. Пустые параметры будут обработаны библиотекой или нодой, если это поддерживается.</p>
-            <div class="field"><label for="manage-witness-url">Witness URL</label><input id="manage-witness-url" name="url" type="url" required></div>
-            <div class="field"><label for="manage-witness-key">Block signing public key</label><input id="manage-witness-key" name="signingKey" type="text" required></div>
-            <div class="field"><label for="manage-witness-fee">Fee</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
-            <div class="field"><label for="manage-witness-props">Props JSON (optional)</label><textarea id="manage-witness-props" name="props" rows="4" placeholder='{"account_creation_fee":"3.000 ${escapeHtml(chain.liquidSymbol)}"}'></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить witness update</button>
-            <button type="submit" name="intent" value="send">Обновить witness реально</button>
+            <div class="field"><label for="manage-witness-url">URL witness</label><input id="manage-witness-url" name="url" type="url" required></div>
+            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" required></div>
+            <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+            <div class="field"><label for="manage-witness-props">Props JSON (опционально)</label><textarea id="manage-witness-props" name="props" rows="4" placeholder='{"account_creation_fee":"3.000 ${escapeHtml(chain.liquidSymbol)}"}'></textarea></div>
+            <button type="submit" name="intent" value="preview">Проверить обновление witness</button>
+            <button type="submit" name="intent" value="send">Обновить witness в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         <form id="manage-authority-form" class="stacked-form">
           <fieldset>
-            <legend>Authority / access update</legend>
+            <legend>Обновление authority / доступа</legend>
             <p class="muted">Обновление прав доступа: введите готовые публичные ключи/account auths. Owner WIF используется только для подписи и не сохраняется.</p>
-            <div class="field"><label for="manage-authority-owner-wif">Owner private WIF текущего аккаунта</label><input id="manage-authority-owner-wif" name="ownerWif" type="password" autocomplete="off" required></div>
-            <div class="field"><label for="manage-authority-memo">Memo public key</label><input id="manage-authority-memo" name="memoKey" type="text" required></div>
-            <div class="field"><label for="manage-authority-owner-key">Owner public key</label><input id="manage-authority-owner-key" name="ownerKey" type="text" required></div>
-            <div class="field"><label for="manage-authority-active-key">Active public key</label><input id="manage-authority-active-key" name="activeKey" type="text" required></div>
-            <div class="field"><label for="manage-authority-posting-key">Posting/regular public key</label><input id="manage-authority-posting-key" name="postingKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-owner-wif">Приватный WIF owner текущего аккаунта</label><input id="manage-authority-owner-wif" name="ownerWif" type="password" autocomplete="off" required></div>
+            <div class="field"><label for="manage-authority-memo">Публичный memo-ключ</label><input id="manage-authority-memo" name="memoKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-owner-key">Публичный ключ owner</label><input id="manage-authority-owner-key" name="ownerKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-active-key">Публичный ключ active</label><input id="manage-authority-active-key" name="activeKey" type="text" required></div>
+            <div class="field"><label for="manage-authority-posting-key">Публичный ключ posting/regular</label><input id="manage-authority-posting-key" name="postingKey" type="text" required></div>
             <div class="field"><label for="manage-authority-json">json_metadata</label><textarea id="manage-authority-json" name="jsonMetadata" rows="3" placeholder="{}"></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить authority update</button>
-            <button type="submit" name="intent" value="send">Обновить authority реально</button>
+            <button type="submit" name="intent" value="preview">Проверить обновление authority</button>
+            <button type="submit" name="intent" value="send">Обновить authority в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         <form id="manage-profile-form" class="stacked-form">
           <fieldset>
-            <legend>Profile metadata</legend>
-            <div class="field"><label for="manage-profile-name">Display name</label><input id="manage-profile-name" name="name" type="text"></div>
-            <div class="field"><label for="manage-profile-about">About</label><textarea id="manage-profile-about" name="about" rows="3"></textarea></div>
-            <div class="field"><label for="manage-profile-location">Location</label><input id="manage-profile-location" name="location" type="text"></div>
-            <div class="field"><label for="manage-profile-website">Website</label><input id="manage-profile-website" name="website" type="url"></div>
-            <button type="submit" name="intent" value="preview">Проверить profile update</button>
-            <button type="submit" name="intent" value="send">Обновить profile реально</button>
+            <legend>Метаданные профиля</legend>
+            <div class="field"><label for="manage-profile-name">Отображаемое имя</label><input id="manage-profile-name" name="name" type="text"></div>
+            <div class="field"><label for="manage-profile-about">О себе</label><textarea id="manage-profile-about" name="about" rows="3"></textarea></div>
+            <div class="field"><label for="manage-profile-location">Локация</label><input id="manage-profile-location" name="location" type="text"></div>
+            <div class="field"><label for="manage-profile-website">Сайт</label><input id="manage-profile-website" name="website" type="url"></div>
+            <button type="submit" name="intent" value="preview">Проверить обновление профиля</button>
+            <button type="submit" name="intent" value="send">Обновить профиль в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         ${chain.id === 'viz' ? `<form id="viz-create-invite-form" class="stacked-form"><fieldset>
-          <legend>VIZ create invite</legend>
+          <legend>VIZ: создание invite</legend>
           <div class="field"><label for="viz-invite-balance">Баланс инвайта</label><input id="viz-invite-balance" name="balance" type="text" required placeholder="1.000 VIZ"></div>
-          <div class="field"><label for="viz-invite-public">Invite public key</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
-          <button type="submit" name="intent" value="preview">Проверить create_invite</button><button type="submit" name="intent" value="send">Создать invite реально</button>
+          <div class="field"><label for="viz-invite-public">Публичный ключ invite</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Проверить create_invite</button><button type="submit" name="intent" value="send">Создать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         <form id="viz-use-invite-form" class="stacked-form"><fieldset>
-          <legend>VIZ use/claim invite balance</legend>
-          <div class="field"><label for="viz-use-invite-secret">Invite secret</label><input id="viz-use-invite-secret" name="secret" type="text" required></div>
-          <div class="field"><label for="viz-use-invite-receiver">Receiver</label><input id="viz-use-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
+          <legend>VIZ: использование/получение invite balance</legend>
+          <div class="field"><label for="viz-use-invite-secret">Секрет invite</label><input id="viz-use-invite-secret" name="secret" type="text" required></div>
+          <div class="field"><label for="viz-use-invite-receiver">Получатель</label><input id="viz-use-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
           <label class="inline-choice"><input name="toVesting" type="checkbox" checked> use_invite_balance в SHARES; иначе claim_invite_balance в VIZ</label>
-          <button type="submit" name="intent" value="preview">Проверить invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite реально</button>
+          <button type="submit" name="intent" value="preview">Проверить invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         <form id="viz-committee-form" class="stacked-form"><fieldset>
-          <legend>VIZ committee worker request/vote</legend>
-          <div class="field"><label for="viz-committee-mode">Mode</label><select id="viz-committee-mode" name="mode"><option value="create">create request</option><option value="vote">vote request</option></select></div>
-          <div class="field"><label for="viz-committee-id">Request ID for vote</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
+          <legend>VIZ committee: заявка воркера / голос</legend>
+          <div class="field"><label for="viz-committee-mode">Режим</label><select id="viz-committee-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
+          <div class="field"><label for="viz-committee-id">ID запроса для голоса</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
           <div class="field"><label for="viz-committee-url">URL</label><input id="viz-committee-url" name="url" type="url"></div>
-          <div class="field"><label for="viz-committee-worker">Worker</label><input id="viz-committee-worker" name="worker" type="text"></div>
-          <div class="field"><label for="viz-committee-min">Reward min</label><input id="viz-committee-min" name="min" type="text" placeholder="1.000 VIZ"></div>
-          <div class="field"><label for="viz-committee-max">Reward max</label><input id="viz-committee-max" name="max" type="text" placeholder="2.000 VIZ"></div>
-          <div class="field"><label for="viz-committee-days">Duration days</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
-          <div class="field"><label for="viz-committee-vote">Vote percent</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
-          <button type="submit" name="intent" value="preview">Проверить committee</button><button type="submit" name="intent" value="send">Отправить committee реально</button>
+          <div class="field"><label for="viz-committee-worker">Воркер</label><input id="viz-committee-worker" name="worker" type="text"></div>
+          <div class="field"><label for="viz-committee-min">Минимальная награда</label><input id="viz-committee-min" name="min" type="text" placeholder="1.000 VIZ"></div>
+          <div class="field"><label for="viz-committee-max">Максимальная награда</label><input id="viz-committee-max" name="max" type="text" placeholder="2.000 VIZ"></div>
+          <div class="field"><label for="viz-committee-days">Длительность, дней</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
+          <div class="field"><label for="viz-committee-vote">Процент голоса</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
+          <button type="submit" name="intent" value="preview">Проверить committee</button><button type="submit" name="intent" value="send">Отправить committee в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>` : ''}
       </section>`;
@@ -1007,7 +1007,7 @@
       auth.getCurrentLogin(chain),
       normalizeAccountInput(chain, form.get('witness'), 'Witness'),
       form.get('approve') === 'on'
-    ], { title: 'Witness vote', to: normalizeAccountInput(chain, form.get('witness'), 'Witness') }));
+    ], { title: 'Голосование за witness', to: normalizeAccountInput(chain, form.get('witness'), 'Witness') }));
 
     bindOperationForm(chain, 'manage-witness-update-form', (form) => {
       const account = auth.getCurrentLogin(chain);
@@ -1017,10 +1017,10 @@
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
       if (rawProps) {
-        try { props = JSON.parse(rawProps); } catch (error) { throw new Error('Props JSON must be valid JSON.'); }
+        try { props = JSON.parse(rawProps); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
       }
-      if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key must be a public key, not a private WIF.');
-      return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: 'Witness update', amount: fee, warnings: ['Check witness props carefully: wrong chain parameters may make witness settings invalid.'] });
+      if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key должен быть публичным ключом, а не приватным WIF.');
+      return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: 'Witness update', amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'] });
     });
 
     bindOperationForm(chain, 'manage-authority-form', (form) => {
@@ -1032,9 +1032,9 @@
       const postingKey = String(form.get('postingKey') || '').trim();
       const jsonMetadata = String(form.get('jsonMetadata') || '{}').trim() || '{}';
       [memoKey, ownerKey, activeKey, postingKey].forEach((value) => {
-        if (!value || broadcast.isLikelyWif(value)) throw new Error('Authority fields accept public keys only; a WIF-looking private key was entered.');
+        if (!value || broadcast.isLikelyWif(value)) throw new Error('Поля authority принимают только публичные ключи; введён приватный ключ, похожий на WIF.');
       });
-      try { JSON.parse(jsonMetadata); } catch (error) { throw new Error('json_metadata must be valid JSON.'); }
+      try { JSON.parse(jsonMetadata); } catch (error) { throw new Error('json_metadata должен быть корректным JSON.'); }
       const owner = { weight_threshold: 1, account_auths: [], key_auths: [[ownerKey, 1]] };
       const active = { weight_threshold: 1, account_auths: [], key_auths: [[activeKey, 1]] };
       const posting = { weight_threshold: 1, account_auths: [], key_auths: [[postingKey, 1]] };
@@ -1051,7 +1051,7 @@
       } };
       const json = JSON.stringify(metadata);
       if (chain.id === 'hive' || chain.id === 'steem') {
-        return broadcast.prepare(chain, 'active', 'accountUpdate', [account, undefined, undefined, undefined, undefined, json], { title: 'Profile update', warnings: ['Updates json_metadata through account_update; posting_json_metadata is library/version-dependent and not used here.'] });
+        return broadcast.prepare(chain, 'active', 'accountUpdate', [account, undefined, undefined, undefined, undefined, json], { title: 'Profile update', warnings: ['Обновляет json_metadata через account_update; posting_json_metadata зависит от версии библиотеки и здесь не используется.'] });
       }
       return broadcast.prepare(chain, 'posting', 'accountMetadata', [account, json], { title: 'Profile metadata update' });
     });
@@ -1060,12 +1060,12 @@
       auth.getCurrentLogin(chain),
       normalizeAssetInput(chain, form.get('balance'), chain.liquidSymbol, 'Invite balance'),
       String(form.get('publicKey') || '').trim()
-    ], { title: 'VIZ create invite', amount: normalizeAssetInput(chain, form.get('balance'), chain.liquidSymbol, 'Invite balance'), warnings: ['Используйте только публичный invite key. Приватный invite secret храните отдельно.'] }));
+    ], { title: 'VIZ: создание invite', amount: normalizeAssetInput(chain, form.get('balance'), chain.liquidSymbol, 'Invite balance'), warnings: ['Используйте только публичный invite key. Приватный invite secret храните отдельно.'] }));
 
     bindOperationForm(chain, 'viz-use-invite-form', (form) => {
       const receiver = String(form.get('receiver') || '').trim().replace(/^@/, '') || auth.getCurrentLogin(chain);
       const method = form.get('toVesting') === 'on' ? 'useInviteBalance' : 'claimInviteBalance';
-      return broadcast.prepare(chain, 'active', method, [auth.getCurrentLogin(chain), normalizeAccountInput(chain, receiver, 'Receiver'), String(form.get('secret') || '').trim()], { title: method, to: receiver, warnings: ['Invite secret нужен для подписи операции. Не публикуйте данные проверки операции.'] });
+      return broadcast.prepare(chain, 'active', method, [auth.getCurrentLogin(chain), normalizeAccountInput(chain, receiver, 'Получатель'), String(form.get('secret') || '').trim()], { title: method, to: receiver, warnings: ['Секрет invite нужен для подписи операции. Не публикуйте данные проверки операции.'] });
     });
 
     bindOperationForm(chain, 'viz-committee-form', (form) => {
@@ -1075,20 +1075,20 @@
         const vote = Math.round(Number(form.get('vote') || 0) * 100);
         return broadcast.prepare(chain, 'regular', 'committeeVoteRequest', [auth.getCurrentLogin(chain), requestId, vote], { title: 'VIZ committee vote', requestId });
       }
-      const worker = normalizeAccountInput(chain, form.get('worker'), 'Worker');
-      const min = normalizeAssetInput(chain, form.get('min'), chain.liquidSymbol, 'Reward min');
-      const max = normalizeAssetInput(chain, form.get('max'), chain.liquidSymbol, 'Reward max');
+      const worker = normalizeAccountInput(chain, form.get('worker'), 'Воркер');
+      const min = normalizeAssetInput(chain, form.get('min'), chain.liquidSymbol, 'Минимальная награда');
+      const max = normalizeAssetInput(chain, form.get('max'), chain.liquidSymbol, 'Максимальная награда');
       const duration = Number(form.get('days') || 1) * 86400;
-      return broadcast.prepare(chain, 'regular', 'committeeWorkerCreateRequest', [auth.getCurrentLogin(chain), String(form.get('url') || '').trim(), worker, min, max, duration], { title: 'VIZ committee create request', to: worker, amount: `${min}..${max}` });
+      return broadcast.prepare(chain, 'regular', 'committeeWorkerCreateRequest', [auth.getCurrentLogin(chain), String(form.get('url') || '').trim(), worker, min, max, duration], { title: 'VIZ committee создать заявку', to: worker, amount: `${min}..${max}` });
     });
-    setStatus(`${chain.title} управление готово: proxy/witness/settings/authority/profile${chain.id === 'viz' ? '/invite/committee' : ''}.`, 'ok');
+    setStatus(`${chain.title} управление готово: proxy/witness/настройки/authority/профиль${chain.id === 'viz' ? '/invite/committee' : ''}.`, 'ok');
   }
 
   async function renderExplorer(chain, account) {
     const state = parseHash();
     appEl.innerHTML = `
       <section class="panel">
-        <h2>${escapeHtml(chain.title)}: explorer</h2>
+        <h2>${escapeHtml(chain.title)}: проводник</h2>
         <form id="explorer-form" class="route-form">
           <div class="field"><label for="explorer-kind">Что открыть</label><select id="explorer-kind" name="kind"><option value="account" ${state.kind === 'account' ? 'selected' : ''}>Аккаунт</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>Блок</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>Транзакция</option></select></div>
           <div class="field field-grow"><label for="explorer-value">Аккаунт, номер блока или tx id</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div>
@@ -1104,7 +1104,7 @@
     });
 
     if (!state.kind || !state.value) {
-      setStatus(`${chain.title} explorer готов.`, 'info');
+      setStatus(`${chain.title} проводник готов.`, 'info');
       return;
     }
 
@@ -1118,7 +1118,7 @@
       result = await profiles.fetchAccount(connection, String(state.value).trim().replace(/^@/, ''));
     }
     document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
-    setStatus(`${chain.title} explorer: ${state.kind} загружен.`, 'ok');
+    setStatus(`${chain.title} проводник: ${state.kind} загружен.`, 'ok');
   }
 
 
@@ -1168,9 +1168,9 @@
       const body = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s{3,}/g, '\n\n').trim();
       const draft = { title, body, sourceUrl: url, importedAt: new Date().toISOString() };
       localStorage.setItem(draftKey, JSON.stringify(draft));
-      setOperationResult(form, `Черновик сохранён. Откройте редактор ${chain.title}, чтобы проверить заголовок и текст.`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'importDraft', params: [{ title, body: body.slice(0, 1000), sourceUrl: url }], meta: { title: 'Import draft', warnings: url ? ['Если URL не загрузился из-за ограничений сайта, вставьте текст вручную.'] : [] } });
+      setOperationResult(form, `Черновик сохранён. Откройте редактор ${chain.title}, чтобы проверить заголовок и текст.`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'importDraft', params: [{ title, body: body.slice(0, 1000), sourceUrl: url }], meta: { title: 'Импорт черновика', warnings: url ? ['Если URL не загрузился из-за ограничений сайта, вставьте текст вручную.'] : [] } });
     });
-    setStatus(`${chain.title} import готов: URL/text → черновик.`, 'ok');
+    setStatus(`${chain.title} импорт готов: URL/text → черновик.`, 'ok');
   }
 
   function renderInstantView(chain) {
@@ -1194,7 +1194,7 @@
       const text = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
       setOperationResult(form, 'Instant View готов.', 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'instantView', params: [{ text }], meta: { title: 'Instant View', warnings: [] } });
     });
-    setStatus(`${chain.title} instant-view готов.`, 'ok');
+    setStatus(`${chain.title} Instant View готов.`, 'ok');
   }
 
   function renderSwap(chain) {
@@ -1204,38 +1204,38 @@
     }
     appEl.innerHTML = `
       <section class="panel">
-        <h2>${escapeHtml(chain.title)}: market/swap</h2>
+        <h2>${escapeHtml(chain.title)}: маркет / обмен</h2>
         <p>Создание и отмена рыночных ордеров с подтверждением операции.</p>
         <form id="swap-create-form" class="stacked-form"><fieldset>
-          <legend>Create limit order</legend>
-          <div class="field"><label for="swap-order-id">Order ID</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
-          <div class="field"><label for="swap-sell">Sell amount</label><input id="swap-sell" name="sell" type="text" required placeholder="1.000 ${escapeHtml(chain.liquidSymbol)}"></div>
-          <div class="field"><label for="swap-buy">Min receive</label><input id="swap-buy" name="buy" type="text" required placeholder="1.000 ${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
+          <legend>Создание лимитного ордера</legend>
+          <div class="field"><label for="swap-order-id">ID ордера</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
+          <div class="field"><label for="swap-sell">Сумма продажи</label><input id="swap-sell" name="sell" type="text" required placeholder="1.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+          <div class="field"><label for="swap-buy">Минимум к получению</label><input id="swap-buy" name="buy" type="text" required placeholder="1.000 ${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
           <label class="inline-choice"><input name="fillOrKill" type="checkbox"> fill or kill</label>
-          <div class="field"><label for="swap-expiration">Expiration UTC</label><input id="swap-expiration" name="expiration" type="datetime-local" required></div>
-          <button type="submit" name="intent" value="preview">Проверить order</button><button type="submit" name="intent" value="send">Создать order реально</button>
+          <div class="field"><label for="swap-expiration">Срок действия UTC</label><input id="swap-expiration" name="expiration" type="datetime-local" required></div>
+          <button type="submit" name="intent" value="preview">Проверить ордер</button><button type="submit" name="intent" value="send">Создать ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         <form id="swap-cancel-form" class="stacked-form"><fieldset>
-          <legend>Cancel order</legend>
-          <div class="field"><label for="swap-cancel-id">Order ID</label><input id="swap-cancel-id" name="orderId" type="number" min="0" step="1" required></div>
-          <button type="submit" name="intent" value="preview">Проверить cancel</button><button type="submit" name="intent" value="send">Отменить order реально</button>
+          <legend>Отмена ордера</legend>
+          <div class="field"><label for="swap-cancel-id">ID ордера</label><input id="swap-cancel-id" name="orderId" type="number" min="0" step="1" required></div>
+          <button type="submit" name="intent" value="preview">Проверить отмену</button><button type="submit" name="intent" value="send">Отменить ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
       </section>`;
     bindOperationForm(chain, 'swap-create-form', (form) => {
       const owner = auth.getCurrentLogin(chain);
       const orderId = broadcast.validateRequestId(form.get('orderId'));
-      const sell = normalizeAssetInput(chain, form.get('sell'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Sell amount');
-      const buy = normalizeAssetInput(chain, form.get('buy'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Min receive');
+      const sell = normalizeAssetInput(chain, form.get('sell'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма продажи');
+      const buy = normalizeAssetInput(chain, form.get('buy'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Минимум к получению');
       const expiration = `${String(form.get('expiration') || '').replace('T', ' ')}:00`;
-      return broadcast.prepare(chain, 'active', 'createLimitOrder', [owner, orderId, sell, buy, form.get('fillOrKill') === 'on', expiration], { title: 'Create limit order', amount: `${sell} → ${buy}`, requestId: orderId });
+      return broadcast.prepare(chain, 'active', 'createLimitOrder', [owner, orderId, sell, buy, form.get('fillOrKill') === 'on', expiration], { title: 'Создание лимитного ордера', amount: `${sell} → ${buy}`, requestId: orderId });
     });
     bindOperationForm(chain, 'swap-cancel-form', (form) => {
       const orderId = broadcast.validateRequestId(form.get('orderId'));
       return broadcast.prepare(chain, 'active', 'cancelOrder', [auth.getCurrentLogin(chain), orderId], { title: 'Cancel limit order', requestId: orderId });
     });
-    setStatus(`${chain.title} swap/market готов: create/cancel order.`, 'ok');
+    setStatus(`${chain.title} swap/market готов: создание/отмена ордера.`, 'ok');
   }
 
   function renderRegister(chain) {
@@ -1247,31 +1247,31 @@
         ${isGolos || isViz ? `<p>Регистрация по invite: WIF подписанта используется только в памяти для отправки и не сохраняется. Для ${escapeHtml(chain.title)} нужен приватный WIF service/invite аккаунта с правом регистрации.</p>` : '<p>Для Hive/Steem укажите fee/delegation и публичные ключи нового аккаунта. Операция отправляется только после подтверждения текущим active key.</p>'}
         ${isGolos ? '<p class="notice">Для Golos также доступно создание аккаунта с делегированием. Вводится только публичный ключ нового аккаунта; приватные ключи не генерируются и не показываются.</p>' : ''}
         <form id="register-form" class="stacked-form"><fieldset>
-          <legend>Create account</legend>
-          <div class="field"><label for="register-name">New account</label><input id="register-name" name="name" type="text" required></div>
-          ${isGolos || isViz ? '<div class="field"><label for="register-invite">Invite secret/code</label><input id="register-invite" name="invite" type="text" required></div>' : `<div class="field"><label for="register-fee">Fee</label><input id="register-fee" name="fee" type="text" required placeholder="3.000 ${escapeHtml(chain.liquidSymbol)}"></div>`}
-          ${isGolos ? '<div class="field"><label for="register-signer">Service signer account</label><input id="register-signer" name="signer" type="text" required value="dpos.space-reg"></div>' : ''}
-          ${isViz ? '<div class="field"><label for="register-signer">Invite signer account</label><input id="register-signer" name="signer" type="text" required value="invite"></div>' : ''}
-          ${isGolos || isViz ? '<div class="field"><label for="register-signer-wif">Private WIF for service/invite signer</label><input id="register-signer-wif" name="signerWif" type="password" autocomplete="off" required><small>Используется только в памяти для подписи. Не вставляйте сюда ключ нового аккаунта.</small></div>' : ''}
-          <div class="field"><label for="register-public-key">Public key for new account authorities</label><input id="register-public-key" name="publicKey" type="text" required></div>
-          <button type="submit" name="intent" value="preview">Проверить registration</button>
-          <button type="submit" name="intent" value="send">Создать аккаунт реально</button>
+          <legend>Создание аккаунта</legend>
+          <div class="field"><label for="register-name">Новый аккаунт</label><input id="register-name" name="name" type="text" required></div>
+          ${isGolos || isViz ? '<div class="field"><label for="register-invite">Секрет/код invite</label><input id="register-invite" name="invite" type="text" required></div>' : `<div class="field"><label for="register-fee">Комиссия</label><input id="register-fee" name="fee" type="text" required placeholder="3.000 ${escapeHtml(chain.liquidSymbol)}"></div>`}
+          ${isGolos ? '<div class="field"><label for="register-signer">Аккаунт service-подписанта</label><input id="register-signer" name="signer" type="text" required value="dpos.space-reg"></div>' : ''}
+          ${isViz ? '<div class="field"><label for="register-signer">Аккаунт invite-подписанта</label><input id="register-signer" name="signer" type="text" required value="invite"></div>' : ''}
+          ${isGolos || isViz ? '<div class="field"><label for="register-signer-wif">Приватный WIF service/invite подписанта</label><input id="register-signer-wif" name="signerWif" type="password" autocomplete="off" required><small>Используется только в памяти для подписи. Не вставляйте сюда ключ нового аккаунта.</small></div>' : ''}
+          <div class="field"><label for="register-public-key">Публичный ключ для authority нового аккаунта</label><input id="register-public-key" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Проверить регистрацию</button>
+          <button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         ${isGolos ? `<form id="golos-register-delegation-form" class="stacked-form"><fieldset>
-          <legend>Golos account_create_with_delegation</legend>
-          <div class="field"><label for="golos-register-delegation-name">New account</label><input id="golos-register-delegation-name" name="name" type="text" required></div>
-          <div class="field"><label for="golos-register-delegation-fee">Fee</label><input id="golos-register-delegation-fee" name="fee" type="text" required value="1.000 GOLOS"></div>
-          <div class="field"><label for="golos-register-delegation-vesting">Delegation</label><input id="golos-register-delegation-vesting" name="delegation" type="text" required placeholder="0.000000 GESTS"></div>
-          <div class="field"><label for="golos-register-delegation-public-key">Public key for new account authorities</label><input id="golos-register-delegation-public-key" name="publicKey" type="text" required></div>
-          <button type="submit" name="intent" value="preview">Проверить create with delegation</button>
-          <button type="submit" name="intent" value="send">Создать с делегированием реально</button>
+          <legend>Golos: создание аккаунта с делегированием</legend>
+          <div class="field"><label for="golos-register-delegation-name">Новый аккаунт</label><input id="golos-register-delegation-name" name="name" type="text" required></div>
+          <div class="field"><label for="golos-register-delegation-fee">Комиссия</label><input id="golos-register-delegation-fee" name="fee" type="text" required value="1.000 GOLOS"></div>
+          <div class="field"><label for="golos-register-delegation-vesting">Делегирование</label><input id="golos-register-delegation-vesting" name="delegation" type="text" required placeholder="0.000000 GESTS"></div>
+          <div class="field"><label for="golos-register-delegation-public-key">Публичный ключ для authority нового аккаунта</label><input id="golos-register-delegation-public-key" name="publicKey" type="text" required></div>
+          <button type="submit" name="intent" value="preview">Проверить создание с делегированием</button>
+          <button type="submit" name="intent" value="send">Создать с делегированием в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>` : ''}
       </section>`;
 
     bindOperationForm(chain, 'register-form', (form) => {
-      const name = normalizeAccountInput(chain, form.get('name'), 'New account');
+      const name = normalizeAccountInput(chain, form.get('name'), 'Новый аккаунт');
       const key = String(form.get('publicKey') || '').trim();
       const publicKeyWarning = 'Use a public key for the new account only; never paste the new account private WIF into public-key fields.';
 
@@ -1279,8 +1279,8 @@
         const signer = String(form.get('signer') || '').trim();
         const signerWif = String(form.get('signerWif') || '').trim();
         const inviteSecret = String(form.get('invite') || '').trim();
-        if (!inviteSecret) throw new Error('Invite secret/code is required.');
-        if (broadcast.isLikelyWif(key)) throw new Error('Public key field contains a WIF-looking private key. Paste the public key instead.');
+        if (!inviteSecret) throw new Error('Нужен секрет/код invite.');
+        if (broadcast.isLikelyWif(key)) throw new Error('Поле публичного ключа содержит приватный ключ, похожий на WIF. Вставьте публичный ключ.');
 
         if (isViz) {
           return broadcast.prepareWithPrivateKey(chain, signer, 'active', signerWif, 'inviteRegistration', [signer, name, inviteSecret, key], {
@@ -1303,17 +1303,17 @@
       const creator = auth.getCurrentLogin(chain);
       const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Account creation fee');
-      return broadcast.prepare(chain, 'active', 'createAccount', [fee, creator, name, authObject, authObject, authObject, key, ''], { title: 'Create account', to: name, amount: fee, warnings: [publicKeyWarning] });
+      return broadcast.prepare(chain, 'active', 'createAccount', [fee, creator, name, authObject, authObject, authObject, key, ''], { title: 'Создание аккаунта', to: name, amount: fee, warnings: [publicKeyWarning] });
     });
 
     bindOperationForm(chain, 'golos-register-delegation-form', (form) => {
-      const name = normalizeAccountInput(chain, form.get('name'), 'New account');
+      const name = normalizeAccountInput(chain, form.get('name'), 'Новый аккаунт');
       const key = String(form.get('publicKey') || '').trim();
-      if (broadcast.isLikelyWif(key)) throw new Error('Public key field contains a WIF-looking private key. Paste the public key instead.');
+      if (broadcast.isLikelyWif(key)) throw new Error('Поле публичного ключа содержит приватный ключ, похожий на WIF. Вставьте публичный ключ.');
       const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[key, 1]] };
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Account creation fee');
       const delegation = normalizeAssetInput(chain, form.get('delegation'), chain.vestingSymbol, 'Account delegation');
-      return broadcast.prepare(chain, 'active', 'accountCreateWithDelegation', [fee, delegation, auth.getCurrentLogin(chain), name, authObject, authObject, authObject, key, '', []], { title: 'Golos account_create_with_delegation', to: name, amount: `${fee}; ${delegation}`, warnings: ['Для нового аккаунта вводится только публичный ключ; приватные ключи не генерируются и не показываются.'] });
+      return broadcast.prepare(chain, 'active', 'accountCreateWithDelegation', [fee, delegation, auth.getCurrentLogin(chain), name, authObject, authObject, authObject, key, '', []], { title: 'Golos: создание аккаунта с делегированием', to: name, amount: `${fee}; ${delegation}`, warnings: ['Для нового аккаунта вводится только публичный ключ; приватные ключи не генерируются и не показываются.'] });
     });
 
     setStatus(`${chain.title}: регистрация готова. Доступны проверка и отправка по подтверждению.`, 'ok');
@@ -1324,7 +1324,7 @@
       registration: 'Регистрация VIZ пока требует отдельной безопасной формы и проверки ключей.',
       calculator: `${chain.title}: калькулятор пока недоступен для этой сети.`,
       manage: `${chain.title}: управление аккаунтом пока недоступно для этой сети.`,
-      explorer: `${chain.title}: просмотр блоков и транзакций пока недоступен для этой сети.`,
+      проводник: `${chain.title}: просмотр блоков и транзакций пока недоступен для этой сети.`,
       import: 'Импорт статьи пока недоступен. Вставьте текст вручную в редактор.',
       escrow: 'Escrow пока недоступен.',
       'instant-view': 'Instant View пока недоступен.',
@@ -1340,7 +1340,7 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: ${escapeHtml(app.title)}</h2>
-        <p>${escapeHtml(details[app.id] || app.description || 'Раздел требует отдельного подтверждённого flow.')}</p>
+        <p>${escapeHtml(details[app.id] || app.description || 'Раздел требует отдельного подтверждённого сценария.')}</p>
         <p class="notice">Раздел не отправляет операции без отдельной формы и подтверждения.</p>
       </section>`;
     setStatus(`${chain.title}: ${app.title} пока недоступен.`, 'info');
@@ -1367,106 +1367,106 @@
         <p><strong>Доступ к аккаунту:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
         <p class="notice">Seed используется только из сохранённого аккаунта браузера. В проверке операции и ответе сети seed/private key не показывается.</p>
         <form id="cosmos-send-form" class="stacked-form"><fieldset>
-          <legend>Transfer</legend>
-          <div class="field"><label for="cosmos-send-to">Получатель address</label><input id="cosmos-send-to" name="to" type="text" required></div>
-          <div class="field"><label for="cosmos-send-amount">Amount</label><input id="cosmos-send-amount" name="amount" type="text" required placeholder="1.000"></div>
-          <div class="field"><label for="cosmos-send-coin">Coin</label><input id="cosmos-send-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
-          ${isMinter ? '<div class="field"><label for="cosmos-send-memo">Memo</label><input id="cosmos-send-memo" name="memo" type="text"></div><div class="field"><label for="cosmos-send-gas">Gas coin</label><input id="cosmos-send-gas" name="gasCoin" type="text" value="BIP"></div>' : ''}
-          <button type="submit" name="intent" value="preview">Проверить transfer</button><button type="submit" name="intent" value="send">Отправить transfer реально</button>
+          <legend>Перевод</legend>
+          <div class="field"><label for="cosmos-send-to">Адрес получателя</label><input id="cosmos-send-to" name="to" type="text" required></div>
+          <div class="field"><label for="cosmos-send-amount">Сумма</label><input id="cosmos-send-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="cosmos-send-coin">Монета</label><input id="cosmos-send-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
+          ${isMinter ? '<div class="field"><label for="cosmos-send-memo">Memo</label><input id="cosmos-send-memo" name="memo" type="text"></div><div class="field"><label for="cosmos-send-gas">Монета газа</label><input id="cosmos-send-gas" name="gasCoin" type="text" value="BIP"></div>' : ''}
+          <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         <form id="cosmos-delegate-form" class="stacked-form"><fieldset>
-          <legend>Delegate / unbond</legend>
-          <div class="field"><label for="cosmos-validator">Validator ${isMinter ? 'public key MP...' : 'operator id/address'}</label><input id="cosmos-validator" name="validator" type="text" required></div>
-          <div class="field"><label for="cosmos-delegate-amount">Amount</label><input id="cosmos-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
-          <div class="field"><label for="cosmos-delegate-coin">Coin</label><input id="cosmos-delegate-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
-          <div class="field"><label for="cosmos-delegate-mode">Operation</label><select id="cosmos-delegate-mode" name="mode"><option value="delegate">delegate</option><option value="unbond">unbond</option></select></div>
-          <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake реально</button>
+          <legend>Делегирование / анбонд</legend>
+          <div class="field"><label for="cosmos-validator">Валидатор ${isMinter ? 'публичный ключ MP...' : 'operator id/address'}</label><input id="cosmos-validator" name="validator" type="text" required></div>
+          <div class="field"><label for="cosmos-delegate-amount">Сумма</label><input id="cosmos-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="cosmos-delegate-coin">Монета</label><input id="cosmos-delegate-coin" name="coin" type="text" required value="${escapeHtml(liquid)}"></div>
+          <div class="field"><label for="cosmos-delegate-mode">Операция</label><select id="cosmos-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Анбонд</option></select></div>
+          <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         ${isMinter ? minterSwapForms() : decimalNftForms()}
       </section>`;
     bindCosmosForms(chain);
-    setStatus(`${chain.title} wallet/service forms готовы: transfer/delegate/unbond${isMinter ? '/swap/coin' : '/NFT/token'}.`, 'ok');
+    setStatus(`${chain.title} формы кошелька/сервисов готовы: transfer/delegate/unbond${isMinter ? '/swap/coin' : '/NFT/token'}.`, 'ok');
   }
 
   function minterSwapForms() {
     return `<form id="minter-swap-form" class="stacked-form"><fieldset>
-      <legend>Minter swap / sell</legend>
-      <div class="field"><label for="minter-swap-from">Coin to sell</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
-      <div class="field"><label for="minter-swap-to">Coin to buy</label><input id="minter-swap-to" name="to" type="text" required></div>
-      <div class="field"><label for="minter-swap-amount">Amount to sell</label><input id="minter-swap-amount" name="amount" type="text" required></div>
-      <div class="field"><label for="minter-swap-min">Minimum buy amount</label><input id="minter-swap-min" name="min" type="text" value="0"></div>
-      <div class="field"><label for="minter-swap-route">Swap pool route (optional comma-separated)</label><input id="minter-swap-route" name="route" type="text"></div>
-      <button type="submit" name="intent" value="preview">Проверить swap</button><button type="submit" name="intent" value="send">Отправить swap реально</button>
+      <legend>Minter: обмен / продажа</legend>
+      <div class="field"><label for="minter-swap-from">Монета к продаже</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-swap-to">Монета к покупке</label><input id="minter-swap-to" name="to" type="text" required></div>
+      <div class="field"><label for="minter-swap-amount">Сумма к продаже</label><input id="minter-swap-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-swap-min">Минимальная сумма покупки</label><input id="minter-swap-min" name="min" type="text" value="0"></div>
+      <div class="field"><label for="minter-swap-route">Маршрут swap pool (опционально, через запятую)</label><input id="minter-swap-route" name="route" type="text"></div>
+      <button type="submit" name="intent" value="preview">Проверить swap</button><button type="submit" name="intent" value="send">Отправить swap в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
     <form id="minter-liquidity-form" class="stacked-form"><fieldset>
-      <legend>Minter liquidity / pool</legend>
-      <div class="field"><label for="minter-liquidity-mode">Operation</label><select id="minter-liquidity-mode" name="mode"><option value="ADD_LIQUIDITY">add liquidity</option><option value="REMOVE_LIQUIDITY">remove liquidity</option><option value="CREATE_SWAP_POOL">create swap pool</option></select></div>
-      <div class="field"><label for="minter-liquidity-coin0">Coin 0</label><input id="minter-liquidity-coin0" name="coin0" type="text" required value="BIP"></div>
-      <div class="field"><label for="minter-liquidity-coin1">Coin 1</label><input id="minter-liquidity-coin1" name="coin1" type="text" required></div>
-      <div class="field"><label for="minter-liquidity-volume0">Volume 0 / liquidity</label><input id="minter-liquidity-volume0" name="volume0" type="text" required></div>
-      <div class="field"><label for="minter-liquidity-volume1">Maximum/initial volume 1</label><input id="minter-liquidity-volume1" name="volume1" type="text" value="0"></div>
-      <div class="field"><label for="minter-liquidity-gas">Gas coin</label><input id="minter-liquidity-gas" name="gasCoin" type="text" value="BIP"></div>
-      <button type="submit" name="intent" value="preview">Проверить liquidity</button><button type="submit" name="intent" value="send">Отправить liquidity реально</button>
+      <legend>Minter: ликвидность / pool</legend>
+      <div class="field"><label for="minter-liquidity-mode">Операция</label><select id="minter-liquidity-mode" name="mode"><option value="ADD_LIQUIDITY">Добавить ликвидность</option><option value="REMOVE_LIQUIDITY">Убрать ликвидность</option><option value="CREATE_SWAP_POOL">Создать swap pool</option></select></div>
+      <div class="field"><label for="minter-liquidity-coin0">Монета 0</label><input id="minter-liquidity-coin0" name="coin0" type="text" required value="BIP"></div>
+      <div class="field"><label for="minter-liquidity-coin1">Монета 1</label><input id="minter-liquidity-coin1" name="coin1" type="text" required></div>
+      <div class="field"><label for="minter-liquidity-volume0">Объём 0 / ликвидность</label><input id="minter-liquidity-volume0" name="volume0" type="text" required></div>
+      <div class="field"><label for="minter-liquidity-volume1">Максимальный/начальный объём 1</label><input id="minter-liquidity-volume1" name="volume1" type="text" value="0"></div>
+      <div class="field"><label for="minter-liquidity-gas">Монета газа</label><input id="minter-liquidity-gas" name="gasCoin" type="text" value="BIP"></div>
+      <button type="submit" name="intent" value="preview">Проверить ликвидность</button><button type="submit" name="intent" value="send">Отправить liquidity в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
     <form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
-      <legend>Minter Hub withdraw</legend>
+      <legend>Minter Hub: вывод</legend>
       <p class="notice">Вывод через Minter Hub отправляет токены на адрес Hub с memo. Проверьте сеть назначения, адрес, сумму и комиссию перед отправкой.</p>
-      <div class="field"><label for="minter-hub-chain">Destination chain id</label><input id="minter-hub-chain" name="chainId" type="text" required placeholder="ethereum or bsc"></div>
-      <div class="field"><label for="minter-hub-to">Destination address on external chain</label><input id="minter-hub-to" name="to" type="text" required></div>
-      <div class="field"><label for="minter-hub-coin">Coin/token</label><input id="minter-hub-coin" name="coin" type="text" required></div>
-      <div class="field"><label for="minter-hub-amount">Amount including hub fee</label><input id="minter-hub-amount" name="amount" type="text" required></div>
-      <div class="field"><label for="minter-hub-fee">Hub fee in token units</label><input id="minter-hub-fee" name="hubFee" type="text" value="0"></div>
-      <div class="field"><label for="minter-hub-gas">Gas coin</label><input id="minter-hub-gas" name="gasCoin" type="text" value="BIP"></div>
-      <button type="submit" name="intent" value="preview">Проверить hub withdraw</button><button type="submit" name="intent" value="send">Отправить hub withdraw реально</button>
+      <div class="field"><label for="minter-hub-chain">ID сети назначения</label><input id="minter-hub-chain" name="chainId" type="text" required placeholder="ethereum или bsc"></div>
+      <div class="field"><label for="minter-hub-to">Адрес назначения во внешней сети</label><input id="minter-hub-to" name="to" type="text" required></div>
+      <div class="field"><label for="minter-hub-coin">Монета/токен</label><input id="minter-hub-coin" name="coin" type="text" required></div>
+      <div class="field"><label for="minter-hub-amount">Сумма с учётом комиссии hub</label><input id="minter-hub-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-hub-fee">Комиссия hub в единицах токена</label><input id="minter-hub-fee" name="hubFee" type="text" value="0"></div>
+      <div class="field"><label for="minter-hub-gas">Монета газа</label><input id="minter-hub-gas" name="gasCoin" type="text" value="BIP"></div>
+      <button type="submit" name="intent" value="preview">Проверить вывод через Hub</button><button type="submit" name="intent" value="send">Отправить вывод через Hub в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
     <form id="minter-coin-form" class="stacked-form"><fieldset>
-      <legend>Minter coin/token create/recreate/mint/burn/edit owner</legend>
-      <div class="field"><label for="minter-coin-mode">Operation</label><select id="minter-coin-mode" name="mode"><option value="CREATE_COIN">create coin</option><option value="RECREATE_COIN">recreate coin</option><option value="CREATE_TOKEN">create token</option><option value="RECREATE_TOKEN">recreate token</option><option value="MINT_TOKEN">mint token</option><option value="BURN_TOKEN">burn token</option><option value="EDIT_COIN_OWNER">edit owner</option></select></div>
-      <div class="field"><label for="minter-coin-symbol">Symbol</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
-      <div class="field"><label for="minter-coin-name">Name</label><input id="minter-coin-name" name="name" type="text"></div>
-      <div class="field"><label for="minter-coin-amount">Initial amount / mint / burn amount</label><input id="minter-coin-amount" name="amount" type="text" required></div>
-      <div class="field"><label for="minter-coin-max">Max supply</label><input id="minter-coin-max" name="max" type="text" value="1000000"></div>
-      <div class="field"><label for="minter-coin-reserve">Initial reserve (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-reserve" name="reserve" type="text" value="10000"></div>
-      <div class="field"><label for="minter-coin-crr">CRR percent (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-crr" name="crr" type="number" min="10" max="100" step="1" value="10"></div>
-      <div class="field"><label for="minter-coin-new-owner">New owner address (EDIT_COIN_OWNER)</label><input id="minter-coin-new-owner" name="newOwner" type="text"></div>
-      <button type="submit" name="intent" value="preview">Проверить coin operation</button><button type="submit" name="intent" value="send">Отправить coin op реально</button>
+      <legend>Minter: создание, пересоздание, выпуск, сжигание и смена владельца монеты/токена</legend>
+      <div class="field"><label for="minter-coin-mode">Операция</label><select id="minter-coin-mode" name="mode"><option value="CREATE_COIN">Создать монету</option><option value="RECREATE_COIN">Пересоздать монету</option><option value="CREATE_TOKEN">Создать токен</option><option value="RECREATE_TOKEN">Пересоздать токен</option><option value="MINT_TOKEN">Выпустить токен</option><option value="BURN_TOKEN">Сжечь токен</option><option value="EDIT_COIN_OWNER">Сменить владельца</option></select></div>
+      <div class="field"><label for="minter-coin-symbol">Символ</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
+      <div class="field"><label for="minter-coin-name">Название</label><input id="minter-coin-name" name="name" type="text"></div>
+      <div class="field"><label for="minter-coin-amount">Начальная сумма / выпуск / сжигание</label><input id="minter-coin-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="minter-coin-max">Максимальная эмиссия</label><input id="minter-coin-max" name="max" type="text" value="1000000"></div>
+      <div class="field"><label for="minter-coin-reserve">Начальный резерв (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-reserve" name="reserve" type="text" value="10000"></div>
+      <div class="field"><label for="minter-coin-crr">Процент CRR (CREATE_COIN/RECREATE_COIN)</label><input id="minter-coin-crr" name="crr" type="number" min="10" max="100" step="1" value="10"></div>
+      <div class="field"><label for="minter-coin-new-owner">Адрес нового владельца (EDIT_COIN_OWNER)</label><input id="minter-coin-new-owner" name="newOwner" type="text"></div>
+      <button type="submit" name="intent" value="preview">Проверить операцию с монетой</button><button type="submit" name="intent" value="send">Отправить операцию с монетой в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>`;
   }
 
   function decimalNftForms() {
     return `<form id="decimal-convert-form" class="stacked-form"><fieldset>
-      <legend>Decimal convert / swap</legend>
+      <legend>Decimal: convert / swap</legend>
       <p class="notice">Для активов кроме DEL укажите EVM contract address токена в формате 0x...</p>
-      <div class="field"><label for="decimal-convert-from">From: DEL or token address</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
-      <div class="field"><label for="decimal-convert-to">To: DEL or token address</label><input id="decimal-convert-to" name="to" type="text" required></div>
-      <div class="field"><label for="decimal-convert-amount">Amount to convert</label><input id="decimal-convert-amount" name="amount" type="text" required></div>
-      <div class="field"><label for="decimal-convert-min">Minimum receive amount</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
-      <div class="field"><label for="decimal-convert-from-decimals">From token decimals</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
-      <div class="field"><label for="decimal-convert-to-decimals">To token decimals</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
-      <button type="submit" name="intent" value="preview">Проверить convert</button><button type="submit" name="intent" value="send">Отправить convert реально</button>
+      <div class="field"><label for="decimal-convert-from">Из: DEL или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
+      <div class="field"><label for="decimal-convert-to">В: DEL или адрес токена</label><input id="decimal-convert-to" name="to" type="text" required></div>
+      <div class="field"><label for="decimal-convert-amount">Сумма для конвертации</label><input id="decimal-convert-amount" name="amount" type="text" required></div>
+      <div class="field"><label for="decimal-convert-min">Минимальная сумма получения</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
+      <div class="field"><label for="decimal-convert-from-decimals">Decimals исходного токена</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
+      <div class="field"><label for="decimal-convert-to-decimals">Decimals целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
+      <button type="submit" name="intent" value="preview">Проверить конвертацию</button><button type="submit" name="intent" value="send">Отправить convert в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
     <form id="decimal-token-form" class="stacked-form"><fieldset>
-      <legend>Decimal create token</legend>
-      <div class="field"><label for="decimal-token-title">Title</label><input id="decimal-token-title" name="title" type="text" required></div>
-      <div class="field"><label for="decimal-token-symbol">Symbol</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
-      <div class="field"><label for="decimal-token-init">Initial supply</label><input id="decimal-token-init" name="initSupply" type="text" required></div>
-      <div class="field"><label for="decimal-token-max">Max supply</label><input id="decimal-token-max" name="maxSupply" type="text" required></div>
-      <button type="submit" name="intent" value="preview">Проверить token</button><button type="submit" name="intent" value="send">Создать token реально</button>
+      <legend>Decimal: создание токена</legend>
+      <div class="field"><label for="decimal-token-title">Название</label><input id="decimal-token-title" name="title" type="text" required></div>
+      <div class="field"><label for="decimal-token-symbol">Символ</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
+      <div class="field"><label for="decimal-token-init">Начальная эмиссия</label><input id="decimal-token-init" name="initSupply" type="text" required></div>
+      <div class="field"><label for="decimal-token-max">Максимальная эмиссия</label><input id="decimal-token-max" name="maxSupply" type="text" required></div>
+      <button type="submit" name="intent" value="preview">Проверить token</button><button type="submit" name="intent" value="send">Создать token в сети</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>
     <form id="decimal-nft-form" class="stacked-form"><fieldset>
-      <legend>Decimal NFT stake</legend>
-      <div class="field"><label for="decimal-nft-mode">Operation</label><select id="decimal-nft-mode" name="mode"><option value="delegate">delegate NFT</option><option value="unbond">unbond NFT</option></select></div>
+      <legend>Decimal: NFT stake</legend>
+      <div class="field"><label for="decimal-nft-mode">Операция</label><select id="decimal-nft-mode" name="mode"><option value="delegate">Делегировать NFT</option><option value="unbond">Анбонд NFT</option></select></div>
       <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
-      <div class="field"><label for="decimal-nft-validator">Validator id/address</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
-      <button type="submit" name="intent" value="preview">Проверить NFT</button><button type="submit" name="intent" value="send">Отправить NFT op реально</button>
+      <div class="field"><label for="decimal-nft-validator">ID/адрес валидатора</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
+      <button type="submit" name="intent" value="preview">Проверить NFT</button><button type="submit" name="intent" value="send">Отправить NFT-операцию в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form>`;
   }
@@ -1478,11 +1478,11 @@
 
   function bindCosmosForms(chain) {
     bindOperationForm(chain, 'cosmos-send-form', (form) => {
-      const to = broadcast.validateAddress(chain, form.get('to'), 'Recipient');
-      const amount = normalizeAmountInput(form.get('amount'), 'Amount');
-      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
+      const to = broadcast.validateAddress(chain, form.get('to'), 'Получатель');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       if (chain.id === 'minter') {
-        const tx = minterTx('SEND', { to, value: Number(amount), coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Gas coin'), String(form.get('memo') || ''));
+        const tx = minterTx('SEND', { to, value: Number(amount), coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Монета газа'), String(form.get('memo') || ''));
         return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter send', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin: tx.gasCoin });
       }
       return broadcast.prepare(chain, 'seed', 'decimalSend', [{ to, amount, coin }], { title: 'Decimal send', to, amount: `${amount} ${coin}` });
@@ -1491,7 +1491,7 @@
     bindOperationForm(chain, 'cosmos-delegate-form', (form) => {
       const mode = String(form.get('mode') || 'delegate');
       const amount = normalizeAmountInput(form.get('amount'), 'Stake');
-      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const validator = String(form.get('validator') || '').trim();
       if (chain.id === 'minter') {
         if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator key должен быть MP + 64 hex chars.');
@@ -1499,16 +1499,16 @@
         const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
         return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${mode}`, amount: `${amount} ${coin}`, txType, coin, validator });
       }
-      const validated = broadcast.validateDecimalValidator(validator, 'Validator');
-      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator: validated, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator: validated, warnings: ['Decimal validator accepts API operator validator ids or validator addresses; account address validation is still enforced for transfers.'] });
+      const validated = broadcast.validateDecimalValidator(validator, 'Валидатор');
+      return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator: validated, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator: validated, warnings: ['Decimal validator принимает operator id из API или адрес валидатора; для переводов по-прежнему проверяется адрес аккаунта.'] });
     });
 
     bindOperationForm(chain, 'minter-swap-form', (form) => {
-      const from = normalizeCoinInput(form.get('from'), 'Coin to sell');
-      const to = normalizeCoinInput(form.get('to'), 'Coin to buy');
-      const amount = normalizeAmountInput(form.get('amount'), 'Amount to sell');
+      const from = normalizeCoinInput(form.get('from'), 'Монета к продаже');
+      const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
       const min = String(form.get('min') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Minimum buy amount должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
       const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
       const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
       const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
@@ -1517,12 +1517,12 @@
 
     bindOperationForm(chain, 'minter-liquidity-form', (form) => {
       const mode = String(form.get('mode') || 'ADD_LIQUIDITY');
-      const coin0 = normalizeCoinInput(form.get('coin0'), 'Coin 0');
-      const coin1 = normalizeCoinInput(form.get('coin1'), 'Coin 1');
-      const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Liquidity' : 'Volume 0');
+      const coin0 = normalizeCoinInput(form.get('coin0'), 'Монета 0');
+      const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
+      const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
       const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Volume 1 должен быть неотрицательным числом.');
-      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Gas coin');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const data = mode === 'REMOVE_LIQUIDITY'
         ? { coin0, coin1, liquidity: Number(volume0) }
         : { coin0, coin1, volume0: Number(volume0), [mode === 'CREATE_SWAP_POOL' ? 'volume1' : 'maximumVolume1']: Number(volume1) };
@@ -1531,32 +1531,32 @@
 
     bindOperationForm(chain, 'minter-hub-withdraw-form', (form) => {
       const destinationChain = String(form.get('chainId') || '').trim().toLowerCase();
-      if (!/^[a-z0-9_-]{2,32}$/.test(destinationChain)) throw new Error('Destination chain id is required, for example ethereum or bsc.');
+      if (!/^[a-z0-9_-]{2,32}$/.test(destinationChain)) throw new Error('ID сети назначения is required, for example ethereum или bsc.');
       const to = String(form.get('to') || '').trim();
-      if (!to) throw new Error('Destination address is required.');
-      const coin = normalizeCoinInput(form.get('coin'), 'Coin');
-      const amount = normalizeAmountInput(form.get('amount'), 'Withdraw amount');
+      if (!to) throw new Error('Нужен адрес назначения.');
+      const coin = normalizeCoinInput(form.get('coin'), 'Монета');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
       const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Hub fee должен быть неотрицательным числом.');
-      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Gas coin');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const [feeWhole, feeFrac = ''] = hubFee.split('.');
       const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
       const memo = JSON.stringify({ recipient: to, type: `send_to_${destinationChain}`, fee: feeMinimal });
       const tx = minterTx('SEND', { to: 'Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', value: Number(amount), coin }, gasCoin, memo);
-      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub withdraw', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Адрес Minter Hub: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
+      return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub: вывод', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Адрес Minter Hub: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
     });
 
     bindOperationForm(chain, 'minter-coin-form', (form) => {
       const mode = String(form.get('mode') || 'CREATE_TOKEN');
       const symbol = normalizeCoinInput(form.get('symbol'), 'Symbol');
-      const amount = normalizeAmountInput(form.get('amount'), 'Amount');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма');
       let data;
       if (mode === 'EDIT_COIN_OWNER') {
-        data = { symbol, newOwner: broadcast.validateAddress(chain, form.get('newOwner'), 'New owner') };
+        data = { symbol, newOwner: broadcast.validateAddress(chain, form.get('newOwner'), 'Новый владелец') };
       } else if (mode === 'CREATE_COIN' || mode === 'RECREATE_COIN') {
-        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Initial reserve')) };
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Начальный резерв')) };
       } else if (mode === 'CREATE_TOKEN' || mode === 'RECREATE_TOKEN') {
-        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Max supply')), mintable: true, burnable: true };
+        data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), mintable: true, burnable: true };
       } else {
         data = { coin: symbol, value: Number(amount) };
       }
@@ -1566,28 +1566,28 @@
     bindOperationForm(chain, 'decimal-convert-form', (form) => {
       const from = String(form.get('from') || '').trim();
       const to = String(form.get('to') || '').trim();
-      if (!from || !to) throw new Error('Decimal convert requires from and to assets. Use DEL or token 0x address.');
-      if (from.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(from)) throw new Error('From asset must be DEL or token 0x address.');
-      if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('To asset must be DEL or token 0x address.');
-      const amount = normalizeAmountInput(form.get('amount'), 'Convert amount');
+      if (!from || !to) throw new Error('Для Decimal convert нужны исходный и целевой активы. Используйте DEL или адрес токена 0x.');
+      if (from.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(from)) throw new Error('Исходный актив должен быть DEL или адресом токена 0x.');
+      if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
+      const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Minimum receive amount должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
       return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
     });
 
     bindOperationForm(chain, 'decimal-token-form', (form) => broadcast.prepare(chain, 'seed', 'decimalCreateToken', [{
       title: String(form.get('title') || '').trim(),
       symbol: normalizeCoinInput(form.get('symbol'), 'Symbol'),
-      initSupply: normalizeAmountInput(form.get('initSupply'), 'Initial supply'),
-      maxSupply: normalizeAmountInput(form.get('maxSupply'), 'Max supply'),
+      initSupply: normalizeAmountInput(form.get('initSupply'), 'Начальная эмиссия'),
+      maxSupply: normalizeAmountInput(form.get('maxSupply'), 'Максимальная эмиссия'),
       reserve: '0',
       crr: 0
-    }], { title: 'Decimal create token' }));
+    }], { title: 'Decimal: создание токена' }));
 
     bindOperationForm(chain, 'decimal-nft-form', (form) => {
-      const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Validator');
+      const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
       const nftId = String(form.get('nftId') || '').trim();
-      if (!nftId) throw new Error('NFT ID is required.');
+      if (!nftId) throw new Error('Нужен NFT ID.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
       return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
     });
@@ -1604,37 +1604,37 @@
 
   function renderMinterBroadcast(chain) {
     appEl.innerHTML = `<section class="panel">
-      <h2>Minter broadcast</h2>
+      <h2>Minter: отправка</h2>
       <p>Отправка готовой Minter-транзакции: signed TX не требует seed, multisig принимает транзакцию и внешние подписи.</p>
       <form id="minter-signed-tx-form" class="stacked-form"><fieldset>
-        <legend>Raw signed TX</legend>
+        <legend>Готовая signed TX</legend>
         <div class="field"><label for="minter-signed-tx">Signed TX hex/base64</label><textarea id="minter-signed-tx" name="tx" rows="4" required></textarea></div>
-        <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX реально</button>
+        <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX в сеть</button>
         <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
       </fieldset></form>
       <form id="minter-multisig-form" class="stacked-form"><fieldset>
-        <legend>Multisig controls: transaction submit</legend>
-        <div class="field"><label for="minter-multisig-address">Multisig address</label><input id="minter-multisig-address" name="multisig" type="text" required></div>
-        <div class="field"><label for="minter-multisig-tx">Transaction JSON</label><textarea id="minter-multisig-tx" name="txJson" rows="6" required></textarea></div>
-        <div class="field"><label for="minter-multisig-signatures">Signatures, one per line</label><textarea id="minter-multisig-signatures" name="signatures" rows="5" required></textarea></div>
-        <button type="submit" name="intent" value="preview">Проверить multisig submit</button><button type="submit" name="intent" value="send">Отправить multisig реально</button>
+        <legend>Multisig: отправка транзакции</legend>
+        <div class="field"><label for="minter-multisig-address">Адрес multisig</label><input id="minter-multisig-address" name="multisig" type="text" required></div>
+        <div class="field"><label for="minter-multisig-tx">JSON транзакции</label><textarea id="minter-multisig-tx" name="txJson" rows="6" required></textarea></div>
+        <div class="field"><label for="minter-multisig-signatures">Подписи, по одной на строку</label><textarea id="minter-multisig-signatures" name="signatures" rows="5" required></textarea></div>
+        <button type="submit" name="intent" value="preview">Проверить multisig submit</button><button type="submit" name="intent" value="send">Отправить multisig в сеть</button>
         <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
       </fieldset></form>
     </section>`;
 
     bindOperationForm(chain, 'minter-signed-tx-form', (form) => {
       const tx = String(form.get('tx') || '').trim();
-      if (!tx) throw new Error('Signed TX is required.');
+      if (!tx) throw new Error('Нужна signed TX.');
       const decoded = global.minterSDK && typeof global.minterSDK.decodeTx === 'function' ? global.minterSDK.decodeTx(tx) : null;
-      return broadcast.prepareExternal(chain, 'minterSignedTx', [{ tx }], { title: 'Minter raw signed TX', warnings: decoded ? [`Расшифрованная транзакция: ${JSON.stringify(broadcast.sanitizeResult(decoded))}`] : ['Расшифровка signed TX недоступна; можно отправить готовую signed TX без просмотра содержимого.'] });
+      return broadcast.prepareExternal(chain, 'minterSignedTx', [{ tx }], { title: 'Minter: готовая signed TX', warnings: decoded ? [`Расшифрованная транзакция: ${JSON.stringify(broadcast.sanitizeResult(decoded))}`] : ['Расшифровка signed TX недоступна; можно отправить готовую signed TX без просмотра содержимого.'] });
     });
 
     bindOperationForm(chain, 'minter-multisig-form', (form) => {
-      const multisig = broadcast.validateAddress(chain, form.get('multisig'), 'Multisig address');
-      const tx = parseJsonInput(form.get('txJson'), 'Transaction JSON');
+      const multisig = broadcast.validateAddress(chain, form.get('multisig'), 'Адрес multisig');
+      const tx = parseJsonInput(form.get('txJson'), 'JSON транзакции');
       const signatures = String(form.get('signatures') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-      if (!signatures.length) throw new Error('At least one multisig signature is required.');
-      return broadcast.prepareExternal(chain, 'minterMultisigSubmit', [{ multisig, tx, signatures }], { title: 'Minter multisig submit', to: multisig, warnings: [`Signatures: ${signatures.length}`] });
+      if (!signatures.length) throw new Error('Нужна хотя бы одна multisig-подпись.');
+      return broadcast.prepareExternal(chain, 'minterMultisigSubmit', [{ multisig, tx, signatures }], { title: 'Minter multisig submit', to: multisig, warnings: [`Подписей: ${signatures.length}`] });
     });
 
     setStatus('Minter: отправка signed TX и multisig готова.', 'ok');
@@ -1784,25 +1784,25 @@
   }
 
   async function renderCosmosValidators(chain) {
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} validators</h2><p>Загружаю...</p></section>`;
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Загружаю...</p></section>`;
     const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
     const data = await response.json();
     const list = data.data || data.result || data.validators || [];
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} validators</h2><p>Delegate/unbond формы доступны в Wallet/Broadcast.</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul></section>`;
-    setStatus(`${chain.title} validators loaded: ${list.length}.`, 'ok');
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка».</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul></section>`;
+    setStatus(`${chain.title} валидаторы загружены: ${list.length}.`, 'ok');
   }
 
   async function renderCosmosExplorer(chain, account) {
     const state = parseHash();
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} explorer</h2>
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} проводник</h2>
       <p>Откройте адрес, транзакцию или блок. Основные данные показаны первыми; исходные данные доступны отдельно для проверки.</p>
       <form id="explorer-form" class="route-form"><div class="field"><label for="explorer-kind">Что открыть</label><select id="explorer-kind" name="kind"><option value="address" ${state.kind === 'address' ? 'selected' : ''}>Адрес</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>Транзакция</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>Блок</option></select></div><div class="field field-grow"><label for="explorer-value">Адрес, tx hash или номер блока</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div><button type="submit">Открыть</button></form>
       <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Выберите, что открыть, и введите адрес, tx hash или номер блока.</div></section>`;
     document.getElementById('explorer-form').addEventListener('submit', (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim() }); });
     if (!state.kind || !state.value) {
-      setStatus(`${chain.title} explorer готов.`, 'info');
+      setStatus(`${chain.title} проводник готов.`, 'info');
       return;
     }
     let url;
@@ -1814,16 +1814,16 @@
       url = state.kind === 'tx' ? `${base}/txs/${state.value}` : state.kind === 'block' ? `${base}/blocks/${state.value}` : `${base}/addresses/${state.value}/balances`;
     }
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Explorer API HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`API проводника HTTP ${response.status}`);
     const result = await response.json();
     document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
-    setStatus(`${chain.title} explorer loaded.`, 'ok');
+    setStatus(`${chain.title} проводник загружен.`, 'ok');
   }
 
   function renderCosmosCalculator(chain) {
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} calculator</h2><form id="calculator-form" class="stacked-form"><fieldset><legend>Amount helper</legend><div class="field"><label for="calc-amount">Amount</label><input id="calc-amount" name="amount" type="text" value="1"></div><button type="submit">Convert to 10^18 units</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></fieldset></form></section>`;
-    document.getElementById('calculator-form').addEventListener('submit', (event) => { event.preventDefault(); const form = event.currentTarget; const amount = normalizeAmountInput(new FormData(form).get('amount'), 'Amount'); const wei = amount.replace('.', '').padEnd((amount.split('.')[0] || '').length + 18, '0'); setOperationResult(form, `${amount} ${chain.liquidSymbol} ≈ ${wei} minimal units`, 'ok'); });
-    setStatus(`${chain.title} calculator ready.`, 'ok');
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} калькулятор</h2><form id="calculator-form" class="stacked-form"><fieldset><legend>Расчёт суммы</legend><div class="field"><label for="calc-amount">Сумма</label><input id="calc-amount" name="amount" type="text" value="1"></div><button type="submit">Перевести в единицы 10^18</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></fieldset></form></section>`;
+    document.getElementById('calculator-form').addEventListener('submit', (event) => { event.preventDefault(); const form = event.currentTarget; const amount = normalizeAmountInput(new FormData(form).get('amount'), 'Сумма'); const wei = amount.replace('.', '').padEnd((amount.split('.')[0] || '').length + 18, '0'); setOperationResult(form, `${amount} ${chain.liquidSymbol} ≈ ${wei} минимальных единиц`, 'ok'); });
+    setStatus(`${chain.title} калькулятор готов.`, 'ok');
   }
 
   async function renderHistory(chain, account) {

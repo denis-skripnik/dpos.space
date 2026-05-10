@@ -6,7 +6,7 @@
     const asyncName = `${method}Async`;
 
     if (!api) {
-      return Promise.reject(new Error('Blockchain API library is not available.'));
+      return Promise.reject(new Error('Библиотека Blockchain API недоступна.'));
     }
 
     if (typeof api[asyncName] === 'function') {
@@ -25,7 +25,7 @@
       });
     }
 
-    return Promise.reject(new Error(`API method ${method} is not available.`));
+    return Promise.reject(new Error(`Метод API ${method} недоступен.`));
   }
 
   function setNode(chain, nodeUrl) {
@@ -57,7 +57,7 @@
     const client = global[chainConfig.libraryGlobal];
 
     if (!client) {
-      throw new Error(`Library ${chainConfig.libraryGlobal} is not loaded.`);
+      throw new Error(`Библиотека ${chainConfig.libraryGlobal} не загружена.`);
     }
 
     const chain = {
@@ -85,7 +85,7 @@
       }
     }
 
-    throw new Error(`No working public node found for ${chainConfig.title}. Last error: ${formatError(lastError)}`);
+    throw new Error(`Не найдена рабочая публичная нода для ${chainConfig.title}. Последняя ошибка: ${formatError(lastError)}`);
   }
 
   async function fetchJson(url, options) {
@@ -174,7 +174,7 @@
     const accounts = await callApi(chain, 'getAccounts', [[accountName]]);
 
     if (!Array.isArray(accounts) || accounts.length === 0) {
-      throw new Error(`Account @${accountName} was not found.`);
+      throw new Error(`Аккаунт @${accountName} не найден.`);
     }
 
     return accounts[0];
@@ -335,7 +335,7 @@
         ['SHARES', account.vesting_shares],
         ['Делегировано', account.delegated_vesting_shares],
         ['Получено делегированием', account.received_vesting_shares],
-        ['Energy', formatPercentHundredths(account.energy)],
+        ['Энергия', formatPercentHundredths(account.energy)],
         ['Reward balance', account.reward_balance],
         ['Reward SHARES', account.reward_vesting_balance]
       ].filter((item) => present(item[1]));
@@ -464,7 +464,7 @@
     const rows = [];
     addField(rows, 'Прокси', account.proxy);
     addField(rows, 'Голосов за делегатов', account.witnesses_voted_for);
-    addField(rows, 'Witness votes', account.witness_votes);
+    addField(rows, 'Голоса за witness', account.witness_votes);
     addField(rows, 'Proxied VSF votes', account.proxied_vsf_votes);
     addField(rows, 'Witness owner', account.owner || account.witness_owner);
     return rows;
@@ -476,7 +476,7 @@
     addField(rows, 'Owner authority', account.owner);
     addField(rows, 'Active authority', account.active);
     addField(rows, regularLabel, account.regular || account.posting);
-    addField(rows, 'Memo public key', account.memo_key || account.memoKey);
+    addField(rows, 'Публичный memo-ключ', account.memo_key || account.memoKey);
     return rows;
   }
 
@@ -504,8 +504,8 @@
     const rows = [];
     addField(rows, 'Адрес', account.address || account.name);
     addField(rows, 'Nonce', account.nonce || account.transaction_count || account.tx_count);
-    addField(rows, 'Total balance', formatRestMinimalUnits(account.total_balance_sum || account.totalBalance || account.balance_sum));
-    addField(rows, 'Delegated', formatRestMinimalUnits(account.delegated || account.delegated_amount));
+    addField(rows, 'Общий баланс', formatRestMinimalUnits(account.total_balance_sum || account.totalBalance || account.balance_sum));
+    addField(rows, 'Делегировано', formatRestMinimalUnits(account.delegated || account.delegated_amount));
     addField(rows, 'Unbonding', formatRestMinimalUnits(account.unbonding || account.unbonding_amount));
     addField(rows, 'Multisig', account.multisig);
     addField(rows, 'Validator public key', account.public_key || account.validator_public_key || account.validatorPubKey);

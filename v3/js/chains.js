@@ -6,7 +6,7 @@
       id: 'profiles',
       title: 'Профили',
       accountField: true,
-      description: 'Read-only просмотр основных данных аккаунта через публичные API.'
+      description: 'Просмотр основных данных аккаунта через публичные API без отправки операций.'
     },
     {
       id: 'accounts',
@@ -23,21 +23,21 @@
       id: 'history',
       title: 'История',
       accountField: true,
-      description: 'Read-only история операций аккаунта.'
+      description: 'История операций аккаунта без отправки операций.'
     },
     {
       id: 'broadcast',
-      title: 'Broadcast',
+      title: 'Отправка',
       description: 'Проверка доступности ключей и отправка операций.'
     }
   ];
 
   const vizApps = [
-    { id: 'award', title: 'Award', description: 'VIZ-награды: award/fixedAward через regular authority.' },
+    { id: 'award', title: 'Награды', description: 'VIZ-награды: операции award/fixedAward через regular authority.' },
     { id: 'registration', title: 'Регистрация', description: 'VIZ invite registration через explicit signer WIF input без hardcoded ключей.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор VIZ/SHARES/энергии.' },
-    { id: 'manage', title: 'Управление', description: 'Manage-сервисы: proxy, witness vote, профиль, воркеры, multisig.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' },
+    { id: 'manage', title: 'Управление', description: 'Сервисы управления: proxy, witness vote, профиль, воркеры, multisig.' },
+    { id: 'explorer', title: 'Проводник', description: 'Просмотр данных блокчейна без отправки операций.' },
     { id: 'exchanges', title: 'Обмен VIZ', description: 'Ссылки и инструкции по покупке/продаже VIZ.' }
   ];
 
@@ -46,42 +46,42 @@
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор GOLOS/GBG/СГ.' },
     { id: 'donate', title: 'Донат', description: 'Golos donate через posting authority.' },
     { id: 'import', title: 'Импорт статьи', description: 'Каркас импорта статьи перед публикацией.' },
-    { id: 'escrow', title: 'Escrow', description: 'Escrow оставлен read-only/optional: старый flow крупный и не входит в текущие обязательные пункты.' },
-    { id: 'instant-view', title: 'Instant View', description: 'Каркас instant view.' },
-    { id: 'manage', title: 'Управление', description: 'Manage-сервисы: proxy, witness vote, profile/witness settings.' },
-    { id: 'swap', title: 'Swap', description: 'Каркас DEX/swap операций.' },
+    { id: 'escrow', title: 'Escrow', description: 'Escrow оставлен только для просмотра/опционально: старый flow крупный и не входит в текущие обязательные пункты.' },
+    { id: 'instant-view', title: 'Instant View', description: 'Каркас быстрого просмотра.' },
+    { id: 'manage', title: 'Управление', description: 'Сервисы управления: proxy, witness vote, настройки профиля/witness.' },
+    { id: 'swap', title: 'Обмен', description: 'Каркас DEX/swap операций.' },
     { id: 'register', title: 'Регистрация', description: 'Golos invite registration через explicit service signer WIF input без hardcoded ключей.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' }
+    { id: 'explorer', title: 'Проводник', description: 'Просмотр данных блокчейна без отправки операций.' }
   ];
 
   const socialApps = [
     { id: 'editor', title: 'Редактор', description: 'Публикация постов через posting authority.' },
     { id: 'calculator', title: 'Калькулятор', description: 'HP/SP и vesting estimation.' },
-    { id: 'manage', title: 'Управление', description: 'Manage-сервисы: proxy, witness vote, profile/witness settings.' },
+    { id: 'manage', title: 'Управление', description: 'Сервисы управления: proxy, witness vote, настройки профиля/witness.' },
     { id: 'register', title: 'Регистрация', description: 'Каркас account creation.' },
     { id: 'import', title: 'Импорт статьи', description: 'Каркас импорта/instant view для постов.' },
-    { id: 'instant-view', title: 'Instant View', description: 'Каркас instant view для постов.' },
-    { id: 'swap', title: 'Swap', description: 'Каркас market/swap операций.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' }
+    { id: 'instant-view', title: 'Instant View', description: 'Каркас быстрого просмотра для постов.' },
+    { id: 'swap', title: 'Обмен', description: 'Каркас market/swap операций.' },
+    { id: 'explorer', title: 'Проводник', description: 'Просмотр данных блокчейна без отправки операций.' }
   ];
 
 
   const minterApps = [
-    { id: 'validators', title: 'Валидаторы', description: 'Read-only список валидаторов и формы delegate/unbond.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only address/tx/block explorer через публичный API.' },
-    { id: 'swap', title: 'Swap', description: 'Обмен монет и операции swap-pool.' },
+    { id: 'validators', title: 'Валидаторы', description: 'Просмотр списка валидаторов и формы делегирования/анбонда.' },
+    { id: 'explorer', title: 'Проводник', description: 'Просмотр адресов, транзакций и блоков через публичный API.' },
+    { id: 'swap', title: 'Обмен', description: 'Обмен монет и операции swap-pool.' },
     { id: 'my-coin', title: 'Мои монеты', description: 'Создание, выпуск, сжигание токенов и смена владельца.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор маршрута обмена и сумм.' },
-    { id: 'randomblockchain', title: 'Random blockchain', description: 'Генератор случайного числа по двум блокам.' },
+    { id: 'randomblockchain', title: 'Случайный блокчейн', description: 'Генератор случайного числа по двум блокам.' },
     { id: 'long', title: 'LONG', description: 'LONG-сервисы и отправка memo для операций кошелька.' }
   ];
 
   const decimalApps = [
-    { id: 'validators', title: 'Валидаторы', description: 'Read-only валидаторы и delegate/unbond DEL/token/NFT.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only address/tx/block explorer через Decimal API.' },
-    { id: 'swap', title: 'Swap', description: 'Конвертация токенов Decimal.' },
+    { id: 'validators', title: 'Валидаторы', description: 'Просмотр валидаторов и делегирование/анбонд DEL/token/NFT.' },
+    { id: 'explorer', title: 'Проводник', description: 'Просмотр адресов, транзакций и блоков через Decimal API.' },
+    { id: 'swap', title: 'Обмен', description: 'Конвертация токенов Decimal.' },
     { id: 'my-coin', title: 'Монеты/NFT', description: 'Создание токенов и операции с NFT.' },
-    { id: 'calculator', title: 'Калькулятор', description: 'DEL/token amount helper.' }
+    { id: 'calculator', title: 'Калькулятор', description: 'Помощник расчёта суммы DEL/token.' }
   ];
 
   function apps(extraApps) {
