@@ -159,7 +159,7 @@
         regularOrPostingLabel: 'regular',
         hasRegularOrPosting: tryDecrypt(`dpos.space_viz_${login}_regularKey`, user.regular),
         hasActive: tryDecrypt(`dpos.space_viz_${login}_activeKey`, user.active),
-        source: 'legacy localStorage'
+        source: 'сохранённый аккаунт браузера'
       };
     }
 
@@ -172,7 +172,7 @@
         regularOrPostingLabel: 'seed',
         hasRegularOrPosting: hasSeed,
         hasActive: hasSeed,
-        source: user.type === 'bip.to' ? 'BIP wallet link' : `legacy ${sourceChain} seed localStorage`
+        source: user.type === 'bip.to' ? 'BIP wallet link' : `сохранённый seed ${sourceChain}`
       };
     }
 
@@ -182,7 +182,7 @@
       regularOrPostingLabel: 'posting',
       hasRegularOrPosting: tryDecrypt(`dpos.space_${chain.id}_${login}_postingKey`, user.posting),
       hasActive: tryDecrypt(`dpos.space_${chain.id}_${login}_activeKey`, user.active),
-      source: 'legacy localStorage'
+      source: 'сохранённый аккаунт браузера'
     };
   }
 
