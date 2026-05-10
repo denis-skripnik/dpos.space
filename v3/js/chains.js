@@ -34,7 +34,8 @@
     { id: 'registration', title: 'Регистрация', description: 'VIZ invite registration через explicit signer WIF input без hardcoded ключей.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор VIZ/SHARES/энергии.' },
     { id: 'manage', title: 'Управление', description: 'Manage-сервисы: proxy, witness vote, профиль, воркеры, multisig.' },
-    { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' }
+    { id: 'explorer', title: 'Explorer', description: 'Read-only explorer helpers.' },
+    { id: 'exchanges', title: 'Обмен VIZ', description: 'Legacy статическая страница со ссылками покупки/продажи VIZ.' }
   ];
 
   const golosApps = [

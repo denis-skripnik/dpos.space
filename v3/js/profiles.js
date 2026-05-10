@@ -519,6 +519,11 @@
     });
   }
 
+  function previewRawItems(items, limit) {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, limit || 10);
+  }
+
   function normalizeAccount(chain, account) {
     const profile = getProfileMetadata(account);
     const metadata = getMetadata(account);
@@ -549,7 +554,7 @@
       postingMetadataJson: metadata.posting,
       rawLists: {
         delegations: previewList(account.delegations, 20),
-        transactions: previewList(account.transactions, 20),
+        transactions: previewRawItems(account.transactions, 20),
         rewards: previewList(Array.isArray(account.rewards) ? account.rewards : (account.rewards && account.rewards.data) || [], 20),
         nfts: previewList(account.nfts, 20)
       },
