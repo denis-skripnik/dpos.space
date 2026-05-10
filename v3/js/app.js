@@ -2095,13 +2095,23 @@
 
   async function renderCosmosValidators(chain) {
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Загружаю...</p></section>`;
+    setStatus(`${chain.title} валидаторы: загружаю список...`, 'loading');
     const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
-    const data = await response.json();
-    const list = data.data || data.result || data.validators || [];
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка».</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul></section>`;
-    setStatus(`${chain.title} валидаторы загружены: ${list.length}.`, 'ok');
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = global.setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(url, { signal: controller.signal });
+      global.clearTimeout(timeoutId);
+      if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
+      const data = await response.json();
+      const list = data.data || data.result || data.validators || [];
+      appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка».</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul>${rawJsonDetails('Исходные данные валидаторов', data)}</section>`;
+      setStatus(`${chain.title} валидаторы загружены: ${list.length}.`, 'ok');
+    } catch (error) {
+      appEl.innerHTML = `<section class="panel warning-panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Не удалось загрузить список валидаторов из публичного API: ${escapeHtml(profiles.formatError(error))}</p><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка». Проверьте API позже или откройте старую страницу валидаторов, если она ещё доступна.</p></section>`;
+      setStatus(`${chain.title} валидаторы: публичный API недоступен.`, 'warning');
+    }
   }
 
   async function renderCosmosExplorer(chain, account) {

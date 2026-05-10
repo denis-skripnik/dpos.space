@@ -168,7 +168,7 @@
       id: 'minter',
       title: 'Minter',
       description: 'Minter blockchain: адреса, кошелёк, валидаторы, монеты и swap.',
-      defaultAccount: 'Mx0000000000000000000000000000000000000000',
+      defaultAccount: 'Mxf85ceccfe2112e88be58162c43f5ec959672ab54',
       libraryGlobal: 'minterSDK',
       libraryPath: 'v3/vendor/minter/minterjs-sdk.min.js',
       walletPath: 'v3/vendor/minter/minterjs-wallet.min.js',
