@@ -15,6 +15,7 @@
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
   const LONG_API_BASE = 'https://backend.dpos.space/smartfarm';
+  const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -1648,10 +1649,38 @@
     return url.toString();
   }
 
+  function parseJsonMaybeText(text, sourceLabel) {
+    let value = text;
+    for (let attempt = 0; attempt < 2 && typeof value === 'string'; attempt++) {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      try {
+        value = JSON.parse(trimmed);
+      } catch (error) {
+        throw new Error(`${sourceLabel || 'API'} вернул не JSON: ${error.message}`);
+      }
+    }
+    return value;
+  }
+
+  async function fetchJsonText(url, sourceLabel) {
+    const response = await fetch(url, { headers: { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' } });
+    if (!response.ok) throw new Error(`${sourceLabel || 'API'} HTTP ${response.status}`);
+    const text = await response.text();
+    return parseJsonMaybeText(text, sourceLabel);
+  }
+
   async function fetchLongJson(path, params) {
-    const response = await fetch(longUrl(path, params), { headers: { accept: 'application/json' } });
-    if (!response.ok) throw new Error(`LONG backend HTTP ${response.status}`);
-    return response.json();
+    return fetchJsonText(longUrl(path, params), 'LONG backend');
+  }
+
+  async function fetchMinterLongPool() {
+    try {
+      return await fetchJsonText(MINTER_LONG_POOL_URL, 'Minter pool API');
+    } catch (error) {
+      console.warn('Minter LONG pool API unavailable', error);
+      return null;
+    }
   }
 
   function longPageHash(page, extra = {}) {
@@ -1677,36 +1706,86 @@
     return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(number);
   }
 
-  function calcLongProviderRows(data) {
+  function calcLongPoolStats(pool) {
+    if (!pool) return null;
+    const divider = 10 ** 18;
+    const bip = toNumber(pool.amount0) / divider;
+    const long = toNumber(pool.amount1) / divider;
+    const liquidity = toNumber(pool.liquidity) / divider;
+    const price = long > 0 ? bip / long : toNumber(pool.price);
+    if (!bip && !long && !liquidity && !price) return null;
+    return { bip, long, liquidity, price };
+  }
+
+  function getLongLockDays(data, provider) {
+    const locks = data && data.locks && typeof data.locks === 'object' ? data.locks : {};
+    const lock = locks[provider.address];
+    const liquidity = toNumber(provider.liquidity);
+    if (!lock || !liquidity || !toNumber(lock.count)) return 0;
+    return (toNumber(lock.days) / toNumber(lock.count)) * (toNumber(lock.amount) / liquidity);
+  }
+
+  function calcLongSuper(provider, index) {
+    const investDays = toNumber(provider.invest_days) + 1;
+    if (index > 99 || toNumber(provider.get_counter) > 50) return { supersCounter: 0, power: 0 };
+    let supersCounter = 0;
+    let power = 0;
+    const start = Math.floor(toNumber(provider.bonus_invest_days)) + 1;
+    for (let day = start; day <= investDays; day++) {
+      if (day % 50 === 0) {
+        supersCounter = day / 50;
+        power += toNumber(provider.liquidity) * supersCounter;
+      }
+    }
+    return { supersCounter, power };
+  }
+
+  function calcLongProviderRows(data, poolStats) {
     const providers = Array.isArray(data.providers) ? data.providers : [];
     const maxPrize = toNumber(data.max_prize);
     const maxAmount = toNumber(data.max_amount);
     const farmingAmount = Math.max(0, maxAmount - (maxPrize * 2));
-    const totalLiquidity = providers.reduce((sum, item) => sum + toNumber(item.liquidity), 0) || 1;
-    const experienced = providers.map((provider) => {
-      const investDays = toNumber(provider.invest_days) * (toNumber(provider.multiply) || 1);
+    const fallbackLiquidity = providers.reduce((sum, item) => sum + toNumber(item.liquidity), 0) || 1;
+    const totalLiquidity = poolStats && poolStats.liquidity ? poolStats.liquidity : fallbackLiquidity;
+    const topProviders = providers.slice(0, 99);
+    const totalSupers = topProviders.reduce((sum, provider, index) => sum + calcLongSuper(provider, index + 1).power, 0) || 1;
+    const experienced = providers.map((provider, index) => {
+      const baseDays = toNumber(provider.invest_days) * (toNumber(provider.multiply) || 1);
+      const investDays = baseDays + getLongLockDays(data, provider);
       const experience = toNumber(provider.liquidity) * (1 + (investDays / 100));
-      return Object.assign({}, provider, { investDays, experience });
+      const liquidityShare = toNumber(provider.liquidity) / totalLiquidity;
+      const providerLong = poolStats ? poolStats.long * liquidityShare : 0;
+      const providerBip = poolStats ? poolStats.bip * liquidityShare : 0;
+      const superData = calcLongSuper(provider, index + 1);
+      return Object.assign({}, provider, { investDays, experience, liquidityShare, providerLong, providerBip, supersCounter: superData.supersCounter, superPower: superData.power });
     });
-    const totalExperience = experienced.reduce((sum, item) => sum + item.experience, 0) || 1;
-    return { providers: experienced, farmingAmount, totalLiquidity, totalExperience };
+    const totalExperience = experienced.slice(0, 99).reduce((sum, item) => sum + item.experience, 0) || experienced.reduce((sum, item) => sum + item.experience, 0) || 1;
+    return { providers: experienced, farmingAmount, totalLiquidity, totalExperience, totalSupers, maxPrize };
   }
 
-  function renderLongProvidersTable(data) {
-    const { providers, farmingAmount, totalLiquidity, totalExperience } = calcLongProviderRows(data);
+  function renderLongProvidersTable(data, poolStats) {
+    const { providers, farmingAmount, totalExperience, totalSupers, maxPrize } = calcLongProviderRows(data, poolStats);
     if (!providers.length) return '<p class="muted">Backend не вернул список провайдеров.</p>';
-    return `<div class="table-wrap"><table aria-label="Рейтинг провайдеров LONG"><caption>Рейтинг провайдеров LONG по данным backend</caption><thead><tr><th scope="col">#</th><th scope="col">Адрес</th><th scope="col">LP</th><th scope="col">Инвест. дни × множитель</th><th scope="col">Получения</th><th scope="col">Расчётная доля</th><th scope="col">Реферер</th></tr></thead><tbody>${providers.map((provider, index) => {
+    return `<div class="table-wrap"><table aria-label="Рейтинг провайдеров LONG"><caption>Рейтинг провайдеров LONG по данным backend</caption><thead><tr><th scope="col">#</th><th scope="col">Адрес</th><th scope="col">Ликвидность</th><th scope="col">Инвест. дни × множитель</th><th scope="col">Получения</th><th scope="col">Будущий фарминг</th><th scope="col">Бонус 50 дней</th><th scope="col">Реферер</th></tr></thead><tbody>${providers.map((provider, index) => {
       const share = provider.experience / totalExperience;
       const calculatedPart = farmingAmount * share;
-      const liquidityShare = toNumber(provider.liquidity) / totalLiquidity * 100;
-      return `<tr><td>${index + 1}</td><td>${renderAccountCell(chains.minter, provider.address)}</td><td>${formatLongNumber(provider.liquidity)} LP<br><span class="muted">${formatLongNumber(liquidityShare, 4)}% пула</span></td><td>${formatLongNumber(provider.investDays)} × ${escapeHtml(provider.multiply || 1)}</td><td>${formatLongNumber(provider.get_amount)} LONG<br><span class="muted">${formatLongNumber(provider.get_counter)} начислений</span></td><td>${formatLongNumber(calculatedPart)} LONG<br><span class="muted">расчёт по текущим данным</span></td><td>${provider.referer ? renderAccountCell(chains.minter, provider.referer) : '<span class="muted">—</span>'}</td></tr>`;
+      const longBase = provider.providerLong ? provider.providerLong * 2 : 0;
+      const providerPercent = longBase ? (calculatedPart / longBase) * 100 : 0;
+      let bonusValue = 0;
+      if (provider.superPower > 0) {
+        bonusValue = maxPrize * (provider.superPower / totalSupers);
+        if (bonusValue > calculatedPart * 10) bonusValue = calculatedPart * 10;
+      }
+      const poolParts = provider.providerLong || provider.providerBip ? `<br><span class="muted">${formatLongNumber(provider.providerLong)} LONG и ${formatLongNumber(provider.providerBip)} BIP</span>` : '';
+      return `<tr><td>${index + 1}</td><td>${renderAccountCell(chains.minter, provider.address)}</td><td>${formatLongNumber(provider.liquidity)} LP${poolParts}<br><span class="muted">${formatLongNumber(provider.liquidityShare * 100, 4)}% пула</span></td><td>${formatLongNumber(provider.investDays)} × ${escapeHtml(provider.multiply || 1)}</td><td>${formatLongNumber(provider.get_amount)} LONG<br><span class="muted">${formatLongNumber(provider.get_counter)} начислений</span></td><td>${formatLongNumber(calculatedPart)} LONG<br><span class="muted">${formatLongNumber(providerPercent, 3)}%</span></td><td>${formatLongNumber(bonusValue)}</td><td>${provider.referer ? renderAccountCell(chains.minter, provider.referer) : '<span class="muted">—</span>'}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
   async function renderLongMain() {
     setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
-    const data = await fetchLongJson('');
-    const { farmingAmount, totalExperience } = calcLongProviderRows(data);
+    const [data, pool] = await Promise.all([fetchLongJson(''), fetchMinterLongPool()]);
+    const poolStats = calcLongPoolStats(pool);
+    const { farmingAmount, totalExperience } = calcLongProviderRows(data, poolStats);
     appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
       <p>Раздел показывает параметры LONG по данным backend и публичной сети Minter. Это информационный расчёт: итоговые значения зависят от состояния блокчейна, ликвидности, правил сервиса и доступности backend.</p>
       <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a></p>
@@ -1715,10 +1794,12 @@
         <li><strong>Резерв для лотереи и бонусных инвест. дней:</strong> ${formatLongNumber(toNumber(data.max_prize) * 2)} LONG</li>
         <li><strong>Расчётная часть для распределения:</strong> ${formatLongNumber(farmingAmount)} LONG</li>
         <li><strong>Суммарный опыт провайдеров:</strong> ${formatLongNumber(totalExperience)}</li>
+        ${poolStats ? `<li><strong>Пул BIP/LONG:</strong> ${formatLongNumber(poolStats.liquidity)} LP, ${formatLongNumber(poolStats.bip)} BIP и ${formatLongNumber(poolStats.long)} LONG</li><li><strong>Курс:</strong> 1 LONG ≈ ${formatLongNumber(poolStats.price, 8)} BIP</li>` : '<li><strong>Пул BIP/LONG:</strong> Minter API сейчас недоступен, показываю backend-данные без состава пула.</li>'}
       </ul></article>
       <article class="card"><h3>Как читать расчёты</h3><p>Инвест. дни, множитель, LP и накопленные значения берутся из backend. Таблица ниже помогает проверить рейтинг и текущую формулу; она не является обещанием результата и не заменяет проверку транзакций в сети.</p></article>
-      ${renderLongProvidersTable(data)}
+      ${renderLongProvidersTable(data, poolStats)}
       ${rawJsonDetails('Исходные данные LONG backend', data)}
+      ${pool ? rawJsonDetails('Исходные данные Minter pool API', pool) : ''}
     </section>`;
     setStatus('LONG: обзор и рейтинг загружены.', 'ok');
   }
@@ -1988,7 +2069,12 @@
   });
 
   global.addEventListener('hashchange', renderRoute);
-  global.DposV3 = Object.freeze({ navigate, renderRoute, appRequiresAccount });
+  global.DposV3 = Object.freeze({
+    navigate,
+    renderRoute,
+    appRequiresAccount,
+    long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
+  });
 
   renderRoute();
 })(window);
