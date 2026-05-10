@@ -642,3 +642,141 @@ Summary: 74/74 v3 routes were opened in browser/CDP. Initial public run found 2 
 | decimal/swap (Обмен) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=swap — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
 | decimal/my-coin (Монеты/NFT) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=my-coin — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
 | decimal/calculator (Калькулятор) | — — no old standalone route | https://dpos.blinddev.xyz/#chain=decimal&app=calculator — opened in public CDP click-through | blocked/intentional: old standalone service absent; v3 route still opened |
+
+---
+
+## Wallet refactor plan — v3
+
+### Goal
+
+Stop treating Graphene-like wallets as one universal UI. Keep only safe infrastructure shared; move wallet balances, labels, forms and operations into chain-specific renderers.
+
+### Constraints
+
+- Branch: `v3`.
+- Static frontend only.
+- Real transactions only after explicit browser confirmation.
+- Do not leak private keys, WIF, seed phrases, or backend origins.
+- Preserve current successful gates before every push:
+  - `node --check v3/js/*.js`
+  - `node --check tests/*.js`
+  - `for f in tests/*.js; do node "$f"; done`
+  - `git diff --check`
+- Keep low-level broadcast/confirm/refresh shared.
+- Do not continue patching wallet copy in a generic way.
+
+### Stage 1 — split wallet renderers without feature expansion
+
+Purpose: architectural separation first, minimal behavior change.
+
+1. Introduce chain-specific dispatch for Graphene wallet route:
+   - `renderGolosWallet(chain, account)`
+   - `renderVizWallet(chain, account)`
+   - `renderHiveWallet(chain, account)`
+   - `renderSteemWallet(chain, account)`
+2. Extract common data-loading helper:
+   - load crypto/library
+   - current user/key status
+   - connection
+   - raw account
+   - normalized profile
+   - wallet history
+3. Keep common low-level helpers:
+   - `bindOperationForm`
+   - `refreshRouteAfterBroadcast`
+   - `setOperationResult`
+   - `operationDetails`
+   - validation wrappers
+4. Add chain-specific form-builder/binding entry points that currently call the shared Graphene helper, without changing wallet wording or feature set in this stage.
+5. Add smoke assertions that wallet render dispatch is chain-specific.
+
+Acceptance for Stage 1:
+
+- UI still works for existing wallet operations.
+- Code has separate render functions per chain.
+- Shared Graphene form helper remains as an implementation detail behind chain-specific entry points.
+- Tests pass.
+- No commit/push until parent review approves.
+
+### Stage 2 — wallet legacy parity pass, one chain at a time
+
+Purpose: adapt wallets by network based on legacy `blockchains/{name}/apps/wallet` and all files inside each wallet directory. Do not start this stage inside the Stage 1 subagent.
+
+Required evidence before changing a chain wallet:
+
+- inspect every file under the relevant legacy wallet directory;
+- record supported operations, balances, labels, shortcuts, and skipped/blocked legacy behaviors;
+- preserve existing broadcast safety: preview first, confirm before real send, no test sends.
+
+Golos priorities:
+
+1. Balances:
+   - GOLOS
+   - GBG
+   - СГ converted from GESTS
+   - delegated/received СГ
+   - TIP balance
+   - UIA balances
+2. Operations:
+   - GOLOS/GBG transfer
+   - transfer to СГ
+   - withdraw СГ
+   - delegate СГ
+   - claim accumulative balance
+   - donate
+   - TIP transfer / transfer from TIP if supported by loaded library
+3. Legacy-specific UX review:
+   - balance action shortcuts
+   - templates for transfer/donate (evaluate if worth porting now)
+   - gateways/withdraw metadata (evaluate separately, likely Stage 2.2)
+4. Tests for СГ conversion and UIA visibility.
+
+Acceptance for Stage 2:
+
+- Each adapted wallet no longer feels like generic Graphene wallet.
+- Chain-specific primary balances/action amounts are user-facing, with raw values only as secondary detail where needed.
+- Missing legacy features explicitly marked supported/not yet ported/blocked with evidence.
+- Tests pass; commit/push only after parent review.
+
+### Stage 3 — VIZ wallet pass
+
+Purpose: VIZ-specific wallet, no Golos/Hive/Steem terminology.
+
+Priorities:
+
+- VIZ liquid balance
+- SHARES
+- energy
+- rewards/award flow terminology
+- transfer / transfer to vesting / withdraw vesting / delegation only where correct
+- invite-related operations stay in manage unless UX says otherwise
+
+Acceptance:
+
+- VIZ wallet labels are VIZ-native.
+- No “СГ”, no Golos-specific rewards text.
+
+### Stage 4 — Hive and Steem wallet pass
+
+Purpose: separate HP/SP semantics and savings/rewards.
+
+Priorities:
+
+- Hive: HIVE/HBD/HP, savings, reward claim labels
+- Steem: STEEM/SBD/SP, savings, reward claim labels
+- Avoid Golos/VIZ wording.
+
+### Stage 5 — visual/action shortcuts
+
+After semantic correctness:
+
+- Add balance action shortcuts/cards:
+  - liquid: transfer / power up
+  - power: power down / delegation
+  - savings: transfer to/from savings where supported
+  - chain-specific shortcuts only
+- Revisit modal vs details only after chain-specific renderers are stable.
+
+### Current next action
+
+Parent review Stage 1 split: chain-specific Graphene wallet renderers and form-builder/binding entry points are in place with minimal behavior changes. After parent approval, commit/push may happen; only then start Stage 2 as a legacy-wallet-dir evidence pass, not in the Stage 1 subagent.
