@@ -2403,7 +2403,11 @@
         return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'VIZ в SHARES получателя', to, amount });
       }
       const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, String(form.get('memo') || '')], { title: 'VIZ transfer', to, amount });
-      prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
+      if (!(prepared.meta && prepared.meta.signerType === 'vizonator')) {
+        prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
+      } else if (String(form.get('memo') || '').startsWith('#')) {
+        prepared.meta.warnings.push('Для Vizonator memo передаётся в расширение как есть, как в legacy dpos.space; локальное шифрование #memo в v3 не выполняется.');
+      }
       return prepared;
     });
 
