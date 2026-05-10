@@ -47,7 +47,7 @@ for (const method of [
 }
 
 assert(appSource.includes('encodeVizMemoIfNeeded'), 'VIZ encrypted memo helper is present');
-assert(appSource.includes('viz.memo.encode'), 'VIZ encrypted memo uses viz.memo.encode');
+assert(appSource.includes('client.memo.encode'), 'VIZ encrypted memo uses chain memo encoder');
 assert(appSource.includes('viz_transfer_templates'), 'VIZ transfer templates keep the legacy localStorage key');
 assert(appSource.includes("callVizApi(api, 'getVestingDelegations', [account, '', 100, type])"), 'VIZ wallet reads legacy vesting delegation API order');
 assert(appSource.includes('fetchVizDelegationsWithNodeFallback'), 'VIZ delegation loader falls back across VIZ nodes');
@@ -57,7 +57,7 @@ assert(appSource.includes('getInviteByKey(publicKey'), 'VIZ wallet can inspect i
 assert(appSource.includes('wifToPublic'), 'VIZ create/check invite derives public invite key from secret WIF');
 assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes('function executeVizonator'), 'VIZ Vizonator JS bridge adapter is present');
 assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes("transfer_to_vesting', { to, amount }"), 'VIZ Vizonator transfer_to_vesting uses legacy bridge options');
-assert(appSource.includes('Для Vizonator memo передаётся в расширение как есть'), 'VIZ wallet warns about Vizonator #memo behavior');
+assert(appSource.includes('Для Vizonator memo с # передаётся в расширение как есть'), 'VIZ wallet warns about Vizonator #memo behavior');
 
 for (const evidence of [
   'blockchains/viz/apps/wallet/config.json',

@@ -460,7 +460,7 @@
     };
     const mapped = operationMap[prepared.operationName];
     if (!mapped) {
-      throw new Error(`Vizonator не поддерживает операцию ${prepared.operationName} в legacy dpos.space flow. Выберите аккаунт с локальным ключом для этой операции.`);
+      throw new Error(`Vizonator не поддерживает операцию ${prepared.operationName}. Выберите аккаунт с локальным ключом для этой операции.`);
     }
     const method = bridge[mapped[0]];
     if (typeof method !== 'function') throw new Error(`Vizonator bridge не поддерживает метод ${mapped[0]}.`);
