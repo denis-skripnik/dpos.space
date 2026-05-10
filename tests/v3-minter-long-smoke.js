@@ -73,7 +73,7 @@ context.window = context;
 
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8'), context, { filename: 'v3/js/chains.js' });
-context.DposAuth = { getCurrentLogin: () => '' };
+context.DposAuth = { getCurrentLogin: () => '', getCurrentUser: () => null, getUsers: () => [], getUserLogin: () => '', getUserType: () => 'standard', selectUser: () => null };
 context.DposBroadcast = {};
 context.DposProfiles = { formatError: (error) => error.message };
 context.DposHistory = {
