@@ -11,6 +11,8 @@
   const routeForm = document.getElementById('route-form');
   const accountInput = document.getElementById('account-input');
   const accountField = accountInput ? accountInput.closest('.field') : null;
+  const accountSelectField = document.getElementById('account-select-field');
+  const accountSelect = document.getElementById('account-select');
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
@@ -81,13 +83,53 @@
     return Boolean(app && app.accountField === true);
   }
 
-  function updateAccountField(app) {
-    const visible = appRequiresAccount(app);
+  function appUsesAuthorizedAccount(app) {
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'donate', 'swap', 'my-coin'].includes(app.id));
+  }
+
+  function accountSelectorVisible(app, chain) {
+    return Boolean(app && (appRequiresAccount(app) || appUsesAuthorizedAccount(app)) && auth.getUsers(chain).length);
+  }
+
+  function savedAccountValue(user) {
+    return `${auth.getUserType(user)}:${auth.getUserLogin(user)}`;
+  }
+
+  function fillAccountSelect(chain) {
+    const users = auth.getUsers(chain);
+    const current = auth.getCurrentUser(chain);
+    const currentValue = current ? savedAccountValue(current) : '';
+    accountSelect.innerHTML = users.map((user) => {
+      const login = auth.getUserLogin(user);
+      const type = auth.getUserType(user);
+      const label = type && type !== 'standard' && type !== 'seed' ? `${login} (${type})` : login;
+      const value = savedAccountValue(user);
+      return `<option value="${escapeHtml(value)}" ${value === currentValue ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+  }
+
+  function selectSavedAccount(chain, value) {
+    const [type, ...loginParts] = String(value || '').split(':');
+    const login = loginParts.join(':');
+    if (!login) return '';
+    auth.selectUser(chain, login, type || 'standard');
+    return login;
+  }
+
+  function updateAccountField(app, chain) {
+    const selectVisible = accountSelectorVisible(app, chain);
+    const inputVisible = appRequiresAccount(app) && !(selectVisible && appUsesAuthorizedAccount(app));
+    if (accountSelectField && accountSelect) {
+      accountSelectField.hidden = !selectVisible;
+      accountSelectField.setAttribute('aria-hidden', selectVisible ? 'false' : 'true');
+      accountSelect.disabled = !selectVisible;
+      if (selectVisible) fillAccountSelect(chain);
+    }
     if (!accountField) return;
-    accountField.hidden = !visible;
-    accountField.setAttribute('aria-hidden', visible ? 'false' : 'true');
-    accountInput.disabled = !visible;
-    accountInput.tabIndex = visible ? 0 : -1;
+    accountField.hidden = !inputVisible;
+    accountField.setAttribute('aria-hidden', inputVisible ? 'false' : 'true');
+    accountInput.disabled = !inputVisible;
+    accountInput.tabIndex = inputVisible ? 0 : -1;
   }
 
   function profileRows(rows) {
@@ -2217,7 +2259,7 @@
 
     fillChainSelect(chain.id);
     fillAppSelect(chain, app.id);
-    updateAccountField(app);
+    updateAccountField(app, chain);
     accountInput.value = account;
 
     try {
@@ -2289,24 +2331,34 @@
     const chain = chains[chainSelect.value];
     const app = chain.apps[0];
     fillAppSelect(chain, app.id);
-    updateAccountField(app);
+    updateAccountField(app, chain);
     accountInput.value = auth.getCurrentLogin(chain) || chain.defaultAccount || '';
   });
 
   appSelect.addEventListener('change', () => {
     const chain = chains[chainSelect.value];
     const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
-    updateAccountField(app);
+    updateAccountField(app, chain);
   });
+
+  if (accountSelect) {
+    accountSelect.addEventListener('change', () => {
+      const chain = chains[chainSelect.value];
+      const login = selectSavedAccount(chain, accountSelect.value);
+      if (login && !accountInput.disabled) accountInput.value = login;
+    });
+  }
 
   routeForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const chain = chains[chainSelect.value];
     const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
+    const selectedLogin = accountSelect && !accountSelect.disabled ? selectSavedAccount(chain, accountSelect.value) : '';
+    const typedLogin = appRequiresAccount(app) && !accountInput.disabled ? accountInput.value.trim().replace(/^@/, '') : '';
     navigate({
       chain: chainSelect.value,
       app: appSelect.value,
-      account: appRequiresAccount(app) ? accountInput.value.trim().replace(/^@/, '') : null
+      account: appRequiresAccount(app) || appUsesAuthorizedAccount(app) ? (selectedLogin || typedLogin || null) : null
     });
   });
 

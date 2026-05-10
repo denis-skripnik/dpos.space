@@ -64,7 +64,9 @@ assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link
 assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');
 assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter: отправка has a separate route and does not collapse to wallet');
 assert(appSource.includes('function appRequiresAccount'), 'route form has contextual account-field helper');
-assert(appSource.includes('accountInput.disabled = !visible'), 'hidden account field is disabled and removed from tab order');
+assert(appSource.includes('function appUsesAuthorizedAccount'), 'route form has authorized-account selector helper for wallet/manage/broadcast tools');
+assert(appSource.includes('accountInput.disabled = !inputVisible'), 'hidden account field is disabled and removed from tab order');
+assert(appSource.includes('selectSavedAccount(chain, accountSelect.value)'), 'route submit switches current user from the authorized-account selector');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'long').accountField, undefined, 'Minter LONG does not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'validators').accountField, undefined, 'Minter validators do not show the global account field');
 assert.strictEqual(chains.minter.apps.find((app) => app.id === 'profiles').accountField, true, 'profiles keep the global account field');
