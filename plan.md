@@ -440,6 +440,11 @@ Additional implementation in this pass:
 | Broadcast/signing | Legacy signs with old browser libraries and localStorage keys/seeds. | v3 uses legacy decrypt, preview/sanitize, confirm before real broadcast. | [x] | Existing mocks verify no WIF/seed leaks. |
 | Editor/posting, donate/award, manage/governance, registration/invite | Legacy chain-specific apps exist for social chains. | v3 routes/forms exist for scoped social-chain features; unsupported backend-heavy parts are shown explicitly rather than silently pretending parity. | [x] | No true blocker for requested regressions; no Cyber/EVM added. |
 | Explorer/calculator/import/instant-view/swap/market | Legacy has mixed static+backend pages. | v3 exposes available static/read-only/helper routes and clear unsupported messages for backend-dependent flows. | [x] | No change needed for current regressions. |
+| Decimal history endpoint/shape | Legacy profile/history uses `/txs/txs-by-address/{address}?limit&offset` and Decimal APIs may return `{result:{txs}}`, `{Result:{Txs}}`, `{txs}`, or bare result arrays. | v3 history used `/addresses/{address}/txs` and only a narrow `txs/result` unwrap. | [x] | Implemented `txs-by-address` URL with limit/offset in `history.fetchAccountHistory`, added `unwrapRestHistory`/`normalizeRestHistory` shape normalization, and mocked-fetch URL/shape tests. |
+| Minter/Decimal 18-decimal display | Legacy REST screens display human BIP/DEL amounts; REST/explorer may return 10^18 minimal-unit integer strings. | v3 rendered integer strings verbatim in history/profile/explorer fields. | [x] | Added safe 18-decimal formatter for value/amount/stake/liquidity-like fields, applied it to history/explorer/profile balance/readable paths, and tested `1000000000000000000 -> 1` while preserving `1.5`. |
+| Minter explorer operation values | Legacy explorer/wallet views show human-readable operation amounts first and raw JSON as secondary details. | v3 primary operation fields could show minimal-unit values while raw JSON was available. | [x] | `formatExplorerValue` and transaction table display now convert Minter amount/value/stake-like minimal-unit fields before the raw JSON details. |
+| Decimal validator id validation | Legacy/API flows may use operator validator ids/raw validator addresses, not only dx/0x account addresses. | v3 delegate/unbond path reused account address validation for Decimal validators. | [x] | Added `validateDecimalValidator`, switched Decimal delegate/unbond and NFT stake validation to that helper, kept normal account send on `validateAddress`, and added tests for realistic non-dx validator id acceptance plus dx/0x send validation. |
+| Minter broadcast route separation | Legacy Minter broadcast is a separate raw signed TX/multisig app; it must not collapse into seed wallet send/delegate forms. | v3 routed `chain=minter&app=broadcast` through generic Cosmos wallet forms. | [blocked] | Added dedicated `renderMinterBroadcast` route with Raw signed TX and Multisig controls plus explicit pending/blocked messaging. Real raw signed TX/multisig send remains disabled because the bundled static browser SDK has no verified arbitrary `postSigned/decode`/multisig method mapping; no fake send was added. |
 
 ### Completion checklist for this pass
 
@@ -450,7 +455,12 @@ Additional implementation in this pass:
 - [x] No legacy PHP/JS deleted.
 - [x] No Cyber/EVM route added to v3.
 - [x] No real transaction performed in automated checks.
-- [x] No `[blocked]` items remain for this static pass.
+- [x] Focused Decimal history endpoint/shape parity implemented.
+- [x] Focused Minter/Decimal 18-decimal readable display implemented for primary fields.
+- [x] Decimal validator id validation relaxed for validator fields while account send remains strict.
+- [x] Minter broadcast route separated from generic wallet.
+- [x] No real transaction performed in automated checks.
+- [ ] `[blocked]` remains only for real Minter raw signed TX/multisig sending until exact static SDK methods are verified; UI states this explicitly and does not fake send.
 
 ## 2026-05-10 UX/usability pass checklist
 

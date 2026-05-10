@@ -382,15 +382,23 @@
     return path.split('.').reduce((value, key) => value && value[key], item);
   }
 
+  function formatRestMinimalUnits(value) {
+    const text = String(value || '').trim();
+    if (text.includes('.') || !/^\d+$/.test(text) || text.length < 19) return value;
+    const whole = text.slice(0, -18) || '0';
+    const fraction = text.slice(-18).replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : whole;
+  }
+
   function normalizeRestBalances(balances, labelPaths, valuePaths) {
     if (!present(balances)) return [];
     if (!Array.isArray(balances) && typeof balances === 'object') {
-      return Object.entries(balances).map(([symbol, amount]) => [symbol, amount]);
+      return Object.entries(balances).map(([symbol, amount]) => [symbol, formatRestMinimalUnits(amount)]);
     }
     return balances.map((item) => {
       const label = labelPaths.map((path) => valueAtPath(item, path)).find(present) || 'coin';
       const value = valuePaths.map((path) => valueAtPath(item, path)).find(present);
-      return [label, value];
+      return [label, formatRestMinimalUnits(value)];
     }).filter((item) => present(item[1]));
   }
 
@@ -496,9 +504,9 @@
     const rows = [];
     addField(rows, 'Адрес', account.address || account.name);
     addField(rows, 'Nonce', account.nonce || account.transaction_count || account.tx_count);
-    addField(rows, 'Total balance', account.total_balance_sum || account.totalBalance || account.balance_sum);
-    addField(rows, 'Delegated', account.delegated || account.delegated_amount);
-    addField(rows, 'Unbonding', account.unbonding || account.unbonding_amount);
+    addField(rows, 'Total balance', formatRestMinimalUnits(account.total_balance_sum || account.totalBalance || account.balance_sum));
+    addField(rows, 'Delegated', formatRestMinimalUnits(account.delegated || account.delegated_amount));
+    addField(rows, 'Unbonding', formatRestMinimalUnits(account.unbonding || account.unbonding_amount));
     addField(rows, 'Multisig', account.multisig);
     addField(rows, 'Validator public key', account.public_key || account.validator_public_key || account.validatorPubKey);
     addField(rows, 'Validator status', account.status || account.validator_status);
@@ -520,7 +528,7 @@
     return items.slice(0, limit || 10).map((item) => {
       if (typeof item === 'string') return item;
       if (item && typeof item === 'object') {
-        return item.coin && item.value ? `${item.value} ${item.coin.symbol || item.coin}` : JSON.stringify(item);
+        return item.coin && item.value ? `${formatRestMinimalUnits(item.value)} ${item.coin.symbol || item.coin}` : JSON.stringify(item);
       }
       return String(item);
     });

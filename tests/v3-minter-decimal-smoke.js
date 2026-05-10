@@ -65,6 +65,10 @@ async function run() {
   assert.strictEqual(context.DposHistory.operationTitle(13), 'Мультисенд (мульти-отправка)', 'minter numeric type 13 is readable');
   assert.strictEqual(context.DposHistory.operationTitle('0x0D'), 'Мультисенд (мульти-отправка)', 'minter hex type 0x0D is readable');
   assert.strictEqual(context.DposHistory.operationTitle(21), 'Добавление ликвидности', 'minter pool ops are readable');
+  assert.strictEqual(context.DposHistory.formatMinimalUnits('1000000000000000000'), '1', '18-decimal minimal units format as human amount');
+  assert.strictEqual(context.DposHistory.formatChainAmount(minter, 'value', '1000000000000000000'), '1', 'minter value minimal unit formats as BIP amount path');
+  assert.strictEqual(context.DposHistory.formatChainAmount(decimal, 'amount', '1000000000000000000'), '1', 'decimal amount minimal unit formats as DEL amount path');
+  assert.strictEqual(context.DposHistory.formatChainAmount(decimal, 'amount', '1.5'), '1.5', 'already-human decimal amount is not corrupted');
 
   let minterPosted;
   context.minterSDK = {
@@ -87,6 +91,8 @@ async function run() {
   assert.strictEqual(decimalStatus.hasActive, true, 'decimal: legacy seed decrypts via old passphrase');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'dx0000000000000000000000000000000000000000'), 'dx0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, '0x0000000000000000000000000000000000000000'), '0x0000000000000000000000000000000000000000');
+  assert.strictEqual(context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d');
+  assert.throws(() => context.DposBroadcast.validateAddress(decimal, 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), /Decimal address/);
   assert.strictEqual(context.DposHistory.operationTitle('/decimal.coin.v1.MsgSendCoin'), 'Отправка', 'decimal OpenAPI message type is readable');
   assert.strictEqual(context.DposHistory.operationTitle('COIN_SEND'), 'Отправка', 'decimal legacy uppercase send type is readable');
   assert.strictEqual(context.DposHistory.operationTitle('COIN_SELL'), 'Продажа монеты', 'decimal legacy uppercase sell type is readable');
@@ -115,9 +121,19 @@ async function run() {
   assert.strictEqual(decimalCalls[1][2], MNEMONIC, 'decimal SDK wallet receives decrypted mnemonic');
   assert(!JSON.stringify(context.DposBroadcast.sanitizeResult(decimalResult)).includes(MNEMONIC), 'decimal result sanitizer redacts key echoes');
 
-  const decimalDelegation = context.DposBroadcast.prepare(decimal, 'seed', 'decimalDelegate', [{ validator: '0x0000000000000000000000000000000000000000', amount: '2', coin: 'DEL' }]);
+  const decimalDelegation = context.DposBroadcast.prepare(decimal, 'seed', 'decimalDelegate', [{ validator: 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d', amount: '2', coin: 'DEL' }]);
   await context.DposBroadcast.broadcast(decimal, decimalDelegation, { confirmExecute: true });
-  assert(decimalCalls.some((call) => call[0] === 'delegateDEL'), 'decimal delegate dispatches SDK method');
+  assert(decimalCalls.some((call) => call[0] === 'delegateDEL'), 'decimal delegate dispatches SDK method with relaxed validator id');
+
+  const fetchCalls = [];
+  context.fetch = async (url) => {
+    fetchCalls.push(url);
+    return { ok: true, json: async () => ({ Result: { Txs: [{ tx_hash: 'DXHASH', message_type: 'COIN_SEND', message: { amount: '1000000000000000000', coin: 'DEL' } }] } }) };
+  };
+  const decimalHistory = await context.DposHistory.fetchAccountHistory({ config: decimal }, 'dx0000000000000000000000000000000000000000', { limit: 10, offset: 5 });
+  assert.strictEqual(fetchCalls[0], 'https://api.decimalchain.com/api/v1/txs/txs-by-address/dx0000000000000000000000000000000000000000?limit=10&offset=5', 'decimal history uses legacy txs-by-address URL with limit/offset');
+  assert.strictEqual(decimalHistory.length, 1, 'decimal history unwraps Result.Txs shape');
+  assert.strictEqual(decimalHistory[0].trxId, 'DXHASH');
 }
 
 run().catch((error) => {

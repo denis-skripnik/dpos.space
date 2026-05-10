@@ -58,3 +58,8 @@ assert(appSource.includes('scope=\"col\"'), 'transaction tables include scoped c
 assert(appSource.includes("explorerLink(chain, 'tx'"), 'transaction rows link tx values to explorer route');
 assert(appSource.includes("explorerLink(chain, 'block'"), 'transaction rows link block values to explorer route');
 assert(appSource.includes("accountLink(chain"), 'transaction rows link account-like values to profiles route');
+
+assert(appSource.includes('function renderMinterBroadcast'), 'Minter broadcast route has dedicated renderMinterBroadcast');
+assert(appSource.includes('Raw signed TX'), 'Minter broadcast route labels raw signed TX controls');
+assert(appSource.includes('Multisig controls'), 'Minter broadcast route labels multisig controls');
+assert(appSource.includes("chain.id === 'minter' && app.id === 'broadcast'"), 'Minter broadcast does not collapse to generic wallet route');

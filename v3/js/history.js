@@ -205,10 +205,11 @@
       return normalizeRestHistory(data.data || data.transactions || []);
     }
     if (chain.config.id === 'decimal') {
-      const response = await fetch(`${chain.config.apiBase}/addresses/${encodeURIComponent(accountName)}/txs`);
+      const offset = Number.isFinite(Number(options.offset)) ? Number(options.offset) : 0;
+      const response = await fetch(`${chain.config.apiBase}/txs/txs-by-address/${encodeURIComponent(accountName)}?limit=${limit}&offset=${offset}`);
       if (!response.ok) throw new Error(`Decimal history API HTTP ${response.status}`);
       const data = await response.json();
-      return normalizeRestHistory(data.txs || data.result || []);
+      return normalizeRestHistory(unwrapRestHistory(data));
     }
 
     const raw = await callApi(chain, 'getAccountHistory', args);
@@ -241,9 +242,32 @@
     });
   }
 
+  function unwrapRestHistory(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (!raw || typeof raw !== 'object') return [];
+    const candidates = [
+      raw.txs,
+      raw.transactions,
+      raw.result && raw.result.txs,
+      raw.result && raw.result.Txs,
+      raw.Result && raw.Result.txs,
+      raw.Result && raw.Result.Txs,
+      raw.result,
+      raw.Result,
+      raw.data && raw.data.txs,
+      raw.data && raw.data.transactions,
+      raw.data
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+    return [];
+  }
+
   function normalizeRestHistory(raw) {
-    if (!Array.isArray(raw)) return [];
-    return raw.map((item, index) => ({
+    const rows = unwrapRestHistory(raw);
+    if (!Array.isArray(rows)) return [];
+    return rows.map((item, index) => ({
       index,
       type: item.type || item.tx_type || item.transaction_type || item.message_type || 'transaction',
       data: item.data || item.message || item,
@@ -290,6 +314,26 @@
     });
   }
 
+  function isMinimalUnitKey(key) {
+    return /(^|_)(value|amount|stake|liquidity|volume|balance|reserve|supply)(_|$)/i.test(String(key || ''));
+  }
+
+  function formatMinimalUnits(value) {
+    const text = String(value || '').trim();
+    if (!/^\d+$/.test(text) || text.length < 19) return text;
+    const whole = text.slice(0, -18) || '0';
+    const fraction = text.slice(-18).replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : whole;
+  }
+
+  function formatChainAmount(chain, key, value) {
+    if (!chain || !['minter', 'decimal'].includes(chain.id || (chain.config && chain.config.id))) return formatValue(value);
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint') return formatValue(value);
+    const text = String(value).trim();
+    if (text.includes('.') || !isMinimalUnitKey(key)) return text;
+    return formatMinimalUnits(text);
+  }
+
   function formatValue(value) {
     if (value === null || typeof value === 'undefined') return '';
     if (typeof value === 'object') return JSON.stringify(value);
@@ -298,8 +342,11 @@
 
   global.DposHistory = Object.freeze({
     fetchAccountHistory,
+    formatChainAmount,
     formatDate,
+    formatMinimalUnits,
     formatValue,
+    normalizeRestHistory,
     getWalletOperations,
     operationTitle
   });
