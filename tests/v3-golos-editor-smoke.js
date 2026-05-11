@@ -31,6 +31,9 @@ assert(appSource.includes('<summary>Публикация поста — preview 
 assert(appSource.includes('function renderMarkdownEditorField'), 'Golos editor uses shared Markdown editor renderer');
 assert(appSource.includes('role="toolbar" aria-label="Панель форматирования Markdown"'), 'Markdown editor toolbar is labelled for accessibility');
 assert(appSource.includes('data-md-action="bold"') && appSource.includes('data-md-action="table"'), 'Markdown editor exposes formatting buttons');
+assert(appSource.includes('data-md-upload-image') && appSource.includes('Загрузить фото'), 'Markdown editor exposes legacy-style image upload button');
+assert(appSource.includes("fetch('https://api.imgur.com/3/image.json'") && appSource.includes('IMGUR_CLIENT_ID'), 'Markdown editor uploads images to Imgur through the legacy anonymous endpoint');
+assert(appSource.includes('insertMarkdown(textarea, `![](${link})`'), 'Uploaded image is inserted as Markdown at the textarea cursor');
 assert(appSource.includes('data-md-preview aria-expanded="false" aria-controls="editor-preview"'), 'Markdown editor exposes an accessible preview toggle');
 assert(appSource.includes('function bindMarkdownEditor'), 'Markdown editor binds formatting and preview behavior');
 assert(appSource.includes('Ctrl+B, Ctrl+I, Ctrl+K'), 'Markdown editor documents keyboard shortcuts');

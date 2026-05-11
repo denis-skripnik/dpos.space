@@ -72,7 +72,8 @@ for (const marker of [
 }
 
 assert(broadcastSource.includes("hive: { posting: 'posting"), 'Hive broadcast authority map supports posting authority');
-assert(!/backend\.dpos\.space|178\.20\.43\.121|hidden server API|new indexer|daemon|\.php\b|XMLHttpRequest|api\.imgur\.com|Client-ID 372d5f766d47d1d/.test(hiveRuntimeSlice), 'Hive post/editor runtime slice has no private/PHP/backend/upload-service dependency');
+assert(!/backend\.dpos\.space|178\.20\.43\.121|hidden server API|new indexer|daemon|\.php\b|XMLHttpRequest/.test(hiveRuntimeSlice), 'Hive post/editor runtime slice has no private/PHP/backend dependency');
+assert(hiveRuntimeSlice.includes('api.imgur.com/3/image.json') && hiveRuntimeSlice.includes('IMGUR_CLIENT_ID'), 'Hive post/editor ports legacy anonymous Imgur upload without adding a private backend');
 assert(!hiveRuntimeSlice.includes('blockchains/hive/apps/post'), 'Hive post/editor runtime does not reference legacy runtime paths');
 
 assert(planSource.includes('### Rigorous parity: Hive / post'), 'plan.md contains required Hive/post rigorous parity section');
