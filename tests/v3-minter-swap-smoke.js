@@ -21,7 +21,7 @@ assert(minterApps.includes("Обмен монет и операции swap-pool"
 
 assert(appSource.includes("chain.id === 'minter' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')"), 'Minter swap route dispatches to the Minter-specific wallet/action renderer');
 
-const formsSlice = sliceBetween(appSource, 'function minterSwapForms() {', 'function decimalNftForms()', 'Minter swap forms slice');
+const formsSlice = sliceBetween(appSource, 'function minterSwapForms() {', 'function decimalNftForms(', 'Minter swap forms slice');
 for (const marker of [
   'minter-swap-form',
   'Minter: обмен / продажа',
