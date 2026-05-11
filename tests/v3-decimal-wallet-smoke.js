@@ -93,6 +93,7 @@ assert(appSource.includes('resolveDecimalNftCollectionAddress(chain, form.get(\'
 assert(appSource.includes('nftcollections(where:{name:'), 'Decimal NFT collection resolver uses public Decimal subgraph by collection name');
 assert(appSource.includes('nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}'), 'Decimal NFT collection resolver can narrow public subgraph lookup by collection name and token id');
 assert(appSource.includes("Space_Warriors_Happy_New_Year: '0x97ef3fdb3f47a6114429e2f95481b3f926d67c6d'"), 'Decimal NFT resolver has a verified fallback for Space_Warriors_Happy_New_Year when subgraph lookup is unavailable');
+assert(appSource.includes('return decimalNftCollectionInputAddress(collection) || String(collection).trim();'), 'Decimal NFT selector prefills known collection names as contract addresses, not display names');
 assert(broadcastSource.includes('collection должна быть EVM contract address 0x'), 'Decimal broadcast guard rejects collection display names before ethers throws invalid address');
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
