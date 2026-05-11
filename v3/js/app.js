@@ -8684,13 +8684,14 @@ Memo key: ${keys.memo}`);
     const address = resolveSeedWalletAddress(chain, account);
     const stakeAddress = getDecimalStakeAddress(chain, address);
     const api = chain.apiBase || 'https://api.decimalchain.com/api/v1';
+    const gate = chain.gateUrl || 'https://mainnet-gate.decimalchain.com/api/';
     const [balancesData, stakesCoinsData, stakesNftsData, transactionsData, rewardsData, nftsData] = await Promise.all([
       fetchJsonText(`${api}/addresses/${encodeURIComponent(address)}/balances`, 'Decimal balances API').catch((error) => ({ _error: error.message })),
       fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/coins`, 'Decimal stakes coins API').catch((error) => ({ _error: error.message })),
       fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/nfts`, 'Decimal stakes NFTs API').catch((error) => ({ _error: error.message })),
       fetchJsonText(`${api}/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0`, 'Decimal history API').catch((error) => ({ _error: error.message })),
       fetchJsonText(`${api}/rewards/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal rewards API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${api}/nfts/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal NFTs API').catch((error) => ({ _error: error.message }))
+      fetchJsonText(`${gate.replace(/\/$/, '')}/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0`, 'Decimal SDK gateway NFTs API').catch((error) => ({ _error: error.message }))
     ]);
     return {
       address,
@@ -8699,7 +8700,7 @@ Memo key: ${keys.memo}`);
       nftStakes: decimalPayloadList(stakesNftsData, ['items', 'stakes', 'nfts']),
       transactions: decimalPayloadList(transactionsData, ['txs', 'Txs']).slice(0, 20),
       rewards: decimalPayloadList(rewardsData, ['rewards', 'items']).slice(0, 20),
-      nfts: decimalPayloadList(nftsData, ['nfts', 'items']).slice(0, 20),
+      nfts: decimalPayloadList(nftsData, ['tokens', 'nfts', 'items']).slice(0, 20),
       errors: {
         balances: balancesData && balancesData._error,
         coinStakes: stakesCoinsData && stakesCoinsData._error,

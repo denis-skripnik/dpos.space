@@ -171,7 +171,7 @@
       fetchOptional(`${chain.config.apiBase}/addresses/${encodeURIComponent(address)}/balances`),
       fetchOptional(`${chain.config.apiBase}/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0`),
       fetchOptional(`${chain.config.apiBase}/rewards/${encodeURIComponent(address)}?limit=20&offset=0`),
-      fetchOptional(`${chain.config.apiBase}/nfts/${encodeURIComponent(address)}?limit=20&offset=0`)
+      fetchOptional(`${(chain.config.gateUrl || 'https://mainnet-gate.decimalchain.com/api/').replace(/\/$/, '')}/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0`)
     ]);
     const unwrappedAddress = unwrapRestData(addressData) || {};
     const addressObject = unwrappedAddress.address || unwrappedAddress;
@@ -180,7 +180,7 @@
       balances: unwrappedBalances.balances || unwrappedBalances.balance || addressObject.balance || [],
       transactions: (unwrapRestData(transactionsData) || {}).txs || unwrapRestData(transactionsData) || [],
       rewards: (unwrapRestData(rewardsData) || {}).rewards || unwrapRestData(rewardsData) || [],
-      nfts: (unwrapRestData(nftsData) || {}).nfts || unwrapRestData(nftsData) || [],
+      nfts: (unwrapRestData(nftsData) || {}).tokens || (unwrapRestData(nftsData) || {}).nfts || unwrapRestData(nftsData) || [],
       rawApi: {
         address: addressData,
         balances: balancesData,
