@@ -2097,7 +2097,7 @@ Removal matrix:
 | `v3/js/chains.js` Golos apps | Registered `id: 'top'` and showed “Топ пользователей” in the Golos app selector. | Golos top removed from v3 runtime registry; neighboring apps `stakebot` and `witnesses-rewards` remain. | `tests/v3-golos-top-smoke.js` asserts no Golos `top` app entry and neighbor app presence. | removed |
 | `v3/js/app.js::renderGolosTop` and Golos top constants | Rendered documentation-only top page, ranking option constants, UIA button, and GP level table. | Renderer, constants, DOM hooks, and UIA loader removed from the runtime bundle. | Smoke asserts no `renderGolosTop`, `golosTopRankingOptions`, `loadGolosTopUiaAssets`, `golos-top-load-uia`, or `golos-top-uia-assets`. | removed |
 | Route dispatch | `#chain=golos&app=top` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'golos' && effectiveAppId === 'top'` dispatch. | removed |
-| VIZ top | Separate VIZ static top route. | Untouched. | Smoke asserts VIZ `top` app, route branch, and `renderVizTop` remain. | kept |
+| VIZ top | Separate VIZ static top route. | Later removed by the dedicated `### Decommission: VIZ / top` pass for the same reason: no useful leaderboard data without backend aggregation. | `tests/v3-viz-top-smoke.js` now asserts VIZ top is absent. | removed later |
 
 ### Rigorous parity: Golos / witnesses-rewards
 
@@ -2151,6 +2151,18 @@ Recheck after changes:
 - All legacy app-local files and referenced helpers listed above are represented in the matrix.
 - Static-feasible gaps were fixed: Golos `witnesses-rewards` route exposure, preserved legacy title/description/update notice, exact reward-column documentation, accessible `aria-live` public RPC status, and a bounded public witness/delegate list loader using `getWitnessesByVote` with `lookupWitnessAccounts`/`getWitnessByAccount` fallback.
 - Remaining gaps are precisely classified as backend-only non-goals: `old_daily_profit`, `now_daily_profit`, `old_monthly_profit`, and `now_monthly_profit` historical aggregates from the old private `golos-api?service=witnesses` backend. No old private backend URL/IP is used at runtime, and the route requires no auth/private keys/transactions.
+
+### Rename: Golos / witnesses-rewards to Delegates
+
+Golos delegates page now matches actual behavior: browser-only v3 can show the current delegate/witness list through public RPC, but it cannot compute legacy daily/monthly reward aggregates without the removed backend indexer. The visible service is therefore renamed from “Награды делегатов” to “Делегаты”, and the legacy reward-column documentation block is removed from runtime UI.
+
+Adjustment matrix:
+
+| Runtime surface | Previous behavior | Updated behavior | Test coverage | Status |
+|---|---|---|---|---|
+| `v3/js/chains.js` Golos `witnesses-rewards` app | Title “Награды делегатов”; description promised current/previous day/month reward context. | Title “Делегаты”; description says it is the current Golos delegate list via public RPC without legacy reward aggregates. | `tests/v3-golos-witnesses-rewards-smoke.js` asserts title and description. | renamed |
+| `renderGolosWitnessesRewards` heading/copy | Heading “Награды делегатов”, reward update notice, and “Legacy reward columns” section. | Heading “Делегаты”; one focused public-RPC delegate-list section; no legacy reward table or midnight reward notice in runtime UI. | Smoke asserts new copy and absence of `Legacy reward columns`, `old_daily_profit`, `now_daily_profit`, `old_monthly_profit`, `now_monthly_profit`, and old daily/monthly labels. | cleaned |
+| Public RPC loader | Loaded current witnesses through `getWitnessesByVote` with fallback lookup methods. | Kept unchanged; this is the actual useful static-safe feature. | Smoke still asserts `getWitnessesByVote`, `lookupWitnessAccounts`, `getWitnessByAccount`, profile links, no backend/private-key/broadcast. | kept |
 
 ### Rigorous parity: VIZ / wallet
 
@@ -2424,6 +2436,18 @@ Validation plan for this app:
 Remaining gaps/non-goals:
 - Live VIZ leaderboard rows, `counter`, exact 100-row pages and previous/next/last page URLs remain backend/indexer-only because legacy depended on a private `viz-api?service=top` endpoint.
 - v3 does not add PHP, private IP runtime fetches, `backend.dpos.space`, hidden server APIs, cron/indexer state, auth, or broadcast behavior for VIZ top.
+
+### Decommission: VIZ / top
+
+User decision after Golos top cleanup: VIZ top has the same practical problem — static v3 cannot provide useful ranked user data without the old server aggregation. To avoid carrying a documentation-only route and hash state that cannot serve users, VIZ top is removed from runtime rather than merely hidden.
+
+Removal matrix:
+
+| Runtime surface | Previous behavior | Decommissioned v3 behavior | Test coverage | Status |
+|---|---|---|---|---|
+| `v3/js/chains.js` VIZ apps | Registered `id: 'top'` and showed “Топ пользователей” in the VIZ app selector. | VIZ top removed from v3 runtime registry; neighboring apps `witnesses-rewards` and `search` remain. | `tests/v3-viz-top-smoke.js` asserts no VIZ `top` app entry and neighbor app presence. | removed |
+| `v3/js/app.js::renderVizTop` and constants | Rendered documentation-only top page, ranking constants, selected `topType`, and legacy field/pagination docs. | Renderer, constants, field helper, DOM hooks, and `topType` scoped hash state removed from the runtime bundle. | Smoke asserts no `renderVizTop`, `vizTopRankingOptions`, `renderVizTopFieldRows`, `viz-top-*` hooks, or `'topType'`. | removed |
+| Route dispatch | `#chain=viz&app=top` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'viz' && effectiveAppId === 'top'` dispatch. | removed |
 
 ### Rigorous parity: VIZ / search
 

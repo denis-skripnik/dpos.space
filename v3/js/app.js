@@ -289,7 +289,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'stakebotPage', 'topType', 'awardPage', 'searchPage', 'searchType'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'stakebotPage', 'awardPage', 'searchPage', 'searchType'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -7847,65 +7847,6 @@ Memo key: ${keys.memo}`);
     setStatus(`${chain.title}: Viz-links открыт в static-only режиме.`, 'info');
   }
 
-  const vizTopRankingOptions = [
-    ['shares', 'Соц. капитал', 'Соц. капитал'],
-    ['VIZ', 'VIZ', 'Баланс VIZ'],
-    ['effective_shares', 'Эффективный соц. капитал', 'Эффективный соц. капитал'],
-    ['received_shares', 'Полученный делегированием соц. капитал', 'Получено соц. капитала от других делегированием'],
-    ['delegated_shares', 'Делегированный другим соц. капитал', 'Делегировано соц. капитала другим'],
-    ['vesting_withdraw_rate', 'Выводимый соц. капитал', 'Выводимый соц. капитал']
-  ];
-
-  const vizTopRankingById = Object.fromEntries(vizTopRankingOptions.map((option) => [option[0].toLowerCase(), option]));
-
-  function renderVizTopFieldRows() {
-    const fields = ['№', 'Логин', 'Соц. капитал', '% от всего соц. капитала', 'Делегировано соц. капитала другим', 'Получено соц. капитала от других делегированием', 'Эффективный соц. капитал', 'Выводимый соц. капитал', 'Баланс VIZ', '% от всех VIZ'];
-    return fields.map((field) => `<tr><td>${escapeHtml(field)}</td><td>Legacy поле таблицы сохранено как документация; живые значения требовали удалённый серверный 100-row leaderboard, counter и pagination.</td></tr>`).join('');
-  }
-
-  function renderVizTop(chain, state) {
-    const selectedType = String((state && state.topType) || '').trim();
-    const selected = selectedType ? vizTopRankingById[selectedType.toLowerCase()] : null;
-    const selectedTitle = selected ? selected[1] : 'категория не выбрана';
-    const rankingLinks = vizTopRankingOptions.map(([id, label]) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: id }))}" ${selected && selected[0].toLowerCase() === id.toLowerCase() ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a></li>`).join('');
-    const profileExample = appHash({ chain: chain.id, app: 'profiles', account: chain.defaultAccount || 'denis-skripnik' });
-    appEl.innerHTML = `
-      <section class="panel viz-top">
-        <h2>Топ пользователей VIZ</h2>
-        <p>Статическая parity-страница для legacy VIZ top: категории рейтингов сохранены, а серверные leaderboard-таблицы честно отмечены как backend-only non-goal.</p>
-        <nav aria-label="Варианты сортировки рейтинга VIZ">
-          <h3>Выберите токен/поле сортировки</h3>
-          <ol>${rankingLinks}</ol>
-        </nav>
-        <section class="subpanel" aria-labelledby="viz-top-selected-heading">
-          <h3 id="viz-top-selected-heading">Выбранный рейтинг: ${escapeHtml(selectedTitle)}</h3>
-          ${selected ? `<p class="notice">Выбран legacy тип <code>${escapeHtml(selected[0])}</code>. В PHP этот URL вызывал <code>viz-api?service=top&type=${escapeHtml(selected[0].toLowerCase())}&page=N</code>, получал <code>users</code>, <code>counter</code>, 100-row таблицу и ссылки «Предыдущая», «Следующая», «Последняя». Static v3 не восстанавливает удалённый backend; для проверки отдельных аккаунтов используйте <a href="${escapeHtml(profileExample)}">профили VIZ через public RPC</a>.</p>` : `<p class="muted">Выберите один из legacy рейтингов: shares, VIZ, effective_shares, received_shares, delegated_shares или vesting_withdraw_rate.</p>`}
-        </section>
-        <section class="subpanel" aria-labelledby="viz-top-fields-heading">
-          <h3 id="viz-top-fields-heading">Legacy поля таблицы</h3>
-          <div class="table-wrap"><table aria-label="Legacy поля VIZ top"><caption>Legacy поля VIZ top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderVizTopFieldRows()}</tbody></table></div>
-        </section>
-        <section class="subpanel" aria-labelledby="viz-top-pagination-heading">
-          <h3 id="viz-top-pagination-heading">Пагинация legacy</h3>
-          <p>Ссылки «Предыдущая», «Следующая» и «Последняя» зависели от backend <code>counter</code> и размера страницы 100 записей. Без серверного индекса v3 не показывает устаревший leaderboard и не делает скрытых private API вызовов.</p>
-          <div role="status" aria-live="polite"><p class="muted">VIZ top открыт в static-only режиме. Backend-only non-goal: live ranked table/counter/pages.</p></div>
-        </section>
-      </section>`;
-    setStatus(`${chain.title}: top открыт в статическом режиме.`, 'info');
-  }
-
-  const golosWitnessRewardColumns = [
-    ['Логин', 'login', 'Имя делегата/witness и ссылка на профиль witness.'],
-    ['за вчерашний день', 'old_daily_profit', 'Предыдущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
-    ['за сегодня', 'now_daily_profit', 'Текущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
-    ['за прошлый месяц', 'old_monthly_profit', 'Предыдущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.'],
-    ['за текущий месяц', 'now_monthly_profit', 'Текущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.']
-  ];
-
-  function renderGolosWitnessRewardColumnRows() {
-    return golosWitnessRewardColumns.map(([label, field, meaning]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(field)}</code></td><td>${escapeHtml(meaning)}</td><td>${field === 'login' ? 'заменено v3 profile/witness hash-ссылкой и public RPC witness list' : 'backend-only non-goal: public witness RPC does not expose historical daily/monthly reward sums'}</td></tr>`).join('');
-  }
-
   function normalizeGolosWitnessRows(result) {
     const rows = Array.isArray(result) ? result : [];
     return rows.map((item) => {
@@ -7954,25 +7895,19 @@ Memo key: ${keys.memo}`);
   function renderGolosWitnessesRewards(chain) {
     appEl.innerHTML = `
       <section class="panel golos-witnesses-rewards">
-        <h2>Награды делегатов</h2>
-        <p>Страница со списком делегатов блокчейна Golos и их наград за текущий день и месяц, предыдущий день и месяц.</p>
-        <p><strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong></p>
+        <h2>Делегаты</h2>
+        <p>Актуальный список делегатов блокчейна Golos через публичный RPC без приватных ключей, backend-сервисов и вымышленных reward-агрегатов.</p>
         <section class="subpanel" aria-labelledby="golos-witnesses-live-heading">
-          <h3 id="golos-witnesses-live-heading">Public RPC witness list</h3>
-          <p>Публичный RPC может показать текущих делегатов/witness records без приватных ключей и без старого backend. Это отдельный статический слой: он не заменяет исторические reward-агрегаты.</p>
+          <h3 id="golos-witnesses-live-heading">Список делегатов Golos</h3>
+          <p>Публичный RPC показывает текущие witness records. Исторические суммы наград из legacy backend здесь намеренно не отображаются, потому что browser-only v3 не имеет серверного индекса для таких агрегатов.</p>
           <button type="button" id="golos-witnesses-rewards-load">Загрузить делегатов через public RPC</button>
-          <p id="golos-witnesses-rewards-status" role="status" aria-live="polite">Witness-список ещё не загружен.</p>
+          <p id="golos-witnesses-rewards-status" role="status" aria-live="polite">Список делегатов ещё не загружен.</p>
           <div id="golos-witnesses-rewards-list"><p class="muted">Нажмите кнопку, чтобы запросить <code>getWitnessesByVote</code> / <code>lookupWitnessAccounts</code> через публичную ноду.</p></div>
-        </section>
-        <section class="subpanel" aria-labelledby="golos-witnesses-columns-heading">
-          <h3 id="golos-witnesses-columns-heading">Legacy reward columns</h3>
-          <p class="notice">Старые поля <code>old_daily_profit</code>, <code>now_daily_profit</code>, <code>old_monthly_profit</code>, <code>now_monthly_profit</code> приходили из <code>golos-api?service=witnesses</code> на приватном backend/IP. Static v3 не восстанавливает этот backend и не показывает вымышленные суммы.</p>
-          <div class="table-wrap"><table aria-label="Legacy columns for Golos witnesses rewards"><caption>Legacy columns for Golos witnesses rewards</caption><thead><tr><th scope="col">Колонка</th><th scope="col">Legacy field</th><th scope="col">Meaning</th><th scope="col">v3 status</th></tr></thead><tbody>${renderGolosWitnessRewardColumnRows()}</tbody></table></div>
         </section>
       </section>`;
     const loadButton = document.getElementById('golos-witnesses-rewards-load');
     if (loadButton) loadButton.addEventListener('click', () => loadGolosWitnessesByVote(chain));
-    setStatus('Golos: witnesses-rewards открыт в статическом режиме.', 'info');
+    setStatus('Golos: делегаты открыты в статическом режиме.', 'info');
   }
 
   const vizWitnessRewardColumns = [
@@ -10317,8 +10252,6 @@ Memo key: ${keys.memo}`);
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'stakebot') {
         renderGolosStakebot(chain, state);
-      } else if (chain.id === 'viz' && effectiveAppId === 'top') {
-        renderVizTop(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {
         renderVizSearch(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'voice-import') {
