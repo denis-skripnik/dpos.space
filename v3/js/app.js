@@ -18,6 +18,7 @@
   const loadedScripts = new Set();
   const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
+  const IMGUR_CLIENT_ID = '372d5f766d47d1d';
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -149,12 +150,14 @@
         <button type="button" class="secondary" data-md-action="ul" aria-label="Маркированный список">Список</button>
         <button type="button" class="secondary" data-md-action="ol" aria-label="Нумерованный список">1. Список</button>
         <button type="button" class="secondary" data-md-action="link" aria-label="Вставить ссылку, Ctrl+K">Ссылка</button>
-        <button type="button" class="secondary" data-md-action="image" aria-label="Вставить изображение">Картинка</button>
+        <button type="button" class="secondary" data-md-action="image" aria-label="Вставить изображение по URL">Картинка</button>
+        <button type="button" class="secondary" data-md-upload-image aria-controls="editor-image-upload" aria-label="Загрузить фото в пост через Imgur">Загрузить фото</button>
         <button type="button" class="secondary" data-md-action="code" aria-label="Код">Код</button>
         <button type="button" class="secondary" data-md-action="table" aria-label="Таблица">Таблица</button>
         <button type="button" class="secondary" data-md-action="hr" aria-label="Горизонтальная линия">Линия</button>
         <button type="button" data-md-preview aria-expanded="false" aria-controls="editor-preview">Предпросмотр</button>
       </div>
+      <input id="editor-image-upload" class="visually-hidden" type="file" accept="image/*" data-md-image-input>
       <textarea id="editor-body" name="body" rows="12" required aria-describedby="editor-markdown-help editor-markdown-status">${body}</textarea>
       <p id="editor-markdown-help" class="muted">Markdown-редактор: кнопки форматируют выделенный текст, поле остаётся обычным textarea. Горячие клавиши: Ctrl+B, Ctrl+I, Ctrl+K.</p>
       <p id="editor-markdown-status" class="muted" role="status" aria-live="polite">Редактор Markdown готов.</p>
@@ -179,12 +182,31 @@
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  async function uploadEditorImageToImgur(file) {
+    if (!file || !/^image\//.test(file.type || '')) throw new Error('Выберите файл изображения.');
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('https://api.imgur.com/3/image.json', {
+      method: 'POST',
+      headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
+      body: formData
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload || !payload.success || !payload.data || !payload.data.link) {
+      const message = payload && payload.data && payload.data.error ? payload.data.error : 'Imgur не вернул ссылку на изображение.';
+      throw new Error(message);
+    }
+    return payload.data.link;
+  }
+
   function bindMarkdownEditor(root) {
     root.querySelectorAll('[data-markdown-editor]').forEach((editor) => {
       const textarea = editor.querySelector('#editor-body');
       const preview = editor.querySelector('#editor-preview');
       const status = editor.querySelector('#editor-markdown-status');
       const previewButton = editor.querySelector('[data-md-preview]');
+      const uploadButton = editor.querySelector('[data-md-upload-image]');
+      const imageInput = editor.querySelector('[data-md-image-input]');
       if (!textarea || !preview || !status) return;
       const updatePreview = () => {
         preview.innerHTML = markdownToPreviewHtml(textarea.value);
@@ -216,6 +238,28 @@
           previewButton.setAttribute('aria-expanded', willShow ? 'true' : 'false');
           previewButton.textContent = willShow ? 'Скрыть предпросмотр' : 'Предпросмотр';
           setEditorStatus(willShow ? 'Предпросмотр обновлён.' : 'Предпросмотр скрыт.');
+        });
+      }
+      if (uploadButton && imageInput) {
+        uploadButton.addEventListener('click', () => imageInput.click());
+        imageInput.addEventListener('change', async () => {
+          const file = imageInput.files && imageInput.files[0];
+          if (!file) return;
+          uploadButton.disabled = true;
+          setEditorStatus('Загружаю фото в Imgur...');
+          try {
+            const link = await uploadEditorImageToImgur(file);
+            insertMarkdown(textarea, `![](${link})`, '', '', 'block');
+            const previewImageInput = document.getElementById('editor-image');
+            if (previewImageInput && !String(previewImageInput.value || '').trim()) previewImageInput.value = link;
+            setEditorStatus(`Фото загружено и вставлено в текст поста: ${link}`);
+            if (!preview.hidden) updatePreview();
+          } catch (error) {
+            setEditorStatus(`Не удалось загрузить фото: ${profiles.formatError(error)}`);
+          } finally {
+            uploadButton.disabled = false;
+            imageInput.value = '';
+          }
         });
       }
       textarea.addEventListener('input', () => {
@@ -5172,7 +5216,7 @@
             ${isGolos ? `<div class="field"><label for="editor-category">Категория</label><select id="editor-category" name="category">${golosEditorCategoryOptions(draft && draft.category)}</select></div>` : ''}
             <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
             ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
-            ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic и Imgur upload кнопка не копируются; вставьте URL изображения вручную.</p></details>` : ''}
+            ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic не копируются; фото можно загрузить кнопкой «Загрузить фото» в Markdown-панели.</p></details>` : ''}
             <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space" value="${escapeHtml(draft && draft.tags ? draft.tags : '')}"></div>
             ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
             ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}

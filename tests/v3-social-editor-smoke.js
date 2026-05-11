@@ -19,6 +19,8 @@ assert(appSource.includes('id="editor-operation-details" class="operation-detail
 assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Steem/Hive editor details summary makes preview-before-send explicit');
 assert(appSource.includes('renderMarkdownEditorField(draft && draft.body ? draft.body : \'\')'), 'Steem/Hive editor renders the shared Markdown editor field');
 assert(appSource.includes('markdownToPreviewHtml') && appSource.includes('safeMarkdownUrl') && appSource.includes('tableCells'), 'Markdown preview is rendered client-side with URL sanitizing and table support');
+assert(appSource.includes('uploadEditorImageToImgur') && appSource.includes('Фото загружено и вставлено в текст поста'), 'Social editor ports image upload into Markdown insertion flow');
+assert(appSource.includes("if (previewImageInput && !String(previewImageInput.value || '').trim()) previewImageInput.value = link;"), 'Uploaded image also fills empty preview image metadata');
 assert(appSource.includes("if (key === 'b')") && appSource.includes("if (key === 'k')"), 'Markdown editor supports keyboard shortcuts');
 assert(planSource.includes('### UX polish: Editor swap and broadcast forms'), 'plan documents editor/swap/broadcast UX pass');
 assert(planSource.includes('Steem/Hive editor/post deep pass'), 'plan documents Steem/Hive editor/post parity pass');
