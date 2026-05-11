@@ -4429,3 +4429,31 @@ Remaining gaps/non-goals:
 - No wallet forms were touched.
 - No backend/indexer-only registration or manage behavior is reintroduced. Legacy private PHP/indexer flows remain documented non-goals.
 - Editor/swap/broadcast non-wallet forms remain candidates for the next focused UX-polish block.
+
+### UX polish: Editor swap and broadcast forms
+
+Scope: bounded third pass over non-wallet operation forms that prepare, preview, or broadcast operations outside wallet/manage/registration. Static-safe only: no backend service, PHP runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Wallet, manage, and registration forms are intentionally out of scope unless a shared helper regression is discovered.
+
+Files inspected:
+- v3 source: `v3/js/app.js` `renderEditor`, `bindSteemPostLegacyHelpers`, `renderSwap`, `renderOrderRows`, `minterSwapForms`, `bindMinterWalletForms`, and shared `bindOperationForm`/`setOperationResult` behavior; `v3/js/chains.js` app route inventory for editor/post/swap/broadcast-like routes; `v3/js/broadcast.js` preview/send sanitizer behavior; `v3/js/profiles.js` public RPC helpers.
+- Focused tests: `tests/v3-social-editor-smoke.js`, `tests/v3-golos-editor-smoke.js`, `tests/v3-golos-swap-smoke.js`, `tests/v3-steem-swap-smoke.js`, `tests/v3-hive-swap-smoke.js`, `tests/v3-minter-swap-smoke.js`, `tests/v3-minter-broadcast-smoke.js`, and `tests/v3-minter-my-coin-smoke.js`.
+- Existing rigorous parity evidence remains in the editor/post/swap/Minter sections above; this section records the UX-only matrix for this bounded pass.
+
+Inventory and selected sub-block:
+| Chain/app/form | Current UX evidence before this pass | Fix/non-goal | Test |
+| --- | --- | --- | --- |
+| Golos/Steem/Hive / editor/post / `editor-form` | Editor forms already had labels, live `operation-result`, draft/import helpers, preview buttons before publish buttons, and direct `sendOperations` preparation. They were displayed directly in the page, making a publish-capable form immediately visible after route load. | Wrap the publish form in `<details id="editor-operation-details" class="operation-details">` with an accessible summary. Keep draft/import helpers, tag presets, labels, preview-before-send, reset, and existing form id/bindings. Backend-only legacy SimpleMDE/Garlic/Imgur behavior remains a documented non-goal. | `tests/v3-social-editor-smoke.js`, `tests/v3-golos-editor-smoke.js`. |
+| Golos/Steem/Hive / swap / direct exchange, limit order create, order cancel | Swap forms already used preview/check buttons before send/broadcast buttons and live regions. They were not collapsed, and read-only open-orders rows did not expose a quick safe prefill for cancel. | Wrap direct exchange, create order, and cancel order in `<details class="operation-details">`; add a safe `data-swap-cancel-prefill` action in open-orders rows when an order id is present; clicking it opens/focuses the cancel details and fills only the order id. No backend quote service or indexer is added. | `tests/v3-golos-swap-smoke.js`, `tests/v3-steem-swap-smoke.js`, `tests/v3-hive-swap-smoke.js`. |
+| Minter / swap / sell and liquidity forms | Minter swap forms are outside wallet route but share the Minter wallet/action renderer. They already have direct client-side tx preparation, live regions, and documented public explorer route/provider endpoints. They were not collapsed under operation spoilers. | Wrap sell/pool and liquidity forms in operation details while preserving existing ids and direct seed-based tx preparation. Legacy auto-quote/pool-list behavior remains static-safe documentation/non-goal; no proxy/indexer is added. | `tests/v3-minter-swap-smoke.js`. |
+| Minter / broadcast and my-coin | Existing focused smoke coverage shows operation-like controls are direct browser tx preparation with preview/send and no PHP/backend runtime. This pass inspects them but selects editor + swap first because they are higher-impact and share visible publish/exchange risk. | No code change in this pass unless focused/broad validation exposes a regression. Keep as next candidate. | `tests/v3-minter-broadcast-smoke.js`, `tests/v3-minter-my-coin-smoke.js`. |
+| Decimal validators/explorer/profiles | Inspected as candidates: current forms are read-only lookup/navigation, not direct operation send forms in this selected sub-block. | Non-goal for this pass; no new service/indexer. | Existing Decimal validators/explorer/profiles smoke tests remain broad-gate coverage. |
+
+Validation plan:
+- RED: focused smoke assertions are added first for missing `editor-operation-details`, swap operation details, and cancel-prefill markers, then run before implementation.
+- Focused gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-social-editor-smoke.js && node tests/v3-golos-editor-smoke.js && node tests/v3-golos-swap-smoke.js && node tests/v3-steem-swap-smoke.js && node tests/v3-hive-swap-smoke.js && node tests/v3-minter-swap-smoke.js && git diff --check`.
+- Broad gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- No wallet, manage, or registration form UX is changed in this pass.
+- Backend/indexer-only legacy quote services, Imgur uploads, Garlic/SimpleMDE persistence, private PHP endpoints, and hidden service flows remain documented non-goals.
+- If non-wallet UX continues, the next bounded block should inspect Minter broadcast/my-coin/validators plus any remaining Decimal operation-like forms.

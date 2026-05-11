@@ -4945,7 +4945,7 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
         <p>Редактор публикаций: подготовка поста, проверка операции и отправка по подтверждению.</p>
-        <form id="editor-form" class="stacked-form">
+        <details id="editor-operation-details" class="operation-details"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form">
           <fieldset>
             <legend>Публикация поста</legend>
             <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
@@ -4969,7 +4969,7 @@
             <button type="reset">Очистка форм поста</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
+        </form></details>
         ${draft ? `<p class="notice">Загружен черновик из импорта: ${escapeHtml(draft.sourceUrl || draft.importedAt || '')}</p>` : ''}
         <p class="muted">${isGolos ? 'Golos payload сохраняет legacy category, payout, beneficiaries и curator rewards; preview/JSON перед отправкой обязателен.' : 'Параметры выплат выставлены по умолчанию. Перед отправкой проверьте итоговые данные операции.'}</p>
       </section>`;
@@ -6939,12 +6939,25 @@ Memo key: ${keys.memo}`);
 
   function renderOrderRows(rows, emptyText) {
     if (!Array.isArray(rows) || !rows.length) return `<p class="muted">${escapeHtml(emptyText || 'Нет данных.')}</p>`;
-    return `<div class="table-scroll"><table><caption>Market data</caption><thead><tr><th scope="col">Цена</th><th scope="col">База</th><th scope="col">Котировка</th><th scope="col">Данные</th></tr></thead><tbody>${rows.map((row) => {
+    return `<div class="table-scroll"><table><caption>Market data</caption><thead><tr><th scope="col">Цена</th><th scope="col">База</th><th scope="col">Котировка</th><th scope="col">Действие</th><th scope="col">Данные</th></tr></thead><tbody>${rows.map((row) => {
       const price = row.real_price || row.price || row.order_price || '';
       const base = row.steem || row.base || row.sell_price && row.sell_price.base || row.for_sale || '';
       const quote = row.sbd || row.quote || row.sell_price && row.sell_price.quote || '';
-      return `<tr><td>${escapeHtml(price)}</td><td>${escapeHtml(base)}</td><td>${escapeHtml(quote)}</td><td><code>${escapeHtml(JSON.stringify(row).slice(0, 240))}</code></td></tr>`;
+      const orderId = row.orderid || row.order_id || row.id || row.orderId || '';
+      const action = orderId !== '' ? `<button type="button" data-swap-cancel-prefill="${escapeHtml(orderId)}">Отменить этот ордер</button>` : '<span class="muted">Нет действия</span>';
+      return `<tr><td>${escapeHtml(price)}</td><td>${escapeHtml(base)}</td><td>${escapeHtml(quote)}</td><td>${action}</td><td><code>${escapeHtml(JSON.stringify(row).slice(0, 240))}</code></td></tr>`;
     }).join('')}</tbody></table></div>`;
+  }
+
+  function openSwapCancelDetails(orderId) {
+    const details = document.getElementById('swap-cancel-details');
+    if (details) details.open = true;
+    const input = document.getElementById('swap-cancel-id');
+    if (input && orderId !== undefined && orderId !== null) {
+      input.value = String(orderId);
+      input.focus();
+    }
+    if (details) details.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function loadGrapheneOrderBook(chain, limit) {
@@ -7137,7 +7150,7 @@ Memo key: ${keys.memo}`);
         <p>Создание/отмена ордеров и прямой обмен по текущему стакану с подтверждением операции.</p>
         ${hiveSwapNotice}
         ${steemSwapNotice}
-        ${chain.id === 'golos' ? `<form id="swap-direct-form" class="stacked-form"><fieldset>
+        ${chain.id === 'golos' ? `<details id="swap-direct-details" class="operation-details"><summary>Прямой обмен — рассчитать и preview перед отправкой</summary><form id="swap-direct-form" class="stacked-form"><fieldset>
           <legend>Прямой обмен по рынку</legend>
           <p class="muted">Legacy flow из dpos.space/golos/swap: расчёт через Golos DEX, затем отправка цепочки limit_order_create с fill_or_kill=true.</p>
           <button type="button" id="golos-swap-load-tokens">Загрузить мои токены и доступные пары</button>
@@ -7148,8 +7161,8 @@ Memo key: ${keys.memo}`);
           <div class="field"><label for="swap-direct-buy-symbol">Токен покупки</label><input id="swap-direct-buy-symbol" name="buySymbol" type="text" list="golos-swap-buy-symbols" required value="${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
           <button type="submit" name="intent" value="preview">Рассчитать и проверить обмен</button><button type="submit" name="intent" value="send">Совершить обмен в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>` : ''}
-        <form id="swap-create-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>` : ''}
+        <details id="swap-create-details" class="operation-details"><summary>Создать лимитный ордер — preview перед отправкой</summary><form id="swap-create-form" class="stacked-form"><fieldset>
           <legend>Создание лимитного ордера</legend>
           <div class="field"><label for="swap-order-id">ID ордера</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
           <div class="field"><label for="swap-sell">Сумма продажи</label><input id="swap-sell" name="sell" type="text" required placeholder="1.000 ${escapeHtml(chain.liquidSymbol)}"></div>
@@ -7158,13 +7171,13 @@ Memo key: ${keys.memo}`);
           <div class="field"><label for="swap-expiration">Срок действия UTC</label><input id="swap-expiration" name="expiration" type="datetime-local" required></div>
           <button type="submit" name="intent" value="preview">Проверить ордер</button><button type="submit" name="intent" value="send">Создать ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="swap-cancel-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="swap-cancel-details" class="operation-details"><summary>Отменить ордер — preview перед отправкой</summary><form id="swap-cancel-form" class="stacked-form"><fieldset>
           <legend>Отмена ордера</legend>
           <div class="field"><label for="swap-cancel-id">ID ордера</label><input id="swap-cancel-id" name="orderId" type="number" min="0" step="1" required></div>
           <button type="submit" name="intent" value="preview">Проверить отмену</button><button type="submit" name="intent" value="send">Отменить ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
+        </fieldset></form></details>
         <section class="subpanel" aria-labelledby="swap-readonly-heading">
           <h3 id="swap-readonly-heading">Стакан и мои ордера</h3>
           <p class="muted">Read-only legacy parity для market/my-orders через публичный RPC, без backend.</p>
@@ -7191,6 +7204,12 @@ Memo key: ${keys.memo}`);
       return broadcast.prepare(chain, 'active', 'cancelOrder', [auth.getCurrentLogin(chain), orderId], { title: 'Cancel limit order', requestId: orderId });
     });
     const readonlyResult = document.getElementById('swap-readonly-result');
+    if (readonlyResult) readonlyResult.addEventListener('click', (event) => {
+      const button = event.target && event.target.closest ? event.target.closest('[data-swap-cancel-prefill]') : null;
+      if (!button) return;
+      openSwapCancelDetails(button.dataset.swapCancelPrefill);
+      setStatus('ID ордера перенесён в форму отмены. Проверьте preview перед отправкой.', 'ok');
+    });
     const orderbookBtn = document.getElementById('swap-orderbook-load');
     if (orderbookBtn) orderbookBtn.addEventListener('click', async () => {
       try {

@@ -4,6 +4,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 assert(appSource.includes("post: 'editor'"), 'legacy post route aliases to editor');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor remains in authorized-account routing context');
@@ -25,5 +26,8 @@ assert(appSource.includes("app: 'dpos.space/post'"), 'Golos editor preserves leg
 assert(appSource.includes("format: 'markdown'"), 'Golos editor preserves markdown metadata format');
 assert(appSource.includes('image: images'), 'Golos editor includes preview image metadata');
 assert(appSource.includes("tags.includes('dpos-post')"), 'Golos editor appends dpos-post tag');
+assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Golos editor publish form is collapsed under operation details');
+assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Golos editor details summary makes preview-before-send explicit');
+assert(planSource.includes('Golos/Steem/Hive / editor/post / `editor-form`'), 'UX plan records editor form matrix row');
 
 console.log('v3 Golos editor smoke passed');

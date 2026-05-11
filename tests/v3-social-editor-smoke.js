@@ -15,6 +15,9 @@ assert(appSource.includes("percent_hbd: chain.id === 'hive' ? payoutPercent : un
 assert(appSource.includes('Сообщество / parent_permlink') && appSource.includes('hive-179017') && appSource.includes('hive-167922'), 'Hive editor exposes legacy community/parent_permlink choices');
 assert(appSource.includes('editor-beneficiary-account') && appSource.includes("extensions: [[0, { beneficiaries }]]"), 'Steem/Hive editor exposes and sends beneficiaries extension');
 assert(appSource.includes('100% в ${escapeHtml(chain.powerTitle || \'HP\')}'), 'Steem/Hive editor exposes 100% power payout option');
+assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Steem/Hive editor publish form is collapsed under operation details');
+assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Steem/Hive editor details summary makes preview-before-send explicit');
+assert(planSource.includes('### UX polish: Editor swap and broadcast forms'), 'plan documents editor/swap/broadcast UX pass');
 assert(planSource.includes('Steem/Hive editor/post deep pass'), 'plan documents Steem/Hive editor/post parity pass');
 
 console.log('v3 social editor smoke passed');
