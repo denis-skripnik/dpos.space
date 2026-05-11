@@ -420,6 +420,54 @@ code {
   padding-left: 1rem;
 }
 
+.markdown-editor {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.markdown-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: rgba(127, 127, 127, 0.06);
+}
+
+.markdown-toolbar button {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.markdown-editor textarea {
+  min-height: 18rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  line-height: 1.55;
+}
+
+.markdown-preview {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 1rem;
+  background: rgba(127, 127, 127, 0.05);
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.4rem;
+}
+
+.markdown-preview blockquote {
+  margin: 0.75rem 0;
+  padding-left: 1rem;
+  border-left: 0.25rem solid var(--border);
+  color: var(--muted);
+}
+
 @media (max-width: 640px) {
   .site-header,
   .site-footer,

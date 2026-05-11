@@ -28,6 +28,12 @@ assert(appSource.includes('image: images'), 'Golos editor includes preview image
 assert(appSource.includes("tags.includes('dpos-post')"), 'Golos editor appends dpos-post tag');
 assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Golos editor publish form is collapsed under operation details');
 assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Golos editor details summary makes preview-before-send explicit');
+assert(appSource.includes('function renderMarkdownEditorField'), 'Golos editor uses shared Markdown editor renderer');
+assert(appSource.includes('role="toolbar" aria-label="Панель форматирования Markdown"'), 'Markdown editor toolbar is labelled for accessibility');
+assert(appSource.includes('data-md-action="bold"') && appSource.includes('data-md-action="table"'), 'Markdown editor exposes formatting buttons');
+assert(appSource.includes('data-md-preview aria-expanded="false" aria-controls="editor-preview"'), 'Markdown editor exposes an accessible preview toggle');
+assert(appSource.includes('function bindMarkdownEditor'), 'Markdown editor binds formatting and preview behavior');
+assert(appSource.includes('Ctrl+B, Ctrl+I, Ctrl+K'), 'Markdown editor documents keyboard shortcuts');
 assert(planSource.includes('Golos/Steem/Hive / editor/post / `editor-form`'), 'UX plan records editor form matrix row');
 
 console.log('v3 Golos editor smoke passed');

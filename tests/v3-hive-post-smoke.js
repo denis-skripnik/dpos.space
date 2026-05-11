@@ -25,8 +25,10 @@ assert.strictEqual(hive.cryptoPath, 'v3/vendor/hive/sjcl.min.js', 'Hive post/edi
 const editorRenderer = (appSource.match(/function renderEditor\(chain\)[\s\S]*?\n  function parseAssetAmount/) || [''])[0];
 const editorBuilder = (appSource.match(/function buildGenericEditorOperations[\s\S]*?\n  function parseSteemPostUrl/) || [''])[0];
 const editorHelpers = (appSource.match(/function parseSteemPostUrl[\s\S]*?\n  function renderEditor/) || [''])[0];
+const editorMarkdown = (appSource.match(/function safeMarkdownUrl[\s\S]*?\n  function parseHash/) || [''])[0];
 const hiveRuntimeSlice = [
   chainsSource.match(/hive:\s*\{[\s\S]*?\n    minter:/)?.[0] || '',
+  editorMarkdown,
   editorBuilder,
   editorHelpers,
   editorRenderer
