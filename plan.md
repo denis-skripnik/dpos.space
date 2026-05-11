@@ -3754,8 +3754,8 @@ Remaining gaps/non-goals:
 
 Scope and result:
 - Legacy purpose from `config.json`: `LONG farming`, an app for viewing BIP/LONG provider/farming data.
-- Backend yes/no: **backend yes in legacy, no backend service added in v3**. Legacy reads private smartfarm endpoints and PHP-generated state; v3 documents those as static-only non-goals and keeps only public/static-safe read-only information.
-- Static-safe result: Minter `long` route renders the legacy app title, public BIP/LONG pool summary, Telegram/Chainik links, farming sender wallet, and honest backend/indexer-only non-goals. It does not call private IPs, `backend.dpos.space`, PHP endpoints, or new hidden services.
+- Backend yes/no: **backend yes in legacy, no new backend service added in v3**. The existing same-origin `/api/smartfarm` backend is active and intentionally used for LONG provider/top/bids/deferred data; v3 must not call the old private IP, `backend.dpos.space`, PHP endpoints, or create another service.
+- Static-safe result: Minter `long` route renders the legacy app title, provider ranking/top data from same-origin `/api/smartfarm`, public BIP/LONG pool summary, Telegram/Chainik links, farming sender wallet, bids, and deferred transactions. It does not call private IPs, `backend.dpos.space`, PHP endpoints, or new hidden services.
 
 Files inspected for this one-app pass:
 - Legacy exact app files: `/root/ai-projects/dpos.space/blockchains/minter/apps/long/config.json`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/content.php`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/index.php`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/js/app.js`.
@@ -3768,23 +3768,23 @@ Matrix:
 | Legacy file/control/helper/data dependency | Exact legacy behavior | v3 equivalent | Test/evidence | Status |
 | --- | --- | --- | --- | --- |
 | `blockchains/minter/apps/long/config.json` | Registers no-category `LONG` app titled `LONG farming` | Minter apps include `long`; `renderMinterLong` handles `chain=minter&app=long` | `tests/v3-minter-long-smoke.js` checks route output and title | Implemented static |
-| `content.php` overview | PHP reads private `smartfarm` state, public Minter pool, computes max amount/prize/farming/provider rows | v3 does not recreate private backend state; it shows public BIP/LONG pool stats, sender wallet and explanation | smoke checks public pool call and no smartfarm/private backend call | Static-safe replacement |
-| Provider ranking table | Legacy renders provider liquidity, invest days, future farming and 50-day bonus from backend provider list | v3 states provider ranking is unavailable without legacy backend and avoids fake data | smoke checks `Рейтинг провайдеров` non-goal copy | Backend/indexer-only non-goal |
-| `pages/bids` + `js/app.js updateBidsTable` | Reads projects/active bids from private smartfarm/backend and uses memo send instructions | v3 documents bids as backend-only and does not introduce a new transaction form or service | smoke checks subservice copy and no broadcast binding in LONG slice | Backend/indexer-only non-goal |
-| `pages/deferred-txs` | Reads deferred transaction list from private smartfarm backend | v3 points to public history of the farming sender wallet instead of hosting a list | smoke checks subservice copy and sender address | Backend/indexer-only non-goal |
+| `content.php` overview | PHP reads smartfarm state, public Minter pool, computes max amount/prize/farming/provider rows | v3 reads the active same-origin `/api/smartfarm` endpoint plus public BIP/LONG pool stats and renders the same provider/top overview | smoke checks `/api/smartfarm`, public pool call, provider table and no old private host | Implemented backend data |
+| Provider ranking table | Legacy renders provider liquidity, invest days, future farming and 50-day bonus from backend provider list | v3 renders the provider ranking table from `/api/smartfarm`, with pool composition from public Minter API when available | smoke checks `Рейтинг провайдеров LONG`, `Будущий фарминг`, `Бонус 50 дней` | Implemented backend data |
+| `pages/bids` + `js/app.js updateBidsTable` | Reads projects/active bids from smartfarm/backend and uses memo send instructions | v3 reads `/api/smartfarm/bids` and `/api/smartfarm/bids/active?coin=...`, renders allowed coins/projects/active bids and memo instructions without adding a LONG-specific send form | route smoke checks dedicated renderer and no broadcast binding in LONG slice | Implemented backend data/read-only |
+| `pages/deferred-txs` | Reads deferred transaction list from smartfarm backend | v3 reads `/api/smartfarm/deferred-txs` and renders the backend list for manual verification | route smoke checks dedicated renderer and no direct old backend host | Implemented backend data/read-only |
 | `pages/surveys`, `loto`, `payd-loto`, `rps`, `dragon`, `calc` | Mix of private backend state and optional direct Minter sends to LONG service address | v3 keeps them documented as requiring server state/indexed lists; direct wallet actions are not added under LONG in this pass | plan + smoke check non-goal and no `bindOperationForm`/broadcast calls in slice | Static-only non-goal |
 | Public pool dependency | Legacy uses public Minter pool endpoint for BIP/LONG reserves/pricing | v3 fetches `https://api-minter.mnst.club/v2/swap_pool/0/2782` read-only | smoke checks exact public API call | Implemented public API |
-| Forbidden runtime dependencies | Legacy uses `http://178.20.43.121:3852/smartfarm`, `https://backend.dpos.space/smartfarm`, PHP app pages | v3 Minter LONG runtime slice has no private IP, backend.dpos.space, `/api/smartfarm`, `.php`, or hidden server API dependency | focused smoke isolates `function longPageHash` to validators boundary | Enforced |
+| Forbidden runtime dependencies | Legacy used old `http://178.20.43.121:3852/smartfarm`, `https://backend.dpos.space/smartfarm`, and PHP app pages | v3 Minter LONG runtime slice may use only the active same-origin `/api/smartfarm`; it must not call private IP, backend.dpos.space, `.php`, or add a new service | focused smoke isolates `function longUrl` to validators boundary | Enforced |
 
 Validation plan for this app:
-- TDD RED observed before implementation: `node tests/v3-minter-long-smoke.js` failed on unexpected `/api/smartfarm` fetch and missing exact `### Rigorous parity: Minter / long` plan section.
+- TDD RED observed for restoration: `node tests/v3-minter-long-smoke.js` failed while `/api/smartfarm` was absent from current runtime.
 - Focused GREEN target: `node tests/v3-minter-long-smoke.js`.
 - Mandatory app gate: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-minter-long-smoke.js && git diff --check`.
 - Broad smoke loop: `for f in tests/v3-*.js; do node "$f" || exit 1; done`.
 
 Remaining gaps/non-goals:
-- No backend service, PHP route, private IP runtime call, `backend.dpos.space`, hidden server API, indexer, daemon, hosted helper application, or newly hosted app is added.
-- Legacy LONG server-maintained provider ranking, active bids, survey lists/results, lottery state, dragons, family calculator data and deferred transaction list are backend/indexer-only non-goals for static v3.
+- No new backend service, PHP route, private IP runtime call, `backend.dpos.space`, indexer, daemon, hosted helper application, or newly hosted app is added. Existing same-origin `/api/smartfarm` is reused because it is active.
+- Legacy LONG survey lists/results, lottery state, dragons and family calculator data remain backend/indexer-only non-goals until their exact active `/api/smartfarm` shapes are verified.
 - v3 does not add LONG-specific direct broadcast forms; users can use existing Minter wallet/swap routes for explicitly supported actions only.
 
 ### Rigorous parity: Minter / explorer
