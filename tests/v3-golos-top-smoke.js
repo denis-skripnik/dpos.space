@@ -26,8 +26,8 @@ assert(!appSource.includes('golos-top-load-uia') && !appSource.includes('golos-t
 const golosAppsSource = chainsSource.match(/const golosApps = \[[\s\S]*?\n  \];/)?.[0] || '';
 assert(golosAppsSource, 'Golos app registry slice is available');
 assert(!golosAppsSource.includes("id: 'top'"), 'Golos registry slice has no top app entry');
-assert(golosAppsSource.includes("id: 'witnesses-rewards'"), 'Neighbor Golos apps remain registered after removing top');
-assert(golosAppsSource.includes("id: 'stakebot'"), 'Stakebot remains registered after removing top');
+assert(golosAppsSource.includes("id: 'witnesses-rewards'"), 'Neighbor Golos witnesses-rewards app remains registered after removing top');
+assert(!golosAppsSource.includes("id: 'stakebot'"), 'Stakebot remains absent after top removal/decommission');
 
 assert(planSource.includes('### Decommission: Golos / top'), 'plan.md records the deliberate Golos/top removal decision');
 assert(planSource.includes('Golos top removed from v3 runtime registry'), 'plan.md records registry/runtime removal evidence');

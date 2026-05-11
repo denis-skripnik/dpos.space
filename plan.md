@@ -2094,10 +2094,20 @@ Removal matrix:
 
 | Runtime surface | Previous behavior | Decommissioned v3 behavior | Test coverage | Status |
 |---|---|---|---|---|
-| `v3/js/chains.js` Golos apps | Registered `id: 'top'` and showed “Топ пользователей” in the Golos app selector. | Golos top removed from v3 runtime registry; neighboring apps `stakebot` and `witnesses-rewards` remain. | `tests/v3-golos-top-smoke.js` asserts no Golos `top` app entry and neighbor app presence. | removed |
+| `v3/js/chains.js` Golos apps | Registered `id: 'top'` and showed “Топ пользователей” in the Golos app selector. | Golos top removed from v3 runtime registry; neighboring `witnesses-rewards` remains. `stakebot` was later removed by the dedicated `### Decommission: Golos / stakebot` pass. | `tests/v3-golos-top-smoke.js` asserts no Golos `top` app entry and witness app presence. | removed |
 | `v3/js/app.js::renderGolosTop` and Golos top constants | Rendered documentation-only top page, ranking option constants, UIA button, and GP level table. | Renderer, constants, DOM hooks, and UIA loader removed from the runtime bundle. | Smoke asserts no `renderGolosTop`, `golosTopRankingOptions`, `loadGolosTopUiaAssets`, `golos-top-load-uia`, or `golos-top-uia-assets`. | removed |
 | Route dispatch | `#chain=golos&app=top` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'golos' && effectiveAppId === 'top'` dispatch. | removed |
 | VIZ top | Separate VIZ static top route. | Later removed by the dedicated `### Decommission: VIZ / top` pass for the same reason: no useful leaderboard data without backend aggregation. | `tests/v3-viz-top-smoke.js` now asserts VIZ top is absent. | removed later |
+
+### Decommission: Golos / stakebot
+
+User decision after parity: Golos Stake bot should not remain as a static app because the useful participant/jackpot/loto data came from the old private backend/bot state. Keeping a documentation-only route would add clutter while still not delivering live bot data. The app is removed rather than only hidden.
+
+| Runtime surface | Previous behavior | Decommissioned v3 behavior | Test coverage | Status |
+|---|---|---|---|---|
+| `v3/js/chains.js` Golos apps | Registered `id: 'stakebot'` and showed “Stake bot” in the Golos app selector. | Golos stakebot removed from v3 runtime registry; neighboring `donate` and `witnesses-rewards` remain. | `tests/v3-golos-stakebot-smoke.js` asserts no `stakebot` registry entry and neighbor app presence. | removed |
+| `v3/js/app.js::renderGolosStakebot` | Rendered a static parity page for bids, jackpot and loto with backend-only notices and links to `golos-stake-bot`. | Renderer, copy, account links, backend-only table, and `stakebotPage` hash state removed from runtime. | Smoke asserts no `renderGolosStakebot`, no `stakebotPage`, and no `golos-stake-bot` / `golos_stake_bot` runtime copy. | removed |
+| Route dispatch | `#chain=golos&app=stakebot` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'golos' && effectiveAppId === 'stakebot'` dispatch. | removed |
 
 ### Rigorous parity: Golos / witnesses-rewards
 

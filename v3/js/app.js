@@ -289,7 +289,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'stakebotPage', 'awardPage', 'searchPage', 'searchType'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -8060,57 +8060,6 @@ Memo key: ${keys.memo}`);
     setStatus(`${chain.title}: randomblockchain готов.`, 'ok');
   }
 
-  function renderGolosStakebot(chain, state) {
-    const requestedPage = String((state && state.stakebotPage) || 'bids').toLowerCase();
-    const page = ['bids', 'jackpot', 'loto'].includes(requestedPage) ? requestedPage : 'bids';
-    const pageTitle = {
-      bids: 'Текущие ставки в Golos Stake Bot',
-      jackpot: 'Джекпот golos_stake_bot',
-      loto: 'Лотерея golos_stake_bot'
-    }[page];
-    const nav = [
-      ['bids', 'Текущие ставки'],
-      ['jackpot', 'Джекпот'],
-      ['loto', 'Лотерея']
-    ].map(([id, label]) => `<a href="${escapeHtml(appHash({ chain: chain.id, app: 'stakebot', stakebotPage: id }))}" ${id === page ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a>`).join(' · ');
-    const historyLink = appHash({ chain: chain.id, app: 'history', account: 'golos-stake-bot' });
-    const profileLink = appHash({ chain: chain.id, app: 'profiles', account: 'golos-stake-bot' });
-    const backendNotice = '<p class="notice">Legacy-таблицы участников брались из серверного endpoint `golos-api?service=stakebot` на 178.20.43.121. Static v3 не восстанавливает этот backend, cron/bot state и списки участников, чтобы не добавлять скрытую серверную зависимость.</p>';
-    let body = '';
-    if (page === 'bids') {
-      body = `
-        <p>В legacy этот раздел показывал текущие ставки участников golos_stake_bot и очищался в 18:00 по Москве.</p>
-        <p>Для проверки on-chain активности используйте ${accountLink(chain, 'golos-stake-bot')} или <a href="${escapeHtml(historyLink)}">историю аккаунта golos-stake-bot в v3</a>.</p>
-        ${backendNotice}
-        <div class="table-wrap"><table aria-label="Legacy поля таблицы текущих ставок"><caption>Legacy таблица текущих ставок — backend-only данные</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody><tr><td>№</td><td>Порядок строки приходил от backend-сервиса.</td></tr><tr><td>Логин</td><td>Профиль можно открыть через ${accountLink(chain, 'golos-stake-bot')} и историю переводов.</td></tr><tr><td>Сумма GOLOS</td><td>Агрегированная сумма ставки не рассчитывается в браузере без правил backend-бота.</td></tr></tbody></table></div>`;
-    } else if (page === 'jackpot') {
-      body = `
-        <p>Список очищался после получения джекпота победителями: в полночь GMT (3 часа по Москве) 1 числа каждого месяца.</p>
-        <p>Фонд формировался за счёт 5% от сумм ставок участников.</p>
-        <p>Legacy показывал сумму джекпота и таблицу аккаунтов из backend <code>type=jackpot</code>.</p>
-        <p>Публичную историю переводов можно смотреть через <a href="${escapeHtml(historyLink)}">историю golos-stake-bot</a> или ${accountLink(chain, 'golos-stake-bot')}.</p>
-        ${backendNotice}`;
-    } else {
-      body = `
-        <p>Лотерея среди получающих CLAIM запускалась 2 раза в сутки: в полночь и полдень по МСК.</p>
-        <ul>
-          <li>Порог участия legacy: от 50000 GESTS (18000 СГ).</li>
-          <li>Для участия запускали <a href="https://t.me/golos_stake_bot" target="_blank" rel="noopener">@golos_stake_bot</a> и авторизовали Golos аккаунт.</li>
-        </ul>
-        <p>Legacy список билетов приходил текстом из backend <code>type=loto</code>; static v3 оставляет правила и ссылку на bot, но не показывает устаревший серверный список билетов.</p>
-        ${backendNotice}`;
-    }
-    appEl.innerHTML = `
-      <section class="panel golos-stakebot">
-        <h2>${escapeHtml(pageTitle)}</h2>
-        <nav aria-label="Разделы Golos Stake Bot">${nav}</nav>
-        <p class="muted">Статическая parity-страница: справка и безопасные ссылки сохранены, backend-виджеты не восстановлены.</p>
-        ${body}
-        <p><a href="${escapeHtml(profileLink)}">Открыть профиль golos-stake-bot</a></p>
-      </section>`;
-    setStatus(`${chain.title}: Stake bot открыт в статическом режиме (${page}).`, 'info');
-  }
-
   function buildVizSearchMemo(keyword, link, inlink) {
     return `${keyword}~${link}~${inlink}`;
   }
@@ -8848,7 +8797,6 @@ Memo key: ${keys.memo}`);
       help: 'v3 — статическая локальная версия: выберите блокчейн, аккаунт и приложение. Операции сначала показывают preview и JSON, затем требуют явного подтверждения отправки.',
       polls: 'Legacy polls завязаны на custom_json/публичные операции. В v3 они показаны как безопасный статический раздел; отправка без отдельной формы не выполняется.',
       referrers: 'Реферальные рейтинги старой версии зависели от backend. В v3 они оставлены как non-goal, чтобы не возвращать серверную зависимость.',
-      stakebot: 'Stakebot был внешним/backend-сервисом и в статическую v3 не переносится.',
       top: 'Топы старой версии строились сервером. В v3 используйте профили, историю и публичные проводники без backend.dpos.space.',
       'witnesses-rewards': 'Расчёты witness rewards были backend-only. В v3 оставлен справочный раздел без скрытых серверных запросов.',
       analytics: 'Аналитика старой версии зависела от backend/API агрегации. v3 сохраняет только локальные и публичные RPC-сценарии.',
@@ -10582,8 +10530,6 @@ Memo key: ${keys.memo}`);
         renderVizCustomGenerator(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
-      } else if (chain.id === 'golos' && effectiveAppId === 'stakebot') {
-        renderGolosStakebot(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {
         renderVizSearch(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'voice-import') {
