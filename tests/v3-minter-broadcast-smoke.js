@@ -23,12 +23,17 @@ assert(appSource.includes('renderMinterBroadcast(chain)'), 'Minter broadcast rou
 const renderSlice = sliceBetween(appSource, 'function renderMinterBroadcast(chain) {', 'function parseJsonMaybeText(text, sourceLabel)', 'Minter broadcast renderer');
 for (const marker of [
   'minter-signed-tx-form',
+  'minter-signed-tx-details',
+  'class="operation-details"',
   'Готовая signed TX',
+  'Проверить signed TX перед отправкой',
   'Signed TX hex/base64',
   'minterSDK.decodeTx',
   "broadcast.prepareExternal(chain, 'minterSignedTx'",
   'Расшифрованная транзакция',
   'minter-multisig-form',
+  'minter-multisig-details',
+  'Multisig — проверить перед отправкой',
   'Адрес multisig',
   'JSON транзакции',
   'Подписи, по одной на строку',
@@ -38,6 +43,9 @@ for (const marker of [
 ]) {
   assert(renderSlice.includes(marker), `Minter broadcast renderer preserves marker: ${marker}`);
 }
+assert(renderSlice.indexOf('name="intent" value="preview"') < renderSlice.indexOf('name="intent" value="send"'), 'Minter broadcast keeps preview/check button before send button');
+assert(plan.includes('### UX polish: Minter and Decimal non-wallet forms'), 'plan has exact UX polish section for Minter and Decimal non-wallet forms');
+assert(plan.includes('| Minter | broadcast |') && plan.includes('tests/v3-minter-broadcast-smoke.js'), 'UX polish matrix records Minter broadcast fix and focused test');
 assert(renderSlice.includes("broadcast.validateAddress(chain, form.get('multisig'), 'Адрес multisig')"), 'Minter multisig address is validated client-side');
 assert(renderSlice.includes('signatures.length'), 'Minter multisig preserves signature count/validation');
 assert(!renderSlice.includes("broadcast.prepare(chain, 'seed'"), 'Minter broadcast does not require seed for signed TX or external multisig submit');
