@@ -85,6 +85,10 @@ assert(!appSource.includes('<th scope="col">Адрес токена</th>'), 'Dec
 assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\')'), 'Decimal table unbond action opens stake/unbond operation spoiler');
 assert(appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\')'), 'Decimal NFT table action opens NFT stake/unbond operation spoiler');
 assert(appSource.includes('setDecimalField(\'decimal-nft-id\', nftPick.value)'), 'Decimal NFT selector prefills NFT id from owned account NFT list');
+assert(appSource.includes('data-decimal-nft-collection'), 'Decimal NFT selector/table actions preserve collection contract needed by SDK staking methods');
+assert(appSource.includes('decimal-nft-collection'), 'Decimal NFT form exposes collection/contract address required by Decimal SDK');
+assert(appSource.includes('decimal-nft-amount'), 'Decimal NFT form exposes integer amount for DRC1155 and defaults to one for DRC721');
+assert(appSource.includes('Количество NFT должно быть положительным целым числом'), 'Decimal NFT form validates integer NFT amount before broadcast');
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
 assert(appSource.includes('decimalNftOptions(data)'), 'Decimal NFT form receives account NFT options');
@@ -105,11 +109,14 @@ assert(!bindDecimalForms.includes('decimalEVM.broadcast'), 'Decimal wallet forms
   'sellExactTokensForDEL',
   'convertToken',
   'createToken',
-  'delegateNFT',
+  'delegateDRC721',
+  'delegateDRC1155',
   'withdrawStakeNFT'
 ].forEach((method) => {
   assert(broadcastSource.includes(method) || planSource.includes(method), `Decimal SDK method recorded or wired: ${method}`);
 });
+assert(!broadcastSource.includes('evm.delegateNFT'), 'Decimal NFT delegate does not call non-existent evm.delegateNFT');
+assert(broadcastSource.includes('isOnlyForNftTypeError(error, \'DRC721\')'), 'Decimal NFT delegate falls back from DRC721 to DRC1155 only on SDK type check error');
 
 assert(!renderDecimalWallet.includes('Legacy wallet scope notes'), 'Decimal UI does not expose developer notes');
 assert(!renderDecimalWallet.includes('plan.md'), 'Decimal UI does not mention plan.md');

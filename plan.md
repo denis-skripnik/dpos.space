@@ -1216,10 +1216,11 @@ Exact legacy method names / param order:
   - token unbond: `decimalEVM.withdrawStakeToken(address, coin, stakeInSmallestUnit)`.
 - `createCoin(title, ticker, initSupply, maxSupply, options, mode)`:
   - `decimalEVM.createToken({ title, symbol: ticker, initSupply, maxSupply, reserve: options.initialReserve, crr: options.constantReserveRatio })`.
-- `delegateNFT(nftId, address, mode)`:
-  - `decimalEVM.delegateNFT({ nftId, address })`.
-- `withdrawStakeNFT(nftId, address, mode)`:
-  - `decimalEVM.withdrawStakeNFT({ nftId, address })`.
+- `delegateNFT(nftId, address, mode)` legacy wrapper was an outdated abstraction:
+  - Current browser SDK does **not** expose `evm.delegateNFT`.
+  - Real SDK methods are `evm.delegateDRC721(validator, collection, tokenId)` and `evm.delegateDRC1155(validator, collection, tokenId, amount)`; the wrapper selects DRC721 first and falls back to DRC1155 only on the SDK `Only for DRC721` type-check error.
+  - The form/table must preserve both `collection` (contract/collection address) and `nftId`; NFT ID alone is insufficient for staking.
+- `withdrawStakeNFT(nftId, address, mode)` legacy wrapper maps to current `evm.withdrawStakeNFT(validator, collection, tokenId, amount)`.
 
 ### v3 mapping for this pass
 
@@ -4257,7 +4258,7 @@ Matrix:
 | `content.php` transfer modal | Recipient, amount, memo, fee, templates, `Перевести` | `decimal-send-form` prepares `decimalSend`; `broadcast.js` maps SDK `sendDEL` / `transferToken` | focused smoke checks form and broadcast prepare markers | Implemented direct authorized op |
 | `content.php` convert modal | Token conversion fields and route/amount/fee placeholders | `decimal-convert-form` prepares `decimalConvert`; `broadcast.js` maps `buyTokenForExactDEL`, `sellExactTokensForDEL`, `convertToken` where SDK supports them | focused smoke checks form and SDK method evidence | Implemented direct authorized op |
 | `content.php` delegate modal | Validator key, token, amount, templates, `Делегировать` | `decimal-delegate-form` maps mode to `decimalDelegate`/`decimalUnbond`; SDK methods include `delegateDEL`, `delegateToken`, `withdrawStakeToken` | focused smoke checks operation mapping | Implemented direct authorized op |
-| `content.php` NFT delegate/unbond modals | NFT ID actions for delegate/unbond | `decimal-nft-form` maps mode to `decimalDelegateNFT`/`decimalUnbondNFT`; SDK methods include `delegateNFT` and `withdrawStakeNFT` | focused smoke checks NFT mapping | Implemented direct authorized op |
+| `content.php` NFT delegate/unbond modals | NFT ID actions for delegate/unbond | `decimal-nft-form` maps mode to `decimalDelegateNFT`/`decimalUnbondNFT`; v3 now preserves collection/contract + NFT ID + amount, then uses current SDK `delegateDRC721`/`delegateDRC1155` or `withdrawStakeNFT` instead of the non-existent `evm.delegateNFT` | focused smoke checks NFT mapping and rejects `evm.delegateNFT` regression | Implemented direct authorized op |
 | `delegation/content.php` | Reads/show delegated coins and NFT stakes, exposes unbond/delegate actions | `loadDecimalWalletData` calls `/validators/wallet/{stakeAddress}/stakes/coins` and `/stakes/nfts`; v3 wallet renders stakes and NFT sections | focused smoke checks both stake endpoints | Implemented public API |
 | `js/app.js getHistory` | Reads `/txs/txs-by-address/{sender.address}?limit=10&offset=...` and formats history table | v3 wallet loads first page for wallet summary; `v3/js/history.js` keeps dedicated Decimal history route with same public endpoint | focused smoke checks tx endpoint | Implemented public API |
 | `modal-accounts.js` / `blockchain.js` | Local seed account management, `bip.to` branch, SDK wallet/DecimalEVM broadcast helpers | v3 preserves old localStorage account schema and routes seed-required operations through shared broadcast guard; `bip.to` wallet-link branch remains documented as not statically recreated | focused smoke checks plan evidence and no direct `decimalEVM.broadcast` in form binder | Implemented with non-goal |
