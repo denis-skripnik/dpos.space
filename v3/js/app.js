@@ -8472,9 +8472,8 @@ Memo key: ${keys.memo}`);
       const type = coin.type || item.type || '';
       const rawAmount = item.amount || item.value || 0;
       const amount = formatMinterAmount(rawAmount, Number(rawAmount) < 0.001 ? 8 : 3);
-      const actions = ['перевод', 'обмен'];
-      if (type === 'coin') actions.push('делегирование');
-      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type || 'coin/token')}</td><td>${escapeHtml(actions.join(', '))}</td></tr>`;
+      const actions = `<button type="button" data-minter-action="send" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Перевод</button> <button type="button" data-minter-action="swap" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Обмен</button>${type === 'coin' ? ` <button type="button" data-minter-action="delegate" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Stake</button>` : ''}`;
+      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type || 'coin/token')}</td><td>${actions}</td></tr>`;
     }).join('');
 
     const delegations = data.delegations.map((item) => {
@@ -8483,17 +8482,19 @@ Memo key: ${keys.memo}`);
       const statusMap = { 0: 'Отключён', 1: 'Кандидат', 2: 'Валидатор' };
       const validatorKey = validator.public_key || item.public_key || '';
       const coinSymbol = coin.symbol || item.symbol || '';
-      return `<tr><td><code>${escapeHtml(validatorKey)}</code><br>${escapeHtml(validator.name || '')}</td><td>${escapeHtml(statusMap[validator.status] || '')}</td><td>${escapeHtml(formatMinterAmount(item.value || item.stake || 0))} ${escapeHtml(coinSymbol)}</td><td>${escapeHtml(formatMinterAmount(item.bip_value || 0))} BIP</td><td>${item.is_waitlisted ? 'Да' : 'Нет'}</td></tr>`;
+      const stakeAmount = formatMinterAmount(item.value || item.stake || 0);
+      const quickUnbond = `<button type="button" data-minter-action="unbond" data-minter-validator="${escapeHtml(validatorKey)}" data-minter-amount="${escapeHtml(stakeAmount)}" data-minter-coin="${escapeHtml(coinSymbol || 'BIP')}">Анбонд</button>`;
+      return `<tr><td><code>${escapeHtml(validatorKey)}</code><br>${escapeHtml(validator.name || '')}</td><td>${escapeHtml(statusMap[validator.status] || '')}</td><td>${escapeHtml(stakeAmount)} ${escapeHtml(coinSymbol)}</td><td>${escapeHtml(formatMinterAmount(item.bip_value || 0))} BIP</td><td>${item.is_waitlisted ? 'Да' : 'Нет'}</td><td>${quickUnbond}</td></tr>`;
     }).join('');
 
     return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.minter, data.address)}</p><p><button type="button" id="minter-copy-address">Копировать адрес</button></p></article>
       <article class="card"><h3>Балансы</h3>${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Minter"><caption>Балансы Minter</caption><thead><tr><th scope="col">Монета</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
-      <article class="card"><h3>Делегированные монеты</h3>${data.delegationsError ? `<p class="muted">Делегирования сейчас не загрузились: ${escapeHtml(data.delegationsError)}</p>` : ''}${delegations ? `<div class="table-wrap"><table aria-label="Делегированные монеты Minter"><caption>Делегированные монеты</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Stake</th><th scope="col">В BIP</th><th scope="col">В ожидании</th></tr></thead><tbody>${delegations}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
+      <article class="card"><h3>Делегированные монеты</h3>${data.delegationsError ? `<p class="muted">Делегирования сейчас не загрузились: ${escapeHtml(data.delegationsError)}</p>` : ''}${delegations ? `<div class="table-wrap"><table aria-label="Делегированные монеты Minter"><caption>Делегированные монеты</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Stake</th><th scope="col">В BIP</th><th scope="col">В ожидании</th><th scope="col">Действие</th></tr></thead><tbody>${delegations}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
       <article class="card"><h3>Последние транзакции</h3>${data.transactionsError ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.transactionsError)}</p>` : renderTransactionsTable(data.transactions, chains.minter, { caption: 'Последние транзакции Minter', emptyText: 'Транзакции не найдены.' })}</article>`;
   }
 
   function renderMinterWalletForms(chain) {
-    return `<form id="minter-send-form" class="stacked-form"><fieldset>
+    return `<details id="minter-send-details" class="operation-details"><summary>Перевод</summary><form id="minter-send-form" class="stacked-form"><fieldset>
       <legend>Minter: перевод</legend>
       <div class="field"><label for="minter-send-to">Адрес получателя</label><input id="minter-send-to" name="to" type="text" required placeholder="Mx..."></div>
       <div class="field"><label for="minter-send-amount">Сумма</label><input id="minter-send-amount" name="amount" type="text" required placeholder="1.000"></div>
@@ -8502,8 +8503,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-send-gas">Монета газа</label><input id="minter-send-gas" name="gasCoin" type="text" value="BIP"></div>
       <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="minter-delegate-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="minter-delegate-details" class="operation-details"><summary>Stake / unbond</summary><form id="minter-delegate-form" class="stacked-form"><fieldset>
       <legend>Minter: stake</legend>
       <div class="field"><label for="minter-validator">Публичный ключ валидатора</label><input id="minter-validator" name="validator" type="text" required placeholder="Mp..."></div>
       <div class="field"><label for="minter-delegate-amount">Сумма</label><input id="minter-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
@@ -8511,7 +8512,7 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-delegate-mode">Операция</label><select id="minter-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Unbond</option></select></div>
       <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
+    </fieldset></form></details>
     <article class="card"><h3>Checks</h3><p class="muted">В этом кошельке доступны формы, подтверждённые старым интерфейсом. Для checks используйте готовую транзакцию в разделе «Отправка», если она уже подписана внешним кошельком.</p></article>
     ${minterSwapForms()}`;
   }
@@ -8542,6 +8543,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindMinterWalletForms(chain);
+    bindMinterQuickActions(appEl);
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
   }
 
@@ -8633,7 +8635,8 @@ Memo key: ${keys.memo}`);
       const symbol = String(item.denom || item.symbol || item.ticker || item.coin || item.currency || '').toUpperCase();
       const amount = formatDecimalAmount(item.amount ?? item.value ?? 0, Number(item.amount || item.value || 0) < 0.001 ? 8 : 3);
       const type = item.type || (item.coin && item.coin.type) || 'coin/token';
-      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type)}</td><td>${escapeHtml('перевод, конвертация, stake')}</td></tr>`;
+      const actions = `<button type="button" data-decimal-action="send" data-decimal-amount="${escapeHtml(amount)}" data-decimal-coin="${escapeHtml(symbol || 'DEL')}">Перевод</button> <button type="button" data-decimal-action="delegate" data-decimal-coin="${escapeHtml(symbol || 'DEL')}">Stake</button> <button type="button" data-decimal-action="convert" data-decimal-coin="${escapeHtml(symbol || 'DEL')}">Convert</button>`;
+      return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type)}</td><td>${actions}</td></tr>`;
     }).join('');
 
     const coinStakeRows = [];
@@ -8643,11 +8646,14 @@ Memo key: ${keys.memo}`);
       const validatorName = validator.name || validator.details || group.name || '';
       const stakes = Array.isArray(group.items) ? group.items : (Array.isArray(group.stakes) ? group.stakes : [group]);
       stakes.forEach((stake) => {
-        const symbol = String(stake.symbol || stake.coin_symbol || stake.denom || stake.coin || '').toUpperCase();
-        const tokenAddress = stake.address || stake.tokenAddress || '';
+        const coinInfo = stake.coin || stake.token || {};
+        const symbol = String(stake.symbol || stake.coin_symbol || stake.denom || coinInfo.symbol || coinInfo.ticker || stake.currency || '').toUpperCase();
+        const tokenAddress = stake.address || stake.tokenAddress || coinInfo.address || '';
+        const tokenTicker = symbol || (tokenAddress ? `${String(tokenAddress).slice(0, 10)}…` : 'DEL');
         const amount = formatDecimalAmount(stake.delegatedCoins || stake.amount || stake.value || 0);
-        if (!symbol && !amount) return;
-        coinStakeRows.push(`<tr><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(amount)} ${escapeHtml(symbol)}</td><td>${escapeHtml(tokenAddress)}</td></tr>`);
+        if (!symbol && !amount && !tokenAddress) return;
+        const quickUnbond = `<button type="button" data-decimal-action="unbond" data-decimal-validator="${escapeHtml(validatorAddress)}" data-decimal-amount="${escapeHtml(amount)}" data-decimal-coin="${escapeHtml(tokenTicker)}">Анбонд</button>`;
+        coinStakeRows.push(`<tr><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(amount)} ${escapeHtml(tokenTicker)}</td><td>${escapeHtml(tokenTicker)}</td><td>${quickUnbond}</td></tr>`);
       });
     });
 
@@ -8670,7 +8676,7 @@ Memo key: ${keys.memo}`);
 
     return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.decimal, data.address)}</p><p><button type="button" id="decimal-copy-address">Копировать адрес</button></p></article>
       <article class="card"><h3>Балансы</h3>${data.errors.balances ? `<p class="muted">Балансы сейчас не загрузились: ${escapeHtml(data.errors.balances)}</p>` : ''}${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Decimal"><caption>Балансы Decimal</caption><thead><tr><th scope="col">Монета/токен</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
-      <article class="card"><h3>Stake монет</h3>${data.errors.coinStakes ? `<p class="muted">Stake монет сейчас не загрузился: ${escapeHtml(data.errors.coinStakes)}</p>` : ''}${coinStakeRows.length ? `<div class="table-wrap"><table aria-label="Stake монет Decimal"><caption>Stake монет Decimal</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Stake</th><th scope="col">Адрес токена</th></tr></thead><tbody>${coinStakeRows.join('')}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
+      <article class="card"><h3>Stake монет</h3>${data.errors.coinStakes ? `<p class="muted">Stake монет сейчас не загрузился: ${escapeHtml(data.errors.coinStakes)}</p>` : ''}${coinStakeRows.length ? `<div class="table-wrap"><table aria-label="Stake монет Decimal"><caption>Stake монет Decimal</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Stake</th><th scope="col">Тикер токена</th><th scope="col">Действие</th></tr></thead><tbody>${coinStakeRows.join('')}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
       <article class="card"><h3>Stake NFT</h3>${data.errors.nftStakes ? `<p class="muted">Stake NFT сейчас не загрузился: ${escapeHtml(data.errors.nftStakes)}</p>` : ''}${nftStakeRows ? `<div class="table-wrap"><table aria-label="Stake NFT Decimal"><caption>Stake NFT Decimal</caption><thead><tr><th scope="col">NFT</th><th scope="col">Валидатор</th><th scope="col">Статус</th></tr></thead><tbody>${nftStakeRows}</tbody></table></div>` : '<p class="muted">Делегированных NFT нет.</p>'}</article>
       <article class="card"><h3>Начисления</h3>${data.errors.rewards ? `<p class="muted">Начисления сейчас не загрузились: ${escapeHtml(data.errors.rewards)}</p>` : ''}${rewardRows ? `<div class="table-wrap"><table aria-label="Начисления Decimal"><caption>Начисления Decimal</caption><thead><tr><th scope="col">Сумма</th><th scope="col">Валидатор</th><th scope="col">Дата</th></tr></thead><tbody>${rewardRows}</tbody></table></div>` : '<p class="muted">Начисления не найдены.</p>'}</article>
       <article class="card"><h3>NFT</h3>${data.errors.nfts ? `<p class="muted">NFT сейчас не загрузились: ${escapeHtml(data.errors.nfts)}</p>` : ''}${nftRows ? `<div class="table-wrap"><table aria-label="NFT Decimal"><caption>NFT Decimal</caption><thead><tr><th scope="col">Коллекция</th><th scope="col">ID</th><th scope="col">Описание</th></tr></thead><tbody>${nftRows}</tbody></table></div>` : '<p class="muted">NFT не найдены.</p>'}</article>
@@ -8691,15 +8697,15 @@ Memo key: ${keys.memo}`);
     const delMax = decimalBalanceMaximum(data, 'DEL');
     const delMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-send-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
     const delStakeMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-delegate-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
-    return `<form id="decimal-send-form" class="stacked-form"><fieldset>
+    return `<details id="decimal-send-details" class="operation-details"><summary>Перевод DEL / coin / token</summary><form id="decimal-send-form" class="stacked-form"><fieldset>
       <legend>Decimal: перевод DEL / coin / token</legend>
       <div class="field"><label for="decimal-send-to">Адрес получателя</label><input id="decimal-send-to" name="to" type="text" required placeholder="d0..., dx... или 0x..."></div>
       <div class="field"><label for="decimal-send-amount">Сумма</label><input id="decimal-send-amount" name="amount" type="text" required placeholder="1.000">${delMaxButton}</div>
       <div class="field"><label for="decimal-send-coin">Монета/токен</label><input id="decimal-send-coin" name="coin" type="text" required value="DEL"></div>
       <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="decimal-delegate-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="decimal-delegate-details" class="operation-details"><summary>Stake / unbond</summary><form id="decimal-delegate-form" class="stacked-form"><fieldset>
       <legend>Decimal: stake / unbond</legend>
       <div class="field"><label for="decimal-validator">Адрес валидатора</label><input id="decimal-validator" name="validator" type="text" required placeholder="0x... или d0valoper..."></div>
       <div class="field"><label for="decimal-delegate-amount">Сумма stake</label><input id="decimal-delegate-amount" name="amount" type="text" required placeholder="1.000">${delStakeMaxButton}</div>
@@ -8707,7 +8713,7 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="decimal-delegate-mode">Операция</label><select id="decimal-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Анбонд</option></select></div>
       <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
+    </fieldset></form></details>
     ${decimalNftForms()}`;
   }
 
@@ -8737,6 +8743,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindDecimalWalletForms(chain);
+    bindDecimalQuickActions(appEl);
     bindMaxButtons(appEl);
     setStatus(`Decimal кошелёк ${data.address} загружен.`, 'ok');
   }
@@ -8777,7 +8784,7 @@ Memo key: ${keys.memo}`);
     return `<article class="card"><h3>Minter swap: static parity notes</h3>
       <p class="notice">Legacy swap auto-quote used public explorer endpoints <code>https://explorer-api.minter.network/api/v2/pools/coins/{from}/{to}/route</code> and <code>https://explorer-api.minter.network/api/v2/pools/providers/{address}</code>. v3 keeps the direct browser wallet operations and asks you to enter minimum buy amount and optional route explicitly; it does not add a proxy, PHP endpoint, indexer, daemon, private API, or hidden service.</p>
     </article>
-    <form id="minter-swap-form" class="stacked-form"><fieldset>
+    <details id="minter-swap-details" class="operation-details"><summary>Обмен / продажа</summary><form id="minter-swap-form" class="stacked-form"><fieldset>
       <legend>Minter: обмен / продажа</legend>
       <div class="field"><label for="minter-swap-from">Монета к продаже</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-swap-to">Монета к покупке</label><input id="minter-swap-to" name="to" type="text" required></div>
@@ -8786,8 +8793,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-swap-route">Маршрут swap pool (опционально, через запятую)</label><input id="minter-swap-route" name="route" type="text"></div>
       <button type="submit" name="intent" value="preview">Проверить swap</button><button type="submit" name="intent" value="send">Отправить swap в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="minter-liquidity-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="minter-liquidity-details" class="operation-details"><summary>Ликвидность / pool</summary><form id="minter-liquidity-form" class="stacked-form"><fieldset>
       <legend>Minter: ликвидность / pool</legend>
       <div class="field"><label for="minter-liquidity-mode">Операция</label><select id="minter-liquidity-mode" name="mode"><option value="ADD_LIQUIDITY">Добавить ликвидность</option><option value="REMOVE_LIQUIDITY">Убрать ликвидность</option><option value="CREATE_SWAP_POOL">Создать swap pool</option></select></div>
       <div class="field"><label for="minter-liquidity-coin0">Монета 0</label><input id="minter-liquidity-coin0" name="coin0" type="text" required value="BIP"></div>
@@ -8797,8 +8804,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-liquidity-gas">Монета газа</label><input id="minter-liquidity-gas" name="gasCoin" type="text" value="BIP"></div>
       <button type="submit" name="intent" value="preview">Проверить ликвидность</button><button type="submit" name="intent" value="send">Отправить liquidity в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="minter-hub-withdraw-details" class="operation-details"><summary>Minter Hub: вывод</summary><form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
       <legend>Minter Hub: вывод</legend>
       <p class="notice">Вывод через Minter Hub отправляет токены на адрес Hub с memo. Проверьте сеть назначения, адрес, сумму и комиссию перед отправкой.</p>
       <div class="field"><label for="minter-hub-chain">ID сети назначения</label><input id="minter-hub-chain" name="chainId" type="text" required placeholder="ethereum или bsc"></div>
@@ -8809,8 +8816,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-hub-gas">Монета газа</label><input id="minter-hub-gas" name="gasCoin" type="text" value="BIP"></div>
       <button type="submit" name="intent" value="preview">Проверить вывод через Hub</button><button type="submit" name="intent" value="send">Отправить вывод через Hub в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="minter-coin-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="minter-coin-details" class="operation-details"><summary>Монета/токен</summary><form id="minter-coin-form" class="stacked-form"><fieldset>
       <legend>Minter: создание, пересоздание, выпуск, сжигание и смена владельца монеты/токена</legend>
       <div class="field"><label for="minter-coin-mode">Операция</label><select id="minter-coin-mode" name="mode"><option value="CREATE_COIN">Создать монету</option><option value="RECREATE_COIN">Пересоздать монету</option><option value="CREATE_TOKEN">Создать токен</option><option value="RECREATE_TOKEN">Пересоздать токен</option><option value="MINT_TOKEN">Выпустить токен</option><option value="BURN_TOKEN">Сжечь токен</option><option value="EDIT_COIN_OWNER">Сменить владельца</option></select></div>
       <div class="field"><label for="minter-coin-symbol">Символ</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
@@ -8822,11 +8829,11 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="minter-coin-new-owner">Адрес нового владельца (EDIT_COIN_OWNER)</label><input id="minter-coin-new-owner" name="newOwner" type="text"></div>
       <button type="submit" name="intent" value="preview">Проверить операцию с монетой</button><button type="submit" name="intent" value="send">Отправить операцию с монетой в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>`;
+    </fieldset></form></details>`;
   }
 
   function decimalNftForms() {
-    return `<form id="decimal-convert-form" class="stacked-form"><fieldset>
+    return `<details id="decimal-convert-details" class="operation-details"><summary>Convert / swap</summary><form id="decimal-convert-form" class="stacked-form"><fieldset>
       <legend>Decimal: convert / swap</legend>
       <p class="notice">Для токенов кроме DEL укажите адрес токена в формате 0x...</p>
       <div class="field"><label for="decimal-convert-from">Из: DEL или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
@@ -8837,8 +8844,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="decimal-convert-to-decimals">Знаков после запятой у целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
       <button type="submit" name="intent" value="preview">Проверить конвертацию</button><button type="submit" name="intent" value="send">Отправить convert в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="decimal-token-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="decimal-token-details" class="operation-details"><summary>Создание токена</summary><form id="decimal-token-form" class="stacked-form"><fieldset>
       <legend>Decimal: создание токена</legend>
       <div class="field"><label for="decimal-token-title">Название</label><input id="decimal-token-title" name="title" type="text" required></div>
       <div class="field"><label for="decimal-token-symbol">Символ</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
@@ -8846,15 +8853,15 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="decimal-token-max">Максимальная эмиссия</label><input id="decimal-token-max" name="maxSupply" type="text" required></div>
       <button type="submit" name="intent" value="preview">Проверить token</button><button type="submit" name="intent" value="send">Создать token в сети</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>
-    <form id="decimal-nft-form" class="stacked-form"><fieldset>
+    </fieldset></form></details>
+    <details id="decimal-nft-details" class="operation-details"><summary>NFT stake</summary><form id="decimal-nft-form" class="stacked-form"><fieldset>
       <legend>Decimal: NFT stake</legend>
       <div class="field"><label for="decimal-nft-mode">Операция</label><select id="decimal-nft-mode" name="mode"><option value="delegate">Делегировать NFT</option><option value="unbond">Анбонд NFT</option></select></div>
       <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
       <div class="field"><label for="decimal-nft-validator">ID/адрес валидатора</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
       <button type="submit" name="intent" value="preview">Проверить NFT</button><button type="submit" name="intent" value="send">Отправить NFT-операцию в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-    </fieldset></form>`;
+    </fieldset></form></details>`;
   }
 
   function minterTx(typeName, data, gasCoin, memo) {
@@ -8862,6 +8869,51 @@ Memo key: ${keys.memo}`);
     return { chainId: 1, type: txType ? txType[typeName] : typeName, data, gasCoin: gasCoin || 'BIP', payload: memo || '' };
   }
 
+
+  function openMinterOperationDetails(id) {
+    const details = document.getElementById(id);
+    if (!details) return null;
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return details;
+  }
+
+  function setMinterField(id, value) {
+    const field = document.getElementById(id);
+    if (field && value !== undefined && value !== null && String(value) !== '') field.value = String(value);
+  }
+
+  function bindMinterQuickActions(root) {
+    (root || document).querySelectorAll('[data-minter-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.minterAction;
+        if (action === 'send') {
+          openMinterOperationDetails('minter-send-details');
+          setMinterField('minter-send-amount', button.dataset.minterAmount);
+          setMinterField('minter-send-coin', button.dataset.minterCoin);
+          const target = document.getElementById('minter-send-to');
+          if (target) target.focus();
+          return;
+        }
+        if (action === 'delegate' || action === 'unbond') {
+          openMinterOperationDetails('minter-delegate-details');
+          setMinterField('minter-validator', button.dataset.minterValidator);
+          setMinterField('minter-delegate-amount', button.dataset.minterAmount);
+          setMinterField('minter-delegate-coin', button.dataset.minterCoin || 'BIP');
+          setMinterField('minter-delegate-mode', action === 'unbond' ? 'unbond' : 'delegate');
+          const focusTarget = document.getElementById(action === 'unbond' ? 'minter-delegate-amount' : 'minter-validator');
+          if (focusTarget) focusTarget.focus();
+          return;
+        }
+        if (action === 'swap') {
+          openMinterOperationDetails('minter-swap-details');
+          setMinterField('minter-swap-from', button.dataset.minterCoin || 'BIP');
+          const target = document.getElementById('minter-swap-to');
+          if (target) target.focus();
+        }
+      });
+    });
+  }
 
   function bindMinterWalletForms(chain) {
     bindOperationForm(chain, 'minter-send-form', (form) => {
@@ -8950,6 +9002,51 @@ Memo key: ${keys.memo}`);
     });
   }
 
+
+  function openDecimalOperationDetails(id) {
+    const details = document.getElementById(id);
+    if (!details) return null;
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return details;
+  }
+
+  function setDecimalField(id, value) {
+    const field = document.getElementById(id);
+    if (field && value !== undefined && value !== null && String(value) !== '') field.value = String(value);
+  }
+
+  function bindDecimalQuickActions(root) {
+    (root || document).querySelectorAll('[data-decimal-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.decimalAction;
+        if (action === 'send') {
+          openDecimalOperationDetails('decimal-send-details');
+          setDecimalField('decimal-send-amount', button.dataset.decimalAmount);
+          setDecimalField('decimal-send-coin', button.dataset.decimalCoin);
+          const target = document.getElementById('decimal-send-to');
+          if (target) target.focus();
+          return;
+        }
+        if (action === 'delegate' || action === 'unbond') {
+          openDecimalOperationDetails('decimal-delegate-details');
+          setDecimalField('decimal-validator', button.dataset.decimalValidator);
+          setDecimalField('decimal-delegate-amount', button.dataset.decimalAmount);
+          setDecimalField('decimal-delegate-coin', button.dataset.decimalCoin || 'DEL');
+          setDecimalField('decimal-delegate-mode', action === 'unbond' ? 'unbond' : 'delegate');
+          const focusTarget = document.getElementById(action === 'unbond' ? 'decimal-delegate-amount' : 'decimal-validator');
+          if (focusTarget) focusTarget.focus();
+          return;
+        }
+        if (action === 'convert') {
+          openDecimalOperationDetails('decimal-convert-details');
+          setDecimalField('decimal-convert-from', button.dataset.decimalCoin || 'DEL');
+          const target = document.getElementById('decimal-convert-to');
+          if (target) target.focus();
+        }
+      });
+    });
+  }
 
   function bindDecimalWalletForms(chain) {
     bindOperationForm(chain, 'decimal-send-form', (form) => {
