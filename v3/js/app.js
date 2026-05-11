@@ -8723,7 +8723,7 @@ Memo key: ${keys.memo}`);
     const genericAddress = String(item.address || '').trim();
     if (isDecimalContractAddress(genericAddress)) return genericAddress;
     const collection = item.collection || item.nftCollection || item.collectionId || item.collection_id || '';
-    return String(collection).trim();
+    return decimalNftCollectionInputAddress(collection) || String(collection).trim();
   }
 
   function decimalNftCollectionName(item) {
@@ -8733,6 +8733,17 @@ Memo key: ${keys.memo}`);
 
   function isDecimalContractAddress(value) {
     return /^0x[0-9a-fA-F]{40}$/.test(String(value || '').trim());
+  }
+
+  function decimalKnownNftCollectionAddress(name) {
+    return ({
+      Space_Warriors_Happy_New_Year: '0x97ef3fdb3f47a6114429e2f95481b3f926d67c6d'
+    })[String(name || '').trim()] || '';
+  }
+
+  function decimalNftCollectionInputAddress(value) {
+    const input = String(value || '').trim();
+    return isDecimalContractAddress(input) ? input : decimalKnownNftCollectionAddress(input);
   }
 
   function decimalNftSubgraphUrl(chain) {
@@ -8750,10 +8761,7 @@ Memo key: ${keys.memo}`);
       nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}, first: 1) { collection { address name tokenType } tokenId }
       nftcollections(where:{name: "${escaped}"}, first: 1) { address name tokenType }
     }`;
-    const fallbackAddresses = {
-      Space_Warriors_Happy_New_Year: '0x97ef3fdb3f47a6114429e2f95481b3f926d67c6d'
-    };
-    const known = fallbackAddresses[input];
+    const known = decimalKnownNftCollectionAddress(input);
     try {
       const response = await fetchJsonText(decimalNftSubgraphUrl(chain), 'Decimal NFT subgraph', {
         method: 'POST',
