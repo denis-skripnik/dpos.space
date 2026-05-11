@@ -1673,6 +1673,100 @@
     else field.value = value == null ? '' : String(value);
   }
 
+  function witnessPropsFieldNames(chain) {
+    const common = ['account_creation_fee', 'maximum_block_size'];
+    if (chain.id === 'viz') return common.concat([
+      'create_account_delegation_ratio', 'create_account_delegation_time', 'min_delegation',
+      'bandwidth_reserve_percent', 'bandwidth_reserve_below', 'vote_accounting_min_rshares',
+      'committee_request_approve_min_percent', 'inflation_witness_percent',
+      'inflation_ratio_committee_vs_reward_fund', 'inflation_recalc_period',
+      'data_operations_cost_additional_bandwidth', 'witness_miss_penalty_percent',
+      'witness_miss_penalty_duration', 'create_invite_min_balance', 'committee_create_request_fee',
+      'create_paid_subscription_fee', 'account_on_sale_fee', 'subaccount_on_sale_fee',
+      'witness_declaration_fee', 'withdraw_intervals'
+    ]);
+    if (chain.id === 'golos') return common.concat(['create_account_delegation', 'create_account_delegation_ratio', 'create_account_delegation_time', 'min_delegation']);
+    if (chain.id === 'hive') return common.concat(['hbd_interest_rate', 'account_subsidy_budget', 'account_subsidy_decay']);
+    if (chain.id === 'steem') return common.concat(['sbd_interest_rate', 'account_subsidy_budget', 'account_subsidy_decay']);
+    return common;
+  }
+
+  function witnessPropsFieldLabel(name) {
+    return {
+      account_creation_fee: 'Комиссия создания аккаунта',
+      maximum_block_size: 'Максимальный размер блока',
+      create_account_delegation: 'Делегирование при создании аккаунта',
+      create_account_delegation_ratio: 'Коэффициент делегирования аккаунта',
+      create_account_delegation_time: 'Срок делегирования аккаунта, сек.',
+      min_delegation: 'Минимальное делегирование',
+      bandwidth_reserve_percent: 'Резерв bandwidth, %',
+      bandwidth_reserve_below: 'Порог резервного bandwidth',
+      vote_accounting_min_rshares: 'Минимальный rshares для учёта голоса',
+      committee_request_approve_min_percent: 'Минимальный % для заявки фонда',
+      inflation_witness_percent: 'Доля эмиссии делегатам, %',
+      inflation_ratio_committee_vs_reward_fund: 'Соотношение фонд DAO / фонд наград',
+      inflation_recalc_period: 'Период пересчёта инфляции',
+      data_operations_cost_additional_bandwidth: 'Наценка bandwidth за data-операции',
+      witness_miss_penalty_percent: 'Штраф за пропуск блока, %',
+      witness_miss_penalty_duration: 'Длительность штрафа за пропуск',
+      create_invite_min_balance: 'Минимальный баланс инвайта',
+      committee_create_request_fee: 'Комиссия заявки фонда',
+      create_paid_subscription_fee: 'Комиссия платной подписки',
+      account_on_sale_fee: 'Комиссия продажи аккаунта',
+      subaccount_on_sale_fee: 'Комиссия продажи субаккаунта',
+      witness_declaration_fee: 'Комиссия декларации делегата',
+      withdraw_intervals: 'Количество интервалов вывода',
+      hbd_interest_rate: 'HBD interest rate',
+      sbd_interest_rate: 'SBD interest rate',
+      account_subsidy_budget: 'Бюджет субсидий аккаунтов',
+      account_subsidy_decay: 'Скорость убывания субсидий аккаунтов'
+    }[name] || name;
+  }
+
+  function witnessPropsFieldPlaceholder(chain, name) {
+    if (name.endsWith('_fee') || name === 'account_creation_fee' || name === 'create_account_delegation' || name === 'min_delegation' || name === 'create_invite_min_balance') return `0.000 ${chain.liquidSymbol}`;
+    if (name === 'maximum_block_size') return '65536';
+    return 'число';
+  }
+
+  function renderWitnessPropsFields(chain, formIdPrefix) {
+    const rows = witnessPropsFieldNames(chain).map((name) => `<div class="field"><label for="${formIdPrefix}-${name}">${escapeHtml(witnessPropsFieldLabel(name))} <code>${escapeHtml(name)}</code></label><input id="${formIdPrefix}-${name}" name="${escapeHtml(name)}" type="text" placeholder="${escapeHtml(witnessPropsFieldPlaceholder(chain, name))}"></div>`).join('');
+    return `${rows}<details><summary>Дополнительные props JSON</summary><p class="muted">Необязательный JSON для редких параметров. Значения из JSON объединяются с полями выше; поля имеют приоритет.</p><div class="field"><label for="${formIdPrefix}-extra-json">Дополнительные props JSON</label><textarea id="${formIdPrefix}-extra-json" name="extraProps" rows="4" placeholder='{"custom_prop":"value"}'></textarea></div></details>`;
+  }
+
+  function normalizeWitnessPropValue(raw) {
+    const text = String(raw == null ? '' : raw).trim();
+    if (!text) return undefined;
+    if (/^-?\d+$/.test(text)) return Number(text);
+    if (/^-?\d+\.\d+$/.test(text) && !/\s[A-Z]{2,}$/.test(text)) return Number(text);
+    return text;
+  }
+
+  function collectWitnessPropsFromForm(chain, form) {
+    let props = {};
+    const extraRaw = String(form.get('extraProps') || '').trim();
+    if (extraRaw) {
+      try { props = JSON.parse(extraRaw); } catch (error) { throw new Error('Дополнительные props JSON должен быть корректным JSON.'); }
+    }
+    witnessPropsFieldNames(chain).forEach((name) => {
+      const value = normalizeWitnessPropValue(form.get(name));
+      if (typeof value !== 'undefined') props[name] = value;
+    });
+    if (!Object.keys(props).length) throw new Error('Заполните хотя бы одно поле witness props или дополнительный JSON.');
+    return props;
+  }
+
+  function fillWitnessPropsForm(form, chain, props) {
+    if (!form) return;
+    const known = new Set(witnessPropsFieldNames(chain));
+    const extra = {};
+    Object.keys(props || {}).forEach((name) => {
+      if (known.has(name)) fillFormValue(form, name, props[name]);
+      else extra[name] = props[name];
+    });
+    fillFormValue(form, 'extraProps', Object.keys(extra).length ? JSON.stringify(extra, null, 2) : '');
+  }
+
   async function prefillManageProfile(chain) {
     if (chain.id !== 'golos' && chain.id !== 'hive' && chain.id !== 'steem') return;
     const form = document.getElementById('manage-profile-form');
@@ -1707,9 +1801,14 @@
       fillFormValue(form, 'url', witness.url || '');
       fillFormValue(form, 'signingKey', witness.signing_key || witness.signingKey || '');
       fillFormValue(form, 'fee', `0.000 ${chain.liquidSymbol}`);
-      fillFormValue(form, 'props', JSON.stringify(witness.props || {}, null, 2));
+      let props = witness.props || {};
+      if (!Object.keys(props).length) {
+        props = await profiles.apiCall(connection, 'getChainProperties', []).catch(() => props);
+      }
       const propsForm = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-form' : 'manage-witness-props-form');
-      fillFormValue(propsForm, 'props', JSON.stringify(witness.props || {}, null, 2));
+      fillWitnessPropsForm(propsForm, chain, props);
+      const propsResult = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-prefill-result' : 'manage-witness-props-prefill-result');
+      if (propsResult) propsResult.textContent = 'Witness props загружены в поля формы.';
       if (result) result.textContent = 'Witness настройки загружены через getWitnessByAccount.';
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
@@ -6009,11 +6108,22 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — опасная операция</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
+        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
           <legend>VIZ witness props / versionedChainPropertiesUpdate</legend>
-          <p class="notice">Опасная операция witness: меняет chain properties VIZ. Legacy строил props из getWitnessByAccount; v3 принимает явный JSON preview перед отправкой.</p>
-          <div class="field"><label for="viz-witness-props-json">Props JSON</label><textarea id="viz-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"10.000 VIZ"}'></textarea></div>
+          <p class="notice">Опасная операция witness: меняет chain properties VIZ. Заполните поля вручную или подгрузите текущие значения, затем проверьте preview перед отправкой.</p>
+          <button type="button" id="viz-witness-props-load">Загрузить текущие witness props</button>
+          <div id="viz-witness-props-prefill-result" class="operation-result" role="status" aria-live="polite"></div>
+          ${renderWitnessPropsFields(chain, 'viz-witness-props')}
           <button type="submit" name="intent" value="preview">Проверить versionedChainPropertiesUpdate</button><button type="submit" name="intent" value="send">Отправить versionedChainPropertiesUpdate</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form></details>` : ''}
+        ${(chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form"><fieldset>
+          <legend>${escapeHtml(chain.title)} witness props / chain_properties_update</legend>
+          <p class="notice">Опасная witness операция: меняет chain properties. Подгрузите текущие параметры, измените нужные поля и обязательно проверьте preview.</p>
+          <button type="button" id="manage-witness-props-load">Загрузить текущие witness props</button>
+          <div id="manage-witness-props-prefill-result" class="operation-result" role="status" aria-live="polite"></div>
+          ${renderWitnessPropsFields(chain, 'manage-witness-props')}
+          <button type="submit" name="intent" value="preview">Проверить chain_properties_update</button><button type="submit" name="intent" value="send">Отправить chain_properties_update</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>` : ''}
         <details id="manage-authority-details" class="operation-details"><summary>Authority / доступы — owner WIF только в памяти</summary><form id="manage-authority-form" class="stacked-form">
@@ -6140,11 +6250,13 @@
             </fieldset></form>
           </section>
         </details>
-        <details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — опасная операция</summary><form id="manage-witness-props-form" class="stacked-form">
+        <details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form">
           <fieldset>
             <legend>Golos witness props / chain_properties_update</legend>
-            <p class="notice">Опасная операция witness: меняет chain properties. Проверьте JSON вручную.</p>
-            <div class="field"><label for="manage-witness-props-json">Props JSON</label><textarea id="manage-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"3.000 GOLOS"}'></textarea></div>
+            <p class="notice">Опасная операция witness: меняет chain properties. Подгрузите текущие значения, измените поля и проверьте preview перед отправкой.</p>
+            <button type="button" id="manage-witness-props-load">Загрузить текущие witness props</button>
+            <div id="manage-witness-props-prefill-result" class="operation-result" role="status" aria-live="polite"></div>
+            ${renderWitnessPropsFields(chain, 'manage-witness-props')}
             <button type="submit" name="intent" value="preview">Проверить chain_properties_update</button>
             <button type="submit" name="intent" value="send">Отправить chain_properties_update</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -6450,6 +6562,8 @@ Memo key: ${keys.memo}`);
       prefillManageProfile(chain);
       const witnessLoad = document.getElementById('manage-witness-load');
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessPropsLoad = document.getElementById('manage-witness-props-load');
+      if (witnessPropsLoad) witnessPropsLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessesLoad = document.getElementById('manage-witnesses-load');
       if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
       const followingLoad = document.getElementById('manage-following-load');
@@ -6582,6 +6696,8 @@ Memo key: ${keys.memo}`);
       }
       const witnessLoad = document.getElementById('manage-witness-load');
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessPropsLoad = document.getElementById('viz-witness-props-load');
+      if (witnessPropsLoad) witnessPropsLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessesLoad = document.getElementById('manage-witnesses-load');
       if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
       const vizCommitteeLoad = document.getElementById('viz-committee-load');
@@ -6591,6 +6707,8 @@ Memo key: ${keys.memo}`);
       prefillManageProfile(chain);
       const witnessLoad = document.getElementById('manage-witness-load');
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessPropsLoad = document.getElementById('manage-witness-props-load');
+      if (witnessPropsLoad) witnessPropsLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessesLoad = document.getElementById('manage-witnesses-load');
       if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
     }
@@ -6709,12 +6827,11 @@ Memo key: ${keys.memo}`);
     });
 
     bindOperationForm(chain, 'manage-witness-props-form', (form) => {
-      if (chain.id !== 'golos') throw new Error('chain_properties_update здесь доступен только для Golos.');
-      let props = {};
-      try { props = JSON.parse(String(form.get('props') || '{}')); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
+      if (chain.id !== 'golos' && chain.id !== 'hive' && chain.id !== 'steem') throw new Error('chain_properties_update здесь доступен только для Golos/Hive/Steem.');
+      const props = collectWitnessPropsFromForm(chain, form);
       return broadcast.prepare(chain, 'active', 'sendOperations', [[
-        ['chain_properties_update', { owner: auth.getCurrentLogin(chain), props: [9, props] }]
-      ]], { title: 'Golos chain_properties_update', warnings: ['Опасная witness операция: проверьте chain properties перед отправкой.'] });
+        ['chain_properties_update', { owner: auth.getCurrentLogin(chain), props: chain.id === 'golos' ? [9, props] : props }]
+      ]], { title: `${chain.title} chain_properties_update`, warnings: ['Опасная witness операция: проверьте chain properties перед отправкой.'] });
     });
 
     bindOperationForm(chain, 'viz-create-account-form', async (form) => {
@@ -6784,9 +6901,8 @@ Memo key: ${keys.memo}`);
 
     bindOperationForm(chain, 'viz-witness-props-form', (form) => {
       if (chain.id !== 'viz') throw new Error('versionedChainPropertiesUpdate доступен только для VIZ.');
-      let props = {};
-      try { props = JSON.parse(String(form.get('props') || '{}')); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
-      return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная witness операция: меняет chain properties; проверьте JSON перед отправкой.'] });
+      const props = collectWitnessPropsFromForm(chain, form);
+      return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная witness операция: меняет chain properties; проверьте поля перед отправкой.'] });
     });
 
     bindOperationForm(chain, 'viz-multisig-authority-form', (form) => {

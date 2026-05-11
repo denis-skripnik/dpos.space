@@ -18,7 +18,10 @@ assert(appSource.includes('VIZ1111111111111111111111111111111114T1Anm'), 'VIZ nu
 assert(appSource.includes('Настройки witness / параметры сети'), 'witness props/settings are separated from activation');
 assert(appSource.includes('Активация или деактивация witness'), 'witness activation/deactivation has its own form copy');
 assert(appSource.includes('loadManageWitnessSettings(chain)'), 'witness settings preload is wired');
-assert(appSource.includes('fillFormValue(propsForm, \'props\''), 'witness props preload fills the dedicated props form');
+assert(appSource.includes('function renderWitnessPropsFields'), 'witness props render as field forms instead of JSON-only textarea');
+assert(appSource.includes('fillWitnessPropsForm(propsForm, chain, props)'), 'witness props preload fills dedicated field form');
+assert(appSource.includes('manage-witness-props-load') && appSource.includes('viz-witness-props-load'), 'witness props preload buttons are wired for shared chains and VIZ');
+assert(appSource.includes('collectWitnessPropsFromForm(chain, form)'), 'witness props operation collects named fields plus extra JSON');
 assert(appSource.includes('manage-workers-vote-section'), 'Golos workers has a separate vote section');
 assert(appSource.includes('manage-workers-history-section'), 'Golos workers has a separate history section');
 assert(appSource.includes('manage-workers-create-section'), 'Golos workers has a separate create section');
