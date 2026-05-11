@@ -392,6 +392,7 @@
     if (!collection) throw new Error('Для Decimal NFT операции нужна коллекция / contract address NFT.');
     if (!/^0x[0-9a-fA-F]{40}$/.test(collection)) throw new Error('Decimal NFT collection должна быть EVM contract address 0x, а не названием коллекции. Выберите NFT из списка заново или вставьте адрес контракта коллекции.');
     if (!nftId) throw new Error('Для Decimal NFT операции нужен NFT ID.');
+    if (!/^\d+$/.test(nftId)) throw new Error('Decimal NFT ID должен быть числовым tokenId, а не hash/id из API. Выберите NFT из списка заново после обновления страницы.');
     if (!validator) throw new Error('Для Decimal NFT операции нужен валидатор.');
     return { collection, nftId, validator, amount };
   }

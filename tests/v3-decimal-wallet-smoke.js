@@ -94,6 +94,9 @@ assert(appSource.includes('nftcollections(where:{name:'), 'Decimal NFT collectio
 assert(appSource.includes('nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}'), 'Decimal NFT collection resolver can narrow public subgraph lookup by collection name and token id');
 assert(appSource.includes("Space_Warriors_Happy_New_Year: '0x97ef3fdb3f47a6114429e2f95481b3f926d67c6d'"), 'Decimal NFT resolver has a verified fallback for Space_Warriors_Happy_New_Year when subgraph lookup is unavailable');
 assert(appSource.includes('return decimalNftCollectionInputAddress(collection) || String(collection).trim();'), 'Decimal NFT selector prefills known collection names as contract addresses, not display names');
+assert(appSource.includes('item.tokenId || item.token_id'), 'Decimal NFT id prefers numeric tokenId/token_id before generic API id/hash');
+assert(appSource.includes("return '1';"), 'Decimal NFT id falls back to known numeric token id when Gate API exposes only a hex hash for a known collection');
+assert(broadcastSource.includes('NFT ID должен быть числовым tokenId'), 'Decimal broadcast guard rejects API hashes before ethers BigNumber parsing');
 assert(broadcastSource.includes('collection должна быть EVM contract address 0x'), 'Decimal broadcast guard rejects collection display names before ethers throws invalid address');
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
