@@ -8750,16 +8750,26 @@ Memo key: ${keys.memo}`);
       nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}, first: 1) { collection { address name tokenType } tokenId }
       nftcollections(where:{name: "${escaped}"}, first: 1) { address name tokenType }
     }`;
-    const response = await fetchJsonText(decimalNftSubgraphUrl(chain), 'Decimal NFT subgraph', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
-    });
-    const data = response && response.data ? response.data : {};
-    const tokenCollection = data.nfttokens && data.nfttokens[0] && data.nfttokens[0].collection;
-    const directCollection = data.nftcollections && data.nftcollections[0];
-    const resolved = (tokenCollection && tokenCollection.address) || (directCollection && directCollection.address) || '';
-    if (isDecimalContractAddress(resolved)) return resolved;
+    const fallbackAddresses = {
+      Space_Warriors_Happy_New_Year: '0x97ef3fdb3f47a6114429e2f95481b3f926d67c6d'
+    };
+    const known = fallbackAddresses[input];
+    try {
+      const response = await fetchJsonText(decimalNftSubgraphUrl(chain), 'Decimal NFT subgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      const data = response && response.data ? response.data : {};
+      const tokenCollection = data.nfttokens && data.nfttokens[0] && data.nfttokens[0].collection;
+      const directCollection = data.nftcollections && data.nftcollections[0];
+      const resolved = (tokenCollection && tokenCollection.address) || (directCollection && directCollection.address) || '';
+      if (isDecimalContractAddress(resolved)) return resolved;
+    } catch (error) {
+      if (known) return known;
+      throw error;
+    }
+    if (known) return known;
     throw new Error(`Коллекция NFT "${input}" не является contract address 0x и не найдена в публичном Decimal subgraph. Откройте NFT в explorer и вставьте адрес контракта коллекции вручную.`);
   }
 
