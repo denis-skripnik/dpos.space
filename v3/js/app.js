@@ -8717,7 +8717,8 @@ Memo key: ${keys.memo}`);
   }
 
   function decimalNftCollection(item) {
-    return String(item.collection || item.nftCollection || item.collectionId || item.collection_id || '').trim();
+    const collection = item.collection || item.nftCollection || item.collectionId || item.collection_id || item.collectionAddress || item.collection_address || item.contract || item.contractAddress || item.address || '';
+    return String(collection).trim();
   }
 
   function decimalNftTitle(item) {
@@ -8736,11 +8737,12 @@ Memo key: ${keys.memo}`);
     const nfts = Array.isArray(data && data.nfts) ? data.nfts : [];
     return nfts.map((item) => {
       const id = decimalNftId(item) || decimalNftLabel(item);
+      const collection = decimalNftCollection(item);
       if (!id) return '';
       const label = decimalNftLabel(item);
       const title = decimalNftTitle(item);
       const optionText = title && title !== label ? `${label} — ${title}` : label;
-      return `<option value="${escapeHtml(id)}">${escapeHtml(optionText)}</option>`;
+      return `<option value="${escapeHtml(id)}" data-decimal-nft-collection="${escapeHtml(collection)}">${escapeHtml(optionText)}</option>`;
     }).filter(Boolean).join('');
   }
 
@@ -8778,7 +8780,9 @@ Memo key: ${keys.memo}`);
       const validatorName = validator.details || validator.name || '';
       const nftLabel = decimalNftLabel(stake);
       const nftId = decimalNftId(stake) || nftLabel;
-      const quickUnbond = `<button type="button" data-decimal-nft-action="unbond" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-validator="${escapeHtml(validatorAddress)}">Анбонд NFT</button>`;
+      const nftCollection = decimalNftCollection(stake);
+      const nftAmount = stake.amount || stake.quantity || stake.value || 1;
+      const quickUnbond = `<button type="button" data-decimal-nft-action="unbond" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-nft-collection="${escapeHtml(nftCollection)}" data-decimal-nft-amount="${escapeHtml(String(nftAmount))}" data-decimal-validator="${escapeHtml(validatorAddress)}">Анбонд NFT</button>`;
       return `<tr><td>${escapeHtml(nftLabel || 'NFT')}</td><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(validator.status || stake.status || '')}</td><td>${quickUnbond}</td></tr>`;
     }).join('');
 
@@ -8791,8 +8795,10 @@ Memo key: ${keys.memo}`);
 
     const nftRows = (data.nfts || []).map((item) => {
       const nftId = decimalNftId(item) || decimalNftLabel(item);
+      const nftCollection = decimalNftCollection(item);
+      const nftAmount = item.amount || item.quantity || item.value || 1;
       const title = decimalNftTitle(item);
-      const quickDelegate = `<button type="button" data-decimal-nft-action="delegate" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-nft-title="${escapeHtml(title)}">Stake NFT</button>`;
+      const quickDelegate = `<button type="button" data-decimal-nft-action="delegate" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-nft-collection="${escapeHtml(nftCollection)}" data-decimal-nft-amount="${escapeHtml(String(nftAmount))}" data-decimal-nft-title="${escapeHtml(title)}">Stake NFT</button>`;
       return `<tr><td>${escapeHtml(decimalNftCollection(item))}</td><td>${escapeHtml(nftId)}</td><td>${escapeHtml(title)}</td><td>${quickDelegate}</td></tr>`;
     }).join('');
 
@@ -9050,7 +9056,9 @@ Memo key: ${keys.memo}`);
       <legend>Decimal: NFT stake</legend>
       <div class="field"><label for="decimal-nft-mode">Операция</label><select id="decimal-nft-mode" name="mode"><option value="delegate">Делегировать NFT</option><option value="unbond">Анбонд NFT</option></select></div>
       ${nftPicker}
+      <div class="field"><label for="decimal-nft-collection">Коллекция / contract address NFT</label><input id="decimal-nft-collection" name="collection" type="text" required placeholder="0x... или значение из списка NFT"></div>
       <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
+      <div class="field"><label for="decimal-nft-amount">Количество (для DRC1155; для DRC721 оставьте 1)</label><input id="decimal-nft-amount" name="amount" type="text" value="1"></div>
       <div class="field"><label for="decimal-nft-validator">ID/адрес валидатора</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
       <button type="submit" name="intent" value="preview">Проверить NFT</button><button type="submit" name="intent" value="send">Отправить NFT-операцию в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -9263,7 +9271,9 @@ Memo key: ${keys.memo}`);
       button.addEventListener('click', () => {
         openDecimalOperationDetails('decimal-nft-details');
         setDecimalField('decimal-nft-mode', button.dataset.decimalNftAction || 'unbond');
+        setDecimalField('decimal-nft-collection', button.dataset.decimalNftCollection);
         setDecimalField('decimal-nft-id', button.dataset.decimalNftId);
+        setDecimalField('decimal-nft-amount', button.dataset.decimalNftAmount || '1');
         setDecimalField('decimal-nft-validator', button.dataset.decimalValidator);
         const target = document.getElementById('decimal-nft-validator');
         if (target) target.focus();
@@ -9279,6 +9289,8 @@ Memo key: ${keys.memo}`);
     nftPick.addEventListener('change', () => {
       if (!nftPick.value) return;
       setDecimalField('decimal-nft-id', nftPick.value);
+      const option = nftPick.selectedOptions && nftPick.selectedOptions[0];
+      setDecimalField('decimal-nft-collection', option && option.dataset ? option.dataset.decimalNftCollection : '');
       const target = document.getElementById('decimal-nft-validator');
       if (target) target.focus();
     });
@@ -9409,10 +9421,14 @@ Memo key: ${keys.memo}`);
 
     bindOperationForm(chain, 'decimal-nft-form', (form) => {
       const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
+      const collection = String(form.get('collection') || '').trim();
       const nftId = String(form.get('nftId') || '').trim();
+      const amount = String(form.get('amount') || '1').trim().replace(',', '.');
+      if (!/^\d+$/.test(amount) || Number(amount) <= 0) throw new Error('Количество NFT должно быть положительным целым числом.');
+      if (!collection) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
       if (!nftId) throw new Error('Нужен NFT ID.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
-      return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
+      return broadcast.prepare(chain, 'seed', op, [{ collection, nftId, amount, validator }], { title: op, validator, nft: `${collection}/${nftId}` });
     });
   }
 
@@ -9528,10 +9544,14 @@ Memo key: ${keys.memo}`);
 
     bindOperationForm(chain, 'decimal-nft-form', (form) => {
       const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
+      const collection = String(form.get('collection') || '').trim();
       const nftId = String(form.get('nftId') || '').trim();
+      const amount = String(form.get('amount') || '1').trim().replace(',', '.');
+      if (!/^\d+$/.test(amount) || Number(amount) <= 0) throw new Error('Количество NFT должно быть положительным целым числом.');
+      if (!collection) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
       if (!nftId) throw new Error('Нужен NFT ID.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
-      return broadcast.prepare(chain, 'seed', op, [{ nftId, validator }], { title: op, validator });
+      return broadcast.prepare(chain, 'seed', op, [{ collection, nftId, amount, validator }], { title: op, validator, nft: `${collection}/${nftId}` });
     });
   }
 

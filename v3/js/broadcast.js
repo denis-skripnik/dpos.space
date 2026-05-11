@@ -382,6 +382,23 @@
     throw new Error('Нужные методы Minter для отправки транзакции недоступны.');
   }
 
+  function normalizeDecimalNftParams(params) {
+    const collection = String(params.collection || params.nftCollection || params.contract || params.address || '').trim();
+    const nftId = String(params.nftId || params.tokenId || params.id || '').trim();
+    const validator = String(params.validator || params.address || '').trim();
+    const rawAmount = String(params.amount || '1').trim().replace(',', '.');
+    if (!/^\d+$/.test(rawAmount) || BigInt(rawAmount) <= 0n) throw new Error('Количество NFT должно быть положительным целым числом.');
+    const amount = BigInt(rawAmount);
+    if (!collection) throw new Error('Для Decimal NFT операции нужна коллекция / contract address NFT.');
+    if (!nftId) throw new Error('Для Decimal NFT операции нужен NFT ID.');
+    if (!validator) throw new Error('Для Decimal NFT операции нужен валидатор.');
+    return { collection, nftId, validator, amount };
+  }
+
+  function isOnlyForNftTypeError(error, type) {
+    return String(error && (error.message || error)).includes(`Only for ${type}`);
+  }
+
   async function executeDecimal(chain, prepared) {
     const sdk = getClient(chain);
     if (!sdk.Wallet || !sdk.DecimalEVM) throw new Error('Библиотека Decimal недоступна.');
@@ -407,9 +424,22 @@
     } else if (prepared.operationName === 'decimalCreateToken') {
       txPayload = await evm.createToken(p);
     } else if (prepared.operationName === 'decimalDelegateNFT') {
-      txPayload = await evm.delegateNFT({ nftId: p.nftId, address: p.validator });
+      const nft = normalizeDecimalNftParams(p);
+      if (typeof evm.delegateDRC721 !== 'function' || typeof evm.delegateDRC1155 !== 'function') {
+        throw new Error('Decimal SDK не поддерживает delegateDRC721/delegateDRC1155 в загруженной сборке.');
+      }
+      try {
+        txPayload = await evm.delegateDRC721(nft.validator, nft.collection, nft.nftId);
+      } catch (error) {
+        if (!isOnlyForNftTypeError(error, 'DRC721')) throw error;
+        txPayload = await evm.delegateDRC1155(nft.validator, nft.collection, nft.nftId, nft.amount);
+      }
     } else if (prepared.operationName === 'decimalUnbondNFT') {
-      txPayload = await evm.withdrawStakeNFT({ nftId: p.nftId, address: p.validator });
+      const nft = normalizeDecimalNftParams(p);
+      if (typeof evm.withdrawStakeNFT !== 'function') {
+        throw new Error('Decimal SDK не поддерживает withdrawStakeNFT в загруженной сборке.');
+      }
+      txPayload = await evm.withdrawStakeNFT(nft.validator, nft.collection, nft.nftId, nft.amount);
     } else if (prepared.operationName === 'decimalConvert') {
       const isFromDEL = String(p.from || '').toUpperCase() === 'DEL';
       const isToDEL = String(p.to || '').toUpperCase() === 'DEL';
