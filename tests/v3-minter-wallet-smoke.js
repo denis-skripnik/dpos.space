@@ -42,7 +42,12 @@ assert(appSource.includes('minter-hub-withdraw-details'), 'Minter Hub withdraw o
 assert(appSource.includes('minter-coin-form'), 'Minter coin/token form remains present');
 assert(appSource.includes('minter-coin-details'), 'Minter coin/token operation is collapsed in details by default');
 assert(appSource.includes('data-minter-action="unbond"'), 'Minter delegation rows expose quick unbond action');
+assert(appSource.includes('data-minter-amount="${escapeHtml(amount)}" data-minter-coin'), 'Minter balance action buttons preserve the selected full balance for form maximum/prefill');
 assert(appSource.includes('bindMinterQuickActions(appEl)'), 'Minter wallet binds quick actions after rendering');
+assert(renderMinterForms.includes('data-fill-target="minter-send-amount"'), 'Minter send form exposes an explicit maximum button when a balance-table action prefills the amount');
+assert(renderMinterForms.includes('data-fill-target="minter-delegate-amount"'), 'Minter stake form exposes an explicit maximum button when a balance-table action prefills the amount');
+assert(appSource.includes('setMinterField(\'minter-swap-amount\', button.dataset.minterAmount)'), 'Minter swap quick action prefills amount from the balance row, matching legacy max-token convert UX');
+assert(appSource.includes('setMinterField(\'minter-liquidity-coin0\', button.dataset.minterCoin'), 'Minter balance action can prefill liquidity coin0 without manual raw retyping');
 assert(renderMinterForms.includes('Публичный ключ валидатора'), 'Minter-native validator label is present');
 assert(renderMinterForms.includes('Монета газа'), 'Minter gas coin label is present');
 assert(renderMinterForms.includes('Checks'), 'Minter check/redeem status is user-visible without invented form');

@@ -4274,3 +4274,47 @@ Remaining gaps/non-goals:
 - Dynamic token autocomplete, exact jQuery/fancybox modal UX, permit-signing branch, live fee/max rewriting and TX status polling remain intentionally simplified into accessible static forms and shared confirmed broadcast results.
 
 Next app recommendation: Decimal complete.
+
+### UX polish: Minter wallet quick actions
+
+Scope: small Minter wallet form/action UX pass after static-safe parity completion. No services, PHP runtime, private APIs, hidden server APIs, daemons, indexers, or new hosted apps are added.
+
+Files inspected:
+- Legacy: `/root/ai-projects/dpos.space/blockchains/minter/apps/wallet/content.php` — modal forms for transfer/convert/delegate/hub withdraw with visible legacy maximum labels such as `max_token_transfer`, `max_token_convert`, `max_token_delegate`.
+- Legacy: `/root/ai-projects/dpos.space/blockchains/minter/apps/wallet/js/app.js` — balance action spoiler links, token-specific actions, and balance-derived maximum values.
+- v3: `v3/js/app.js` — `renderMinterWalletBalances`, `renderMinterWalletForms`, `bindMinterQuickActions`, `bindMaxButtons`.
+- Test: `tests/v3-minter-wallet-smoke.js`.
+
+UX matrix:
+| Legacy UX/control | v3 before this pass | UX polish in this pass | Test coverage | Status |
+| --- | --- | --- | --- | --- |
+| Balance row action opens transfer modal and carries selected token/amount maximum. | Balance action opened transfer details and prefilled amount/coin, but the operation form had no explicit reusable maximum button. | Transfer form now has a hidden `Максимум` button; selecting a balance row fills amount/coin and reveals the button with the selected balance. | `v3-minter-wallet-smoke.js` checks `data-fill-target="minter-send-amount"`, balance action amount markers, and quick action binding. | Implemented static-safe. |
+| Balance row action opens convert modal with max convert amount. | Swap action selected the source coin, but left amount empty. | Swap quick action now also prefills `minter-swap-amount` from the selected balance row. | Focused smoke checks `setMinterField('minter-swap-amount', button.dataset.minterAmount)`. | Implemented static-safe. |
+| Balance row action opens delegate modal with selected token maximum. | Stake action selected coin; amount was not filled for balance rows. | Stake action now carries selected amount and reveals a `Максимум` button for the stake amount. | Focused smoke checks `data-fill-target="minter-delegate-amount"`. | Implemented static-safe. |
+| Legacy action list exposed token-specific pool/convert context from the selected balance. | Liquidity form existed but required manual coin0/volume0 retyping. | Balance table now includes a `Pool` quick action that opens liquidity details and prefills coin0/volume0. | Focused smoke checks liquidity prefill marker. | Implemented static-safe. |
+| Modal/spoiler behavior. | Static v3 already uses `<details class="operation-details">` instead of Fancybox. | Preserved; no class/id churn beyond new scoped buttons/action markers. | Existing wallet smoke checks details sections. | Kept. |
+
+Validation notes:
+- Focused RED was confirmed before implementation by `node tests/v3-minter-wallet-smoke.js` failing on the new maximum-button assertion.
+- Backend-only legacy pieces remain non-goals; this pass only changes static client-side form UX.
+
+### UX polish: Decimal wallet NFT actions
+
+Scope: small Decimal wallet NFT-stake UX pass. No services, PHP runtime, private APIs, hidden server APIs, daemons, indexers, or new hosted apps are added.
+
+Files inspected:
+- Legacy: `/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/content.php` — NFT delegate/anbond modal forms (`delegate_nft_modal`, `anbond_nft_modal`) with NFT ID field and explicit operation buttons.
+- Legacy: `/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/js/app.js` — balance action spoiler pattern and Decimal wallet public API balance loading.
+- v3: `v3/js/app.js` — `renderDecimalWalletBalances`, `renderDecimalWalletForms`, `bindDecimalQuickActions`.
+- Test: `tests/v3-decimal-wallet-smoke.js`.
+
+UX matrix:
+| Legacy UX/control | v3 before this pass | UX polish in this pass | Test coverage | Status |
+| --- | --- | --- | --- | --- |
+| NFT stake/anbond modal keeps NFT ID visible and operation-specific. | v3 had the NFT stake/unbond form, but the NFT stake table was read-only and required manual NFT ID/validator copying. | NFT stake rows now expose `Анбонд NFT` action buttons that open the NFT details form and prefill NFT ID + validator. | `v3-decimal-wallet-smoke.js` checks `data-decimal-nft-action="unbond"`, `openDecimalOperationDetails('decimal-nft-details')`, and field prefill markers. | Implemented static-safe. |
+| Table/card action should reveal the matching form rather than forcing manual scrolling. | Coin stake rows already opened stake/unbond details; NFT rows did not. | `bindDecimalQuickActions` now also binds scoped NFT action buttons. | Focused smoke covers the binding markers. | Implemented static-safe. |
+| Human-readable NFT/stake columns. | v3 already uses NFT label/validator/status; raw token addresses are not primary for Decimal stake. | Preserved, with one additional action column. | Existing Decimal wallet smoke checks native labels and no primary raw token address column. | Kept. |
+
+Validation notes:
+- Focused RED was confirmed before implementation by `node tests/v3-decimal-wallet-smoke.js` failing on the new NFT action marker.
+- This is direct client-side form prefill only; backend-only legacy behavior remains a non-goal.
