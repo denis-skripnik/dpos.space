@@ -4,8 +4,8 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
-const POSTING_WIF = '5BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
-const ACTIVE_WIF = '5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const POSTING_WIF = 'fake-posting-key-for-auth-storage-test';
+const ACTIVE_WIF = 'fake-active-key-for-auth-storage-test';
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 function createLocalStorage() {
@@ -56,10 +56,14 @@ context.DposAuth.saveUser(viz, vizUser);
 assert.strictEqual(context.sjcl.decrypt('dpos.space_viz_bob_regularKey', vizUser.regular), POSTING_WIF, 'viz regular key uses legacy passphrase');
 assert.strictEqual(context.DposAuth.getKeyStatus(viz, vizUser).hasRegularOrPosting, true, 'viz regular key status decrypts');
 
-const minterUser = context.DposAuth.createSeedUser(minter, 'Mx0000000000000000000000000000000000000000', MNEMONIC);
+const minterUser = context.DposAuth.createSeedUser(minter, 'testwallet', MNEMONIC);
 context.DposAuth.saveUser(minter, minterUser);
-assert.strictEqual(context.sjcl.decrypt('dpos.space_minter_Mx0000000000000000000000000000000000000000_seed', minterUser.seed), MNEMONIC, 'minter seed uses legacy passphrase');
+assert.strictEqual(context.sjcl.decrypt('dpos.space_minter_testwallet_seed', minterUser.seed), MNEMONIC, 'minter seed uses visual login passphrase, not a required chain address');
+assert.strictEqual(context.DposAuth.getCurrentLogin(minter), 'testwallet', 'Minter current login may be an arbitrary visual account name');
 assert.strictEqual(context.DposAuth.getKeyStatus(minter, minterUser).hasActive, true, 'minter seed status decrypts');
+
+const bipToUser = { login: 'main', type: 'bip.to', address: 'Mx0000000000000000000000000000000000000000' };
+assert.strictEqual(context.DposAuth.getUserType(bipToUser), 'bip.to', 'seed chains preserve bip.to account type instead of collapsing it to standard');
 
 const importedDecimal = Object.assign({}, minterUser, { importFrom: 'minter' });
 context.DposAuth.saveUser(decimal, importedDecimal);

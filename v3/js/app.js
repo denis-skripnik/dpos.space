@@ -16,7 +16,6 @@
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
-  const LONG_API_BASE = '/api/smartfarm';
   const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
 
@@ -39,7 +38,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'stakebotPage', 'topType', 'awardPage', 'searchPage', 'searchType'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -92,7 +91,24 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'donate', 'swap', 'my-coin'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'swap', 'my-coin'].includes(app.id));
+  }
+
+  function legacyAppTarget(chain, appId) {
+    const aliases = {
+      calc: 'calculator',
+      post: 'editor',
+      backup: 'backup',
+      awards: 'award',
+      registration: 'register'
+    };
+    if (chain.id === 'viz' && (appId === 'calc' || appId === 'awards')) {
+      return aliases[appId];
+    }
+    if ((chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') && aliases[appId]) {
+      return aliases[appId];
+    }
+    return appId;
   }
 
   function accountSelectorVisible(app, chain) {
@@ -291,7 +307,7 @@
     const text = String(value || '').trim();
     if (!text) return '';
     if (chain.id === 'minter') return /^Mx[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : escapeHtml(text);
-    if (chain.id === 'decimal') return /^(dx|0x)[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : escapeHtml(text);
+    if (chain.id === 'decimal') return (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text) || /^d0[0-9a-z]{39}$/.test(text)) ? accountLink(chain, text) : escapeHtml(text);
     return /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/i.test(text) ? accountLink(chain, text) : escapeHtml(text);
   }
 
@@ -335,9 +351,301 @@
       </div>`;
   }
 
+  function renderProfileMedia(profile) {
+    const items = [];
+    if (profile.profileImage) items.push(`<figure><img src="${escapeHtml(profile.profileImage)}" alt="Аватар ${escapeHtml(profile.name)}" loading="lazy"><figcaption>Аватар</figcaption></figure>`);
+    if (profile.coverImage) items.push(`<figure><img src="${escapeHtml(profile.coverImage)}" alt="Обложка ${escapeHtml(profile.name)}" loading="lazy"><figcaption>Обложка профиля</figcaption></figure>`);
+    return items.length ? `<div class="profile-media">${items.join('')}</div>` : '';
+  }
+
+  function renderSocialLinks(socials) {
+    if (!Array.isArray(socials) || !socials.length) return '';
+    const links = socials.map(([label, value]) => {
+      const text = String(value || '').trim();
+      let href = text;
+      if (label === 'telegram' && !/^https?:\/\//i.test(text)) href = `https://t.me/${text.replace(/^@/, '')}`;
+      if (label === 'twitter' && !/^https?:\/\//i.test(text)) href = `https://x.com/${text.replace(/^@/, '')}`;
+      if (label === 'github' && !/^https?:\/\//i.test(text)) href = `https://github.com/${text.replace(/^@/, '')}`;
+      const linked = /^https?:\/\//i.test(href) ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
+      return `<li><strong>${escapeHtml(label)}:</strong> ${linked}</li>`;
+    }).join('');
+    return `<details open><summary>Социальные ссылки из metadata</summary><ul>${links}</ul></details>`;
+  }
+
+  function golosLegacyProfileLinks(account) {
+    return [
+      ['Вся история', appHash({ chain: 'golos', app: 'history', account })],
+      ['Переводы и TIP/invite/claim', appHash({ chain: 'golos', app: 'history', account, ops: 'transfer,transfer_to_vesting,claim,transfer_from_tip,transfer_to_tip,invite,invite_claim' })],
+      ['Сила Голоса / vesting', appHash({ chain: 'golos', app: 'history', account, ops: 'delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation,transfer_from_tip' })],
+      ['Донаты', appHash({ chain: 'golos', app: 'history', account, ops: 'donate' })],
+      ['Авторские награды', appHash({ chain: 'golos', app: 'history', account, ops: 'author_reward' })],
+      ['Кураторские награды', appHash({ chain: 'golos', app: 'history', account, ops: 'curation_reward' })],
+      ['Бенефициарские награды', appHash({ chain: 'golos', app: 'history', account, ops: 'comment_benefactor_reward' })],
+      ['Упоминания в комментариях', appHash({ chain: 'golos', app: 'history', account, ops: 'comment_mention' })],
+      ['Апвоуты и флаги', appHash({ chain: 'golos', app: 'history', account, ops: 'vote' })],
+      ['Изменения репутации', appHash({ chain: 'golos', app: 'history', account, ops: 'account_reputation' })],
+      ['DAO / workers / witness votes', appHash({ chain: 'golos', app: 'history', account, ops: 'worker_request_vote,account_witness_vote,account_witness_proxy,worker_request,worker_request_delete,worker_state' })],
+      ['Аккаунт: create/update/metadata', appHash({ chain: 'golos', app: 'history', account, ops: 'account_create,account_create_with_invite,account_update,account_metadata' })],
+      ['Ордера внутренней биржи', appHash({ chain: 'golos', app: 'history', account, ops: 'fill_order' })]
+    ];
+  }
+
+  function vizLegacyProfileLinks(account) {
+    return [
+      ['Основное', appHash({ chain: 'viz', app: 'profiles', account })],
+      ['Вся история', appHash({ chain: 'viz', app: 'history', account })],
+      ['Переводы средств', appHash({ chain: 'viz', app: 'history', account, ops: 'transfer,transfer_to_vesting,create_invite,claim_invite_balance,use_invite_balance' })],
+      ['Соц. капитал', appHash({ chain: 'viz', app: 'history', account, ops: 'delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation' })],
+      ['ДАО', appHash({ chain: 'viz', app: 'history', account, ops: 'committee_worker_create_request,committee_vote_request,committee_pay_request,committee_worker_cancel_request,committee_cancel_request,committee_approve_request,committee_payout_request' })],
+      ['Отправленные награды', appHash({ chain: 'viz', app: 'history', account, ops: 'award,fixed_award' })],
+      ['Полученные награды', appHash({ chain: 'viz', app: 'history', account, ops: 'receive_award' })],
+      ['Бенефициарские', appHash({ chain: 'viz', app: 'history', account, ops: 'benefactor_award' })],
+      ['Аккаунты', appHash({ chain: 'viz', app: 'history', account, ops: 'set_account_price,set_subaccount_price,buy_account,account_sale,target_account_sale,bid,outbid' })],
+      ['Платные подписки', appHash({ chain: 'viz', app: 'history', account, ops: 'set_paid_subscription,paid_subscribe,paid_subscription_action,cancel_paid_subscription' })],
+      ['Делегат', appHash({ chain: 'viz', app: 'witnesses-rewards', account })],
+      ['Наградить пользователя', appHash({ chain: 'viz', app: 'award', account, target: account })],
+      ['Изменить профиль', appHash({ chain: 'viz', app: 'manage', account, section: 'profile' })]
+    ];
+  }
+
+  function steemLegacyProfileLinks(account) {
+    return [
+      ['Основное', appHash({ chain: 'steem', app: 'profiles', account })],
+      ['Вся история', appHash({ chain: 'steem', app: 'history', account })],
+      ['Переводы средств', appHash({ chain: 'steem', app: 'history', account, ops: 'transfer,transfer_to_vesting,withdraw_vesting,transfer_to_savings,transfer_from_savings,cancel_transfer_from_savings' })],
+      ['Steem Power', appHash({ chain: 'steem', app: 'history', account, ops: 'delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation,fill_vesting_withdraw,set_withdraw_vesting_route' })],
+      ['ДАО / witness votes', appHash({ chain: 'steem', app: 'history', account, ops: 'account_witness_vote,account_witness_proxy,proposal_create,proposal_update,proposal_delete,producer_reward' })],
+      ['Авторские награды', appHash({ chain: 'steem', app: 'history', account, ops: 'author_reward' })],
+      ['Кураторские награды', appHash({ chain: 'steem', app: 'history', account, ops: 'curation_reward' })],
+      ['Бенефициарские награды', appHash({ chain: 'steem', app: 'history', account, ops: 'comment_benefactor_reward' })],
+      ['Аккаунты: create/update/recovery', appHash({ chain: 'steem', app: 'history', account, ops: 'account_create,account_create_with_delegation,account_update,account_metadata,request_account_recovery,recover_account,change_recovery_account' })],
+      ['Апвоуты и флаги', appHash({ chain: 'steem', app: 'history', account, ops: 'vote' })],
+      ['Комментарии', appHash({ chain: 'steem', app: 'history', account, ops: 'comment,delete_comment,comment_options' })],
+      ['Ордера внутренней биржи', appHash({ chain: 'steem', app: 'history', account, ops: 'limit_order_create,limit_order_create2,limit_order_cancel,fill_order' })]
+    ];
+  }
+
+  function hiveLegacyProfileLinks(account) {
+    return [
+      ['Основное', appHash({ chain: 'hive', app: 'profiles', account })],
+      ['Вся история', appHash({ chain: 'hive', app: 'history', account })],
+      ['Переводы средств', appHash({ chain: 'hive', app: 'history', account, ops: 'transfer,transfer_to_vesting,withdraw_vesting,transfer_to_savings,transfer_from_savings,cancel_transfer_from_savings' })],
+      ['Hive Power', appHash({ chain: 'hive', app: 'history', account, ops: 'delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation,fill_vesting_withdraw,set_withdraw_vesting_route' })],
+      ['ДАО / witness votes / proposals', appHash({ chain: 'hive', app: 'history', account, ops: 'account_witness_vote,account_witness_proxy,proposal_create,proposal_update,proposal_delete' })],
+      ['Авторские награды', appHash({ chain: 'hive', app: 'history', account, ops: 'author_reward' })],
+      ['Кураторские награды', appHash({ chain: 'hive', app: 'history', account, ops: 'curation_reward' })],
+      ['Бенефициарские награды', appHash({ chain: 'hive', app: 'history', account, ops: 'comment_benefactor_reward' })],
+      ['Аккаунты: create/update/recovery', appHash({ chain: 'hive', app: 'history', account, ops: 'account_create,account_create_with_delegation,account_update,account_metadata,request_account_recovery,recover_account,change_recovery_account' })],
+      ['Апвоуты и флаги', appHash({ chain: 'hive', app: 'history', account, ops: 'vote' })],
+      ['Комментарии', appHash({ chain: 'hive', app: 'history', account, ops: 'comment,delete_comment,comment_options' })],
+      ['Посты / блог через публичный RPC', appHash({ chain: 'hive', app: 'profiles', account })]
+    ];
+  }
+
+  function renderHistoryQuickLinks(profile) {
+    if (!profile || !['golos', 'viz', 'steem', 'hive'].includes(profile.chainId)) return '';
+    const chain = chains[profile.chainId] || { id: profile.chainId };
+    const account = profile.name;
+    let links;
+    let title = 'Быстрые переходы';
+    if (profile.chainId === 'golos') {
+      links = golosLegacyProfileLinks(account);
+      title = 'Golos legacy profile pages → static history filters';
+    } else if (profile.chainId === 'viz') {
+      links = vizLegacyProfileLinks(account);
+      title = 'VIZ legacy profile pages → static profile/history filters';
+    } else if (profile.chainId === 'steem') {
+      links = steemLegacyProfileLinks(account);
+      title = 'Steem legacy profile pages → static profile/history filters';
+    } else if (profile.chainId === 'hive') {
+      links = hiveLegacyProfileLinks(account);
+      title = 'Hive legacy profile pages → static profile/history filters';
+    } else {
+      links = [
+        ['Вся история', appHash({ chain: chain.id, app: 'history', account })],
+        ['Профиль/аккаунт', appHash({ chain: chain.id, app: 'profiles', account })],
+        ['Explorer аккаунта', appHash({ chain: chain.id, app: 'explorer', kind: 'account', value: account })]
+      ];
+    }
+    return `<details open><summary>${escapeHtml(title)}</summary><ul>${links.map(([label, href]) => `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`).join('')}</ul></details>`;
+  }
+
+  function renderGolosUiaProfileSection(profile) {
+    const rows = profile.rawLists && profile.rawLists.uiaBalances;
+    if (!rows || !rows.length) return '';
+    return `<details open><summary>UIA активы (${rows.length})</summary><ul>${rows.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('')}</ul></details>`;
+  }
+
+  function renderGolosAccountList(title, rows, key) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => `<li>${renderAccountCell(chains.golos, row && row[key])}</li>`).join('')}</ul></details>`;
+  }
+
+  function renderSteemAccountList(title, rows, key) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => `<li>${renderAccountCell(chains.steem, row && row[key])}</li>`).join('')}</ul></details>`;
+  }
+
+  function renderSteemContentList(title, rows) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => {
+      const author = row.author || '';
+      const permlink = row.permlink || '';
+      const titleText = row.title || permlink || 'без названия';
+      const href = author && permlink ? `https://steemit.com/@${author}/${permlink}` : '';
+      return `<li>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(titleText)}</a>` : escapeHtml(titleText)} ${author ? `— ${renderAccountCell(chains.steem, author)}` : ''}</li>`;
+    }).join('')}</ul></details>`;
+  }
+
+  function renderGolosContentList(title, rows) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => {
+      const author = row.author || '';
+      const permlink = row.permlink || '';
+      const titleText = row.title || permlink || 'без названия';
+      const href = author && permlink ? `https://golos.id/@${author}/${permlink}` : '';
+      return `<li>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(titleText)}</a>` : escapeHtml(titleText)} ${author ? `— ${renderAccountCell(chains.golos, author)}` : ''}</li>`;
+    }).join('')}</ul></details>`;
+  }
+
+  function renderGolosLegacyDirectSections(profile) {
+    if (!profile || profile.chainId !== 'golos') return '';
+    const extras = profile.raw && profile.raw.golosProfileExtras;
+    if (!extras) return '';
+    const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
+    return `<details open><summary>Golos direct profile data from public RPC</summary>
+      <p class="muted">Эти блоки заменяют старые PHP snippets прямыми browser-safe RPC calls; списки ограничены первыми публичными результатами.</p>
+      ${renderGolosAccountList('Подписчики', extras.followers, 'follower')}
+      ${renderGolosAccountList('Подписки', extras.following, 'following')}
+      ${renderGolosAccountList('Исходящие делегирования СГ', extras.delegationsOut, 'delegatee')}
+      ${renderGolosAccountList('Входящие делегирования СГ', extras.delegationsIn, 'delegator')}
+      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
+      ${renderGolosContentList('Последние посты / blog', extras.blogPosts)}
+      ${renderGolosContentList('Последние комментарии', extras.comments)}
+    </details>`;
+  }
+
+  function renderSteemLegacyDirectSections(profile) {
+    if (!profile || profile.chainId !== 'steem') return '';
+    const extras = profile.raw && profile.raw.steemProfileExtras;
+    if (!extras) return '';
+    const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
+    return `<details open><summary>Steem direct profile data from public RPC</summary>
+      <p class="muted">Эти блоки заменяют legacy PHP snippets прямыми browser-safe RPC calls; большие PHP pagination-таблицы оставлены как static-only history links/non-goal без нового backend service.</p>
+      ${renderSteemAccountList('Подписчики', extras.followers, 'follower')}
+      ${renderSteemAccountList('Подписки', extras.following, 'following')}
+      ${renderSteemAccountList('Исходящие делегирования SP', extras.delegationsOut, 'delegatee')}
+      ${renderSteemAccountList('Входящие делегирования SP', extras.delegationsIn, 'delegator')}
+      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
+      ${renderSteemContentList('Последние посты / blog', extras.blogPosts)}
+      ${renderSteemContentList('Последние комментарии', extras.comments)}
+    </details>`;
+  }
+
+  function renderHiveAccountList(title, rows, key) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => `<li>${renderAccountCell(chains.hive, row && row[key])}</li>`).join('')}</ul></details>`;
+  }
+
+  function renderHiveContentList(title, rows) {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return `<details><summary>${escapeHtml(title)} (${rows.length})</summary><ul>${rows.map((row) => {
+      const author = row.author || '';
+      const permlink = row.permlink || '';
+      const titleText = row.title || permlink || 'без названия';
+      const href = author && permlink ? `https://peakd.com/@${author}/${permlink}` : '';
+      return `<li>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(titleText)}</a>` : escapeHtml(titleText)} ${author ? `— ${renderAccountCell(chains.hive, author)}` : ''}</li>`;
+    }).join('')}</ul></details>`;
+  }
+
+  function renderHiveLegacyDirectSections(profile) {
+    if (!profile || profile.chainId !== 'hive') return '';
+    const extras = profile.raw && profile.raw.hiveProfileExtras;
+    if (!extras) return '';
+    const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
+    return `<details open><summary>Hive direct profile data from public RPC</summary>
+      <p class="muted">Эти блоки заменяют legacy PHP snippets прямыми browser-safe RPC calls; большие PHP pagination-таблицы представлены static-only history filters без нового backend service.</p>
+      ${renderHiveAccountList('Подписчики', extras.followers, 'follower')}
+      ${renderHiveAccountList('Подписки', extras.following, 'following')}
+      ${renderHiveAccountList('Исходящие делегирования HP', extras.delegationsOut, 'delegatee')}
+      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
+      ${renderHiveContentList('Последние посты / blog', extras.blogPosts)}
+      ${renderHiveContentList('Последние комментарии', extras.comments)}
+    </details>`;
+  }
+
+  function restProfileNonce(profile) {
+    if (!profile || (profile.chainId !== 'minter' && profile.chainId !== 'decimal')) return '';
+    const rows = Array.isArray(profile.restRows) ? profile.restRows : [];
+    const row = rows.find(([label]) => label === 'Nonce');
+    return row && row[1] !== undefined && row[1] !== null && row[1] !== '' ? String(row[1]) : '';
+  }
+
+  function renderRestNonceCopy(profile) {
+    const nonce = restProfileNonce(profile);
+    if (!nonce) return '';
+    const prefix = profile.chainId === 'decimal' ? 'decimal' : 'minter';
+    return `<section class="subpanel ${prefix}-profile-nonce" aria-labelledby="${prefix}-profile-nonce-heading">
+      <h3 id="${prefix}-profile-nonce-heading">NONCE для создания транзакций</h3>
+      <p><strong>Nonce:</strong> <code id="${prefix}-profile-nonce-value">${escapeHtml(nonce)}</code></p>
+      <button type="button" id="copy-${prefix}-nonce">Копировать nonce</button>
+      <p id="copy-${prefix}-nonce-status" role="status" aria-live="polite" class="muted"></p>
+    </section>`;
+  }
+
+  function renderDecimalRewardsCalculator(profile) {
+    if (!profile || profile.chainId !== 'decimal') return '';
+    return `<section class="subpanel decimal-rewards-calculator" aria-labelledby="decimal-rewards-heading">
+      <h3 id="decimal-rewards-heading">Калькулятор ревордов</h3>
+      <form id="decimal-rewards-form">
+        <label for="decimal-rewards-days">Количество дней</label>
+        <input id="decimal-rewards-days" name="days_counter" type="number" min="1" value="1" inputmode="numeric">
+        <button type="submit" name="calc_rewards">Подсчитать</button>
+      </form>
+      <ul id="decimal-rewards-result" aria-live="polite" role="status"></ul>
+    </section>`;
+  }
+
+  function bindRestNonceCopy(profile) {
+    const nonce = restProfileNonce(profile);
+    const prefix = profile && profile.chainId === 'decimal' ? 'decimal' : 'minter';
+    const button = document.getElementById(`copy-${prefix}-nonce`);
+    const status = document.getElementById(`copy-${prefix}-nonce-status`);
+    if (!nonce || !button || !status) return;
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(nonce);
+        status.textContent = 'Nonce скопирован в буфер обмена.';
+      } catch (error) {
+        status.textContent = `Не удалось скопировать nonce автоматически: ${error && error.message ? error.message : error}`;
+      }
+    });
+  }
+
+  function bindDecimalRewardsCalculator(profile) {
+    if (!profile || profile.chainId !== 'decimal') return;
+    const form = document.getElementById('decimal-rewards-form');
+    const result = document.getElementById('decimal-rewards-result');
+    if (!form || !result || !profiles.fetchDecimalRewards) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const days = form.elements.days_counter ? form.elements.days_counter.value : '1';
+      result.innerHTML = '<li>Загружаю rewards через публичный Decimal API...</li>';
+      try {
+        const chain = chains.decimal;
+        const totals = await profiles.fetchDecimalRewards({ config: chain, node: chain.apiBase || chain.nodes[0], rest: true }, profile.name, days);
+        const entries = Object.entries(totals);
+        result.innerHTML = entries.length
+          ? entries.map(([coin, amount]) => `<li>${escapeHtml(Number(amount).toFixed(5))} ${escapeHtml(coin)}</li>`).join('')
+          : '<li>Rewards за выбранный период не найдены.</li>';
+      } catch (error) {
+        result.innerHTML = `<li>Не удалось загрузить rewards: ${escapeHtml(error && error.message ? error.message : error)}</li>`;
+      }
+    });
+  }
+
   function renderProfile(profile) {
     const balanceRows = profile.balances.map(([label, value]) => [label, value]);
-    const socialRows = profile.socials.map(([label, value]) => [label, value]);
     const metadataHasData = Object.keys(profile.metadataJson || {}).length || Object.keys(profile.postingMetadataJson || {}).length;
     const isRestProfile = profile.chainId === 'minter' || profile.chainId === 'decimal';
     const showDisplayName = !isRestProfile || (profile.displayName && profile.displayName !== profile.name);
@@ -358,11 +666,19 @@
             ${profile.proxy ? `<li><strong>Прокси:</strong> ${escapeHtml(profile.proxy)}</li>` : ''}
           </ul>
         </article>
+        ${renderProfileMedia(profile)}
+        ${renderHistoryQuickLinks(profile)}
         ${detailsSection('Балансы', balanceRows, 'Нет данных о балансах.')}
+        ${renderGolosUiaProfileSection(profile)}
+        ${renderGolosLegacyDirectSections(profile)}
+        ${renderSteemLegacyDirectSections(profile)}
+        ${renderHiveLegacyDirectSections(profile)}
         ${detailsSection('Экономика / vesting / staking', profile.economyRows, 'Нет доступных экономических полей.')}
         ${detailsSection('Профиль и публичная metadata', profile.profileRows, 'Профильная metadata не заполнена.')}
-        ${socialRows.length ? detailsSection('Социальные ссылки из metadata', socialRows) : ''}
+        ${renderSocialLinks(profile.socials)}
         ${profile.restRows && profile.restRows.length ? detailsSection('Адрес / REST-детали', profile.restRows) : ''}
+        ${renderRestNonceCopy(profile)}
+        ${renderDecimalRewardsCalculator(profile)}
         ${detailsSection('Governance / witness / proxy', profile.governanceRows, 'Нет governance-данных.')}
         ${detailsSection('Authorities / публичные ключи', profile.authorityRows, 'Нет данных authorities.')}
         ${detailsSection('Активность и статистика', profile.activityRows, 'Нет статистики активности.')}
@@ -386,6 +702,8 @@
         </details>
       </section>
     `;
+    bindRestNonceCopy(profile);
+    bindDecimalRewardsCalculator(profile);
   }
 
   function renderUnsupported(chain, app) {
@@ -395,6 +713,35 @@
         <p>Этот раздел пока недоступен или требует отдельной безопасной формы подтверждения.</p>
       </section>
     `;
+  }
+
+  function renderVizAnalytics(chain) {
+    const dashboards = [
+      ['2022 год', 'https://datalens.yandex/c3hgr4n693ue3?'],
+      ['2021 год', 'https://datalens.yandex/lcqihrxwopkwc?'],
+      ['2020 год', 'https://datalens.yandex/qhaak9837szoi?'],
+      ['2019 год', 'https://datalens.yandex/8zsqzsvwlvqo0?'],
+      ['2018 год', 'https://datalens.yandex/ja318lzhxucub?']
+    ];
+    appEl.innerHTML = `
+      <section class="panel analytics-viz" aria-labelledby="viz-analytics-heading">
+        <h2 id="viz-analytics-heading">VIZ: Аналитика</h2>
+        <p><strong>Автор: <a href="${escapeHtml(appHash({ chain: 'viz', app: 'profiles', account: 'inov8' }))}">inov8</a></strong></p>
+        <p role="status" aria-live="polite">Static-only read-only перенос legacy analytics: старый раздел был набором публичных iframe Yandex DataLens без PHP-вычислений, приватного backend и операций блокчейна.</p>
+        <p>Эта страница не запрашивает ключи, не готовит транзакции и не выполняет broadcast. Встроенные виджеты загружаются напрямую с публичного домена DataLens; рядом есть обычные ссылки на случай блокировки iframe браузером или политикой доступности.</p>
+        <section class="subpanel" aria-labelledby="viz-analytics-rpc-heading">
+          <h3 id="viz-analytics-rpc-heading">Публичная RPC-альтернатива</h3>
+          <p>Legacy-аналитика — исторические агрегированные дашборды. Полного индексерного набора из публичной VIZ RPC-ноды не получить одним запросом, но для самостоятельной проверки текущего состояния доступны статические v3-разделы: профиль/кошелёк/история аккаунта через публичные RPC-ноды ${escapeHtml((chain.nodes || []).join(', '))}.</p>
+        </section>
+        ${dashboards.map(([year, src]) => `
+          <section class="subpanel viz-analytics-dashboard" aria-labelledby="viz-analytics-${escapeHtml(year.slice(0, 4))}">
+            <h3 id="viz-analytics-${escapeHtml(year.slice(0, 4))}">${escapeHtml(year)}</h3>
+            <p><a href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">Открыть DataLens dashboard за ${escapeHtml(year)} в новой вкладке</a></p>
+            <iframe title="VIZ analytics ${escapeHtml(year)} by inov8" width="100%" height="400" frameborder="0" loading="lazy" src="${escapeHtml(src)}"></iframe>
+          </section>`).join('')}
+      </section>
+    `;
+    setStatus('VIZ analytics загружен: read-only static-only DataLens dashboards, без broadcast и приватного backend.', 'ok');
   }
 
   function renderPrepared(prepared) {
@@ -531,6 +878,52 @@
     } catch (error) {
       return [['UIA балансы', `Не удалось загрузить UIA balances: ${profiles.formatError(error)}`, { kind: 'uia-status' }]];
     }
+  }
+
+  async function golosOptionalApi(connection, method, args, fallback) {
+    try {
+      return await profiles.apiCall(connection, method, args);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  async function fetchGolosProfileExtras(connection, account) {
+    const [followers, following, delegationsOut, delegationsIn, witness, blogPosts, comments] = await Promise.all([
+      golosOptionalApi(connection, 'getFollowers', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getFollowing', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getVestingDelegations', [account, '', 100, 'delegated'], []),
+      golosOptionalApi(connection, 'getVestingDelegations', [account, '', 100, 'received'], []),
+      golosOptionalApi(connection, 'getWitnessByAccount', [account], null),
+      golosOptionalApi(connection, 'getDiscussionsByBlog', [{ limit: 10, select_authors: [account] }], []),
+      golosOptionalApi(connection, 'getDiscussionsByComments', [{ limit: 10, start_author: account }], [])
+    ]);
+    return { followers, following, delegationsOut, delegationsIn, witness, blogPosts, comments };
+  }
+
+  async function fetchSteemProfileExtras(connection, account) {
+    const [followers, following, delegationsOut, delegationsIn, witness, blogPosts, comments] = await Promise.all([
+      golosOptionalApi(connection, 'getFollowers', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getFollowing', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getVestingDelegations', [account, '', 100, 'delegated'], []),
+      golosOptionalApi(connection, 'getVestingDelegations', [account, '', 100, 'received'], []),
+      golosOptionalApi(connection, 'getWitnessByAccount', [account], null),
+      golosOptionalApi(connection, 'getDiscussionsByBlog', [{ limit: 10, tag: account }], []),
+      golosOptionalApi(connection, 'getDiscussionsByComments', [{ limit: 10, start_author: account }], [])
+    ]);
+    return { followers, following, delegationsOut, delegationsIn, witness, blogPosts, comments };
+  }
+
+  async function fetchHiveProfileExtras(connection, account) {
+    const [followers, following, delegationsOut, witness, blogPosts, comments] = await Promise.all([
+      golosOptionalApi(connection, 'getFollowers', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getFollowing', [account, '', 'blog', 11], []),
+      golosOptionalApi(connection, 'getVestingDelegations', [account, '', 100], []),
+      golosOptionalApi(connection, 'getWitnessByAccount', [account], null),
+      golosOptionalApi(connection, 'getDiscussionsByBlog', [{ limit: 10, tag: account }], []),
+      golosOptionalApi(connection, 'getDiscussionsByComments', [{ limit: 10, start_author: account }], [])
+    ]);
+    return { followers, following, delegationsOut, witness, blogPosts, comments };
   }
 
   function parseGolosJsonMetadata(value) {
@@ -725,18 +1118,27 @@
     return symbol;
   }
 
-  async function fetchGolosAssetPrecision(chain, symbol) {
+  async function fetchGolosAsset(chain, symbol) {
     const token = normalizeGolosTokenSymbol(symbol, 'Токен');
-    if (token === (chain.liquidSymbol || 'GOLOS') || token === (chain.debtSymbol || 'GBG')) return 3;
     await loadScript(chain.libraryPath);
     const connection = await profiles.connect(chain);
     const api = connection.client && connection.client.api;
     if (!api || typeof api.getAssetsAsync !== 'function') {
-      throw new Error('Не удалось получить precision UIA: golos.api.getAssetsAsync недоступен. Операция не подготовлена, чтобы не отправить сумму в неверном формате.');
+      throw new Error('Не удалось получить данные UIA: golos.api.getAssetsAsync недоступен. Операция не подготовлена.');
     }
     const assets = await api.getAssetsAsync('', [token]);
     const asset = assets && assets[0];
-    if (!asset || asset.precision === undefined || asset.precision === null) {
+    if (!asset) {
+      throw new Error(`UIA ${token} не найден через getAssetsAsync.`);
+    }
+    return asset;
+  }
+
+  async function fetchGolosAssetPrecision(chain, symbol) {
+    const token = normalizeGolosTokenSymbol(symbol, 'Токен');
+    if (token === (chain.liquidSymbol || 'GOLOS') || token === (chain.debtSymbol || 'GBG')) return 3;
+    const asset = await fetchGolosAsset(chain, token);
+    if (asset.precision === undefined || asset.precision === null) {
       throw new Error(`Не удалось получить precision для UIA ${token}. Операция не подготовлена.`);
     }
     const precision = Number(asset.precision);
@@ -746,9 +1148,18 @@
     return precision;
   }
 
+  async function assertGolosTipTransferAllowed(chain, symbol) {
+    const token = normalizeGolosTokenSymbol(symbol, 'Токен');
+    if (token === (chain.liquidSymbol || 'GOLOS') || token === (chain.debtSymbol || 'GBG')) return;
+    const asset = await fetchGolosAsset(chain, token);
+    if (asset.allow_override_transfer === true) {
+      throw new Error(`UIA ${token} запрещает transfer_to_tip: allow_override_transfer=true. Используйте обычный UIA transfer с основного баланса.`);
+    }
+  }
+
   async function normalizeGolosTokenAmount(chain, amount, symbol, label) {
     const token = normalizeGolosTokenSymbol(symbol, 'Токен');
-    const text = String(amount || '').trim().replace(',', '.').replace(new RegExp(`\\s+${token}$`, 'i'), '');
+    const text = String(amount || '').trim().replace(',', '.').replace(new RegExp(`\\s${token}$`, 'i'), '');
     if (!/^\d+(?:\.\d+)?$/.test(text) || Number(text) <= 0) {
       throw new Error(`${label || 'Сумма'}: нужно положительное число.`);
     }
@@ -845,13 +1256,297 @@
     return /^5[1-9A-HJ-NP-Za-km-z]{45,55}$/.test(text);
   }
 
-  function generateVizInviteSecret() {
-    const client = global.viz;
+  function randomLegacySeed(length) {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
     let seed = '';
-    for (let i = 0; i < 100; i += 1) seed += charset.charAt(Math.floor(Math.random() * charset.length));
+    for (let i = 0; i < (length || 100); i += 1) seed += charset.charAt(Math.floor(Math.random() * charset.length));
+    return seed;
+  }
+
+  function secureRandomLegacySeed(length) {
+    if (!global.crypto || typeof global.crypto.getRandomValues !== 'function') {
+      throw new Error('Криптографический генератор браузера недоступен: сброс ключей остановлен.');
+    }
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=_:;.,@!^&*$';
+    const bytes = new Uint32Array(length || 100);
+    global.crypto.getRandomValues(bytes);
+    let seed = '';
+    bytes.forEach((value) => { seed += charset.charAt(value % charset.length); });
+    return seed;
+  }
+
+  function generateVizInviteSecret() {
+    const client = global.viz;
+    const seed = secureRandomLegacySeed(100);
     if (client && client.auth && typeof client.auth.toWif === 'function') return client.auth.toWif('', seed, '');
     throw new Error('viz.auth.toWif недоступен: invite secret можно только вставить вручную.');
+  }
+
+  function generateGolosInviteSecret() {
+    const client = global.golos;
+    const seed = secureRandomLegacySeed(100);
+    if (client && client.auth && typeof client.auth.toWif === 'function') return client.auth.toWif('', seed, '');
+    throw new Error('golos.auth.toWif недоступен: invite secret можно только вставить вручную.');
+  }
+
+  function golosInvitePublic(secret) {
+    const client = global.golos;
+    const value = String(secret || '').trim();
+    if (!value) throw new Error('Введите invite secret WIF.');
+    if (!client || !client.auth || typeof client.auth.wifToPublic !== 'function') {
+      throw new Error('golos.auth.wifToPublic недоступен: публичный ключ invite нельзя вычислить.');
+    }
+    return client.auth.wifToPublic(value);
+  }
+
+  function generateVizRegistrationKey() {
+    const client = global.viz;
+    if (!client || !client.auth || typeof client.auth.toWif !== 'function' || typeof client.auth.wifToPublic !== 'function') {
+      throw new Error('viz.auth.toWif/wifToPublic недоступны: ключ нового аккаунта можно только вставить публичным ключом вручную.');
+    }
+    const privateKey = client.auth.toWif('', secureRandomLegacySeed(100), '');
+    return { privateKey, publicKey: client.auth.wifToPublic(privateKey) };
+  }
+
+  function vizInvitePublic(secret) {
+    const client = global.viz;
+    const value = String(secret || '').trim();
+    if (!value) throw new Error('Введите invite secret WIF.');
+    if (!client || !client.auth || typeof client.auth.wifToPublic !== 'function') {
+      throw new Error('viz.auth.wifToPublic недоступен: публичный ключ invite нельзя вычислить.');
+    }
+    return client.auth.wifToPublic(value);
+  }
+
+  function generateVizResetKeys(account) {
+    const client = global.viz;
+    if (!client || !client.auth || typeof client.auth.getPrivateKeys !== 'function') {
+      throw new Error('viz.auth.getPrivateKeys недоступен: сброс/создание ключей нельзя подготовить безопасно.');
+    }
+    const seed = secureRandomLegacySeed(100);
+    return client.auth.getPrivateKeys(account, seed, ['master', 'active', 'regular', 'memo']);
+  }
+
+  function generateGolosResetKeys(account) {
+    const client = global.golos;
+    if (!client || !client.auth || typeof client.auth.getPrivateKeys !== 'function') {
+      throw new Error('golos.auth.getPrivateKeys недоступен: сброс ключей нельзя подготовить безопасно.');
+    }
+    const seed = secureRandomLegacySeed(100);
+    return client.auth.getPrivateKeys(account, seed, ['owner', 'active', 'posting', 'memo']);
+  }
+
+  function parseJsonObject(value, fallback) {
+    if (!value) return fallback || {};
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : (fallback || {});
+    } catch (error) {
+      return fallback || {};
+    }
+  }
+
+  function normalizeGolosProfileTags(value) {
+    const seen = new Set();
+    return String(value || '').split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter((item) => item && !seen.has(item) && seen.add(item));
+  }
+
+  function parseAuthorityAccountAuths(value) {
+    return String(value || '').split(/\r?\n|,/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split(/[:=\s]+/).filter(Boolean);
+        if (parts.length < 2) throw new Error(`Account auth должен быть в формате account=weight: ${line}`);
+        const account = parts[0].replace(/^@/, '');
+        const weight = Number.parseInt(parts[1], 10);
+        if (!account || !Number.isFinite(weight) || weight <= 0) throw new Error(`Некорректный account auth: ${line}`);
+        return [account, weight];
+      });
+  }
+
+  function parseSignedTransactionJson(value) {
+    try {
+      const parsed = JSON.parse(String(value || '').trim());
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('empty');
+      if (!Array.isArray(parsed.signatures) || !Array.isArray(parsed.operations)) {
+        throw new Error('Signed transaction JSON должен содержать operations[] и signatures[].');
+      }
+      return parsed;
+    } catch (error) {
+      if (error && error.message && error.message.includes('operations')) throw error;
+      throw new Error('Signed transaction должен быть корректным JSON объектом.');
+    }
+  }
+
+  function fillFormValue(form, name, value) {
+    const field = form && form.elements ? form.elements[name] : null;
+    if (!field) return;
+    if (field.type === 'checkbox') field.checked = Boolean(value);
+    else field.value = value == null ? '' : String(value);
+  }
+
+  async function prefillManageProfile(chain) {
+    if (chain.id !== 'golos' && chain.id !== 'hive' && chain.id !== 'steem') return;
+    const form = document.getElementById('manage-profile-form');
+    const result = document.getElementById('manage-profile-prefill-result');
+    if (!form) return;
+    try {
+      if (result) result.textContent = 'Загружаю текущий json_metadata профиля...';
+      const account = await fetchChainAccount(chain, auth.getCurrentLogin(chain));
+      const metadata = parseJsonObject(account && account.json_metadata, {});
+      const profile = metadata.profile || {};
+      ['name', 'about', 'profile_image', 'cover_image', 'gender', 'location', 'website', 'mail', 'facebook', 'instagram', 'twitter', 'vk', 'telegram', 'skype', 'viber', 'whatsapp'].forEach((name) => fillFormValue(form, name, profile[name] || ''));
+      const rawTags = (chain.id === 'hive' || chain.id === 'steem') ? (profile.interests || profile.select_tags || '') : (profile.select_tags || '');
+      const tags = Array.isArray(rawTags) ? rawTags.join(', ') : rawTags;
+      fillFormValue(form, 'select_tags', tags);
+      if (result) result.textContent = 'Текущий профиль загружен из json_metadata. При отправке v3 сохранит остальные поля metadata.';
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  const prefillGolosManageProfile = prefillManageProfile;
+
+  async function loadManageWitnessSettings(chain) {
+    if (chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem') return;
+    const result = document.getElementById('manage-witness-prefill-result');
+    try {
+      const connection = await getConnection(chain);
+      const account = auth.getCurrentLogin(chain);
+      const witness = await profiles.apiCall(connection, 'getWitnessByAccount', [account]);
+      if (!witness) throw new Error('Witness для текущего аккаунта не найден.');
+      const form = document.getElementById('manage-witness-update-form');
+      fillFormValue(form, 'url', witness.url || '');
+      fillFormValue(form, 'signingKey', witness.signing_key || witness.signingKey || '');
+      fillFormValue(form, 'fee', `0.000 ${chain.liquidSymbol}`);
+      fillFormValue(form, 'props', JSON.stringify(witness.props || {}, null, 2));
+      const propsForm = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-form' : 'manage-witness-props-form');
+      fillFormValue(propsForm, 'props', JSON.stringify(witness.props || {}, null, 2));
+      if (result) result.textContent = 'Witness настройки загружены через getWitnessByAccount.';
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  async function loadGolosFollowingList(chain) {
+    if (chain.id !== 'golos') return;
+    const result = document.getElementById('manage-following-result');
+    try {
+      if (result) result.textContent = 'Загружаю подписки через getFollowing...';
+      const connection = await getConnection(chain);
+      const follower = auth.getCurrentLogin(chain);
+      let start = '';
+      const rows = [];
+      for (let page = 0; page < 10; page += 1) {
+        const chunk = await profiles.apiCall(connection, 'getFollowing', [follower, start, 'blog', 100]);
+        if (!Array.isArray(chunk) || !chunk.length) break;
+        chunk.forEach((row) => {
+          const following = row.following || row[1] || '';
+          if (following && following !== start) rows.push(following);
+        });
+        const last = rows[rows.length - 1];
+        if (!last || last === start || chunk.length < 100) break;
+        start = last;
+      }
+      if (!result) return;
+      if (!rows.length) {
+        result.textContent = 'Подписки не найдены или API вернул пустой список.';
+        return;
+      }
+      result.innerHTML = `<ul>${rows.map((name) => `<li>${escapeHtml(name)} <button type="button" data-following-action="unfollow" data-following-account="${escapeHtml(name)}">отписаться</button></li>`).join('')}</ul>`;
+      result.querySelectorAll('[data-following-account]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const form = document.getElementById('manage-follow-form');
+          fillFormValue(form, 'following', button.dataset.followingAccount || '');
+          fillFormValue(form, 'mode', button.dataset.followingAction || 'unfollow');
+          setStatus('Подписка выбрана в форме follow/unfollow. Нажмите проверку или отправку.', 'info');
+        });
+      });
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  async function loadGolosWorkerRequests(chain) {
+    if (chain.id !== 'golos') return;
+    const result = document.getElementById('manage-workers-result');
+    try {
+      if (result) result.textContent = 'Загружаю worker requests через getWorkerRequests...';
+      const connection = await getConnection(chain);
+      const states = ['created', 'payment', 'payment_complete', 'closed_by_author', 'closed_by_expiration', 'closed_by_voters'];
+      const groups = [];
+      for (const state of states) {
+        const query = { state, limit: 20 };
+        const rows = await profiles.apiCall(connection, 'getWorkerRequests', [query, 'by_created', true]).catch(() => []);
+        groups.push([state, Array.isArray(rows) ? rows : []]);
+      }
+      if (!result) return;
+      result.innerHTML = groups.map(([state, rows]) => `<details><summary>${escapeHtml(state)}: ${rows.length}</summary>${rows.length ? `<ul>${rows.map((row) => {
+        const author = row.author || row.creator || '';
+        const permlink = row.permlink || row.url || '';
+        return `<li><button type="button" data-worker-author="${escapeHtml(author)}" data-worker-permlink="${escapeHtml(permlink)}">выбрать для голоса</button> ${escapeHtml(author)}/${escapeHtml(permlink)} ${escapeHtml(row.worker || '')}</li>`;
+      }).join('')}</ul>` : '<p class="muted">Нет заявок.</p>'}</details>`).join('');
+      result.querySelectorAll('[data-worker-author]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const form = document.getElementById('manage-workers-form');
+          fillFormValue(form, 'mode', 'vote');
+          fillFormValue(form, 'author', button.dataset.workerAuthor || '');
+          fillFormValue(form, 'permlink', button.dataset.workerPermlink || '');
+          setStatus('Worker request выбран в форме голосования.', 'info');
+        });
+      });
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  function parseGolosWorkerPostUrl(rawUrl) {
+    const text = String(rawUrl || '').trim();
+    const match = text.match(/@([a-z0-9.-])\/([^/?#])/i);
+    if (!match) throw new Error('URL заявки должен содержать @author/permlink.');
+    return { author: match[1], permlink: match[2] };
+  }
+
+  async function loadWitnessVoteList(chain, state) {
+    if (chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem') return;
+    const result = document.getElementById('manage-witnesses-result');
+    try {
+      if (result) result.textContent = 'Загружаю делегатов через getWitnessesByVote...';
+      const connection = await getConnection(chain);
+      const account = await fetchChainAccount(chain, auth.getCurrentLogin(chain));
+      state.currentVotes = new Set(account && Array.isArray(account.witness_votes) ? account.witness_votes : []);
+      state.proxy = account && account.proxy ? account.proxy : '';
+      const witnesses = [];
+      let from = '';
+      for (let page = 0; page < 5; page += 1) {
+        const chunk = await profiles.apiCall(connection, 'getWitnessesByVote', [from, 100]);
+        if (!Array.isArray(chunk) || !chunk.length) break;
+        chunk.forEach((row) => {
+          const owner = row.owner || row[0] || '';
+          if (owner && owner !== from) witnesses.push(owner);
+        });
+        const last = witnesses[witnesses.length - 1];
+        if (!last || last === from || chunk.length < 100) break;
+        from = last;
+      }
+      if (!result) return;
+      const proxyNotice = state.proxy ? `<p class="notice">У аккаунта установлен proxy <strong>${escapeHtml(state.proxy)}</strong>. Ручное witness voting конфликтует с proxy; сначала снимите proxy, если нужно голосовать вручную.</p>` : '';
+      result.innerHTML = `${proxyNotice}<fieldset><legend>Делегаты</legend>${witnesses.map((name) => `<label class="inline-choice"><input type="checkbox" data-witness-vote="${escapeHtml(name)}" ${state.currentVotes.has(name) ? 'checked' : ''}> ${escapeHtml(name)}</label>`).join('')}</fieldset>`;
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  function downloadTextFile(filename, text) {
+    const link = document.createElement('a');
+    link.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function vizInvitePublic(secret) {
@@ -995,9 +1690,9 @@
         await loadScript(chain.cryptoPath);
         await loadScript(chain.walletPath);
         await loadScript(chain.libraryPath);
-        const prepared = await buildPrepared(new FormData(form));
         const submitter = event.submitter;
         const intent = submitter && submitter.value === 'send' ? 'send' : 'preview';
+        const prepared = await buildPrepared(new FormData(form), { intent, submitter, form });
 
         if (intent === 'preview') {
           const result = await broadcast.broadcast(chain, prepared, { dryRun: true });
@@ -1437,7 +2132,14 @@
 
     const data = await loadGrapheneWalletData(chain, account, { loadExtraBalances: fetchGolosUiaBalances });
     const uiaGateways = await fetchGolosUiaGateways(chain, data.balanceRows);
-    const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows, uiaGateways);
+    try {
+      data.delegations = await fetchGolosDelegations({ client: global[chain.libraryGlobal] }, account);
+      data.delegationsError = '';
+    } catch (error) {
+      data.delegations = { delegated: [], received: [], error: profiles.formatError(error) };
+      data.delegationsError = profiles.formatError(error);
+    }
+    const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows, uiaGateways, data.delegations);
 
     appEl.innerHTML = `
       <section class="panel wallet-golos">
@@ -1453,7 +2155,7 @@
       </section>
     `;
 
-    bindGolosWalletForms(chain, data.profile, uiaGateways);
+    bindGolosWalletForms(chain, data.profile, uiaGateways, data.delegations);
     bindMaxButtons(appEl);
     bindCopyButtons(appEl);
     setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
@@ -1739,6 +2441,49 @@
       ${operations.join('')}`;
   }
 
+  async function callGolosApi(connection, method, args) {
+    const api = connection.client && connection.client.api;
+    const asyncName = `${method}Async`;
+    if (!api) throw new Error('Golos API недоступен.');
+    if (typeof api[asyncName] === 'function') return api[asyncName](...args);
+    if (typeof api[method] === 'function') {
+      return new Promise((resolve, reject) => {
+        api[method](...args, (error, result) => error ? reject(error) : resolve(result));
+      });
+    }
+    throw new Error(`Метод Golos API ${method} недоступен.`);
+  }
+
+  async function fetchGolosDelegations(connection, account) {
+    const [delegated, received] = await Promise.all([
+      callGolosApi(connection, 'getVestingDelegations', [account, '', 100, 'delegated']),
+      callGolosApi(connection, 'getVestingDelegations', [account, '', 100, 'received'])
+    ]);
+    return {
+      delegated: Array.isArray(delegated) ? delegated : [],
+      received: Array.isArray(received) ? received : []
+    };
+  }
+
+  function renderGolosDelegations(profile, delegations) {
+    const gpRate = golosPowerRateFromProfile(profile);
+    const formatGp = (vestingShares) => {
+      const value = Number.parseFloat(vestingShares) || 0;
+      return gpRate ? `${(value / 1000000 * gpRate).toFixed(6)} СГ` : String(vestingShares || '');
+    };
+    const renderRows = (rows, direction) => {
+      if (!rows || !rows.length) return '<p class="muted">Список пуст.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th scope="col">Аккаунт</th><th scope="col">Сумма</th><th scope="col">Процент возврата кураторских</th><th scope="col">Мин. время возврата</th>${direction === 'delegated' ? '<th scope="col">Действия</th>' : ''}</tr></thead><tbody>${rows.map((item) => {
+        const peer = direction === 'received' ? item.delegator : item.delegatee;
+        const interest = item.interest_rate !== undefined ? `${Number(item.interest_rate) / 100}%` : '';
+        const cancel = direction === 'delegated' ? ` <button type="button" data-golos-cancel-delegation="${escapeHtml(peer || '')}">Отменить делегирование</button>` : '';
+        return `<tr><td>@${escapeHtml(peer || '')}</td><td>${escapeHtml(formatGp(item.vesting_shares))}</td><td>${escapeHtml(interest)}</td><td>${escapeHtml(item.min_delegation_time || '')}</td>${direction === 'delegated' ? `<td>${cancel}</td>` : ''}</tr>`;
+      }).join('')}</tbody></table></div>`;
+    };
+    const error = delegations && delegations.error ? `<p class="muted">Списки делегирований не загрузились: ${escapeHtml(delegations.error)}. Формы делегирования и отмены ниже всё равно доступны.</p>` : '';
+    return `${error}${operationDetails('Полученная делегированием СГ', renderRows(delegations && delegations.received, 'received'))}${operationDetails('Делегированная другим СГ', renderRows(delegations && delegations.delegated, 'delegated'))}`;
+  }
+
   function renderGolosWalletBalances(profile, balanceRows) {
     const raw = (profile && profile.raw) || {};
     const rows = [];
@@ -1786,12 +2531,12 @@
       let body = deposit.details ? `<p>${escapeHtml(deposit.details)}</p>` : '';
       if (extras.length) body += `<ul>${extras.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
       if (String(deposit.to_type || '').toLowerCase() === 'fixed') {
-        body += '<p>Данные для пополнения:</p><ul>';
+        body = '<p>Данные для пополнения:</p><ul>';
         if (deposit.to_fixed) body += `<li>Адрес/получатель: <code>${escapeHtml(deposit.to_fixed)}</code> ${copyButton(deposit.to_fixed, 'адрес')}</li>`;
         if (deposit.memo_fixed) body += `<li>Memo: <code>${escapeHtml(deposit.memo_fixed)}</code> ${copyButton(deposit.memo_fixed, 'memo')}</li>`;
         body += '</ul>';
       } else if (String(deposit.to_type || '').toLowerCase() === 'api') {
-        body += `<p>Адрес запрашивается через <code>/golos/api/uia-deposit</code>.</p><p><button type="button" data-uia-deposit-api="${escapeHtml(gateway.symbol)}">Получить адрес</button></p><div id="wallet-golos-uia-deposit-result-${escapeHtml(gateway.symbol)}" class="operation-result" role="status" aria-live="polite"></div>`;
+        body += '<p class="muted">В старой версии адрес пополнения запрашивался через backend API. В static v3 этот серверный запрос отключён: используйте fixed-данные из metadata или вариант запроса адреса через перевод, если он указан ниже.</p>';
       } else {
         body += '<p class="muted">Тип пополнения из metadata не поддержан автоматически.</p>';
       }
@@ -1831,7 +2576,7 @@
       </form>`);
   }
 
-  function renderGolosWalletForms(chain, profile, balanceRows, uiaGateways) {
+  function renderGolosWalletForms(chain, profile, balanceRows, uiaGateways, delegations) {
     const liquid = chain.liquidSymbol || 'GOLOS';
     const debt = chain.debtSymbol || 'GBG';
     const liquidMax = profile ? pickBalance(profile, liquid) : '';
@@ -1851,6 +2596,7 @@
             ${transferTemplateSelect}
             <div class="field"><label for="wallet-transfer-to">Кому</label><input id="wallet-transfer-to" name="to" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-transfer-amount">Сумма с символом</label><input id="wallet-transfer-amount" name="amount" type="text" required placeholder="1.000 ${escapeHtml(liquid)}">${liquidMax ? ` <button type="button" data-fill-target="wallet-transfer-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-transfer-in">Куда перевести</label><select id="wallet-transfer-in" name="in"><option value="to_balance">Основной баланс получателя</option><option value="to_tip">TIP-баланс получателя</option><option value="to_vesting">СГ получателя (только GOLOS)</option></select></div>
             <div class="field"><label for="wallet-transfer-memo">Memo</label><input id="wallet-transfer-memo" name="memo" type="text"></div>
             <button type="submit" name="intent" value="preview">Проверить перевод</button>
             <button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
@@ -1878,6 +2624,15 @@
             <button type="submit" name="intent" value="send">Отправить вывод СГ</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
+        </form>
+        <form id="wallet-golos-cancel-withdraw-form" class="stacked-form">
+          <fieldset>
+            <legend>Отмена вывода СГ</legend>
+            <p class="muted">Legacy cancel_vesting_withdraw отправлял withdrawVesting с 0.000000 GESTS.</p>
+            <button type="submit" name="intent" value="preview">Проверить отмену вывода</button>
+            <button type="submit" name="intent" value="send">Отменить вывод СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
         </form>`),
       operationDetails('Делегирование СГ', `
         <form id="wallet-delegation-form" class="stacked-form">
@@ -1885,6 +2640,7 @@
             <legend>Делегирование СГ</legend>
             <div class="field"><label for="wallet-delegation-to">Кому делегировать</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
             <div class="field"><label for="wallet-delegation-vesting">Сумма СГ</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 СГ">${vestingMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(vestingMax)}">Максимум ${escapeHtml(vestingMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-golos-delegation-interest">Процент с кураторских</label><input id="wallet-golos-delegation-interest" name="interest" type="number" min="0" max="80" step="1" value="80"><p class="muted">Как в legacy: новый получатель использует delegate_vesting_shares_with_interest; для изменения/отмены существующей делегации можно поставить 0.000000 СГ.</p></div>
             <button type="submit" name="intent" value="preview">Проверить делегирование СГ</button>
             <button type="submit" name="intent" value="send">Отправить делегирование СГ</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -1916,6 +2672,20 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
+      operationDetails('Перевод UIA с основного баланса', `
+        <form id="wallet-golos-uia-transfer-form" class="stacked-form">
+          <fieldset>
+            <legend>UIA: основной баланс → основной баланс</legend>
+            <p class="muted">Обычный transfer UIA-токена другому аккаунту, как в старом кошельке.</p>
+            <div class="field"><label for="wallet-golos-uia-transfer-token">Токен</label><select id="wallet-golos-uia-transfer-token" name="token" required>${mainTokenOptions || '<option value="">Нет доступных main-балансов</option>'}</select></div>
+            <div class="field"><label for="wallet-golos-uia-transfer-to">Кому</label><input id="wallet-golos-uia-transfer-to" name="to" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="wallet-golos-uia-transfer-amount">Сумма</label><input id="wallet-golos-uia-transfer-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" data-fill-selected="wallet-golos-uia-transfer-token" data-fill-target="wallet-golos-uia-transfer-amount">Максимум</button></div>
+            <div class="field"><label for="wallet-golos-uia-transfer-memo">Memo</label><input id="wallet-golos-uia-transfer-memo" name="memo" type="text"></div>
+            <button type="submit" name="intent" value="preview">Проверить UIA transfer</button>
+            <button type="submit" name="intent" value="send">Отправить UIA transfer</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`, Boolean(mainTokenOptions)),
       operationDetails('Перевод токена на TIP-баланс', `
         <form id="wallet-golos-transfer-to-tip-form" class="stacked-form">
           <fieldset>
@@ -1958,6 +2728,39 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`, Boolean(tipTokenOptions)),
+      operationDetails('Инвайт-коды GOLOS', `
+        <form id="wallet-golos-invite-claim-form" class="stacked-form">
+          <fieldset>
+            <legend>Пополнить баланс invite-кодом</legend>
+            <p class="muted">Секрет invite используется только для операции invite_claim и не сохраняется.</p>
+            <div class="field"><label for="wallet-golos-invite-secret">Инвайт-код / secret WIF</label><input id="wallet-golos-invite-secret" name="secret" type="password" required autocomplete="off" placeholder="5K..."></div>
+            <button type="submit" name="intent" value="preview">Проверить invite claim</button>
+            <button type="submit" name="intent" value="send">Пополнить invite-кодом</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="wallet-golos-create-invite-form" class="stacked-form">
+          <fieldset>
+            <legend>Создать invite</legend>
+            <div class="field"><label for="wallet-golos-create-invite-amount">Баланс invite</label><input id="wallet-golos-create-invite-amount" name="amount" type="text" required placeholder="1.000 GOLOS">${liquidMax ? ` <button type="button" data-fill-target="wallet-golos-create-invite-amount" data-fill-value="${escapeHtml(liquidMax)}">Максимум ${escapeHtml(liquidMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-golos-create-invite-secret">Secret WIF invite</label><input id="wallet-golos-create-invite-secret" name="secret" type="password" required autocomplete="off" placeholder="Сгенерируйте или вставьте 5K..."></div>
+            <button type="button" id="wallet-golos-generate-invite">Генерировать secret</button>
+            <button type="submit" name="intent" value="preview">Проверить создание invite</button>
+            <button type="submit" name="intent" value="send">Создать invite</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      operationDetails('Голос за witness dpos.space', `
+        <form id="wallet-golos-witness-vote-form" class="stacked-form">
+          <fieldset>
+            <legend>Проголосовать за denis-skripnik</legend>
+            <p class="muted">Legacy показывал кнопку поддержки witness проекта. В v3 операция также требует preview и отдельного подтверждения.</p>
+            <button type="submit" name="intent" value="preview">Проверить голос</button>
+            <button type="submit" name="intent" value="send">Проголосовать</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>`),
+      renderGolosDelegations(profile, delegations),
       renderGolosUiaDepositSection(uiaGateways),
       renderGolosUiaWithdrawSection(uiaGateways, balanceRows)
     ];
@@ -2658,28 +3461,6 @@
       });
     }
 
-    document.querySelectorAll('[data-uia-deposit-api]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const token = normalizeGolosTokenSymbol(button.dataset.uiaDepositApi, 'UIA deposit token');
-        const result = document.getElementById(`wallet-golos-uia-deposit-result-${token}`);
-        if (result) result.textContent = 'Запрашиваю адрес пополнения...';
-        try {
-          const response = await global.fetch(`/golos/api/uia-deposit?asset=${encodeURIComponent(token)}&login=${encodeURIComponent(auth.getCurrentLogin(chain))}&ts=${Date.now()}`, { credentials: 'same-origin', cache: 'no-store' });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok || data.ok === false || !data.address) {
-            const error = data && data.error;
-            throw new Error(error && error.message ? error.message : `deposit API HTTP ${response.status}`);
-          }
-          if (result) {
-            result.innerHTML = `<p>Адрес: <code>${escapeHtml(data.address)}</code> ${copyButton(data.address, 'адрес')}</p>${data.memo ? `<p>Memo: <code>${escapeHtml(data.memo)}</code> ${copyButton(data.memo, 'memo')}</p>` : ''}`;
-            bindCopyButtons(result);
-          }
-        } catch (error) {
-          if (result) result.textContent = `Адрес пополнения недоступен: ${profiles.formatError(error)}`;
-        }
-      });
-    });
-
     (uiaGateways || []).forEach((gateway) => {
       const deposit = gateway.deposit;
       if (!deposit || !deposit.to_transfer || !deposit.memo_transfer) return;
@@ -2730,15 +3511,53 @@
     });
   }
 
-  function bindGolosWalletForms(chain, profile, uiaGateways) {
+  function bindGolosWalletForms(chain, profile, uiaGateways, delegations) {
     bindGolosTemplateControls(chain);
     bindGolosGatewayControls(chain, uiaGateways);
-    bindOperationForm(chain, 'wallet-transfer-form', (form) => broadcast.prepare(chain, 'active', 'transfer', [
-      auth.getCurrentLogin(chain),
-      normalizeAccountInput(chain, form.get('to'), 'Кому'),
-      normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода'),
-      String(form.get('memo') || '')
-    ], { title: 'Golos transfer', to: normalizeAccountInput(chain, form.get('to'), 'Кому'), amount: normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода') }));
+
+    const generateInvite = document.getElementById('wallet-golos-generate-invite');
+    if (generateInvite) {
+      generateInvite.addEventListener('click', async () => {
+        try {
+          await loadScript(chain.libraryPath);
+          const input = document.getElementById('wallet-golos-create-invite-secret');
+          if (input) input.value = generateGolosInviteSecret();
+        } catch (error) {
+          setStatus(profiles.formatError(error), 'error');
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-golos-cancel-delegation]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const delegatee = button.dataset.golosCancelDelegation || '';
+        const toInput = document.getElementById('wallet-delegation-to');
+        const amountInput = document.getElementById('wallet-delegation-vesting');
+        const interestInput = document.getElementById('wallet-golos-delegation-interest');
+        if (toInput) toInput.value = delegatee;
+        if (amountInput) amountInput.value = '0.000000 СГ';
+        if (interestInput) interestInput.value = '0';
+        setStatus(`Для отмены делегирования @${delegatee} проверьте и отправьте форму «Делегирование СГ» с 0.000000 СГ.`, 'info');
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-transfer-form', async (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому');
+      const amount = normalizeAssetInput(chain, form.get('amount'), [chain.liquidSymbol, chain.debtSymbol].filter(Boolean), 'Сумма перевода');
+      const memo = String(form.get('memo') || '');
+      const destination = String(form.get('in') || 'to_balance');
+      if (destination === 'to_tip') {
+        const prepared = broadcast.prepare(chain, 'active', 'transferToTip', [from, to, amount, memo, []], { title: 'Golos transfer_to_tip', to, amount });
+        prepared.params[3] = await encodeGolosMemoIfNeeded(chain, to, memo, prepared.getPrivateKey());
+        return prepared;
+      }
+      if (destination === 'to_vesting') {
+        const vestingAmount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма GOLOS в СГ');
+        return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, vestingAmount], { title: 'GOLOS в СГ', to, amount: vestingAmount });
+      }
+      return broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, memo], { title: 'Golos transfer', to, amount });
+    });
 
     bindOperationForm(chain, 'wallet-vesting-form', (form) => {
       const from = auth.getCurrentLogin(chain);
@@ -2756,14 +3575,25 @@
       ], { title: 'Вывод СГ', amount });
     });
 
+    bindOperationForm(chain, 'wallet-golos-cancel-withdraw-form', () => broadcast.prepare(chain, 'active', 'withdrawVesting', [
+      auth.getCurrentLogin(chain),
+      '0.000000 GESTS'
+    ], { title: 'Отмена вывода СГ', amount: '0.000000 GESTS' }));
+
     bindOperationForm(chain, 'wallet-delegation-form', (form) => {
       const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому делегировать');
       const amount = normalizeGolosPowerInput(profile, form.get('vesting'), 'Сумма СГ');
-      return broadcast.prepare(chain, 'active', 'delegateVestingShares', [
-        auth.getCurrentLogin(chain),
-        to,
-        amount
-      ], { title: 'Делегирование СГ', to, amount });
+      const interestPercent = Number(form.get('interest'));
+      if (!Number.isFinite(interestPercent) || interestPercent < 0 || interestPercent > 80) {
+        throw new Error('Процент с кураторских должен быть от 0 до 80.');
+      }
+      const interestRate = Math.trunc(interestPercent * 100);
+      const alreadyDelegated = Boolean(delegations && Array.isArray(delegations.delegated) && delegations.delegated.some((item) => item && item.delegatee === to));
+      const method = alreadyDelegated ? 'delegateVestingShares' : 'delegateVestingSharesWithInterest';
+      const params = method === 'delegateVestingShares'
+        ? [auth.getCurrentLogin(chain), to, amount]
+        : [auth.getCurrentLogin(chain), to, amount, interestRate, []];
+      return broadcast.prepare(chain, 'active', method, params, { title: method === 'delegateVestingShares' ? 'Делегирование СГ' : 'Делегирование СГ с процентом', to, amount });
     });
 
     bindOperationForm(chain, 'wallet-golos-claim-form', (form) => {
@@ -2796,8 +3626,21 @@
       ], { title: 'Golos donate', to, amount });
     });
 
+    bindOperationForm(chain, 'wallet-golos-uia-transfer-form', async (form) => {
+      const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен UIA transfer');
+      const to = normalizeAccountInput(chain, form.get('to'), 'Кому UIA transfer');
+      const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма UIA transfer');
+      return broadcast.prepare(chain, 'active', 'transfer', [
+        auth.getCurrentLogin(chain),
+        to,
+        amount,
+        String(form.get('memo') || '')
+      ], { title: 'Golos UIA transfer', to, amount });
+    });
+
     bindOperationForm(chain, 'wallet-golos-transfer-to-tip-form', async (form) => {
       const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен transfer_to_tip');
+      await assertGolosTipTransferAllowed(chain, token);
       const to = normalizeAccountInput(chain, form.get('to'), 'Кому transfer_to_tip');
       const amount = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма transfer_to_tip');
       const prepared = broadcast.prepare(chain, 'active', 'transferToTip', [
@@ -2840,6 +3683,30 @@
         []
       ], { title: 'Golos UIA/TIP donate', to, amount });
     });
+
+    bindOperationForm(chain, 'wallet-golos-invite-claim-form', (form) => broadcast.prepare(chain, 'active', 'inviteClaim', [
+      auth.getCurrentLogin(chain),
+      auth.getCurrentLogin(chain),
+      String(form.get('secret') || '').trim(),
+      []
+    ], { title: 'Golos invite claim', warnings: ['Invite secret нужен в параметрах операции, но preview/result маскирует secret/WIF. Не публикуйте данные операции.'] }));
+
+    bindOperationForm(chain, 'wallet-golos-create-invite-form', async (form) => {
+      await loadScript(chain.libraryPath);
+      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Баланс invite');
+      const publicKey = golosInvitePublic(form.get('secret'));
+      return broadcast.prepare(chain, 'active', 'invite', [auth.getCurrentLogin(chain), amount, publicKey, []], {
+        title: 'Golos invite create',
+        amount,
+        warnings: ['Secret invite не входит в транзакцию и не сохраняется; сохраните его отдельно, иначе invite будет невозможно использовать.']
+      });
+    });
+
+    bindOperationForm(chain, 'wallet-golos-witness-vote-form', () => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
+      auth.getCurrentLogin(chain),
+      'denis-skripnik',
+      true
+    ], { title: 'Witness vote denis-skripnik', to: 'denis-skripnik' }));
   }
 
   function bindVizWalletForms(chain, profile) {
@@ -2898,6 +3765,7 @@
     };
 
     bindVizTemplateControls();
+    prefillVizTransferFromUrl();
 
     document.querySelectorAll('[data-copy-from]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -2965,10 +3833,14 @@
       if (form.get('toVesting') === 'on') {
         return broadcast.prepare(chain, 'active', 'transferToVesting', [from, to, amount], { title: 'VIZ в SHARES получателя', to, amount });
       }
-      const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, String(form.get('memo') || '')], { title: 'VIZ transfer', to, amount });
+      const rawMemo = String(form.get('memo') || '');
+      if (isSteemMemoWif(chain, rawMemo)) {
+        throw new Error('Memo похоже на приватный ключ. Проверьте поле memo: приватные ключи нельзя отправлять в блокчейн.');
+      }
+      const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, to, amount, rawMemo], { title: 'VIZ transfer', to, amount });
       if (!(prepared.meta && prepared.meta.signerType === 'vizonator')) {
-        prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, form.get('memo'), prepared.getPrivateKey());
-      } else if (String(form.get('memo') || '').startsWith('#')) {
+        prepared.params[3] = await encodeVizMemoIfNeeded(chain, to, rawMemo, prepared.getPrivateKey());
+      } else if (rawMemo.startsWith('#')) {
         prepared.meta.warnings.push('Для Vizonator memo с # передаётся в расширение как есть. Если нужно шифрование, проверьте поведение расширения перед отправкой.');
       }
       return prepared;
@@ -3020,6 +3892,29 @@
       'denis-skripnik',
       true
     ], { title: 'Witness vote denis-skripnik', to: 'denis-skripnik' }));
+  }
+
+  function prefillVizTransferFromUrl() {
+    const form = document.getElementById('wallet-transfer-form');
+    if (!form) return;
+    const params = new URLSearchParams(global.location && global.location.search || '');
+    const hashParams = new URLSearchParams(global.location && global.location.hash && global.location.hash.includes('?') ? global.location.hash.split('?').slice(1).join('?') : '');
+    const get = (name) => params.get(name) || hashParams.get(name) || '';
+    const to = get('to');
+    const amount = get('amount');
+    const memo = get('memo');
+    if (to) {
+      const input = form.querySelector('[name="to"]');
+      if (input) input.value = to.replace(/^@/, '');
+    }
+    if (amount) {
+      const input = form.querySelector('[name="amount"]');
+      if (input) input.value = amount;
+    }
+    if (memo) {
+      const input = form.querySelector('[name="memo"]');
+      if (input) input.value = decodeURIComponent(memo);
+    }
   }
 
   function bindHiveWalletForms(chain, profile) {
@@ -3359,62 +4254,399 @@
     setStatus('Отправка операций готова: доступны проверка и отправка в сеть.', 'ok');
   }
 
-  function renderVizAward(chain) {
-    appEl.innerHTML = `
-      <section class="panel">
-        <h2>VIZ: награда</h2>
-        <p>Награждение VIZ: сначала проверка операции, затем отправка по подтверждению.</p>
-        <form id="viz-award-form" class="stacked-form">
-          <fieldset>
-            <legend>Награда</legend>
-            <div class="field"><label for="award-target">Кого наградить</label><input id="award-target" name="target" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="award-energy">Энергия, %</label><input id="award-energy" name="energy" type="number" min="0.01" max="100" step="0.01" required></div>
-            <div class="field"><label for="award-memo">Memo</label><textarea id="award-memo" name="memo" rows="4"></textarea></div>
-            <button type="submit" name="intent" value="preview">Проверить награду</button>
-            <button type="submit" name="intent" value="send">Отправить награду в сеть</button>
-            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset>
-        </form>
-      </section>`;
-    bindOperationForm(chain, 'viz-award-form', (form) => broadcast.prepare(chain, 'regular', 'award', [
-      auth.getCurrentLogin(chain),
-      String(form.get('target') || '').trim().replace(/^@/, ''),
-      Number(form.get('energy')) * 100,
-      0,
-      String(form.get('memo') || ''),
-      []
-    ]));
-    setStatus('VIZ-награда готова: проверка или отправка по подтверждению.', 'ok');
+  function parseVizBeneficiaries(value) {
+    const text = String(value || '').trim();
+    if (!text) return [];
+    let rows;
+    if (text.startsWith('[')) {
+      rows = JSON.parse(text);
+      if (!Array.isArray(rows)) throw new Error('JSON beneficiaries должен быть массивом.');
+      rows = rows.map((item) => ({ account: normalizeAccountInput(chains.viz, item.account, 'Бенефициар'), weight: Number(item.weight) }));
+    } else {
+      rows = text.split(',').map((chunk) => {
+        const [account, percent] = chunk.split(':').map((part) => String(part || '').trim());
+        return { account: normalizeAccountInput(chains.viz, account, 'Бенефициар'), weight: Math.trunc(Number(percent) * 100) };
+      });
+    }
+    const total = rows.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+    if (rows.some((item) => !Number.isInteger(item.weight) || item.weight <= 0)) {
+      throw new Error('Каждый beneficiary должен иметь положительный weight: проценты в формате account:10 или weight в сотых процента.');
+    }
+    if (total > 10000) throw new Error('Суммарный вес beneficiaries не должен превышать 100%.');
+    return rows;
   }
 
-  function renderGolosDonate(chain) {
+  function normalizeVizEnergy(value) {
+    const percent = Number(String(value || '').replace(',', '.'));
+    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+      throw new Error('Энергия VIZ-награды должна быть > 0 и <= 100%.');
+    }
+    return Math.trunc(percent * 100);
+  }
+
+  function normalizeVizCustomSequence(value) {
+    const id = Number(value || 0);
+    if (!Number.isSafeInteger(id) || id < 0) throw new Error('custom_sequence должен быть целым неотрицательным числом.');
+    return id;
+  }
+
+  function normalizeVizPayout(value) {
+    const amount = Number(String(value || '').replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('Fixed payout должен быть положительным числом VIZ.');
+    return `${amount.toFixed(3)} VIZ`;
+  }
+
+  function calculateVizAwardPayout(effectiveShares, props, energy) {
+    const totalVestingFund = parseFloat(props.total_vesting_fund || 0);
+    const totalVestingShares = parseFloat(props.total_vesting_shares || 0);
+    const totalRewardFund = parseFloat(props.total_reward_fund || 0);
+    const totalRewardShares = parseInt(props.total_reward_shares || 0, 10);
+    if (!effectiveShares || !totalVestingFund || !totalVestingShares || !totalRewardFund || !totalRewardShares) return 0;
+    const vizPrice = (totalVestingShares * 1000000) / (totalVestingFund * 1000000);
+    const rshares = parseInt(effectiveShares * 1000000 * energy / 10000, 10);
+    return parseInt(rshares / (totalRewardShares + rshares) * (totalRewardFund * 1000000) * vizPrice, 10) / 1000000;
+  }
+
+  function calculateVizEnergyForPayout(effectiveShares, props, payout) {
+    const totalVestingFund = parseFloat(props.total_vesting_fund || 0);
+    const totalVestingShares = parseFloat(props.total_vesting_shares || 0);
+    const totalRewardFund = parseFloat(props.total_reward_fund || 0);
+    const totalRewardShares = parseInt(props.total_reward_shares || 0, 10);
+    if (!effectiveShares || !totalVestingFund || !totalVestingShares || !totalRewardFund || !totalRewardShares) return 1;
+    return Math.max(1, parseInt(Number(payout) * (totalVestingFund / totalVestingShares) / totalRewardFund * (totalRewardShares / 1000000) / effectiveShares * 10000, 10));
+  }
+
+  function vizEffectiveShares(account) {
+    return parseFloat(account && account.vesting_shares || 0) + parseFloat(account && account.received_vesting_shares || 0) - parseFloat(account && account.delegated_vesting_shares || 0);
+  }
+
+  function buildVizAwardLink(state) {
+    const params = new URLSearchParams();
+    params.set('chain', 'viz');
+    params.set('app', 'awards');
+    ['awardPage', 'target', 'energy', 'custom_sequence', 'memo', 'beneficiaries', 'payout', 'isFixed'].forEach((key) => {
+      if (state[key]) params.set(key, state[key]);
+    });
+    return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
+  }
+
+  function vizAwardNav(activePage) {
+    const pages = [
+      ['form', 'Форма награждения'],
+      ['url', 'Генератор url/QR'],
+      ['builder', 'Конструктор форм'],
+      ['link', 'Legacy link page'],
+      ['send', 'Legacy send page']
+    ];
+    return `<nav class="subnav" aria-label="Страницы сервиса VIZ awards">${pages.map(([page, label]) => {
+      const href = page === 'form' ? appHash({ chain: 'viz', app: 'awards' }) : appHash({ chain: 'viz', app: 'awards', awardPage: page });
+      return `<a href="${escapeHtml(href)}" ${activePage === page ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a>`;
+    }).join(' ')}</nav>`;
+  }
+
+  function renderVizAwardMainForm(chain, state = {}, options = {}) {
+    const mode = options.mode || 'form';
+    const target = state.target || '';
+    const energy = state.energy || '1';
+    const customSequence = state.custom_sequence || '0';
+    const memo = state.memo || '';
+    const beneficiaries = state.beneficiaries || '';
+    const payout = state.payout || '';
+    const isFixed = state.isFixed === 'on' || state.isFixed === '1' || state.isFixed === 'true';
+    const awardLink = buildVizAwardLink({ target, energy, custom_sequence: customSequence, memo, beneficiaries, payout, isFixed: isFixed ? 'on' : '' });
+    const intro = mode === 'send'
+      ? '<p id="viz-award-send-review" class="notice">Static parity: legacy send page не отправляет транзакцию автоматически. Проверьте параметры, затем используйте preview/send с явным подтверждением.</p>'
+      : '<p>Legacy parity для awards: обычная award, fixedAward с payout, custom_sequence, beneficiaries и ссылка на предзаполненную форму.</p>';
+    return `
+      ${intro}
+      <form id="viz-award-form" class="stacked-form">
+        <fieldset>
+          <legend>Награда</legend>
+          <div class="field"><label for="award-target">Кого наградить</label><input id="award-target" name="target" type="text" required autocomplete="off" value="${escapeHtml(target)}"></div>
+          <div class="field"><label for="award-energy">Энергия, %</label><input id="award-energy" name="energy" type="number" min="0.01" max="100" step="0.01" required value="${escapeHtml(energy)}"></div>
+          <div class="field"><label for="award-payout">Fixed payout, VIZ</label><input id="award-payout" name="payout" type="number" min="0.001" step="0.001" value="${escapeHtml(payout)}"><small>Заполняется только для fixedAward.</small></div>
+          <label class="inline-choice"><input id="award-fixed" name="isFixed" type="checkbox" ${isFixed ? 'checked' : ''}> Отправить fixedAward с указанным payout</label>
+          <div class="field"><label for="award-custom-sequence">custom_sequence</label><input id="award-custom-sequence" name="custom_sequence" type="number" min="0" step="1" value="${escapeHtml(customSequence)}"></div>
+          <div class="field"><label for="award-beneficiaries">Бенефициары</label><textarea id="award-beneficiaries" name="beneficiaries" rows="3" placeholder="account:10, other:5 или JSON [{&quot;account&quot;:&quot;...&quot;,&quot;weight&quot;:1000}]">${escapeHtml(beneficiaries)}</textarea><small>Legacy percentages are stored as hundredths of a percent in operation weights.</small></div>
+          <div class="field"><label for="award-memo">Memo</label><textarea id="award-memo" name="memo" rows="4">${escapeHtml(memo)}</textarea></div>
+          <button type="submit" name="intent" value="preview">Проверить награду</button>
+          <button type="submit" name="intent" value="send">Отправить награду в сеть</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset>
+      </form>
+      <section class="subpanel" aria-labelledby="viz-award-link-heading">
+        <h3 id="viz-award-link-heading">Ссылка / QR payload</h3>
+        <p><a href="${escapeHtml(awardLink)}">Открыть предзаполненную форму</a></p>
+        <p><button type="button" data-copy-value="${escapeHtml(awardLink)}">Скопировать ссылку</button></p>
+        <details><summary>JSON payload для QR/шаринга</summary><pre><code>${escapeHtml(JSON.stringify({ target, energy, custom_sequence: customSequence, memo, beneficiaries, payout, isFixed }, null, 2))}</code></pre></details>
+      </section>`;
+  }
+
+  function bindVizAwardOperationForm(chain) {
+    bindOperationForm(chain, 'viz-award-form', async (form) => {
+      const from = auth.getCurrentLogin(chain);
+      const targetAccount = normalizeAccountInput(chain, form.get('target'), 'Кого наградить');
+      const memoValue = String(form.get('memo') || '');
+      if (broadcast.isLikelyWif(memoValue)) throw new Error('Memo похоже на приватный WIF. Отправка остановлена.');
+      const beneficiariesList = parseVizBeneficiaries(form.get('beneficiaries'));
+      const custom = normalizeVizCustomSequence(form.get('custom_sequence'));
+      const fixed = form.get('isFixed') === 'on';
+      const energyValue = normalizeVizEnergy(form.get('energy'));
+      if (fixed) {
+        const rewardAmount = normalizeVizPayout(form.get('payout'));
+        return broadcast.prepare(chain, 'regular', 'fixedAward', [from, targetAccount, rewardAmount, energyValue, custom, memoValue, beneficiariesList], {
+          title: 'VIZ fixedAward', to: targetAccount, amount: rewardAmount, customSequence: custom,
+          warnings: ['fixedAward тратит указанную сумму VIZ и энергию. Проверьте payout, energy и beneficiaries перед отправкой.']
+        });
+      }
+      return broadcast.prepare(chain, 'regular', 'award', [from, targetAccount, energyValue, custom, memoValue, beneficiariesList], {
+        title: 'VIZ award', to: targetAccount, customSequence: custom
+      });
+    });
+  }
+
+  function bindVizAwardUrlForm() {
+    const form = document.getElementById('viz-award-url-form');
+    if (!form) return;
+    const output = document.getElementById('viz-award-generated-link');
+    const qrPayload = document.getElementById('viz-award-qr-payload');
+    const update = () => {
+      const data = new FormData(form);
+      const state = {
+        target: data.get('target'),
+        energy: data.get('energy'),
+        custom_sequence: data.get('custom_sequence') || '0',
+        memo: data.get('memo'),
+        beneficiaries: data.get('beneficiaries'),
+        payout: data.get('payout'),
+        isFixed: data.get('isFixed') === 'on' ? 'on' : ''
+      };
+      const link = buildVizAwardLink(state);
+      if (output) output.value = link;
+      if (qrPayload) qrPayload.value = JSON.stringify(state, null, 2);
+    };
+    form.addEventListener('submit', (event) => { event.preventDefault(); update(); });
+    form.addEventListener('input', update);
+    update();
+  }
+
+  function renderVizAwardUrlGenerator(state = {}) {
+    const link = buildVizAwardLink(state);
+    return `
+      <p>Сформировать url и QR payload для статической hash-ссылки v3. Legacy QR canvas заменён копируемым payload без зависимости от старого qrcode.min.js.</p>
+      <form id="viz-award-url-form" class="stacked-form">
+        <div class="field"><label for="url-target">target</label><input id="url-target" name="target" type="text" value="${escapeHtml(state.target || '')}"></div>
+        <label class="inline-choice"><input id="url-fixed" name="isFixed" type="checkbox" ${state.isFixed ? 'checked' : ''}> Фиксированная в VIZ награда</label>
+        <div class="field"><label for="url-energy">Energy</label><input id="url-energy" name="energy" type="text" value="${escapeHtml(state.energy || '')}"></div>
+        <div class="field"><label for="url-payout">payout</label><input id="url-payout" name="payout" type="text" value="${escapeHtml(state.payout || '')}"></div>
+        <div class="field"><label for="url-custom-sequence">custom_sequence</label><input id="url-custom-sequence" name="custom_sequence" type="number" min="0" value="${escapeHtml(state.custom_sequence || '0')}"></div>
+        <div class="field"><label for="url-memo">Memo</label><input id="url-memo" name="memo" type="text" value="${escapeHtml(state.memo || '')}"></div>
+        <div class="field"><label for="url-beneficiaries">beneficiaries</label><textarea id="url-beneficiaries" name="beneficiaries" rows="3">${escapeHtml(state.beneficiaries || '')}</textarea></div>
+        <button type="submit">Сформировать url</button>
+      </form>
+      <div class="field"><label for="viz-award-generated-link">Сформированный url награды</label><textarea id="viz-award-generated-link" rows="3" readonly>${escapeHtml(link)}</textarea></div>
+      <div class="field"><label for="viz-award-qr-payload">QR payload</label><textarea id="viz-award-qr-payload" rows="6" readonly>${escapeHtml(JSON.stringify(state, null, 2))}</textarea></div>`;
+  }
+
+  function checkVizAwardBuilderPercentLimit(appPercent, userPercent) {
+    const total = Number(appPercent || 0) + Number(userPercent || 0);
+    if (total > 100) throw new Error('Сумма процентов отчисления не может превышать 100%!');
+    return total;
+  }
+
+  function buildVizAwardBuilderSnippet(form) {
+    const target = String(form.get('target') || form.get('target_value') || 'target_user');
+    const payMethod = String(form.get('pay_method') || 'amount');
+    const energyView = String(form.get('energy_view') || 'field');
+    const noteMode = String(form.get('note_mode') || 'one');
+    const customSequence = String(form.get('custom_sequence_value') || '0');
+    const memo = String(form.get('memo') || 'Заметка');
+    const payout = String(form.get('payout') || '1.000');
+    const energy = String(form.get('energy') || '2');
+    const beneficiaries = [];
+    if (form.get('app_beneficiary_enabled') === 'on') beneficiaries.push(`${form.get('app_beneficiary') || 'denis-skripnik'}:${form.get('app_beneficiary_percent') || '1'}`);
+    if (form.get('user_beneficiary_enabled') === 'on') beneficiaries.push(`user_login:${form.get('user_beneficiary_percent') || '1'}`);
+    checkVizAwardBuilderPercentLimit(form.get('app_beneficiary_percent'), form.get('user_beneficiary_percent'));
+    const actionState = { chain: 'viz', app: 'awards', awardPage: 'send', target, custom_sequence: customSequence, memo, beneficiaries: beneficiaries.join(',') };
+    if (payMethod === 'amount') {
+      actionState.payout = payout;
+      actionState.isFixed = 'on';
+    } else {
+      actionState.energy = energy;
+    }
+    const head = `<script>var target_user = "${escapeHtml(target)}"<\/script>`;
+    const final = `<form id="send_awards_form" action="${escapeHtml(appHash(actionState))}" method="GET">
+  <input type="hidden" name="target" value="${escapeHtml(target)}">
+  ${payMethod === 'amount' ? `<input type="text" name="payout" value="${escapeHtml(payout)}">` : `<input type="${energyView === 'slider' ? 'range' : 'text'}" name="energy" value="${escapeHtml(energy)}">`}
+  <input type="hidden" name="custom_sequence" value="${escapeHtml(customSequence)}">
+  ${noteMode === 'many' ? `<textarea name="memo">${escapeHtml(memo)}</textarea>` : `<input type="text" name="memo" value="${escapeHtml(memo)}">`}
+  <input type="hidden" name="beneficiaries" value="${escapeHtml(beneficiaries.join(','))}">
+  <button type="submit">Отправить</button>
+</form>`;
+    return { head, final, actionState };
+  }
+
+  function bindVizAwardBuilderForm() {
+    const form = document.getElementById('viz-award-builder-form');
+    if (!form) return;
+    const headCode = document.getElementById('viz-award-builder-head-code');
+    const finalCode = document.getElementById('viz-award-builder-final-code');
+    const result = document.getElementById('viz-award-builder-result');
+    const update = () => {
+      try {
+        const snippet = buildVizAwardBuilderSnippet(new FormData(form));
+        if (headCode) headCode.value = snippet.head;
+        if (finalCode) finalCode.value = snippet.final;
+        if (result) result.textContent = 'Код формы обновлён.';
+      } catch (error) {
+        if (result) result.textContent = profiles.formatError(error);
+      }
+    };
+    form.addEventListener('input', update);
+    form.addEventListener('change', update);
+    form.addEventListener('submit', (event) => { event.preventDefault(); update(); });
+    update();
+  }
+
+  function renderVizAwardBuilder() {
+    return `
+      <p>Конструктор форм наград: статический v3-эквивалент legacy builder/footer.js без jQuery UI и без загрузки старого builder.js.</p>
+      <form id="viz-award-builder-form" class="stacked-form">
+        <fieldset><legend>Настройка будущей формы</legend>
+          <label class="inline-choice"><input id="builder-target-enabled" name="target_enabled" type="checkbox" checked> Кого наградить</label>
+          <div class="field"><label for="builder-target-value">Значение target по умолчанию</label><input id="builder-target-value" name="target" type="text" value="target_user"></div>
+          <div class="field"><label for="builder-pay-method">Способ награды</label><select id="builder-pay-method" name="pay_method"><option value="amount">Сумма награды</option><option value="procent">Процент энергии</option></select></div>
+          <div class="field"><label for="builder-energy-view">Внешний вид поля энергии</label><select id="builder-energy-view" name="energy_view"><option value="field">Поле для ввода</option><option value="slider">Ползунок</option></select></div>
+          <div class="field"><label for="builder-energy">Процент энергии по умолчанию</label><input id="builder-energy" name="energy" type="text" value="2"></div>
+          <div class="field"><label for="builder-payout">Сумма награды по умолчанию</label><input id="builder-payout" name="payout" type="text" value="1.000"></div>
+          <div class="field"><label for="builder-custom-sequence">Номер Custom операции</label><input id="builder-custom-sequence" name="custom_sequence_value" type="number" min="0" value="0"></div>
+          <div class="field"><label for="builder-note-mode">Memo field mode</label><select id="builder-note-mode" name="note_mode"><option value="one">Однострочное поле</option><option value="many">Многострочное поле</option></select></div>
+          <div class="field"><label for="builder-memo">Memo по умолчанию</label><input id="builder-memo" name="memo" type="text" value="Заметка"></div>
+          <label class="inline-choice"><input id="builder-app-beneficiary-enabled" name="app_beneficiary_enabled" type="checkbox"> Бенефициарские отчисления приложению</label>
+          <div class="field"><label for="builder-app-beneficiary">Логин приложения бенефициара</label><input id="builder-app-beneficiary" name="app_beneficiary" type="text" value="denis-skripnik"></div>
+          <div class="field"><label for="builder-app-beneficiary-percent">Процент приложения бенефициара</label><input id="builder-app-beneficiary-percent" name="app_beneficiary_percent" type="number" min="0" max="100" value="1"></div>
+          <label class="inline-choice"><input id="builder-user-beneficiary-enabled" name="user_beneficiary_enabled" type="checkbox"> Возврат прибыли пользователю</label>
+          <div class="field"><label for="builder-user-beneficiary-percent">Процент возврата пользователю</label><input id="builder-user-beneficiary-percent" name="user_beneficiary_percent" type="number" min="0" max="100" value="1"></div>
+          <div class="field"><label for="builder-url-mode">Получать данные по URL</label><select id="builder-url-mode" name="url_mode"><option value="ajax">Получать результат из скрипта формы</option><option value="redirect">Редирект</option></select></div>
+          <button type="submit">Получить код</button>
+        </fieldset>
+      </form>
+      <div id="viz-award-builder-result" role="status" aria-live="polite"></div>
+      <div class="field"><label for="viz-award-builder-head-code">head_code</label><textarea id="viz-award-builder-head-code" rows="3" readonly></textarea></div>
+      <div class="field"><label for="viz-award-builder-final-code">final_code</label><textarea id="viz-award-builder-final-code" rows="10" readonly></textarea></div>`;
+  }
+
+  function renderVizAwardLinkPage(state = {}) {
+    return `
+      <p>Static legacy link page equivalent: route parameters from old /viz/awards/link/{target}/{custom_sequence}/{memo}/{energy}/{fixed} are represented as hash fields.</p>
+      <form id="viz-award-link-form" class="stacked-form">
+        <div class="field"><label for="link-target">target</label><input id="link-target" name="target" type="text" value="${escapeHtml(state.target || '')}"></div>
+        <div class="field"><label for="link-custom-sequence">custom_sequence</label><input id="link-custom-sequence" name="custom_sequence" type="number" min="0" value="${escapeHtml(state.custom_sequence || '0')}"></div>
+        <div class="field"><label for="link-memo">memo</label><input id="link-memo" name="memo" type="text" value="${escapeHtml(state.memo || '')}"></div>
+        <div class="field"><label for="link-energy">energy</label><input id="link-energy" name="energy" type="text" value="${escapeHtml(state.energy || '')}"></div>
+        <label class="inline-choice"><input id="link-fixed" name="isFixed" type="checkbox" ${state.isFixed ? 'checked' : ''}> fixedAward</label>
+      </form>
+      ${renderVizAwardMainForm(chains.viz, state, { mode: 'link' })}`;
+  }
+
+  function renderVizAwardSendPage(chain, state = {}) {
+    return renderVizAwardMainForm(chain, state, { mode: 'send' });
+  }
+
+  function renderVizAward(chain, state = {}) {
+    const page = state.awardPage || 'form';
+    let body;
+    if (page === 'url') body = renderVizAwardUrlGenerator(state);
+    else if (page === 'builder') body = renderVizAwardBuilder(state);
+    else if (page === 'link') body = renderVizAwardLinkPage(state);
+    else if (page === 'send') body = renderVizAwardSendPage(chain, state);
+    else body = renderVizAwardMainForm(chain, state);
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>VIZ: награды</h2>
+        ${vizAwardNav(page)}
+        ${body}
+      </section>`;
+    bindVizAwardOperationForm(chain);
+    bindVizAwardUrlForm();
+    bindVizAwardBuilderForm();
+    bindCopyButtons(appEl);
+    setStatus('VIZ awards готовы: award/fixedAward, custom_sequence, beneficiaries, link/url/builder/send и QR payload.', 'ok');
+  }
+
+  function golosDonateAssetOptions(assets, selectedToken) {
+    const symbols = new Set(['GOLOS', 'GBG']);
+    (assets || []).forEach((asset) => {
+      const symbol = golosSymbolFromAssetField(asset && asset.max_supply);
+      const max = parseAssetAmount(asset && asset.max_supply);
+      if (symbol && max > 0) symbols.add(symbol);
+    });
+    const selected = normalizeGolosTokenSymbol(selectedToken || 'GOLOS', 'Токен доната');
+    symbols.add(selected);
+    return Array.from(symbols).sort((a, b) => a.localeCompare(b)).map((symbol) => (
+      `<option value="${escapeHtml(symbol)}" ${symbol === selected ? 'selected' : ''}>${escapeHtml(symbol)}</option>`
+    )).join('');
+  }
+
+  function golosDonationPageUrl(state) {
+    const params = new URLSearchParams();
+    params.set('chain', 'golos');
+    params.set('app', 'donate');
+    if (state.to) params.set('to', state.to);
+    if (state.token) params.set('token', state.token);
+    if (state.amount) params.set('amount', state.amount);
+    return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
+  }
+
+  async function renderGolosDonate(chain, state = {}) {
+    let assets = [];
+    try {
+      const connection = await getConnection(chain);
+      const api = connection.client && connection.client.api;
+      assets = api && typeof api.getAssetsAsync === 'function' ? await fetchAllGolosAssets(api, 200) : [];
+    } catch (error) {
+      console.warn('Golos donate token list was not loaded:', error);
+    }
+    const selectedToken = state.token || chain.liquidSymbol || 'GOLOS';
+    const to = state.to || '';
+    const amount = state.amount || '';
+    const link = golosDonationPageUrl({ to, token: selectedToken, amount });
     appEl.innerHTML = `
       <section class="panel">
         <h2>Golos: донат</h2>
-        <p>Донат GOLOS: сначала проверка операции, затем отправка по подтверждению.</p>
+        <p>Донат GOLOS/GBG/UIA через posting authority: сначала проверка операции, затем отправка по подтверждению.</p>
         <form id="golos-donate-form" class="stacked-form">
           <fieldset>
             <legend>Донат</legend>
-            <div class="field"><label for="donate-to">Получатель</label><input id="donate-to" name="to" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="donate-amount">Сумма</label><input id="donate-amount" name="amount" type="text" required placeholder="1.000 GOLOS"></div>
-            <div class="field"><label for="donate-memo">Комментарий</label><textarea id="donate-memo" name="memo" rows="4"></textarea></div>
+            <div class="field"><label for="donate-to">Получатель</label><input id="donate-to" name="to" type="text" required autocomplete="off" value="${escapeHtml(to)}"></div>
+            <div class="field"><label for="donate-token">Токен</label><select id="donate-token" name="token">${golosDonateAssetOptions(assets, selectedToken)}</select></div>
+            <div class="field"><label for="donate-amount">Сумма</label><input id="donate-amount" name="amount" type="text" required placeholder="1.000" value="${escapeHtml(amount)}"></div>
+            <div class="field"><label for="donate-memo">Комментарий</label><textarea id="donate-memo" name="memo" rows="4">${escapeHtml(link ? `Донат со страницы ${link}` : '')}</textarea></div>
             <button type="submit" name="intent" value="preview">Проверить донат</button>
             <button type="submit" name="intent" value="send">Отправить донат в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
+        <section class="subpanel" aria-labelledby="donate-link-heading">
+          <h3 id="donate-link-heading">Ссылка для доната</h3>
+          <p class="muted">Как в legacy donate, ссылку можно дать получателю/донатору; v3 использует hash-параметры и не требует серверного маршрута.</p>
+          <div class="field"><label for="donate-link">Готовая ссылка</label><textarea id="donate-link" rows="2" readonly>${escapeHtml(link)}</textarea></div>
+          <button type="button" data-copy-value="${escapeHtml(link)}">Скопировать</button>
+        </section>
       </section>`;
+    bindCopyButtons(appEl);
     bindOperationForm(chain, 'golos-donate-form', async (form) => {
-      const to = normalizeAccountInput(chain, form.get('to'), 'Получатель доната');
-      const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма доната');
+      const toAccount = normalizeAccountInput(chain, form.get('to'), 'Получатель доната');
+      const token = normalizeGolosTokenSymbol(form.get('token'), 'Токен доната');
+      const amountValue = await normalizeGolosTokenAmount(chain, form.get('amount'), token, 'Сумма доната');
       let memo = String(form.get('memo') || '');
       if (memo[0] === '#') {
-        memo = await encodeGolosMemoIfNeeded(chain, to, memo, broadcast.prepare(chain, 'active', 'transfer', [auth.getCurrentLogin(chain), to, amount, ''], {}).getPrivateKey());
+        memo = await encodeGolosMemoIfNeeded(chain, toAccount, memo, broadcast.prepare(chain, 'active', 'transfer', [auth.getCurrentLogin(chain), toAccount, amountValue, ''], {}).getPrivateKey());
       }
       return broadcast.prepare(chain, 'posting', 'donate', [
         auth.getCurrentLogin(chain),
-        to,
-        amount,
+        toAccount,
+        amountValue,
         { app: 'dpos-space', version: 1, comment: memo, target: { type: 'personal_donate' } },
         []
       ]);
@@ -3422,10 +4654,231 @@
     setStatus('Golos-донат готов: проверка или отправка по подтверждению.', 'ok');
   }
 
-  function renderEditor(chain) {
+  const GOLOS_EDITOR_CATEGORIES = [
+    ['ru--avto', 'авто'], ['ru--biznes', 'бизнес'], ['ru--blokcheijn', 'блокчейн'], ['ru--golos', 'голос'],
+    ['ru--dom', 'дом'], ['ru--eda', 'еда'], ['ru--zhiznx', 'жизнь'], ['ru--zdorovxe', 'здоровье'],
+    ['ru--igry', 'игры'], ['ru--iskusstvo', 'искусство'], ['ru--istoriya', 'история'], ['ru--kino', 'кино'],
+    ['ru--kompxyutery', 'компьютеры'], ['ru--konkursy', 'конкурсы'], ['ru--kriptovalyuty', 'криптовалюты'],
+    ['ru--kulxtura', 'культура'], ['ru--literatura', 'литература'], ['ru--mediczina', 'медицина'],
+    ['ru--muzyka', 'музыка'], ['ru--nauka', 'наука'], ['ru--nepoznannoe', 'непознанное'], ['ru--obrazovanie', 'образование'],
+    ['ru--politika', 'политика'], ['ru--pravo', 'право'], ['ru--priroda', 'природа'], ['ru--psikhologiya', 'психология'],
+    ['ru--puteshestviya', 'путешествия'], ['ru--rabota', 'работа'], ['ru--religiya', 'религия'], ['ru--semxya', 'семья'],
+    ['ru--sport', 'спорт'], ['ru--tvorchestvo', 'творчество'], ['ru--tekhnologii', 'технологии'], ['ru--treijding', 'трейдинг'],
+    ['ru--fotografiya', 'фотография'], ['ru--khobbi', 'хобби'], ['ru--yekonomika', 'экономика'], ['ru--yumor', 'юмор'],
+    ['ru--prochee', 'прочее'], ['en', 'en'], ['nsfw', 'nsfw']
+  ];
+
+  const GOLOS_TRANSLIT = {
+    а: 'a', б: 'b', в: 'v', ґ: 'g', г: 'g', д: 'd', е: 'e', ё: 'yo', є: 'ye', ж: 'zh', з: 'z',
+    и: 'i', і: 'i', ї: 'yi', й: 'ij', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
+    с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'cz', ч: 'ch', ш: 'sh', щ: 'shch', ъ: 'xx',
+    ы: 'y', ь: 'x', э: 'ye', ю: 'yu', я: 'ya'
+  };
+
+  function golosLegacyTransform(value, spaceReplacement) {
+    let result = '';
+    let hasCyrillic = false;
+    String(value || '').split('').forEach((char) => {
+      const lower = char.toLowerCase();
+      if (lower === ' ' && spaceReplacement) {
+        result += spaceReplacement;
+      } else if (GOLOS_TRANSLIT[lower]) {
+        result += GOLOS_TRANSLIT[lower];
+        hasCyrillic = true;
+      } else {
+        result += lower;
+      }
+    });
+    result = result.replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return `${hasCyrillic ? 'ru--' : ''}${result}`;
+  }
+
+  function normalizeGolosEditorTags(rawTags) {
+    const tags = String(rawTags || '').split(/\s+/)
+      .map((tag) => golosLegacyTransform(tag, '-'))
+      .filter(Boolean);
+    if (!tags.includes('dpos-post')) tags.push('dpos-post');
+    return tags;
+  }
+
+  function golosEditorCategoryOptions(selected) {
+    const current = selected || 'ru--golos';
+    return GOLOS_EDITOR_CATEGORIES.map(([value, label]) => (
+      `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(label)}</option>`
+    )).join('');
+  }
+
+  function normalizeEditorBeneficiaries(extraAccount, extraWeight) {
+    const beneficiaries = [{ account: 'denis-skripnik', weight: 100 }];
+    const account = String(extraAccount || '').trim().replace(/^@/, '');
+    const weightPercent = Number(extraWeight || 0);
+    if (account && Number.isFinite(weightPercent) && weightPercent > 0) {
+      const weight = Math.min(9900, Math.round(weightPercent * 100));
+      if (account !== 'denis-skripnik') beneficiaries.push({ account, weight });
+    }
+    return beneficiaries.sort((a, b) => a.account.localeCompare(b.account));
+  }
+
+  function buildGolosEditorOperations(chain, form) {
+    const title = String(form.get('title') || '').trim();
+    const tags = normalizeGolosEditorTags(form.get('tags'));
+    const manualPermlink = String(form.get('permlink') || '').trim();
+    const permlink = manualPermlink ? golosLegacyTransform(manualPermlink, '-') : golosLegacyTransform(title, '-');
+    const category = String(form.get('category') || 'ru--golos').trim() || 'ru--golos';
+    const image = String(form.get('image') || '').trim();
+    const images = image ? [image] : [];
+    const payoutPercent = Number(form.get('payouts') || 10000);
+    const curationPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('curation_percent') || 50) * 100)));
+    const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
+    const author = auth.getCurrentLogin(chain);
+    return [
+      ['comment', {
+        parent_author: '',
+        parent_permlink: category,
+        author,
+        permlink,
+        title,
+        body: String(form.get('body') || ''),
+        json_metadata: JSON.stringify({ app: 'dpos.space/post', format: 'markdown', tags, image: images })
+      }],
+      ['comment_options', {
+        author,
+        permlink,
+        max_accepted_payout: '1000000.000 GBG',
+        percent_steem_dollars: payoutPercent,
+        allow_votes: true,
+        allow_curation_rewards: true,
+        extensions: [[0, { beneficiaries }], [2, { percent: curationPercent }]]
+      }]
+    ];
+  }
+
+  function buildGenericEditorOperations(chain, form) {
     const debt = chain.debtSymbol || 'HBD';
+    const author = auth.getCurrentLogin(chain);
+    const tags = String(form.get('tags') || '').split(/\s+/).filter(Boolean);
+    if (!tags.includes('dpos-post')) tags.push('dpos-post');
+    const manualPermlink = String(form.get('permlink') || '').trim();
+    const title = String(form.get('title') || '').trim();
+    const permlink = manualPermlink || golosLegacyTransform(title, '-');
+    const category = String(form.get('category') || tags[0] || 'dpos-post').trim() || 'dpos-post';
+    const image = String(form.get('image') || '').trim().replace(/\s/g, '');
+    const images = image ? image.split(',').map((item) => item.trim()).filter(Boolean) : [];
+    const payoutPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('payouts') || 10000))));
+    const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
+    const metadata = { tags, app: chain.id === 'steem' ? 'dpos.space/post' : 'dpos.space/v3', format: 'markdown', image: images };
+    const operations = [
+      ['comment', {
+        parent_author: '',
+        parent_permlink: category,
+        author,
+        permlink,
+        title,
+        body: String(form.get('body') || ''),
+        json_metadata: JSON.stringify(metadata)
+      }],
+      ['comment_options', {
+        author,
+        permlink,
+        max_accepted_payout: `1000000.000 ${debt}`,
+        percent_steem_dollars: chain.id === 'steem' ? payoutPercent : undefined,
+        percent_hbd: chain.id === 'hive' ? payoutPercent : undefined,
+        allow_votes: true,
+        allow_curation_rewards: true,
+        extensions: [[0, { beneficiaries }]]
+      }]
+    ];
+    return operations.map(([name, payload]) => [name, Object.fromEntries(Object.entries(payload).filter(([, value]) => typeof value !== 'undefined'))]);
+  }
+
+  function parseSteemPostUrl(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/@([^/\s])\/([^/?#\s])/);
+    if (!match) throw new Error('Ссылка должна содержать @author/permlink.');
+    return { author: match[1].replace(/^@/, ''), permlink: match[2].replace(/\/$/, '') };
+  }
+
+  function applyEditorDraftToForm(form, draft) {
+    if (!form || !draft) return;
+    const set = (name, value) => {
+      const field = form.elements.namedItem(name);
+      if (field && typeof field.value !== 'undefined') field.value = value || '';
+    };
+    set('title', draft.title);
+    set('tags', draft.tags);
+    set('image', draft.image);
+    set('permlink', draft.permlink);
+    set('body', draft.body);
+    if (draft.category) set('category', draft.category);
+    if (draft.payouts) set('payouts', draft.payouts);
+  }
+
+  function bindSteemPostLegacyHelpers(chain) {
+    if (chain.id !== 'steem' && chain.id !== 'hive') return;
+    const form = document.getElementById('editor-form');
+    const fileInput = document.getElementById('editor-md-file');
+    const loadButton = document.getElementById('editor-load-edit');
+    const editUrl = document.getElementById('editor-edit-url');
+    const status = document.getElementById('editor-helper-status');
+    const report = (message) => { if (status) status.textContent = message; };
+
+    if (fileInput && form) {
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const lines = String(reader.result || '').split(/\r?\n/);
+          applyEditorDraftToForm(form, {
+            title: lines[0] || '',
+            tags: lines[1] || '',
+            body: lines.slice(2).join('\n')
+          });
+          report('Markdown файл загружен в редактор локально.');
+        };
+        reader.onerror = () => report('Не удалось прочитать markdown файл.');
+        reader.readAsText(file);
+      });
+    }
+
+    if (loadButton && editUrl && form) {
+      loadButton.addEventListener('click', async () => {
+        try {
+          const target = parseSteemPostUrl(editUrl.value);
+          const connection = await getConnection(chain);
+          const api = connection.client && connection.client.api;
+          let post;
+          if (api && typeof api.getContentAsync === 'function') {
+            post = await api.getContentAsync(target.author, target.permlink);
+          } else if (api && typeof api.getContent === 'function') {
+            post = await new Promise((resolve, reject) => api.getContent(target.author, target.permlink, (err, result) => err ? reject(err) : resolve(result)));
+          } else {
+            throw new Error(`Public RPC getContent недоступен в браузерной библиотеке ${chain.title}.`);
+          }
+          if (!post || !post.author) throw new Error('Пост не найден через публичный RPC.');
+          let metadata = {};
+          try { metadata = JSON.parse(post.json_metadata || '{}'); } catch (error) { metadata = {}; }
+          applyEditorDraftToForm(form, {
+            title: post.title,
+            tags: Array.isArray(metadata.tags) ? metadata.tags.join(' ') : '',
+            image: Array.isArray(metadata.image) ? metadata.image.join(',') : '',
+            permlink: post.permlink,
+            body: post.body,
+            category: metadata.tags && metadata.tags[0] || post.parent_permlink,
+            payouts: chain.id === 'hive' ? post.percent_hbd : post.percent_steem_dollars
+          });
+          report(`Пост @${target.author}/${target.permlink} загружен через публичный RPC.`);
+        } catch (error) {
+          report(profiles.formatError(error));
+        }
+      });
+    }
+  }
+
+  function renderEditor(chain) {
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
+    const isGolos = chain.id === 'golos';
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
@@ -3434,48 +4887,529 @@
           <fieldset>
             <legend>Публикация поста</legend>
             <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
-            <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" required></div>
-            <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space"></div>
+            ${isGolos ? `<div class="field"><label for="editor-category">Категория</label><select id="editor-category" name="category">${golosEditorCategoryOptions(draft && draft.category)}</select></div>` : ''}
+            <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
+            ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
+            ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic и Imgur upload кнопка не копируются; вставьте URL изображения вручную.</p></details>` : ''}
+            <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space" value="${escapeHtml(draft && draft.tags ? draft.tags : '')}"></div>
+            ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
+            ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
+            ${isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             <div class="field"><label for="editor-body">Текст поста</label><textarea id="editor-body" name="body" rows="8" required>${escapeHtml(draft && draft.body ? draft.body : '')}</textarea></div>
+            ${!isGolos ? `<div class="field"><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в ${escapeHtml(chain.debtSymbol || 'HBD')} и ${escapeHtml(chain.liquidSymbol || 'HIVE')}, 50% в ${escapeHtml(chain.powerTitle || 'HP')}</option><option value="0">100% в ${escapeHtml(chain.powerTitle || 'HP')}</option></select></div>
+              <fieldset><legend>Бенефициарские</legend><p class="muted">Бенефициарские 1%: по legacy умолчанию сохраняется 1% для denis-skripnik; можно добавить ещё одного бенефициара.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
+            ${isGolos ? `
+              <div class="field"><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в GBG/GOLOS, 50% в СГ</option><option value="0">100% в СГ</option></select></div>
+              <div class="field"><label for="editor-curation-percent">Процент кураторам</label><input id="editor-curation-percent" name="curation_percent" type="number" min="0" max="100" step="1" value="50"></div>
+              <fieldset><legend>Бенефициарские</legend><p class="muted">По legacy умолчанию сохраняется 1% для denis-skripnik.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
             <button type="submit" name="intent" value="preview">Проверить публикацию</button>
             <button type="submit" name="intent" value="send">Опубликовать в сеть</button>
+            <button type="reset">Очистка форм поста</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
         ${draft ? `<p class="notice">Загружен черновик из импорта: ${escapeHtml(draft.sourceUrl || draft.importedAt || '')}</p>` : ''}
-        <p class="muted">Параметры выплат выставлены по умолчанию. Перед отправкой проверьте итоговые данные операции.</p>
+        <p class="muted">${isGolos ? 'Golos payload сохраняет legacy category, payout, beneficiaries и curator rewards; preview/JSON перед отправкой обязателен.' : 'Параметры выплат выставлены по умолчанию. Перед отправкой проверьте итоговые данные операции.'}</p>
       </section>`;
     bindOperationForm(chain, 'editor-form', (form) => {
-      const author = auth.getCurrentLogin(chain);
-      const tags = String(form.get('tags') || '').split(/\s+/).filter(Boolean);
-      const permlink = String(form.get('permlink') || '').trim();
-      const operations = [
-        ['comment', {
-          parent_author: '',
-          parent_permlink: tags[0] || 'dpos',
-          author,
-          permlink,
-          title: String(form.get('title') || '').trim(),
-          body: String(form.get('body') || ''),
-          json_metadata: JSON.stringify({ tags, app: 'dpos.space/v3' })
-        }],
-        ['comment_options', {
-          author,
-          permlink,
-          max_accepted_payout: `1000000.000 ${debt}`,
-          percent_steem_dollars: chain.id === 'steem' ? 10000 : undefined,
-          percent_hbd: chain.id === 'hive' ? 10000 : undefined,
-          allow_votes: true,
-          allow_curation_rewards: true,
-          extensions: []
-        }]
-      ].map(([name, payload]) => [name, Object.fromEntries(Object.entries(payload).filter(([, value]) => typeof value !== 'undefined'))]);
+      const operations = chain.id === 'golos'
+        ? buildGolosEditorOperations(chain, form)
+        : buildGenericEditorOperations(chain, form);
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
     });
+    bindSteemPostLegacyHelpers(chain);
+    bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
   }
 
+  function parseAssetAmount(value) {
+    if (typeof value === 'number') return value;
+    return Number.parseFloat(String(value || '0').replace(',', '.')) || 0;
+  }
+
+  function round3(value) {
+    return Math.round(Number(value || 0) * 1000) / 1000;
+  }
+
+  const VIZ_CALCULATOR_FALLBACK_PROPS = Object.freeze({
+    total_vesting_fund: '1000000.000 VIZ',
+    total_vesting_shares: '1000000000000.000000 SHARES',
+    total_reward_fund: '1000.000 VIZ',
+    total_reward_shares: '1000000000000'
+  });
+
+  async function loadVizCalculatorContext(connection) {
+    try {
+      const [props, chainProps, config] = await Promise.all([
+        profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+        profiles.apiCall(connection, 'getChainProperties', []).catch(() => null),
+        profiles.apiCall(connection, 'getConfig', []).catch(() => null)
+      ]);
+      return { props, chainProps, config, source: 'public RPC', error: '' };
+    } catch (error) {
+      return {
+        props: VIZ_CALCULATOR_FALLBACK_PROPS,
+        chainProps: null,
+        config: null,
+        source: 'static fallback',
+        error: profiles.formatError(error)
+      };
+    }
+  }
+
+  function calculateVizAwardValue(input) {
+    const shares = Number(input.shares || 0);
+    const charge = Number(input.charge || 0);
+    const totalVestingFund = parseAssetAmount(input.totalVestingFund);
+    const totalVestingShares = parseAssetAmount(input.totalVestingShares);
+    const totalRewardFund = parseAssetAmount(input.totalRewardFund);
+    const totalRewardShares = Number.parseInt(input.totalRewardShares || '0', 10) || 0;
+    if (!totalVestingFund || !totalVestingShares || !totalRewardFund || !totalRewardShares) return 0;
+    return Math.trunc((Number(shares) * Number(charge) / 100 / (totalRewardShares / 1000000) * totalRewardFund / (totalVestingFund / totalVestingShares) * 1000000) || 0) / 1000000;
+  }
+
+  async function loadGolosCalculatorContext(connection) {
+    const [props, chainProps, feed, ticker] = await Promise.all([
+      profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+      profiles.apiCall(connection, 'getChainProperties', []),
+      profiles.apiCall(connection, 'getFeedHistory', []),
+      profiles.apiCall(connection, 'getTicker', []).catch(() => null)
+    ]);
+    return { props, chainProps, feed, ticker };
+  }
+
+  async function loadSteemCalculatorContext(connection) {
+    const [props, chainProps, feed, ticker, config, rewardFund] = await Promise.all([
+      profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+      profiles.apiCall(connection, 'getChainProperties', []).catch(() => null),
+      profiles.apiCall(connection, 'getFeedHistory', []),
+      profiles.apiCall(connection, 'getTicker', []).catch(() => null),
+      profiles.apiCall(connection, 'getConfig', []).catch(() => null),
+      profiles.apiCall(connection, 'getRewardFund', ['post'])
+    ]);
+    return { props, chainProps, feed, ticker, config, rewardFund };
+  }
+
+  function calculateSteemUpvoteValue(input) {
+    const sp = Number(input.sp || 0);
+    const battery = Number(input.battery || 0);
+    const weight = Number(input.weight || 0);
+    const props = input.props || {};
+    const feed = input.feed || {};
+    const rewardFund = input.rewardFund || {};
+    const totalVestingFund = parseAssetAmount(props.total_vesting_fund_steem);
+    const totalVestingShares = parseAssetAmount(props.total_vesting_shares);
+    const steemPerVests = totalVestingShares ? 1000000 * totalVestingFund / totalVestingShares : 0;
+    const vestingShares = steemPerVests ? sp * 1000000 / steemPerVests : 0;
+    const steemA = totalVestingFund / totalVestingShares;
+    const steemN = 100;
+    const steemR = steemA ? sp / steemA : 0;
+    const steemM2 = 100 * battery * (100 * steemN) / 10000;
+    const steemM = (steemM2 + 49) / 50;
+    const rewardBalance = parseAssetAmount(rewardFund.reward_balance);
+    const recentClaims = Number.parseFloat(rewardFund.recent_claims || '0') || 0;
+    const steemI = recentClaims ? rewardBalance / recentClaims : 0;
+    const median = feed.current_median_history || {};
+    const base = parseAssetAmount(median.base);
+    const quote = parseAssetAmount(median.quote);
+    const medianPrice = quote ? Math.round((base / quote) * 100) / 100 : 0;
+    const steemValue = round3(steemR * steemM * 100 * steemI) * (weight / 100);
+    return {
+      steem: round3(steemValue),
+      sbd: round3(round3(steemR * steemM * 100 * steemI) * medianPrice * (weight / 100)),
+      medianPrice,
+      vestingShares
+    };
+  }
+
+  async function loadHiveCalculatorContext(connection) {
+    const [props, chainProps, feed, ticker, config, rewardFund] = await Promise.all([
+      profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+      profiles.apiCall(connection, 'getChainProperties', []).catch(() => null),
+      profiles.apiCall(connection, 'getFeedHistory', []),
+      profiles.apiCall(connection, 'getTicker', []).catch(() => null),
+      profiles.apiCall(connection, 'getConfig', []).catch(() => null),
+      profiles.apiCall(connection, 'getRewardFund', ['post'])
+    ]);
+    return { props, chainProps, feed, ticker, config, rewardFund };
+  }
+
+  function calculateHiveUpvoteValue(input) {
+    const hp = Number(input.hp || 0);
+    const battery = Number(input.battery || 0);
+    const weight = Number(input.weight || 0);
+    const props = input.props || {};
+    const feed = input.feed || {};
+    const rewardFund = input.rewardFund || {};
+    const totalVestingFund = parseAssetAmount(props.total_vesting_fund_hive);
+    const totalVestingShares = parseAssetAmount(props.total_vesting_shares);
+    const hivePerVests = totalVestingShares ? 1000000 * totalVestingFund / totalVestingShares : 0;
+    const vestingShares = hivePerVests ? hp * 1000000 / hivePerVests : 0;
+    const hiveA = totalVestingFund / totalVestingShares;
+    const hiveN = 100;
+    const hiveR = hiveA ? hp / hiveA : 0;
+    const hiveM2 = 100 * battery * (100 * hiveN) / 10000;
+    const hiveM = (hiveM2 + 49) / 50;
+    const rewardBalance = parseAssetAmount(rewardFund.reward_balance);
+    const recentClaims = Number.parseFloat(rewardFund.recent_claims || '0') || 0;
+    const hiveI = recentClaims ? rewardBalance / recentClaims : 0;
+    const median = feed.current_median_history || {};
+    const base = parseAssetAmount(median.base);
+    const quote = parseAssetAmount(median.quote);
+    const medianPrice = quote ? Math.round((base / quote) * 100) / 100 : 0;
+    const hiveValue = round3(hiveR * hiveM * 100 * hiveI) * (weight / 100);
+    return {
+      hive: round3(hiveValue),
+      hbd: round3(round3(hiveR * hiveM * 100 * hiveI) * medianPrice * (weight / 100)),
+      medianPrice,
+      vestingShares
+    };
+  }
+
+  function calculateGolosUpvoteValue(input) {
+    const sg = Number(input.sg || 0);
+    const battery = Number(input.battery || 0);
+    const weight = Number(input.weight || 0);
+    const props = input.props || {};
+    const chainProps = input.chainProps || {};
+    const feed = input.feed || {};
+    const ticker = input.ticker || null;
+    const totalFund = parseAssetAmount(props.total_vesting_fund_steem);
+    const totalShares = parseAssetAmount(props.total_vesting_shares);
+    const totalRewardFund = parseAssetAmount(props.total_reward_fund_steem);
+    const totalRewardShares2 = Number.parseFloat(props.total_reward_shares2 || '0') || 0;
+    const steemPerVests = totalShares ? 1000000 * totalFund / totalShares : 0;
+    const vestingShares = steemPerVests ? sg * 1000000 / steemPerVests : 0;
+    const median = feed.current_median_history || {};
+    const base = parseAssetAmount(median.base);
+    const quote = parseAssetAmount(median.quote);
+    const medianPrice = quote ? round3(base / quote) : 0;
+    const tickerPrice = ticker ? Number.parseFloat(ticker.latest || '0') || 0 : 0;
+    const golosPerVests = totalShares ? totalFund / totalShares : 0;
+    const golosPower = round3(vestingShares * golosPerVests);
+    const vestShares = golosPerVests ? 1000000 * golosPower / golosPerVests : 0;
+    const maxVoteDenom = Number(chainProps.vote_regeneration_per_day || 0) * 5;
+    const usedPower = maxVoteDenom ? Math.trunc(battery * 100 + maxVoteDenom - 1) / maxVoteDenom : 0;
+    const rshares = Math.round((vestShares * usedPower) / 10000);
+    const valueGolos = totalRewardShares2 ? round3(rshares * totalRewardFund / totalRewardShares2) : 0;
+    return {
+      golos: round3(valueGolos * (weight / 100)),
+      medianGbg: medianPrice ? round3(valueGolos * medianPrice * (weight / 100)) : 0,
+      marketGbg: tickerPrice ? round3(valueGolos * tickerPrice * (weight / 100)) : null,
+      medianPrice,
+      tickerPrice
+    };
+  }
+
+  async function renderGolosCalculator(chain, account) {
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора Golos</h2><p>Читаю параметры сети...</p></section>';
+    const connection = await getConnection(chain);
+    const context = await loadGolosCalculatorContext(connection);
+    const props = context.props || {};
+    const totalFund = parseAssetAmount(props.total_vesting_fund_steem);
+    const totalShares = parseAssetAmount(props.total_vesting_shares);
+    const perMillion = totalFund && totalShares ? (1000000 * totalFund / totalShares) : 0;
+
+    appEl.innerHTML = `
+      <section class="panel calculator-golos">
+        <h2>Golos: калькулятор GOLOS/GBG/СГ</h2>
+        <p>Статический перенос legacy-калькулятора: расчёт стоимости апвоута, примерной награды из СГ за сутки и перевод GESTS в СГ по публичной ноде.</p>
+        <ul>
+          <li><strong>1 000 000 GESTS ≈</strong> ${escapeHtml(perMillion.toFixed(3))} СГ</li>
+          <li><strong>total_vesting_fund_steem:</strong> ${escapeHtml(props.total_vesting_fund_steem || '')}</li>
+          <li><strong>total_vesting_shares:</strong> ${escapeHtml(props.total_vesting_shares || '')}</li>
+        </ul>
+        <form id="golos-upvote-calculator-form" class="stacked-form">
+          <fieldset>
+            <legend>Рассчитываем стоимость апвоута в зависимости от введённой СГ</legend>
+            <div class="field"><label for="golos-upvote-sg">Введите Значение СГ</label><input id="golos-upvote-sg" name="sg" type="number" min="0" step="0.001" required value="1000"></div>
+            <div class="field"><label for="golos-upvote-battery">Введите батарейку (от 1 до 100)</label><input id="golos-upvote-battery" name="battery" type="number" min="1" max="100" step="0.01" required value="100"></div>
+            <div class="field"><label for="golos-upvote-weight">Процент апвоута (от 1 до 100)</label><input id="golos-upvote-weight" name="weight" type="number" min="1" max="100" step="0.01" required value="100"></div>
+            <button type="submit">Вывести стоимость апвоута</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="golos-daily-sg-form" class="stacked-form">
+          <fieldset>
+            <legend>Примерная награда из СГ за сутки</legend>
+            <div class="field"><label for="golos-daily-sg">Количество СГ</label><input id="golos-daily-sg" name="sg" type="number" min="0" step="0.001" required value="10000"></div>
+            <button type="submit">Рассчитать награду с СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="golos-gests-form" class="stacked-form">
+          <fieldset>
+            <legend>Перевод GESTS в СГ</legend>
+            <div class="field"><label for="golos-gests">Количество GESTS</label><input id="golos-gests" name="gests" type="number" min="0" step="0.000001" required value="1000000"></div>
+            <button type="submit">Рассчитать GESTS в СГ</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        ${context.ticker ? '' : '<p class="notice">Курс продажи GBG недоступен с текущей ноды; для стоимости апвоута будет показана медиана без рыночного GBG.</p>'}
+      </section>`;
+
+    document.getElementById('golos-upvote-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const result = calculateGolosUpvoteValue({
+        sg: form.get('sg'),
+        battery: form.get('battery'),
+        weight: form.get('weight'),
+        props: context.props,
+        chainProps: context.chainProps,
+        feed: context.feed,
+        ticker: context.ticker
+      });
+      const market = result.marketGbg === null ? 'недоступно' : `${result.marketGbg.toFixed(3)} GBG по курсу продажи`;
+      setOperationResult(event.currentTarget, `Стоимость апвоута: ${result.golos.toFixed(3)} GOLOS, ${market}, ${result.medianGbg.toFixed(3)} GBG по медиане.`, 'ok');
+    });
+
+    document.getElementById('golos-daily-sg-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const sg = Number(new FormData(event.currentTarget).get('sg') || 0);
+      const dailyReward = round3((sg / 10000) * 7);
+      setOperationResult(event.currentTarget, `Результат конвертации: ${dailyReward.toFixed(3)} СГ`, 'ok');
+    });
+
+    document.getElementById('golos-gests-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const gests = Number(new FormData(event.currentTarget).get('gests') || 0);
+      const sg = totalShares ? round3(gests * totalFund / totalShares) : 0;
+      setOperationResult(event.currentTarget, `Результат конвертации: ${sg.toFixed(3)} СГ`, 'ok');
+    });
+
+    setStatus(`Golos калькулятор загружен${account ? ` для @${account}` : ''}.`, 'ok');
+  }
+
+  async function renderSteemCalculator(chain, account) {
+    appEl.innerHTML = '<section class="panel calculator-steem"><h2>Загрузка калькулятора Steem</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Steem RPC-ноду...</p></section>';
+    let connection;
+    let context;
+    try {
+      connection = await getConnection(chain);
+      context = await loadSteemCalculatorContext(connection);
+    } catch (error) {
+      appEl.innerHTML = `<section class="panel calculator-steem"><h2>Steem: калькулятор SP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Steem RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      setStatus('Steem калькулятор не смог получить публичные RPC-параметры.', 'error');
+      return;
+    }
+    const props = context.props || {};
+    const totalFund = parseAssetAmount(props.total_vesting_fund_steem);
+    const totalShares = parseAssetAmount(props.total_vesting_shares);
+    const steemPerVests = totalShares ? 1000000 * totalFund / totalShares : 0;
+
+    appEl.innerHTML = `
+      <section class="panel calculator-steem">
+        <h2>Steem: Блокчейн-калькулятор</h2>
+        <p>Статический перенос legacy-калькулятора: рассчёт стоимости апвота по SP, батарейке и весу голоса, а также перевод VESTS в SP. Все параметры читаются из публичной Steem RPC; PHP endpoint и серверные snippets не используются.</p>
+        <ul>
+          <li><strong>1 000 000 VESTS ≈</strong> ${escapeHtml(steemPerVests.toFixed(3))} SP</li>
+          <li><strong>total_vesting_fund_steem:</strong> ${escapeHtml(props.total_vesting_fund_steem || '')}</li>
+          <li><strong>total_vesting_shares:</strong> ${escapeHtml(props.total_vesting_shares || '')}</li>
+          <li><strong>reward_balance:</strong> ${escapeHtml((context.rewardFund && context.rewardFund.reward_balance) || '')}</li>
+          <li><strong>recent_claims:</strong> ${escapeHtml((context.rewardFund && context.rewardFund.recent_claims) || '')}</li>
+          <li><strong>feed median:</strong> ${escapeHtml(((context.feed || {}).current_median_history || {}).base || '')} / ${escapeHtml(((context.feed || {}).current_median_history || {}).quote || '')}</li>
+          <li><strong>get_chain_properties.php / get_config.php:</strong> заменены public RPC getChainProperties/getConfig${context.chainProps || context.config ? '' : ' (не требуются формулами, но опрошены как legacy evidence)'}</li>
+        </ul>
+        <form id="steem-upvote-calculator-form" class="stacked-form"><fieldset>
+          <legend>Рассчитываем стоимость апвота в зависимости от введённой Steem power</legend>
+          <div class="field"><label for="steem-upvote-sp">Введите Значение SP</label><input id="steem-upvote-sp" name="sp" type="number" min="0" step="0.001" required value="1000"></div>
+          <div class="field"><label for="steem-upvote-battery">Введите батарейку (от 1 до 100)</label><input id="steem-upvote-battery" name="battery" type="number" min="1" max="100" step="0.01" required value="100"></div>
+          <div class="field"><label for="steem-upvote-weight">Процент апвота (от 1 до 100, устанавливается под постом, если Силы Голоса достаточно для этого)</label><input id="steem-upvote-weight" name="weight" type="number" min="1" max="100" step="0.01" required value="100"></div>
+          <button type="submit">Вывести стоимость апвота</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="steem-vests-form" class="stacked-form"><fieldset>
+          <legend>Перевод VESTS в SP</legend>
+          <div class="field"><label for="steem-vests">Количество VESTS</label><input id="steem-vests" name="vests" type="number" min="0" step="0.000001" required value="1000000"></div>
+          <button type="submit">Рассчитать VESTS в SP</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+
+    document.getElementById('steem-upvote-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const result = calculateSteemUpvoteValue({
+        sp: form.get('sp'),
+        battery: form.get('battery'),
+        weight: form.get('weight'),
+        props: context.props,
+        feed: context.feed,
+        rewardFund: context.rewardFund
+      });
+      setOperationResult(event.currentTarget, `Стоимость апвота: ${result.steem.toFixed(3)} STEEM, ${result.sbd.toFixed(3)} SBD.`, 'ok');
+    });
+
+    document.getElementById('steem-vests-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const vests = Number(new FormData(event.currentTarget).get('vests') || 0);
+      const sp = round3(vests / 1000000 * steemPerVests);
+      setOperationResult(event.currentTarget, `Результат конвертации: ${sp.toFixed(3)} SP`, 'ok');
+    });
+
+    setStatus(`Steem калькулятор загружен${account ? ` для @${account}` : ''}.`, 'ok');
+  }
+
+  async function renderHiveCalculator(chain, account) {
+    appEl.innerHTML = '<section class="panel calculator-hive"><h2>Загрузка калькулятора Hive</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Hive RPC-ноду...</p></section>';
+    let connection;
+    let context;
+    try {
+      connection = await getConnection(chain);
+      context = await loadHiveCalculatorContext(connection);
+    } catch (error) {
+      appEl.innerHTML = `<section class="panel calculator-hive"><h2>Hive: калькулятор HP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Hive RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      setStatus('Hive калькулятор не смог получить публичные RPC-параметры.', 'error');
+      return;
+    }
+    const props = context.props || {};
+    const totalFund = parseAssetAmount(props.total_vesting_fund_hive);
+    const totalShares = parseAssetAmount(props.total_vesting_shares);
+    const hivePerVests = totalShares ? 1000000 * totalFund / totalShares : 0;
+
+    appEl.innerHTML = `
+      <section class="panel calculator-hive">
+        <h2>Hive: Блокчейн-калькулятор</h2>
+        <p>Статический перенос legacy-калькулятора: рассчёт стоимости апвота по HP, батарейке и весу голоса, а также перевод VESTS в HP. Все параметры читаются из публичной Hive RPC; PHP endpoint и серверные snippets не используются.</p>
+        <ul>
+          <li><strong>1 000 000 VESTS ≈</strong> ${escapeHtml(hivePerVests.toFixed(3))} HP</li>
+          <li><strong>total_vesting_fund_hive:</strong> ${escapeHtml(props.total_vesting_fund_hive || '')}</li>
+          <li><strong>total_vesting_shares:</strong> ${escapeHtml(props.total_vesting_shares || '')}</li>
+          <li><strong>reward_balance:</strong> ${escapeHtml((context.rewardFund && context.rewardFund.reward_balance) || '')}</li>
+          <li><strong>recent_claims:</strong> ${escapeHtml((context.rewardFund && context.rewardFund.recent_claims) || '')}</li>
+          <li><strong>feed median:</strong> ${escapeHtml(((context.feed || {}).current_median_history || {}).base || '')} / ${escapeHtml(((context.feed || {}).current_median_history || {}).quote || '')}</li>
+          <li><strong>get_chain_properties.php / get_config.php:</strong> заменены public RPC getChainProperties/getConfig${context.chainProps || context.config ? '' : ' (не требуются формулами, но опрошены как legacy evidence)'}</li>
+        </ul>
+        <form id="hive-upvote-calculator-form" class="stacked-form"><fieldset>
+          <legend>Рассчитываем стоимость апвота в зависимости от введённой Hive power</legend>
+          <div class="field"><label for="hive-upvote-hp">Введите Значение HP</label><input id="hive-upvote-hp" name="hp" type="number" min="0" step="0.001" required value="1000"></div>
+          <div class="field"><label for="hive-upvote-battery">Введите батарейку (от 1 до 100)</label><input id="hive-upvote-battery" name="battery" type="number" min="1" max="100" step="0.01" required value="100"></div>
+          <div class="field"><label for="hive-upvote-weight">Процент апвота (от 1 до 100, устанавливается под постом, если Силы Голоса достаточно для этого)</label><input id="hive-upvote-weight" name="weight" type="number" min="1" max="100" step="0.01" required value="100"></div>
+          <button type="submit">Вывести стоимость апвота</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="hive-vests-form" class="stacked-form"><fieldset>
+          <legend>Перевод VESTS в HP</legend>
+          <div class="field"><label for="hive-vests">Количество VESTS</label><input id="hive-vests" name="vests" type="number" min="0" step="0.000001" required value="1000000"></div>
+          <button type="submit">Рассчитать VESTS в HP</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+
+    document.getElementById('hive-upvote-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const result = calculateHiveUpvoteValue({
+        hp: form.get('hp'),
+        battery: form.get('battery'),
+        weight: form.get('weight'),
+        props: context.props,
+        feed: context.feed,
+        rewardFund: context.rewardFund
+      });
+      setOperationResult(event.currentTarget, `Стоимость апвота: ${result.hive.toFixed(3)} HIVE, ${result.hbd.toFixed(3)} HBD.`, 'ok');
+    });
+
+    document.getElementById('hive-vests-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const vests = Number(new FormData(event.currentTarget).get('vests') || 0);
+      const hp = round3(vests / 1000000 * hivePerVests);
+      setOperationResult(event.currentTarget, `Результат конвертации: ${hp.toFixed(3)} HP`, 'ok');
+    });
+
+    setStatus(`Hive калькулятор загружен${account ? ` для @${account}` : ''}.`, 'ok');
+  }
+
+  async function renderVizCalculator(chain, account) {
+    appEl.innerHTML = '<section class="panel calculator-viz"><h2>Загрузка калькулятора VIZ</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties и config через публичную VIZ RPC-ноду...</p></section>';
+    let connection = null;
+    let context = null;
+    try {
+      connection = await getConnection(chain);
+      context = await loadVizCalculatorContext(connection);
+    } catch (error) {
+      context = {
+        props: VIZ_CALCULATOR_FALLBACK_PROPS,
+        chainProps: null,
+        config: null,
+        source: 'static fallback',
+        error: profiles.formatError(error)
+      };
+    }
+    const props = context.props || VIZ_CALCULATOR_FALLBACK_PROPS;
+    appEl.innerHTML = `
+      <section class="panel calculator-viz">
+        <h2>VIZ: калькулятор SHARES/энергии</h2>
+        <p>Статический перенос legacy calc без PHP/backend-runtime: стоимость награды по SHARES и charge, фонд приложения при награждении 0.1%, конвертация vesting shares → соц. капитал.</p>
+        <p class="notice" role="status" aria-live="polite">Источник параметров: ${escapeHtml(context.source)}${context.error ? `. Публичная RPC-нода недоступна или вернула ошибку, используются статические fallback-значения: ${escapeHtml(context.error)}` : ''}</p>
+        <ul>
+          <li><strong>total_vesting_fund:</strong> ${escapeHtml(props.total_vesting_fund || '')}</li>
+          <li><strong>total_vesting_shares:</strong> ${escapeHtml(props.total_vesting_shares || '')}</li>
+          <li><strong>total_reward_fund:</strong> ${escapeHtml(props.total_reward_fund || '')}</li>
+          <li><strong>total_reward_shares:</strong> ${escapeHtml(props.total_reward_shares || '')}</li>
+          <li><strong>get_chain_properties.php:</strong> заменён public RPC getChainProperties${context.chainProps ? '' : ' (не требуется формулами legacy calculator)'}</li>
+          <li><strong>get_config.php:</strong> заменён public RPC getConfig${context.config ? '' : ' (не требуется формулами legacy calculator)'}</li>
+        </ul>
+        <form id="viz-award-value-calculator-form" class="stacked-form"><fieldset>
+          <legend>Рассчитываем сумму награждения других аккаунтов в зависимости от социального капитала</legend>
+          <div class="field"><label for="viz-calc-shares">Введите Значение Соц. капитал (SHARES)</label><input id="viz-calc-shares" name="shares" type="number" min="0" step="0.001" required value="1000"></div>
+          <div class="field"><label for="viz-calc-charge">Введите процент энергии</label><input id="viz-calc-charge" name="charge" type="number" min="0.01" max="100" step="0.01" required value="1"></div>
+          <button type="submit">Вывести</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-award-fund-calculator-form" class="stacked-form"><fieldset>
+          <legend>Для разработчиков: формирование наградного фонда</legend>
+          <div class="field"><label for="viz-calc-fund-shares">Введите Значение Соц. капитал (SHARES)</label><input id="viz-calc-fund-shares" name="shares" type="number" min="0" step="0.001" required value="1000"></div>
+          <button type="submit">Вывести</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-vesting-calculator-form" class="stacked-form"><fieldset>
+          <legend>Перевод VIZ в SHARES</legend>
+          <div class="field"><label for="viz-calc-vesting">Количество VIZ</label><input id="viz-calc-vesting" name="vesting" type="number" min="0" step="0.000001" value="1000000"></div>
+          <button type="submit">Рассчитать</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+    const totalVestingFund = parseAssetAmount(props.total_vesting_fund);
+    const totalVestingShares = parseAssetAmount(props.total_vesting_shares);
+    const totalRewardFund = parseAssetAmount(props.total_reward_fund);
+    const totalRewardShares = Number.parseInt(props.total_reward_shares || '0', 10) || 0;
+    const awardValue = (shares, charge) => calculateVizAwardValue({ shares, charge, totalVestingFund, totalVestingShares, totalRewardFund, totalRewardShares });
+    document.getElementById('viz-award-value-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const payout = awardValue(form.get('shares'), form.get('charge'));
+      setOperationResult(event.currentTarget, `Награда даст примерно ${payout} SHARES.`, 'ok');
+    });
+    document.getElementById('viz-award-fund-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const shares = Number(new FormData(event.currentTarget).get('shares') || 0);
+      const awardFund = awardValue(shares, 0.1);
+      const withdrawAmount = awardFund * 200;
+      const allSharesForWithdrawal = withdrawAmount * 28;
+      setOperationResult(event.currentTarget, `Если у вас есть приложение, можете создать наградной фонд. Как? Награждаете свой аккаунт раз в 432 секунды на 0.1%. Вы будете получать ${awardFund} SHARES. Раз в сутки необходимо из соц. капитала выводить ${withdrawAmount} SHARES, а для этого доступно к выводу в соц. капитале должно быть не менее ${allSharesForWithdrawal} SHARES.`, 'ok');
+    });
+    document.getElementById('viz-vesting-calculator-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const value = Number(new FormData(event.currentTarget).get('vesting') || 0);
+      const steemPerVests = totalVestingShares ? (1000000 * totalVestingFund / totalVestingShares) : 0;
+      const result = Math.round((value / 1000000 * steemPerVests) * 1000) / 1000;
+      setOperationResult(event.currentTarget, `Результат конвертации: ${result} соц. капитала.`, 'ok');
+    });
+    setStatus(`VIZ калькулятор загружен${account ? ` для @${account}` : ''}.`, 'ok');
+  }
+
   async function renderCalculator(chain, account) {
+    if (chain.id === 'golos') {
+      await renderGolosCalculator(chain, account);
+      return;
+    }
+    if (chain.id === 'viz') {
+      await renderVizCalculator(chain, account);
+      return;
+    }
+    if (chain.id === 'steem') {
+      await renderSteemCalculator(chain, account);
+      return;
+    }
+    if (chain.id === 'hive') {
+      await renderHiveCalculator(chain, account);
+      return;
+    }
     appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора</h2><p>Читаю параметры сети...</p></section>';
     const connection = await getConnection(chain);
     const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
@@ -3515,7 +5449,19 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: управление</h2>
-        <p>Управление аккаунтом: proxy, голосование за witness, настройки witness, профиль и права доступа. Для VIZ доступны invite и committee операции.</p>
+        <p>Управление блокчейном и профилем: proxy, голосование за witness, настройки witness, профиль и права доступа. Для VIZ доступны invite и committee операции.</p>
+        ${chain.id === 'viz' ? `<nav id="viz-manage-nav" aria-label="Страницы VIZ manage">
+          <a href="#viz-manage-profile">Профиль</a>
+          <a href="#viz-manage-witnesses">Делегаты</a>
+          <a href="#viz-manage-witness">Управление делегатом</a>
+          <a href="#viz-manage-workers">Заявки воркеров</a>
+          <a href="#viz-manage-create-account">Создать аккаунт/субаккаунт</a>
+          <a href="#viz-manage-access">Доступы аккаунта</a>
+          <a href="#viz-manage-reset-keys">Сброс ключей</a>
+          <a href="#viz-manage-many-invites">Множество инвайтов (чеков)</a>
+          <a href="#viz-manage-multisig">Мультисиг</a>
+        </nav>` : ''}
+        <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">Делегаты / witness votes</h3></section>
         <form id="manage-proxy-form" class="stacked-form">
           <fieldset>
             <legend>Witness proxy</legend>
@@ -3535,22 +5481,41 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
+        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<form id="manage-witnesses-batch-form" class="stacked-form">
+          <fieldset>
+            <legend>Список делегатов / batch witness vote</legend>
+            <p class="muted">Загружает текущие witness_votes и список делегатов через публичный RPC. Отправляет только изменения.</p>
+            <button type="button" id="manage-witnesses-load">Загрузить список делегатов</button>
+            <button type="submit" name="intent" value="preview">Проверить изменения голосов</button>
+            <button type="submit" name="intent" value="send">Отправить изменения голосов</button>
+            <div id="manage-witnesses-result" class="operation-result" role="status" aria-live="polite"></div>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>` : ''}
         <form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
-            <legend>Настройки / активация witness</legend>
+            <legend><span id="viz-manage-witness">Настройки / активация witness</span></legend>
             <p class="muted">Настройки witness: URL, публичный signing key и параметры. Пустые параметры будут обработаны библиотекой или нодой, если это поддерживается.</p>
             <div class="field"><label for="manage-witness-url">URL witness</label><input id="manage-witness-url" name="url" type="url" required></div>
-            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" required></div>
+            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" placeholder="пусто = деактивировать witness"></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
             <div class="field"><label for="manage-witness-props">Props JSON (опционально)</label><textarea id="manage-witness-props" name="props" rows="4" placeholder='{"account_creation_fee":"3.000 ${escapeHtml(chain.liquidSymbol)}"}'></textarea></div>
+            ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие witness настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
             <button type="submit" name="intent" value="preview">Проверить обновление witness</button>
             <button type="submit" name="intent" value="send">Обновить witness в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
+        ${chain.id === 'viz' ? `<form id="viz-witness-props-form" class="stacked-form"><fieldset>
+          <legend>VIZ witness props / versionedChainPropertiesUpdate</legend>
+          <p class="notice">Опасная операция witness: меняет chain properties VIZ. Legacy строил props из getWitnessByAccount; v3 принимает явный JSON preview перед отправкой.</p>
+          <div class="field"><label for="viz-witness-props-json">Props JSON</label><textarea id="viz-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"10.000 VIZ"}'></textarea></div>
+          <button type="submit" name="intent" value="preview">Проверить versionedChainPropertiesUpdate</button><button type="submit" name="intent" value="send">Отправить versionedChainPropertiesUpdate</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>` : ''}
         <form id="manage-authority-form" class="stacked-form">
           <fieldset>
-            <legend>Обновление authority / доступа</legend>
+            <legend><span id="viz-manage-access">Обновление authority / доступа</span></legend>
             <p class="muted">Обновление прав доступа: введите готовые публичные ключи/account auths. Owner WIF используется только для подписи и не сохраняется.</p>
             <div class="field"><label for="manage-authority-owner-wif">Приватный WIF owner текущего аккаунта</label><input id="manage-authority-owner-wif" name="ownerWif" type="password" autocomplete="off" required></div>
             <div class="field"><label for="manage-authority-memo">Публичный memo-ключ</label><input id="manage-authority-memo" name="memoKey" type="text" required></div>
@@ -3565,18 +5530,147 @@
         </form>
         <form id="manage-profile-form" class="stacked-form">
           <fieldset>
-            <legend>Метаданные профиля</legend>
+            <legend><span id="viz-manage-profile">Метаданные профиля</span></legend>
+            ${(chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') ? '<p id="manage-profile-prefill-result" class="muted" role="status" aria-live="polite">Текущий профиль будет загружен из json_metadata.</p>' : ''}
             <div class="field"><label for="manage-profile-name">Отображаемое имя</label><input id="manage-profile-name" name="name" type="text"></div>
             <div class="field"><label for="manage-profile-about">О себе</label><textarea id="manage-profile-about" name="about" rows="3"></textarea></div>
+            <div class="field"><label for="manage-profile-image">Аватар / profile_image URL</label><input id="manage-profile-image" name="profile_image" type="url"></div>
+            <div class="field"><label for="manage-profile-cover-image">Обложка / cover_image URL</label><input id="manage-profile-cover-image" name="cover_image" type="url"></div>
+            <div class="field"><label for="manage-profile-gender">Пол / gender</label><input id="manage-profile-gender" name="gender" type="text"></div>
             <div class="field"><label for="manage-profile-location">Локация</label><input id="manage-profile-location" name="location" type="text"></div>
             <div class="field"><label for="manage-profile-website">Сайт</label><input id="manage-profile-website" name="website" type="url"></div>
+            <div class="field"><label for="manage-profile-select-tags">Интересы / select_tags</label><input id="manage-profile-select-tags" name="select_tags" type="text" placeholder="блокчейн, dpos"></div>
+            <div class="field"><label for="manage-profile-mail">Email / mail</label><input id="manage-profile-mail" name="mail" type="email"></div>
+            <div class="field"><label for="manage-profile-facebook">Facebook</label><input id="manage-profile-facebook" name="facebook" type="text"></div>
+            <div class="field"><label for="manage-profile-instagram">Instagram</label><input id="manage-profile-instagram" name="instagram" type="text"></div>
+            <div class="field"><label for="manage-profile-twitter">Twitter/X</label><input id="manage-profile-twitter" name="twitter" type="text"></div>
+            <div class="field"><label for="manage-profile-vk">VK</label><input id="manage-profile-vk" name="vk" type="text"></div>
+            <div class="field"><label for="manage-profile-telegram">Telegram</label><input id="manage-profile-telegram" name="telegram" type="text"></div>
+            <div class="field"><label for="manage-profile-skype">Skype</label><input id="manage-profile-skype" name="skype" type="text"></div>
+            <div class="field"><label for="manage-profile-viber">Viber</label><input id="manage-profile-viber" name="viber" type="text"></div>
+            <div class="field"><label for="manage-profile-whatsapp">WhatsApp</label><input id="manage-profile-whatsapp" name="whatsapp" type="text"></div>
             <button type="submit" name="intent" value="preview">Проверить обновление профиля</button>
             <button type="submit" name="intent" value="send">Обновить профиль в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
-        ${chain.id === 'viz' ? `<form id="viz-create-invite-form" class="stacked-form"><fieldset>
-          <legend>VIZ: создание invite</legend>
+        ${chain.id === 'golos' ? `<form id="manage-create-account-form" class="stacked-form">
+          <fieldset>
+            <legend>Создание аккаунта Golos</legend>
+            <p class="notice">Новые ключи генерируются локально. Перед отправкой скачайте backup нового аккаунта.</p>
+            <div class="field"><label for="manage-create-name">Новый логин</label><input id="manage-create-name" name="name" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="manage-create-type">Тип оплаты</label><select id="manage-create-type" name="type"><option value="delegation">делегирование СГ из суммы GOLOS</option><option value="fee">fee GOLOS без делегирования</option></select></div>
+            <div class="field"><label for="manage-create-amount">Сумма GOLOS</label><input id="manage-create-amount" name="amount" type="text" required placeholder="3.000"></div>
+            <button type="button" id="manage-create-generate">Сгенерировать ключи нового аккаунта</button>
+            <button type="button" id="manage-create-download" disabled>Скачать backup нового аккаунта</button>
+            <label class="inline-choice"><input id="manage-create-saved" name="savedBackup" type="checkbox"> я сохранил приватные ключи нового аккаунта</label>
+            <button type="submit" name="intent" value="preview">Проверить создание аккаунта</button>
+            <button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
+            <div id="manage-create-generated" class="operation-result" role="status" aria-live="polite">Ключи нового аккаунта ещё не сгенерированы.</div>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-reset-keys-form" class="stacked-form">
+          <fieldset>
+            <legend>Сброс ключей Golos</legend>
+            <p class="notice">Опасная операция: старые owner/active/posting/memo ключи и account auths будут заменены одиночными новыми ключами. Сначала нажмите «Сгенерировать ключи» и сохраните backup.</p>
+            <div class="field"><label for="manage-reset-owner-wif">Приватный WIF owner текущего аккаунта</label><input id="manage-reset-owner-wif" name="ownerWif" type="password" autocomplete="off" required></div>
+            <button type="button" id="manage-reset-generate">Сгенерировать ключи</button>
+            <button type="button" id="manage-reset-download" disabled>Скачать backup ключей</button>
+            <label class="inline-choice"><input id="manage-reset-saved" name="savedBackup" type="checkbox"> я сохранил новые приватные ключи из backup</label>
+            <button type="submit" name="intent" value="preview">Проверить сброс ключей</button>
+            <button type="submit" name="intent" value="send">Сбросить ключи в сети</button>
+            <div id="manage-reset-generated" class="operation-result" role="status" aria-live="polite">Ключи ещё не сгенерированы.</div>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-follow-form" class="stacked-form">
+          <fieldset>
+            <legend>Подписки / follow</legend>
+            <p class="muted">Static-safe перенос legacy subscribes: custom_json follow через posting key.</p>
+            <div class="field"><label for="manage-follow-account">Аккаунт</label><input id="manage-follow-account" name="following" type="text" required autocomplete="off"></div>
+            <div class="field"><label for="manage-follow-mode">Действие</label><select id="manage-follow-mode" name="mode"><option value="follow">подписаться</option><option value="unfollow">отписаться</option></select></div>
+            <button type="submit" name="intent" value="preview">Проверить follow</button>
+            <button type="submit" name="intent" value="send">Отправить follow в сеть</button>
+            <button type="button" id="manage-following-load">Показать текущие подписки</button>
+            <div id="manage-following-result" class="operation-result" role="status" aria-live="polite"></div>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-workers-form" class="stacked-form">
+          <fieldset>
+            <legend>Golos workers / комитет</legend>
+            <p class="muted">Static-safe перенос legacy workers: создание worker_request и голос worker_request_vote через posting key.</p>
+            <div class="field"><label for="manage-workers-mode">Режим</label><select id="manage-workers-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
+            <div class="field"><label for="manage-workers-url">URL поста заявки</label><input id="manage-workers-url" name="request_url" type="url" placeholder="https://.../@author/permlink"></div>
+            <div class="field"><label for="manage-workers-worker">Аккаунт воркера</label><input id="manage-workers-worker" name="worker" type="text" autocomplete="off"></div>
+            <div class="field"><label for="manage-workers-min">Минимальная сумма</label><input id="manage-workers-min" name="min" type="text" placeholder="1.000 GOLOS"></div>
+            <div class="field"><label for="manage-workers-max">Максимальная сумма</label><input id="manage-workers-max" name="max" type="text" placeholder="2.000 GOLOS"></div>
+            <div class="field"><label for="manage-workers-token">Токен</label><select id="manage-workers-token" name="token"><option value="GOLOS">GOLOS</option><option value="GBG">GBG</option></select></div>
+            <div class="field"><label for="manage-workers-days">Длительность, дней</label><input id="manage-workers-days" name="days" type="number" min="5" max="30" step="1" value="5"></div>
+            <label class="inline-choice"><input id="manage-workers-vest-reward" name="vest_reward" type="checkbox"> награда в СГ / vest_reward</label>
+            <div class="field"><label for="manage-workers-author">Автор заявки для голоса</label><input id="manage-workers-author" name="author" type="text" autocomplete="off"></div>
+            <div class="field"><label for="manage-workers-permlink">Permlink заявки для голоса</label><input id="manage-workers-permlink" name="permlink" type="text"></div>
+            <div class="field"><label for="manage-workers-percent">Процент голоса</label><input id="manage-workers-percent" name="percent" type="number" min="-100" max="100" step="1" value="100"></div>
+            <button type="submit" name="intent" value="preview">Проверить workers operation</button>
+            <button type="submit" name="intent" value="send">Отправить workers operation</button>
+            <button type="button" id="manage-workers-load">Показать worker requests</button>
+            <div id="manage-workers-result" class="operation-result" role="status" aria-live="polite"></div>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+        <form id="manage-witness-props-form" class="stacked-form">
+          <fieldset>
+            <legend>Golos witness props / chain_properties_update</legend>
+            <p class="notice">Опасная операция witness: меняет chain properties. Проверьте JSON вручную.</p>
+            <div class="field"><label for="manage-witness-props-json">Props JSON</label><textarea id="manage-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"3.000 GOLOS"}'></textarea></div>
+            <button type="submit" name="intent" value="preview">Проверить chain_properties_update</button>
+            <button type="submit" name="intent" value="send">Отправить chain_properties_update</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>` : ''}
+        ${chain.id === 'viz' ? `<form id="viz-create-account-form" class="stacked-form"><fieldset>
+          <legend><span id="viz-manage-create-account">VIZ: создать аккаунт/субаккаунт</span></legend>
+          <p class="notice">Новые master/active/regular/memo ключи генерируются локально через crypto.getRandomValues. Preview операции показывает только публичные ключи; приватные ключи доступны только в backup-файле.</p>
+          <div class="field"><label for="viz-create-name">Новый логин или имя субаккаунта</label><input id="viz-create-name" name="name" type="text" required autocomplete="off"></div>
+          <div class="field"><label for="viz-create-type">Тип регистрации</label><select id="viz-create-type" name="registrationType"><option value="account">аккаунт</option><option value="subaccount">субаккаунт .${escapeHtml(auth.getCurrentLogin(chain) || 'account')}</option></select></div>
+          <div class="field"><label for="viz-create-payment">Способ оплаты</label><select id="viz-create-payment" name="paymentType"><option value="delegation">делегирование SHARES</option><option value="fee">оплата VIZ с баланса</option></select></div>
+          <div class="field"><label for="viz-create-amount">Сумма</label><input id="viz-create-amount" name="amount" type="text" required placeholder="10"></div>
+          <button type="button" id="viz-create-generate">Сгенерировать ключи нового аккаунта</button>
+          <button type="button" id="viz-create-download" disabled>Скачать backup нового аккаунта</button>
+          <label class="inline-choice"><input id="viz-create-saved" name="savedBackup" type="checkbox"> я сохранил приватные ключи нового аккаунта</label>
+          <button type="submit" name="intent" value="preview">Проверить accountCreate</button><button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
+          <div id="viz-create-generated" class="operation-result" role="status" aria-live="polite">Ключи нового аккаунта ещё не сгенерированы.</div>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-reset-keys-form" class="stacked-form"><fieldset>
+          <legend><span id="viz-manage-reset-keys">VIZ: сброс ключей</span></legend>
+          <p class="notice">Опасная операция: заменяет master/active/regular/memo authority одним новым ключом каждого типа. Owner/master WIF используется только в памяти; private WIF не попадает в preview/result.</p>
+          <div class="field"><label for="viz-reset-account">Аккаунт для сброса</label><input id="viz-reset-account" name="account" type="text" value="${escapeHtml(auth.getCurrentLogin(chain) || '')}" required></div>
+          <div class="field"><label for="viz-reset-master-wif">Текущий master WIF</label><input id="viz-reset-master-wif" name="ownerWif" type="password" autocomplete="off" required></div>
+          <button type="button" id="viz-reset-generate">Сгенерировать новые ключи</button>
+          <button type="button" id="viz-reset-download" disabled>Скачать backup новых ключей</button>
+          <label class="inline-choice"><input id="viz-reset-saved" name="savedBackup" type="checkbox"> я сохранил новые приватные ключи</label>
+          <button type="submit" name="intent" value="preview">Проверить сброс ключей</button><button type="submit" name="intent" value="send">Сбросить ключи в сети</button>
+          <div id="viz-reset-generated" class="operation-result" role="status" aria-live="polite">Ключи ещё не сгенерированы.</div>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <section id="viz-manage-many-invites" aria-labelledby="viz-many-invites-title"><h3 id="viz-many-invites-title">Множество инвайтов (чеков)</h3></section>
+        <form id="viz-many-invites-form" class="stacked-form"><fieldset>
+          <legend>VIZ: batch create/use/claim invites</legend>
+          <p class="notice">Генерация invite secret выполняется локально через crypto.getRandomValues. Preview create_invite содержит только публичные invite_key; секреты скачиваются отдельным backup.</p>
+          <div class="field"><label for="viz-many-invites-mode">Режим</label><select id="viz-many-invites-mode" name="mode"><option value="create">создать много чеков</option><option value="use">использовать в SHARES</option><option value="claim">получить на баланс VIZ</option></select></div>
+          <div class="field"><label for="viz-many-invites-count">Количество чеков</label><input id="viz-many-invites-count" name="count" type="number" min="1" max="50" step="1" value="1"></div>
+          <div class="field"><label for="viz-many-invites-amount">Сумма каждого чека</label><input id="viz-many-invites-amount" name="amount" type="text" placeholder="1.000 VIZ"></div>
+          <div class="field"><label for="viz-many-invites-secrets">Секреты чеков для use/claim, по одному на строку</label><textarea id="viz-many-invites-secrets" name="secrets" rows="5"></textarea></div>
+          <button type="button" id="viz-many-invites-generate">Сгенерировать secrets и публичные ключи</button>
+          <button type="button" id="viz-many-invites-download" disabled>Скачать backup secrets</button>
+          <button type="submit" name="intent" value="preview">Проверить batch invite</button><button type="submit" name="intent" value="send">Отправить batch invite</button>
+          <div id="viz-many-invites-result" class="operation-result" role="status" aria-live="polite">Secrets не отображаются в preview; скачайте backup после генерации.</div>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-create-invite-form" class="stacked-form"><fieldset>
+          <legend>VIZ: создание одного invite</legend>
           <div class="field"><label for="viz-invite-balance">Баланс инвайта</label><input id="viz-invite-balance" name="balance" type="text" required placeholder="1.000 VIZ"></div>
           <div class="field"><label for="viz-invite-public">Публичный ключ invite</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
           <button type="submit" name="intent" value="preview">Проверить create_invite</button><button type="submit" name="intent" value="send">Создать invite в сети</button>
@@ -3591,7 +5685,7 @@
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
         <form id="viz-committee-form" class="stacked-form"><fieldset>
-          <legend>VIZ committee: заявка воркера / голос</legend>
+          <legend><span id="viz-manage-workers">VIZ committee: заявка воркера / голос</span></legend>
           <div class="field"><label for="viz-committee-mode">Режим</label><select id="viz-committee-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
           <div class="field"><label for="viz-committee-id">ID запроса для голоса</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
           <div class="field"><label for="viz-committee-url">URL</label><input id="viz-committee-url" name="url" type="url"></div>
@@ -3601,6 +5695,22 @@
           <div class="field"><label for="viz-committee-days">Длительность, дней</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
           <div class="field"><label for="viz-committee-vote">Процент голоса</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
           <button type="submit" name="intent" value="preview">Проверить committee</button><button type="submit" name="intent" value="send">Отправить committee в сеть</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <section id="viz-manage-multisig" aria-labelledby="viz-multisig-title"><h3 id="viz-multisig-title">Мультисиг</h3><p class="notice">Legacy multisig подписывал JSON-транзакции client-side и отправлял signed transaction через публичную ноду. В v3 доступны static-safe helpers: настройка account auths через accountUpdate и отправка заранее подписанной transaction JSON без хранения WIF.</p></section>
+        <form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
+          <legend>VIZ multisig authority</legend>
+          <div class="field"><label for="viz-multisig-owner-wif">Active WIF текущего аккаунта</label><input id="viz-multisig-owner-wif" name="activeWif" type="password" autocomplete="off" required></div>
+          <div class="field"><label for="viz-multisig-kind">Authority</label><select id="viz-multisig-kind" name="kind"><option value="regular">regular</option><option value="active">active</option></select></div>
+          <div class="field"><label for="viz-multisig-threshold">Weight threshold</label><input id="viz-multisig-threshold" name="threshold" type="number" min="1" step="1" value="1"></div>
+          <div class="field"><label for="viz-multisig-auths">Account auths account=weight, по одному на строку</label><textarea id="viz-multisig-auths" name="accountAuths" rows="4" placeholder="alice=1&#10;bob=1"></textarea></div>
+          <button type="submit" name="intent" value="preview">Проверить multisig accountUpdate</button><button type="submit" name="intent" value="send">Отправить multisig accountUpdate</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-multisig-signed-tx-form" class="stacked-form"><fieldset>
+          <legend>VIZ signed transaction submit</legend>
+          <div class="field"><label for="viz-multisig-signed-json">Signed transaction JSON</label><textarea id="viz-multisig-signed-json" name="signedTx" rows="6" required></textarea></div>
+          <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>` : ''}
       </section>`;
@@ -3618,7 +5728,7 @@
     bindOperationForm(chain, 'manage-witness-update-form', (form) => {
       const account = auth.getCurrentLogin(chain);
       const url = String(form.get('url') || '').trim();
-      const signingKey = String(form.get('signingKey') || '').trim();
+      const signingKey = String(form.get('signingKey') || '').trim() || (chain.id === 'golos' ? 'GLS1111111111111111111111111111111114T1Anm' : (chain.id === 'hive' ? 'HIVE1111111111111111111111111111111114T1Anm' : (chain.id === 'steem' ? 'STM1111111111111111111111111111111114T1Anm' : '')));
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
@@ -3626,6 +5736,9 @@
         try { props = JSON.parse(rawProps); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
       }
       if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key должен быть публичным ключом, а не приватным WIF.');
+      if (chain.id === 'viz') {
+        return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey], { title: 'VIZ witnessUpdate', warnings: ['Legacy VIZ witnessUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'] });
+      }
       return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: 'Witness update', amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'] });
     });
 
@@ -3647,19 +5760,511 @@
       return broadcast.prepareWithPrivateKey(chain, account, 'owner', ownerWif, 'accountUpdate', [account, owner, active, posting, memoKey, jsonMetadata], { title: 'Authority update', warnings: ['Owner WIF используется только в памяти и не показывается в проверке/ответе. Храните приватные ключи отдельно.'] });
     });
 
-    bindOperationForm(chain, 'manage-profile-form', (form) => {
+    bindOperationForm(chain, 'manage-profile-form', async (form) => {
       const account = auth.getCurrentLogin(chain);
-      const metadata = { profile: {
+      let metadata = {};
+      if (chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') {
+        const current = await fetchChainAccount(chain, account);
+        if (!current || typeof current.json_metadata === 'undefined') throw new Error('Не удалось получить текущий json_metadata аккаунта; обновление профиля остановлено, чтобы не стереть metadata.');
+        metadata = parseJsonObject(current.json_metadata, {});
+      }
+      metadata.profile = Object.assign({}, metadata.profile || {}, {
         name: String(form.get('name') || '').trim(),
         about: String(form.get('about') || '').trim(),
+        profile_image: String(form.get('profile_image') || '').trim(),
+        cover_image: String(form.get('cover_image') || '').trim(),
+        gender: String(form.get('gender') || '').trim(),
         location: String(form.get('location') || '').trim(),
-        website: String(form.get('website') || '').trim()
-      } };
+        website: String(form.get('website') || '').trim(),
+        select_tags: chain.id === 'golos' ? normalizeGolosProfileTags(form.get('select_tags')) : String(form.get('select_tags') || '').trim(),
+        interests: (chain.id === 'hive' || chain.id === 'steem') ? normalizeGolosProfileTags(form.get('select_tags')) : undefined,
+        mail: String(form.get('mail') || '').trim(),
+        facebook: String(form.get('facebook') || '').trim(),
+        instagram: String(form.get('instagram') || '').trim(),
+        twitter: String(form.get('twitter') || '').trim(),
+        vk: String(form.get('vk') || '').trim(),
+        telegram: String(form.get('telegram') || '').trim(),
+        skype: String(form.get('skype') || '').trim(),
+        viber: String(form.get('viber') || '').trim(),
+        whatsapp: String(form.get('whatsapp') || '').trim()
+      });
       const json = JSON.stringify(metadata);
       if (chain.id === 'hive' || chain.id === 'steem') {
         return broadcast.prepare(chain, 'active', 'accountUpdate', [account, undefined, undefined, undefined, undefined, json], { title: 'Profile update', warnings: ['Обновляет json_metadata через account_update; posting_json_metadata зависит от версии библиотеки и здесь не используется.'] });
       }
       return broadcast.prepare(chain, 'posting', 'accountMetadata', [account, json], { title: 'Profile metadata update' });
+    });
+
+    const witnessVoteState = { currentVotes: new Set(), proxy: '' };
+    const createAccountState = { name: '', pendingKeys: null, backupConfirmed: false };
+    const resetKeys = { pendingKeys: null, backupConfirmed: false };
+    const manyInvitesState = { invites: [] };
+    if (chain.id === 'golos') {
+      const createGeneratedEl = document.getElementById('manage-create-generated');
+      const createDownloadBtn = document.getElementById('manage-create-download');
+      const createSavedBox = document.getElementById('manage-create-saved');
+      const createNameEl = document.getElementById('manage-create-name');
+      const generatedEl = document.getElementById('manage-reset-generated');
+      const downloadBtn = document.getElementById('manage-reset-download');
+      const savedBox = document.getElementById('manage-reset-saved');
+      const renderCreateKeys = () => {
+        if (!createAccountState.pendingKeys) {
+          if (createGeneratedEl) createGeneratedEl.textContent = 'Ключи нового аккаунта ещё не сгенерированы.';
+          if (createDownloadBtn) createDownloadBtn.disabled = true;
+          return;
+        }
+        const keys = createAccountState.pendingKeys;
+        if (createDownloadBtn) createDownloadBtn.disabled = false;
+        if (createGeneratedEl) {
+          createGeneratedEl.innerHTML = `<p><strong>Ключи нового аккаунта @${escapeHtml(createAccountState.name)} готовы.</strong> Скачайте backup перед отправкой.</p>
+            <ul>
+              <li>owner pub: <code>${escapeHtml(keys.ownerPubkey || '')}</code></li>
+              <li>active pub: <code>${escapeHtml(keys.activePubkey || '')}</code></li>
+              <li>posting pub: <code>${escapeHtml(keys.postingPubkey || '')}</code></li>
+              <li>memo pub: <code>${escapeHtml(keys.memoPubkey || '')}</code></li>
+            </ul>`;
+        }
+      };
+      const createGenerateBtn = document.getElementById('manage-create-generate');
+      if (createGenerateBtn) {
+        createGenerateBtn.addEventListener('click', () => {
+          try {
+            const name = normalizeAccountInput(chain, createNameEl && createNameEl.value, 'Новый аккаунт');
+            createAccountState.name = name;
+            createAccountState.pendingKeys = generateGolosResetKeys(name);
+            createAccountState.backupConfirmed = false;
+            if (createSavedBox) createSavedBox.checked = false;
+            renderCreateKeys();
+            setStatus('Ключи нового аккаунта Golos сгенерированы локально. Скачайте backup перед отправкой.', 'ok');
+          } catch (error) {
+            if (createGeneratedEl) createGeneratedEl.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+      if (createDownloadBtn) {
+        createDownloadBtn.addEventListener('click', () => {
+          if (!createAccountState.pendingKeys) return;
+          const keys = createAccountState.pendingKeys;
+          const name = createAccountState.name;
+          downloadTextFile(`golos-account-${name}.txt`, `dpos.space/golos
+
+Account login: ${name}
+owner key: ${keys.owner}
+Active key: ${keys.active}
+posting key: ${keys.posting}
+Memo key: ${keys.memo}`);
+          createAccountState.backupConfirmed = true;
+          if (createSavedBox) createSavedBox.checked = true;
+        });
+      }
+      if (createSavedBox) createSavedBox.addEventListener('change', () => { createAccountState.backupConfirmed = createSavedBox.checked; });
+
+      const renderResetKeys = () => {
+        if (!resetKeys.pendingKeys) {
+          if (generatedEl) generatedEl.textContent = 'Ключи ещё не сгенерированы.';
+          if (downloadBtn) downloadBtn.disabled = true;
+          return;
+        }
+        const keys = resetKeys.pendingKeys;
+        if (downloadBtn) downloadBtn.disabled = false;
+        if (generatedEl) {
+          generatedEl.innerHTML = `<p><strong>Новые публичные ключи готовы.</strong> Приватные ключи показаны только здесь и в backup-файле. Сохраните их перед отправкой операции.</p>
+            <ul>
+              <li>owner pub: <code>${escapeHtml(keys.ownerPubkey || '')}</code></li>
+              <li>active pub: <code>${escapeHtml(keys.activePubkey || '')}</code></li>
+              <li>posting pub: <code>${escapeHtml(keys.postingPubkey || '')}</code></li>
+              <li>memo pub: <code>${escapeHtml(keys.memoPubkey || '')}</code></li>
+            </ul>`;
+        }
+      };
+      const generateBtn = document.getElementById('manage-reset-generate');
+      if (generateBtn) {
+        generateBtn.addEventListener('click', () => {
+          try {
+            resetKeys.pendingKeys = generateGolosResetKeys(auth.getCurrentLogin(chain));
+            resetKeys.backupConfirmed = false;
+            if (savedBox) savedBox.checked = false;
+            renderResetKeys();
+            setStatus('Новые ключи Golos сгенерированы локально. Скачайте backup перед отправкой account_update.', 'ok');
+          } catch (error) {
+            if (generatedEl) generatedEl.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+          if (!resetKeys.pendingKeys) return;
+          const account = auth.getCurrentLogin(chain);
+          const keys = resetKeys.pendingKeys;
+          downloadTextFile(`golos-account-${account}.txt`, `dpos.space/golos\r\n\r\nAccount login: ${account}\r\nowner key: ${keys.owner}\r\nActive key: ${keys.active}\r\nposting key: ${keys.posting}\r\nMemo key: ${keys.memo}`);
+          resetKeys.backupConfirmed = true;
+          if (savedBox) savedBox.checked = true;
+        });
+      }
+      if (savedBox) {
+        savedBox.addEventListener('change', () => { resetKeys.backupConfirmed = savedBox.checked; });
+      }
+      prefillManageProfile(chain);
+      const witnessLoad = document.getElementById('manage-witness-load');
+      if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessesLoad = document.getElementById('manage-witnesses-load');
+      if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
+      const followingLoad = document.getElementById('manage-following-load');
+      if (followingLoad) followingLoad.addEventListener('click', () => loadGolosFollowingList(chain));
+      const workersLoad = document.getElementById('manage-workers-load');
+      if (workersLoad) workersLoad.addEventListener('click', () => loadGolosWorkerRequests(chain));
+    }
+
+    if (chain.id === 'viz') {
+      const vizCreateGeneratedEl = document.getElementById('viz-create-generated');
+      const vizCreateDownloadBtn = document.getElementById('viz-create-download');
+      const vizCreateSavedBox = document.getElementById('viz-create-saved');
+      const vizCreateNameEl = document.getElementById('viz-create-name');
+      const vizResetGeneratedEl = document.getElementById('viz-reset-generated');
+      const vizResetDownloadBtn = document.getElementById('viz-reset-download');
+      const vizResetSavedBox = document.getElementById('viz-reset-saved');
+      const manyInvitesResult = document.getElementById('viz-many-invites-result');
+      const manyInvitesDownloadBtn = document.getElementById('viz-many-invites-download');
+
+      const renderVizCreateKeys = () => {
+        if (!createAccountState.pendingKeys) {
+          if (vizCreateGeneratedEl) vizCreateGeneratedEl.textContent = 'Ключи нового аккаунта ещё не сгенерированы.';
+          if (vizCreateDownloadBtn) vizCreateDownloadBtn.disabled = true;
+          return;
+        }
+        const keys = createAccountState.pendingKeys;
+        if (vizCreateDownloadBtn) vizCreateDownloadBtn.disabled = false;
+        if (vizCreateGeneratedEl) {
+          vizCreateGeneratedEl.innerHTML = `<p><strong>Ключи нового VIZ аккаунта @${escapeHtml(createAccountState.name)} готовы.</strong> Скачайте backup перед отправкой.</p>
+            <ul><li>master pub: <code>${escapeHtml(keys.masterPubkey || '')}</code></li><li>active pub: <code>${escapeHtml(keys.activePubkey || '')}</code></li><li>regular pub: <code>${escapeHtml(keys.regularPubkey || '')}</code></li><li>memo pub: <code>${escapeHtml(keys.memoPubkey || '')}</code></li></ul>`;
+        }
+      };
+      const vizCreateGenerateBtn = document.getElementById('viz-create-generate');
+      if (vizCreateGenerateBtn) {
+        vizCreateGenerateBtn.addEventListener('click', () => {
+          try {
+            let name = normalizeAccountInput(chain, vizCreateNameEl && vizCreateNameEl.value, 'Новый VIZ аккаунт');
+            const typeEl = document.getElementById('viz-create-type');
+            if (typeEl && typeEl.value === 'subaccount' && !name.includes('.')) name = `${name}.${auth.getCurrentLogin(chain)}`;
+            createAccountState.name = name;
+            createAccountState.pendingKeys = generateVizResetKeys(name);
+            createAccountState.backupConfirmed = false;
+            if (vizCreateSavedBox) vizCreateSavedBox.checked = false;
+            renderVizCreateKeys();
+            setStatus('Ключи нового VIZ аккаунта сгенерированы локально через crypto.getRandomValues. Скачайте backup перед отправкой.', 'ok');
+          } catch (error) {
+            if (vizCreateGeneratedEl) vizCreateGeneratedEl.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+      if (vizCreateDownloadBtn) {
+        vizCreateDownloadBtn.addEventListener('click', () => {
+          if (!createAccountState.pendingKeys) return;
+          const keys = createAccountState.pendingKeys;
+          const name = createAccountState.name;
+          downloadTextFile(`viz-account-${name}.txt`, `dpos.space/viz\r\n\r\nAccount login: ${name}\r\nMaster key: ${keys.master}\r\nActive key: ${keys.active}\r\nRegular key: ${keys.regular}\r\nMemo key: ${keys.memo}`);
+          createAccountState.backupConfirmed = true;
+          if (vizCreateSavedBox) vizCreateSavedBox.checked = true;
+        });
+      }
+      if (vizCreateSavedBox) vizCreateSavedBox.addEventListener('change', () => { createAccountState.backupConfirmed = vizCreateSavedBox.checked; });
+
+      const renderVizResetKeys = () => {
+        if (!resetKeys.pendingKeys) {
+          if (vizResetGeneratedEl) vizResetGeneratedEl.textContent = 'Ключи ещё не сгенерированы.';
+          if (vizResetDownloadBtn) vizResetDownloadBtn.disabled = true;
+          return;
+        }
+        const keys = resetKeys.pendingKeys;
+        if (vizResetDownloadBtn) vizResetDownloadBtn.disabled = false;
+        if (vizResetGeneratedEl) {
+          vizResetGeneratedEl.innerHTML = `<p><strong>Новые публичные ключи VIZ готовы.</strong> Приватные WIF доступны только в backup.</p>
+            <ul><li>master pub: <code>${escapeHtml(keys.masterPubkey || '')}</code></li><li>active pub: <code>${escapeHtml(keys.activePubkey || '')}</code></li><li>regular pub: <code>${escapeHtml(keys.regularPubkey || '')}</code></li><li>memo pub: <code>${escapeHtml(keys.memoPubkey || '')}</code></li></ul>`;
+        }
+      };
+      const vizResetGenerateBtn = document.getElementById('viz-reset-generate');
+      if (vizResetGenerateBtn) {
+        vizResetGenerateBtn.addEventListener('click', () => {
+          try {
+            const accountEl = document.getElementById('viz-reset-account');
+            const accountName = normalizeAccountInput(chain, accountEl && accountEl.value, 'Аккаунт для сброса');
+            resetKeys.account = accountName;
+            resetKeys.pendingKeys = generateVizResetKeys(accountName);
+            resetKeys.backupConfirmed = false;
+            if (vizResetSavedBox) vizResetSavedBox.checked = false;
+            renderVizResetKeys();
+            setStatus('Новые VIZ ключи сгенерированы локально. Скачайте backup перед отправкой accountUpdate.', 'ok');
+          } catch (error) {
+            if (vizResetGeneratedEl) vizResetGeneratedEl.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+      if (vizResetDownloadBtn) {
+        vizResetDownloadBtn.addEventListener('click', () => {
+          if (!resetKeys.pendingKeys) return;
+          const accountName = resetKeys.account || auth.getCurrentLogin(chain);
+          const keys = resetKeys.pendingKeys;
+          downloadTextFile(`viz-account-${accountName}.txt`, `dpos.space/viz\r\n\r\nAccount login: ${accountName}\r\nMaster key: ${keys.master}\r\nActive key: ${keys.active}\r\nRegular key: ${keys.regular}\r\nMemo key: ${keys.memo}`);
+          resetKeys.backupConfirmed = true;
+          if (vizResetSavedBox) vizResetSavedBox.checked = true;
+        });
+      }
+      if (vizResetSavedBox) vizResetSavedBox.addEventListener('change', () => { resetKeys.backupConfirmed = vizResetSavedBox.checked; });
+
+      const manyInvitesGenerateBtn = document.getElementById('viz-many-invites-generate');
+      if (manyInvitesGenerateBtn) {
+        manyInvitesGenerateBtn.addEventListener('click', () => {
+          try {
+            const count = Math.max(1, Math.min(50, Math.trunc(Number(document.getElementById('viz-many-invites-count').value || 1))));
+            manyInvitesState.invites = Array.from({ length: count }, () => {
+              const secret = generateVizInviteSecret();
+              return { secret, publicKey: vizInvitePublic(secret) };
+            });
+            if (manyInvitesDownloadBtn) manyInvitesDownloadBtn.disabled = false;
+            if (manyInvitesResult) manyInvitesResult.innerHTML = `<p>${count} invite secrets сгенерированы. Preview будет содержать только публичные invite_key.</p><ul>${manyInvitesState.invites.map((item) => `<li><code>${escapeHtml(item.publicKey)}</code></li>`).join('')}</ul>`;
+            setStatus('Invite secrets сгенерированы локально через crypto.getRandomValues; скачайте backup secrets.', 'ok');
+          } catch (error) {
+            if (manyInvitesResult) manyInvitesResult.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+      if (manyInvitesDownloadBtn) {
+        manyInvitesDownloadBtn.addEventListener('click', () => {
+          if (!manyInvitesState.invites.length) return;
+          downloadTextFile(`viz-invites-${Date.now()}.txt`, manyInvitesState.invites.map((item) => item.secret).join('\r\n'));
+        });
+      }
+      const witnessLoad = document.getElementById('manage-witness-load');
+      if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessesLoad = document.getElementById('manage-witnesses-load');
+      if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
+    }
+
+    if (chain.id === 'hive' || chain.id === 'steem') {
+      prefillManageProfile(chain);
+      const witnessLoad = document.getElementById('manage-witness-load');
+      if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
+      const witnessesLoad = document.getElementById('manage-witnesses-load');
+      if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
+    }
+
+    bindOperationForm(chain, 'manage-witnesses-batch-form', (form) => {
+      if (chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem') throw new Error('Batch witness voting здесь доступен только для Golos/VIZ/Hive/Steem.');
+      const account = auth.getCurrentLogin(chain);
+      const checked = new Set(Array.from(document.querySelectorAll('[data-witness-vote]')).filter((item) => item.checked).map((item) => item.dataset.witnessVote));
+      const ops = [];
+      witnessVoteState.currentVotes.forEach((witness) => { if (!checked.has(witness)) ops.push(['account_witness_vote', { account, witness, approve: false }]); });
+      checked.forEach((witness) => { if (!witnessVoteState.currentVotes.has(witness)) ops.push(['account_witness_vote', { account, witness, approve: true }]); });
+      if (!ops.length) throw new Error('Нет изменений witness_votes. Сначала загрузите список и отметьте изменения.');
+      const warnings = witnessVoteState.proxy ? [`У аккаунта установлен proxy ${witnessVoteState.proxy}; ручное голосование может конфликтовать с proxy.`] : [];
+      return broadcast.prepare(chain, 'active', 'sendOperations', [ops], { title: `${chain.title} batch witness votes`, warnings });
+    });
+
+    bindOperationForm(chain, 'manage-create-account-form', async (form) => {
+      if (chain.id !== 'golos') throw new Error('Создание аккаунта здесь доступно только для Golos.');
+      const creator = auth.getCurrentLogin(chain);
+      const name = normalizeAccountInput(chain, form.get('name'), 'Новый аккаунт');
+      if (!createAccountState.pendingKeys || createAccountState.name !== name) throw new Error('Сначала сгенерируйте ключи именно для этого нового аккаунта.');
+      createAccountState.backupConfirmed = createAccountState.backupConfirmed || form.get('savedBackup') === 'on';
+      if (!createAccountState.backupConfirmed) throw new Error('Перед созданием аккаунта подтвердите, что backup приватных ключей нового аккаунта сохранён.');
+      const existing = await fetchChainAccount(chain, name).catch(() => null);
+      if (existing && existing.name === name) throw new Error(`Аккаунт @${name} уже существует.`);
+      const keys = createAccountState.pendingKeys;
+      const authObject = { weight_threshold: 1, account_auths: [], key_auths: [[keys.ownerPubkey, 1]] };
+      const activeObject = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
+      const postingObject = { weight_threshold: 1, account_auths: [], key_auths: [[keys.postingPubkey, 1]] };
+      const amountText = String(form.get('amount') || '').trim().replace(',', '.').replace(/\s*GOLOS$/i, '');
+      if (!/^\d(?:\.\d{1,3})?$/.test(amountText) || Number(amountText) < 0) throw new Error('Сумма GOLOS должна быть неотрицательным числом, например 3.000.');
+      let fee = '0.000 GOLOS';
+      let delegation = '0.000000 GESTS';
+      if (String(form.get('type') || 'delegation') === 'fee') {
+        fee = normalizeAssetInput(chain, amountText, 'GOLOS', 'Account creation fee');
+      } else {
+        const data = await loadGrapheneWalletData(chain, creator, { loadExtraBalances: () => [] });
+        delegation = normalizeGolosPowerInput(data.profile, amountText, 'Делегирование СГ из суммы GOLOS');
+      }
+      return broadcast.prepare(chain, 'active', 'accountCreateWithDelegation', [fee, delegation, creator, name, authObject, activeObject, postingObject, keys.memoPubkey, '', []], {
+        title: 'Golos accountCreateWithDelegation',
+        to: name,
+        amount: `${fee}; ${delegation}`,
+        warnings: ['Приватные ключи нового аккаунта не включаются в operation preview. Убедитесь, что backup скачан.']
+      });
+    });
+
+    bindOperationForm(chain, 'manage-reset-keys-form', async (form) => {
+      if (chain.id !== 'golos') throw new Error('Сброс ключей здесь доступен только для Golos.');
+      if (!resetKeys.pendingKeys) throw new Error('Сначала сгенерируйте новые ключи и скачайте backup.');
+      resetKeys.backupConfirmed = resetKeys.backupConfirmed || form.get('savedBackup') === 'on';
+      if (!resetKeys.backupConfirmed) throw new Error('Перед сбросом подтвердите, что новые приватные ключи сохранены в backup.');
+      const account = auth.getCurrentLogin(chain);
+      const ownerWif = String(form.get('ownerWif') || '').trim();
+      const keys = resetKeys.pendingKeys;
+      const current = await fetchChainAccount(chain, account);
+      if (!current || typeof current.json_metadata === 'undefined') throw new Error('Не удалось получить текущий json_metadata аккаунта; сброс ключей остановлен, чтобы не стереть metadata.');
+      const jsonMetadata = current.json_metadata || '{}';
+      const owner = { weight_threshold: 1, account_auths: [], key_auths: [[keys.ownerPubkey, 1]] };
+      const active = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
+      const posting = { weight_threshold: 1, account_auths: [], key_auths: [[keys.postingPubkey, 1]] };
+      return broadcast.prepareWithPrivateKey(chain, account, 'owner', ownerWif, 'accountUpdate', [account, owner, active, posting, keys.memoPubkey, jsonMetadata], {
+        title: 'Golos reset keys',
+        warnings: ['Сброс ключей удалит старые key/account auths. Убедитесь, что backup приватных ключей скачан и сохранён.']
+      });
+    });
+
+    bindOperationForm(chain, 'manage-follow-form', (form) => {
+      if (chain.id !== 'golos') throw new Error('Follow/unfollow здесь доступен только для Golos.');
+      const follower = auth.getCurrentLogin(chain);
+      const following = normalizeAccountInput(chain, form.get('following'), 'Аккаунт подписки');
+      const followMode = String(form.get('mode') || 'follow');
+      const payload = ['follow', { follower, following, what: followMode === 'follow' ? ['blog'] : [] }];
+      return broadcast.prepare(chain, 'posting', 'sendOperations', [[
+        ['custom_json', {
+          required_auths: [],
+          required_posting_auths: [follower],
+          id: 'follow',
+          json: JSON.stringify(payload)
+        }]
+      ]], { title: followMode === 'follow' ? 'Подписка' : 'Отписка', to: following });
+    });
+
+    bindOperationForm(chain, 'manage-workers-form', (form) => {
+      if (chain.id !== 'golos') throw new Error('Workers здесь доступны только для Golos.');
+      const mode = String(form.get('mode') || 'create');
+      if (mode === 'vote') {
+        const voter = auth.getCurrentLogin(chain);
+        const author = normalizeAccountInput(chain, form.get('author'), 'Автор заявки');
+        const permlink = String(form.get('permlink') || '').trim();
+        if (!permlink) throw new Error('Permlink заявки обязателен для голоса worker_request_vote.');
+        const votePercent = Math.max(-10000, Math.min(10000, Math.round(Number(form.get('percent') || 0) * 100)));
+        return broadcast.prepare(chain, 'posting', 'sendOperations', [[
+          ['worker_request_vote', { voter, author, permlink, vote_percent: votePercent, extensions: [] }]
+        ]], { title: 'Golos worker_request_vote', to: author, amount: `${votePercent / 100}%` });
+      }
+      const post = parseGolosWorkerPostUrl(form.get('request_url'));
+      const worker = normalizeAccountInput(chain, form.get('worker'), 'Аккаунт воркера');
+      const token = normalizeGolosTokenSymbol(form.get('token') || 'GOLOS', 'Токен worker request');
+      const min = normalizeAssetInput(chain, form.get('min'), token, 'Минимальная сумма worker request');
+      const max = normalizeAssetInput(chain, form.get('max'), token, 'Максимальная сумма worker request');
+      const days = Math.max(5, Math.min(30, Math.trunc(Number(form.get('days') || 5))));
+      return broadcast.prepare(chain, 'posting', 'sendOperations', [[
+        ['worker_request', {
+          author: post.author,
+          permlink: post.permlink,
+          worker,
+          required_amount_min: min,
+          required_amount_max: max,
+          vest_reward: form.get('vest_reward') === 'on',
+          duration: days * 86400,
+          extensions: []
+        }]
+      ]], { title: 'Golos worker_request', to: worker, amount: `${min}..${max}` });
+    });
+
+    bindOperationForm(chain, 'manage-witness-props-form', (form) => {
+      if (chain.id !== 'golos') throw new Error('chain_properties_update здесь доступен только для Golos.');
+      let props = {};
+      try { props = JSON.parse(String(form.get('props') || '{}')); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
+      return broadcast.prepare(chain, 'active', 'sendOperations', [[
+        ['chain_properties_update', { owner: auth.getCurrentLogin(chain), props: [9, props] }]
+      ]], { title: 'Golos chain_properties_update', warnings: ['Опасная witness операция: проверьте chain properties перед отправкой.'] });
+    });
+
+    bindOperationForm(chain, 'viz-create-account-form', async (form) => {
+      if (chain.id !== 'viz') throw new Error('Создание VIZ аккаунта доступно только для VIZ.');
+      const creator = auth.getCurrentLogin(chain);
+      let name = normalizeAccountInput(chain, form.get('name'), 'Новый VIZ аккаунт');
+      if (String(form.get('registrationType') || 'account') === 'subaccount' && !name.includes('.')) name = `${name}.${creator}`;
+      if (!createAccountState.pendingKeys || createAccountState.name !== name) throw new Error('Сначала сгенерируйте ключи именно для этого VIZ аккаунта.');
+      createAccountState.backupConfirmed = createAccountState.backupConfirmed || form.get('savedBackup') === 'on';
+      if (!createAccountState.backupConfirmed) throw new Error('Перед созданием аккаунта подтвердите, что backup приватных ключей нового аккаунта сохранён.');
+      const existing = await fetchChainAccount(chain, name).catch(() => null);
+      if (existing && existing.name === name) throw new Error(`Аккаунт @${name} уже существует.`);
+      const keys = createAccountState.pendingKeys;
+      const master = { weight_threshold: 1, account_auths: [], key_auths: [[keys.masterPubkey, 1]] };
+      const active = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
+      const regular = { weight_threshold: 1, account_auths: [], key_auths: [[keys.regularPubkey, 1]] };
+      const amountText = String(form.get('amount') || '').trim().replace(',', '.').replace(/\s*(VIZ|SHARES)$/i, '');
+      if (!/^\d+(?:\.\d{1,6})?$/.test(amountText) || Number(amountText) < 0) throw new Error('Сумма должна быть неотрицательным числом.');
+      const tokenAmount = String(form.get('paymentType') || 'delegation') === 'fee' ? normalizeAssetInput(chain, amountText, chain.liquidSymbol, 'Account creation VIZ fee') : `0.000 ${chain.liquidSymbol}`;
+      const sharesAmount = String(form.get('paymentType') || 'delegation') === 'fee' ? `0.000000 ${chain.vestingSymbol}` : normalizeAssetInput(chain, amountText, chain.vestingSymbol, 'Account creation delegated SHARES');
+      return broadcast.prepare(chain, 'active', 'accountCreate', [tokenAmount, sharesAmount, creator, name, master, active, regular, keys.memoPubkey, '', '', []], {
+        title: 'VIZ accountCreate', to: name, amount: `${tokenAmount}; ${sharesAmount}`, warnings: ['Приватные ключи нового аккаунта не включаются в operation preview. Убедитесь, что backup скачан.']
+      });
+    });
+
+    bindOperationForm(chain, 'viz-reset-keys-form', async (form) => {
+      if (chain.id !== 'viz') throw new Error('Сброс VIZ ключей доступен только для VIZ.');
+      const account = normalizeAccountInput(chain, form.get('account'), 'Аккаунт для сброса');
+      if (!resetKeys.pendingKeys || resetKeys.account !== account) throw new Error('Сначала сгенерируйте новые ключи именно для этого аккаунта и скачайте backup.');
+      resetKeys.backupConfirmed = resetKeys.backupConfirmed || form.get('savedBackup') === 'on';
+      if (!resetKeys.backupConfirmed) throw new Error('Перед сбросом подтвердите, что новые приватные ключи сохранены в backup.');
+      const ownerWif = String(form.get('ownerWif') || '').trim();
+      const current = await fetchChainAccount(chain, account);
+      if (!current || typeof current.json_metadata === 'undefined') throw new Error('Не удалось получить текущий json_metadata аккаунта; сброс ключей остановлен, чтобы не стереть metadata.');
+      const keys = resetKeys.pendingKeys;
+      const master = { weight_threshold: 1, account_auths: [], key_auths: [[keys.masterPubkey, 1]] };
+      const active = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
+      const regular = { weight_threshold: 1, account_auths: [], key_auths: [[keys.regularPubkey, 1]] };
+      return broadcast.prepareWithPrivateKey(chain, account, 'master', ownerWif, 'accountUpdate', [account, master, active, regular, keys.memoPubkey, current.json_metadata || '{}'], {
+        title: 'VIZ reset keys', warnings: ['Сброс ключей удалит старые key/account auths. Owner/master WIF используется только в памяти и не показывается в preview/result.']
+      });
+    });
+
+    bindOperationForm(chain, 'viz-many-invites-form', (form) => {
+      if (chain.id !== 'viz') throw new Error('Batch invites доступны только для VIZ.');
+      const mode = String(form.get('mode') || 'create');
+      const account = auth.getCurrentLogin(chain);
+      let ops = [];
+      if (mode === 'create') {
+        const count = Math.max(1, Math.min(50, Math.trunc(Number(form.get('count') || 1))));
+        const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Баланс invite');
+        let preparedInvites = Array.isArray(manyInvitesState.invites) ? manyInvitesState.invites.slice(0, count) : [];
+        while (preparedInvites.length < count) {
+          const secret = generateVizInviteSecret();
+          preparedInvites.push({ secret, publicKey: vizInvitePublic(secret) });
+        }
+        manyInvitesState.invites = preparedInvites;
+        ops = preparedInvites.map((item) => ['create_invite', { creator: account, balance: amount, invite_key: item.publicKey }]);
+      } else {
+        const secrets = String(form.get('secrets') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+        if (!secrets.length) throw new Error('Вставьте invite secrets для use/claim.');
+        const opName = mode === 'claim' ? 'claim_invite_balance' : 'use_invite_balance';
+        ops = secrets.map((secret) => [opName, { initiator: account, receiver: account, invite_secret: secret }]);
+      }
+      return broadcast.prepare(chain, 'active', 'sendOperations', [ops], { title: `VIZ ${mode} many invites`, warnings: ['Batch invite preview/result sanitizes invite_secret; create mode показывает только публичные invite_key.'] });
+    });
+
+    bindOperationForm(chain, 'viz-witness-props-form', (form) => {
+      if (chain.id !== 'viz') throw new Error('versionedChainPropertiesUpdate доступен только для VIZ.');
+      let props = {};
+      try { props = JSON.parse(String(form.get('props') || '{}')); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
+      return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная witness операция: меняет chain properties; проверьте JSON перед отправкой.'] });
+    });
+
+    bindOperationForm(chain, 'viz-multisig-authority-form', (form) => {
+      if (chain.id !== 'viz') throw new Error('VIZ multisig authority доступен только для VIZ.');
+      const account = auth.getCurrentLogin(chain);
+      const activeWif = String(form.get('activeWif') || '').trim();
+      const kind = String(form.get('kind') || 'regular') === 'active' ? 'active' : 'regular';
+      const threshold = Math.max(1, Number.parseInt(String(form.get('threshold') || '1'), 10));
+      const accountAuths = parseAuthorityAccountAuths(form.get('accountAuths'));
+      if (!accountAuths.length) throw new Error('Добавьте хотя бы один account auth для multisig.');
+      const current = { weight_threshold: threshold, account_auths: accountAuths, key_auths: [] };
+      const empty = { weight_threshold: 1, account_auths: [], key_auths: [] };
+      const active = kind === 'active' ? current : empty;
+      const regular = kind === 'regular' ? current : empty;
+      return broadcast.prepareWithPrivateKey(chain, account, 'active', activeWif, 'accountUpdate', [account, undefined, active, regular, undefined, undefined], { title: 'VIZ multisig accountUpdate', warnings: ['Multisig update может заменить текущие key_auths выбранного authority. Проверьте account_auths и threshold.'] });
+    });
+
+    bindOperationForm(chain, 'viz-multisig-signed-tx-form', (form) => {
+      if (chain.id !== 'viz') throw new Error('VIZ signed transaction submit доступен только для VIZ.');
+      const signedTx = parseSignedTransactionJson(form.get('signedTx'));
+      return broadcast.prepareExternal(chain, 'broadcastTransactionSynchronous', [signedTx], { title: 'VIZ signed transaction submit', warnings: ['Отправляется уже подписанная transaction JSON; локальные WIF не используются.'] });
     });
 
     bindOperationForm(chain, 'viz-create-invite-form', (form) => broadcast.prepare(chain, 'active', 'createInvite', [
@@ -3687,7 +6292,199 @@
       const duration = Number(form.get('days') || 1) * 86400;
       return broadcast.prepare(chain, 'regular', 'committeeWorkerCreateRequest', [auth.getCurrentLogin(chain), String(form.get('url') || '').trim(), worker, min, max, duration], { title: 'VIZ committee создать заявку', to: worker, amount: `${min}..${max}` });
     });
-    setStatus(`${chain.title} управление готово: proxy/witness/настройки/authority/профиль${chain.id === 'viz' ? '/invite/committee' : ''}.`, 'ok');
+    setStatus(`${chain.title} управление готово: proxy/witness/настройки/authority/профиль${chain.id === 'golos' ? '/follow/workers/witness-list/create-account' : ''}${chain.id === 'viz' ? '/witness-list/invite/committee' : ''}.`, 'ok');
+  }
+
+  function vizExplorerBlockLinks(chain, title, startBlock) {
+    var start = Number(startBlock);
+    if (!Number.isFinite(start) || start <= 0) return '';
+    var links = [];
+    for (var index = 0; index < 10 && start - index > 0; index += 1) {
+      var blockNum = start - index;
+      links.push(`<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'explorer', kind: 'block', value: blockNum }))}">${escapeHtml(blockNum)}</a></li>`);
+    }
+    return `<section class="subpanel"><h3>${escapeHtml(title)}</h3><ul>${links.join('')}</ul></section>`;
+  }
+
+  async function loadVizExplorerOverview(chain, connection) {
+    const [dynamicProperties, chainProperties] = await Promise.all([
+      profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: profiles.formatError(error) }))
+    ]);
+    return { chain, dynamicProperties: dynamicProperties || {}, chainProperties: chainProperties || {} };
+  }
+
+  function renderVizExplorerOverview(data) {
+    var chain = data.chain;
+    var props = data.dynamicProperties || {};
+    var chainProps = data.chainProperties || {};
+    var chainPropRows = Object.assign({}, chainProps);
+    var chainPropDescriptions = {
+      account_creation_fee: 'Передаваемая комиссия при создании аккаунта',
+      create_account_delegation_ratio: 'Коэффициент наценки делегирования при создании аккаунта',
+      create_account_delegation_time: 'Срок делегирования при создании аккаунта (секунды)',
+      maximum_block_size: 'Максимальный размер блока в сети (байты)',
+      min_delegation: 'Минимальное количество токенов при делегировании',
+      bandwidth_reserve_percent: 'Доля сети для резервной пропускной способности',
+      bandwidth_reserve_below: 'Порог резервной пропускной способности',
+      vote_accounting_min_rshares: 'Минимальный вес голоса для учёта при награждении',
+      committee_request_approve_min_percent: 'Минимальная доля соц. капитала для решения Фонда ДАО',
+      inflation_witness_percent: 'Доля эмиссии на вознаграждение делегатов',
+      inflation_ratio_committee_vs_reward_fund: 'Доля эмиссии в Фонд ДАО относительно Фонда наград',
+      inflation_recalc_period: 'Количество блоков между пересчётом инфляции',
+      data_operations_cost_additional_bandwidth: 'Наценка bandwidth за data-операции',
+      witness_miss_penalty_percent: 'Штраф делегату за пропуск блока',
+      witness_miss_penalty_duration: 'Длительность штрафа делегату за пропуск блока',
+      create_invite_min_balance: 'Минимальный баланс для создания инвайта',
+      committee_create_request_fee: 'Комиссия за заявку в комитет',
+      create_paid_subscription_fee: 'Комиссия за платную подписку',
+      account_on_sale_fee: 'Комиссия за продажу аккаунта',
+      subaccount_on_sale_fee: 'Комиссия за продажу субаккаунтов',
+      witness_declaration_fee: 'Комиссия за декларирование делегатом',
+      withdraw_intervals: 'Количество интервалов уменьшения капитала'
+    };
+    var chainPropsHtml = chainProps._error ? `<p class="notice">Основные параметры не загрузились: ${escapeHtml(chainProps._error)}</p>` : `<dl class="kv-list">${Object.keys(chainPropRows).filter(function (key) { return !['min_curation_percent', 'max_curation_percent', 'flag_energy_additional_cost'].includes(key); }).map(function (key) { return `<div><dt>${escapeHtml(chainPropDescriptions[key] || key)}</dt><dd><code>${escapeHtml(key)}</code>: ${formatExplorerValue(chain, key, chainPropRows[key])}</dd></div>`; }).join('')}</dl>`;
+    return `
+      <nav aria-label="Оглавление VIZ explorer"><ul><li><a href="#viz-explorer-stable-blocks">Последние блоки с необратимого</a></li><li><a href="#viz-explorer-head-blocks">Последние блоки с последнего</a></li><li><a href="#viz-explorer-chain-props">Основные параметры</a></li></ul></nav>
+      <section id="viz-explorer-stable-blocks" aria-labelledby="viz-explorer-stable-blocks-heading">${vizExplorerBlockLinks(chain, 'Последние блоки с необратимого', props.last_irreversible_block_num).replace('<h3>', '<h3 id="viz-explorer-stable-blocks-heading">')}</section>
+      <section id="viz-explorer-head-blocks" aria-labelledby="viz-explorer-head-blocks-heading">${vizExplorerBlockLinks(chain, 'Последние блоки с последнего (обратимого)', props.head_block_number).replace('<h3>', '<h3 id="viz-explorer-head-blocks-heading">')}</section>
+      <section id="viz-explorer-chain-props" aria-labelledby="viz-explorer-chain-props-heading"><h3 id="viz-explorer-chain-props-heading">Основные параметры</h3>${chainPropsHtml}</section>
+      ${rawJsonDetails('Dynamic global properties', props)}${rawJsonDetails('Chain properties', chainProps)}`;
+  }
+
+  async function loadVizExplorerBlock(connection, blockNum) {
+    const [header, ops] = await Promise.all([
+      profiles.apiCall(connection, 'getBlockHeader', [Number(blockNum)]),
+      profiles.apiCall(connection, 'getOpsInBlock', [Number(blockNum), false]).catch(() => [])
+    ]);
+    var operations = Array.isArray(ops) ? ops.map(function (item, index) {
+      if (item && Array.isArray(item.op)) {
+        return { index: item.virtual_op || item.trx_in_block || index, type: item.op[0], data: item.op[1], timestamp: item.timestamp, trx_id: item.trx_id };
+      }
+      return item;
+    }) : [];
+    return Object.assign({ block_num: Number(blockNum), operations: operations }, header || {});
+  }
+
+  async function loadSteemExplorerOverview(chain, connection) {
+    const [dynamicProperties, chainProperties] = await Promise.all([
+      profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
+      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: profiles.formatError(error) }))
+    ]);
+    return { chain, dynamicProperties: dynamicProperties || {}, chainProperties: chainProperties || {} };
+  }
+
+  function renderSteemExplorerOverview(data) {
+    var chain = data.chain;
+    var props = data.dynamicProperties || {};
+    var chainProps = data.chainProperties || {};
+    var chainPropRows = Object.assign({}, chainProps);
+    var chainPropDescriptions = {
+      account_creation_fee: 'Размер комиссии за создание аккаунта без делегирования (STEEM)',
+      maximum_block_size: 'Максимальный размер блока в сети (байты)',
+      sbd_interest_rate: '% начисляемый на SBD',
+      account_subsidy_budget: 'Субсидии аккаунта, которые будут добавлены к субсидии аккаунта за блок',
+      account_subsidy_decay: 'Сокращение субсидий аккаунта'
+    };
+    var chainPropsHtml = chainProps._error ? `<p class="notice">Основные параметры не загрузились: ${escapeHtml(chainProps._error)}</p>` : `<dl class="kv-list">${Object.keys(chainPropRows).map(function (key) { return `<div><dt>${escapeHtml(chainPropDescriptions[key] || key)}</dt><dd><code>${escapeHtml(key)}</code>: ${formatExplorerValue(chain, key, chainPropRows[key])}</dd></div>`; }).join('')}</dl>`;
+    return `
+      <nav aria-label="Оглавление Steem explorer"><ul><li><a href="#steem-explorer-stable-blocks">Последние блоки с необратимого</a></li><li><a href="#steem-explorer-head-blocks">Последние блоки с последнего</a></li><li><a href="#steem-explorer-chain-props">Основные параметры</a></li></ul></nav>
+      <section id="steem-explorer-stable-blocks" aria-labelledby="steem-explorer-stable-blocks-heading">${vizExplorerBlockLinks(chain, 'Последние блоки с необратимого', props.last_irreversible_block_num).replace('<h3>', '<h3 id="steem-explorer-stable-blocks-heading">')}</section>
+      <section id="steem-explorer-head-blocks" aria-labelledby="steem-explorer-head-blocks-heading">${vizExplorerBlockLinks(chain, 'Последние блоки с последнего (обратимого)', props.head_block_number).replace('<h3>', '<h3 id="steem-explorer-head-blocks-heading">')}</section>
+      <section id="steem-explorer-chain-props" aria-labelledby="steem-explorer-chain-props-heading"><h3 id="steem-explorer-chain-props-heading">Основные параметры</h3>${chainPropsHtml}</section>
+      ${rawJsonDetails('Dynamic global properties', props)}${rawJsonDetails('Chain properties', chainProps)}`;
+  }
+
+  async function loadSteemExplorerBlock(connection, blockNum) {
+    const [header, ops] = await Promise.all([
+      profiles.apiCall(connection, 'getBlockHeader', [Number(blockNum)]),
+      profiles.apiCall(connection, 'getOpsInBlock', [Number(blockNum), false]).catch(() => [])
+    ]);
+    var operations = Array.isArray(ops) ? ops.map(function (item, index) {
+      if (item && Array.isArray(item.op)) {
+        return { index: item.virtual_op || item.trx_in_block || index, type: item.op[0], data: item.op[1], timestamp: item.timestamp, trx_id: item.trx_id };
+      }
+      return item;
+    }) : [];
+    return Object.assign({ block_num: Number(blockNum), operations: operations }, header || {});
+  }
+
+  function minterTxTypeLabel(type) {
+    const labels = {
+      1: 'Отправка', 2: 'Продажа монеты', 3: 'Продажа всех монет', 4: 'Покупка монет', 5: 'Создание монеты', 6: 'Объявление кандидата в валидаторы', 7: 'Делегирование', 8: 'Анбонд', 9: 'Получение чека', 10: 'Установка кандидата в статусе онлайн', 11: 'Установка кандидата в статусе оффлайн', 12: 'Создание мультисига', 13: 'Мультисенд (мульти-отправка)', 14: 'Редактирование кандидата', 15: 'Установка блока остановки', 16: 'Пересоздание монеты', 17: 'Изменение владельца монеты', 18: 'Редактирование мультисига', 19: 'Голосование за цену', 20: 'Изменение публичного ключа кандидата', 21: 'Добавление ликвидности', 22: 'Удаление ликвидности', 23: 'Продажа через пул', 24: 'Покупка через пул', 25: 'Продажа всех монет через пул', 26: 'Изменение комиссии кандидата', 27: 'Перемещение стейка', 28: 'Эмиссия токена', 29: 'Сжигание токена', 30: 'Создание токена', 31: 'Пересоздание токена', 32: 'Голосование за комиссию', 33: 'Голосование за обновление', 34: 'Создание пула ликвидности', 35: 'Создание ордера', 36: 'Отмена лимитного ордера', 37: 'Блокировка стейка', 38: 'Блокировка токенов', 39: 'Перенос стейка'
+    };
+    return labels[Number(type)] || `Тип ${escapeHtml(type)}`;
+  }
+
+  async function loadMinterExplorerOverview(chain) {
+    const [status, statusPage] = await Promise.all([
+      fetchJsonText(`${chain.apiBase}/status`, 'Minter status API'),
+      fetchJsonText(`${chain.explorerBase}/status-page`, 'Minter explorer status-page').catch(() => null)
+    ]);
+    return { status, statusPage: statusPage && (statusPage.data || statusPage.result || statusPage) };
+  }
+
+  function renderMinterExplorerOverview(chain, overview) {
+    const status = overview.status || {};
+    const page = overview.statusPage || {};
+    const latest = Number(status.latest_block_height || 0);
+    const blocks = latest ? Array.from({ length: 10 }, (_, index) => latest - index).filter((value) => value > 0) : [];
+    return `<h2>Введите номер блока или хэш-сумму транзакции блокчейна Minter:</h2>
+      <nav aria-label="Оглавление Minter explorer"><ul><li><a href="#minter-explorer-last-blocks">Последние блоки</a></li><li><a href="#minter-explorer-status">Статус</a></li></ul></nav>
+      <section id="minter-explorer-last-blocks" aria-labelledby="minter-explorer-last-blocks-heading"><h3 id="minter-explorer-last-blocks-heading">Последние блоки</h3><ul>${blocks.map((height) => `<li>${explorerLink(chain, 'block', height, String(height))}</li>`).join('') || '<li>Публичный API не вернул номер последнего блока.</li>'}</ul></section>
+      <section id="minter-explorer-status" aria-labelledby="minter-explorer-status-heading"><h3 id="minter-explorer-status-heading">Статус</h3><ul>
+        <li>Сеть: ${escapeHtml(status.network || '')}</li>
+        <li>Хеш последнего блока: ${escapeHtml(status.latest_block_hash || '')}</li>
+        <li>Номер последнего блока: ${escapeHtml(status.latest_block_height || '')}</li>
+        <li>Дата и время последнего блока: ${escapeHtml(status.latest_block_time || '')}</li>
+        <li>Публичный ключ валидатора: ${escapeHtml(status.public_key || '')}</li>
+        ${page.bip_emission ? `<li>Эмиссия BIP: ${escapeHtml(page.bip_emission)}</li>` : ''}
+        ${page.free_float_bip ? `<li>На руках (в ликвиде) ${escapeHtml(page.free_float_bip)} BIP</li>` : ''}
+        ${page.block_speed_24h ? `<li>Средняя скорость выпуска блоков за 24 часа: ${escapeHtml(formatLongNumber(page.block_speed_24h, 2))} с</li>` : ''}
+        ${page.transaction_count_24h ? `<li>Кол-во транзакций за 24 часа: ${escapeHtml(page.transaction_count_24h)}</li>` : ''}
+      </ul></section>${rawJsonDetails('Minter status API', status)}${page ? rawJsonDetails('Minter status-page API', page) : ''}`;
+  }
+
+  async function loadMinterExplorerBlock(chain, height) {
+    return fetchJsonText(`${chain.apiBase}/block/${encodeURIComponent(height)}`, 'Minter block API');
+  }
+
+  function renderMinterExplorerData(chain, data) {
+    if (!data || typeof data !== 'object') return escapeHtml(data);
+    const entries = Array.isArray(data.list) ? data.list.flatMap((item) => Object.entries(item || {})) : Object.entries(data);
+    return `<dl class="kv-list">${entries.map(([key, value]) => {
+      let rendered;
+      if (isAccountLikeKey(key)) rendered = renderAccountCell(chain, value);
+      else if (key === 'value') rendered = `${escapeHtml(history.formatChainAmount ? history.formatChainAmount(chain, key, value) : String(value))}`;
+      else if (key === 'coin' && value && typeof value === 'object') rendered = escapeHtml(value.symbol || JSON.stringify(value));
+      else rendered = Array.isArray(value) || (value && typeof value === 'object') ? `<code>${escapeHtml(JSON.stringify(value))}</code>` : escapeHtml(value);
+      return `<div><dt>${escapeHtml(key === 'value' ? 'Количество' : key === 'coin' ? 'Монета' : key)}</dt><dd>${rendered}</dd></div>`;
+    }).join('')}</dl>`;
+  }
+
+  function renderMinterExplorerBlock(chain, block, height) {
+    const txs = Array.isArray(block.transactions) ? block.transactions : [];
+    const current = Number(height || block.height || 0);
+    return `<h2>Блок №${escapeHtml(height || block.height || '')} (${explorerLink(chain, 'block', current - 1, '← предыдущий')}, ${explorerLink(chain, 'block', current + 1, '→ следующий')})</h2>
+      <h3>Транзакции: ${escapeHtml(block.transaction_count || txs.length || 0)}</h3>
+      ${txs.length ? `<ol>${txs.map((tx) => `<li><h3>Хеш: ${explorerLink(chain, 'tx', tx.hash, tx.hash)}</h3><div class="table-wrap"><table aria-label="Транзакция Minter в блоке"><caption>Транзакция ${escapeHtml(tx.hash || '')}</caption><thead><tr><th scope="col">Тип транзакции</th><th scope="col">JSON</th></tr></thead><tbody><tr><td>${escapeHtml(minterTxTypeLabel(tx.type))}</td><td>${renderMinterExplorerData(chain, tx.data)}</td></tr></tbody></table></div></li>`).join('')}</ol>` : '<p class="muted">Транзакций в блоке нет.</p>'}
+      <h2>Информация о блоке</h2><ul><li>Сформирован ${escapeHtml(block.time || '')} GMT</li><li>Предложил блок: ${escapeHtml(block.proposer || '')}</li></ul>${rawJsonDetails('Minter block API', block)}`;
+  }
+
+  async function loadMinterExplorerTx(chain, hash) {
+    const payload = await fetchJsonText(`${chain.explorerBase}/transactions/${encodeURIComponent(hash)}`, 'Minter transaction API');
+    return payload && (payload.data || payload.result || payload);
+  }
+
+  function renderMinterExplorerTx(chain, tx, hash) {
+    if (!tx || !Object.keys(tx).length) return '<p>Такой транзакции нет.</p>';
+    return `<h2>Транзакция ${escapeHtml(hash)}</h2><ul>
+      <li>Блок: ${explorerLink(chain, 'block', tx.height, String(tx.height || ''))}</li>
+      <li>Создана: ${escapeHtml(tx.timestamp || tx.time || '')}</li>
+      <li>Тип: ${escapeHtml(minterTxTypeLabel(tx.type))}</li>
+      <li>Отправитель: ${renderAccountCell(chain, tx.from)}</li>
+      <li>Комиссия: ${escapeHtml(tx.gas_coin && tx.gas_coin.symbol ? tx.gas_coin.symbol : '')} (BIP ${escapeHtml(history.formatChainAmount ? history.formatChainAmount(chain, 'fee', tx.fee) : tx.fee || '')})</li>
+    </ul><hr><h3>Данные</h3>${renderMinterExplorerData(chain, tx.data)}${rawJsonDetails('Minter transaction API', tx)}`;
   }
 
   async function renderExplorer(chain, account) {
@@ -3709,16 +6506,53 @@
       navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim().replace(/^@/, '') });
     });
 
+    const connection = await getConnection(chain);
+
     if (!state.kind || !state.value) {
+      if (chain.id === 'viz') {
+        const overview = await loadVizExplorerOverview(chain, connection);
+        document.getElementById('explorer-result').innerHTML = renderVizExplorerOverview(overview);
+        setStatus('VIZ проводник: последние блоки и параметры загружены через публичную ноду.', 'ok');
+        return;
+      }
+      if (chain.id === 'steem') {
+        const overview = await loadSteemExplorerOverview(chain, connection);
+        document.getElementById('explorer-result').innerHTML = renderSteemExplorerOverview(overview);
+        setStatus('Steem проводник: последние блоки и параметры загружены через публичную ноду.', 'ok');
+        return;
+      }
+      if (chain.id === 'minter') {
+        const overview = await loadMinterExplorerOverview(chain);
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerOverview(chain, overview);
+        setStatus('Minter проводник: последние блоки и статус загружены через публичные API.', 'ok');
+        return;
+      }
       setStatus(`${chain.title} проводник готов.`, 'info');
       return;
     }
 
-    const connection = await getConnection(chain);
     let result;
     if (state.kind === 'block') {
-      result = await profiles.apiCall(connection, 'getBlock', [Number(state.value)]);
+      if (chain.id === 'minter') {
+        result = await loadMinterExplorerBlock(chain, state.value);
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerBlock(chain, result, state.value);
+        setStatus('Minter проводник: блок загружен через публичный API.', 'ok');
+        return;
+      }
+      if (chain.id === 'viz' && state.kind === 'block') {
+        result = await loadVizExplorerBlock(connection, Number(state.value));
+      } else if (chain.id === 'steem' && state.kind === 'block') {
+        result = await loadSteemExplorerBlock(connection, Number(state.value));
+      } else {
+        result = await profiles.apiCall(connection, 'getBlock', [Number(state.value)]);
+      }
     } else if (state.kind === 'tx') {
+      if (chain.id === 'minter') {
+        result = await loadMinterExplorerTx(chain, String(state.value).trim());
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerTx(chain, result, state.value);
+        setStatus('Minter проводник: транзакция загружена через публичный explorer API.', 'ok');
+        return;
+      }
       result = await profiles.apiCall(connection, 'getTransaction', [String(state.value).trim()]);
     } else {
       result = await profiles.fetchAccount(connection, String(state.value).trim().replace(/^@/, ''));
@@ -3726,7 +6560,45 @@
     document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
     setStatus(`${chain.title} проводник: ${state.kind} загружен.`, 'ok');
   }
+  function renderMinterHelp(chain) {
+    appEl.innerHTML = `
+      <section class="panel minter-help" aria-labelledby="minter-help-heading">
+        <h2 id="minter-help-heading">${escapeHtml(chain.title)}: справка dpos.space</h2>
+        <p>Здесь только видео справка.</p>
+        <section aria-labelledby="minter-help-services-heading">
+          <h3 id="minter-help-services-heading">Сервисы Minter</h3>
+          <iframe width="560" height="315" src="https://www.youtube.com/embed/Hk0GYmc_efo" title="Видео-справка по сервисам Minter на dpos.space" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </section>
+        <section aria-labelledby="minter-help-long-heading">
+          <h4 id="minter-help-long-heading">Ставим на курс криптовалют и пулов в Minter при помощи сервиса экосистемы LONG</h4>
+          <iframe width="560" height="315" src="https://www.youtube.com/embed/Fl2-6LXfX4k" title="Видео-справка по LONG ставкам на курс криптовалют и пулов Minter" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </section>
+        <p class="notice" role="status" aria-live="polite">Статическая read-only страница: видео открываются напрямую с YouTube, без PHP, приватного backend и отправки операций.</p>
+      </section>`;
+    setStatus('Minter справка открыта как статическая видео-страница без backend.', 'ok');
+  }
 
+  function renderVizHelp(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: справка dpos.space</h2>
+        <p>Legacy VIZ help автоматически перенаправлял браузер через <code>location.replace</code> на обзор сервисов dpos.space. В static v3 авто-редирект заменён явной доступной ссылкой, чтобы пользователь и screen reader не теряли контекст.</p>
+        <p><a href="https://viz.media/obzor-servisov-dpos-space-viz/" target="_blank" rel="noopener">Обзор сервисов dpos.space на viz.media</a></p>
+        <p class="notice">Раздел read-only: он не отправляет операции, не вызывает PHP и не использует скрытые backend API.</p>
+      </section>`;
+    setStatus('VIZ справка открыта как явная статическая ссылка без auto-redirect.', 'ok');
+  }
+
+  function renderSteemHelp(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: справка dpos.space</h2>
+        <p>Legacy Steem help автоматически перенаправлял браузер на обзор сервисов dpos.space для Steem. В static v3 auto-redirect заменён явной доступной ссылкой, чтобы пользователь и screen reader не теряли контекст.</p>
+        <p><a href="https://steemit.com/hive-176147/@lllll1ll/obzor-servisov-prilozheniya-dpos-space-dlya-blokcheina-steem" target="_blank" rel="noopener">Обзор сервисов приложения dpos.space для блокчейна Steem</a></p>
+        <p class="notice">Раздел read-only: он не отправляет операции, не вызывает PHP и не использует скрытые backend API.</p>
+      </section>`;
+    setStatus('Steem справка открыта как явная статическая ссылка без auto-redirect.', 'ok');
+  }
 
   function renderVizExchanges(chain) {
     appEl.innerHTML = `
@@ -3742,12 +6614,130 @@
     setStatus('Страница обмена VIZ загружена.', 'ok');
   }
 
+  function htmlToMarkdownLikeText(root) {
+    if (!root) return '';
+    const parts = [];
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 3) {
+        const text = String(node.textContent || '').replace(/\s/g, ' ').trim();
+        if (text) parts.push(text);
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = String(node.tagName || '').toLowerCase();
+      if (tag === 'script' || tag === 'style' || tag === 'noscript') return;
+      if (/^h[1-6]$/.test(tag)) parts.push(`\n# ${String(node.textContent || '').trim()}\n`);
+      else if (tag === 'p' || tag === 'blockquote' || tag === 'li') parts.push(`\n${String(node.textContent || '').trim()}\n`);
+      else if (tag === 'br') parts.push('\n');
+      else Array.from(node.childNodes || []).forEach(walk);
+    };
+    walk(root);
+    return parts.join(' ').replace(/[ \t]\n/g, '\n').replace(/\n[ \t]/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+
+  function parseImportedArticleHtml(source, sourceUrl) {
+    const html = String(source || '');
+    if (!/<[a-z][\s\S]*>/i.test(html) || !global.DOMParser) {
+      const lines = html.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const heading = lines.find((line) => /^#\s/.test(line));
+      return { title: heading ? heading.replace(/^#\s/, '') : (lines[0] || ''), body: html.trim(), sourceUrl };
+    }
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const telegraph = doc.querySelector('.tl_article, article, main') || doc.body;
+    const mirror = doc.querySelector('[data-post-content], .post-content, .mirror-post') || telegraph;
+    const titleNode = doc.querySelector('h1, .tl_article_header, [data-testid="publication-title"], title');
+    const title = titleNode ? String(titleNode.textContent || '').trim() : '';
+    const body = htmlToMarkdownLikeText(mirror);
+    return { title, body, sourceUrl };
+  }
+
+  function buildVizVoicePostPayload(account, title, content) {
+    var postTitle = String(title || '').trim();
+    var postContent = String(content || '').trim();
+    if (!postTitle) throw new Error('Введите заголовок публикации Voice.');
+    if (!postContent) throw new Error('Введите текст публикации Voice.');
+    return JSON.stringify({
+      p: account && account.custom_sequence_block_num ? account.custom_sequence_block_num : 0,
+      t: 'p',
+      d: {
+        t: postTitle,
+        m: postContent,
+        d: postContent.replace(/<[^>]>/g, ' ').replace(/\s/g, ' ').trim().slice(0, 140)
+      }
+    });
+  }
+
+  function buildVizVoiceFooter(sourceUrl) {
+    var url = String(sourceUrl || '').trim();
+    var sourceLink = url ? `<br><b><a href="${escapeHtml(url)}" target="_blank" rel="noopener">источник</a></b>` : '';
+    return `<p>Пост импортирован при помощи <a href="https://dpos.space/viz/voice-import" target="_blank" rel="noopener">voice-import</a>.${sourceLink}</p>`;
+  }
+
+  function renderVizVoiceImport(chain) {
+    appEl.innerHTML = `
+      <section class="panel viz-voice-import">
+        <h2>VIZ: Импорт в Voice / readdle.me</h2>
+        <p id="posting_auth_msg">Для публикации нужен выбранный VIZ-аккаунт с regular key или Vizonator. Legacy форма показывала это сообщение как <code>posting_auth_msg</code>.</p>
+        <p>Legacy импортировал статьи из <code>telegra.ph</code> и <code>mirror.xyz</code>, очищал HTML, загружал картинки на Imgur и публиковал custom protocol <code>V</code> в Voice (<code>readdle.me</code>).</p>
+        <p class="notice"><strong>Backend yes:</strong> старый импорт использовал CORS proxy endpoint и внешний Imgur Client-ID для переноса изображений. Это backend-only non-goal в static v3: скрытый proxy, image rehosting и серверная загрузка URL не восстанавливаются; URL пробуется напрямую из браузера, а надёжный путь — вставить HTML/текст вручную.</p>
+        <form id="viz-voice-import-parser-form" class="stacked-form"><fieldset>
+          <legend>Подготовить черновик из URL или HTML</legend>
+          <div class="field"><label for="url-input">Url статьи в telegra.ph или mirror.xyz</label><input type="url" id="url-input" name="url" placeholder="https://telegra.ph/... или https://mirror.xyz/..."></div>
+          <div class="field"><label for="viz-voice-source-html">Или HTML/текст статьи</label><textarea id="viz-voice-source-html" name="source" rows="8"></textarea></div>
+          <button type="submit" id="import-button">Импортировать локально</button>
+          <div id="results" class="operation-result" role="status" aria-live="polite"></div>
+        </fieldset></form>
+        <form id="viz-voice-publish-form" class="stacked-form"><fieldset>
+          <legend>Опубликовать в Voice</legend>
+          <div class="field"><label for="viz-voice-title">Заголовок</label><input id="viz-voice-title" name="title" type="text" required></div>
+          <div class="field"><label for="viz-voice-content">HTML/текст публикации</label><textarea id="viz-voice-content" name="content" rows="12" required></textarea></div>
+          <div class="field"><label for="viz-voice-source-url">Ссылка на источник для подписи</label><input id="viz-voice-source-url" name="source_url" type="url"></div>
+          <button type="submit" name="intent" value="preview">Проверить Voice custom</button><button type="submit" name="intent" value="send">Опубликовать в Voice</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+
+    document.getElementById('viz-voice-import-parser-form').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var form = event.currentTarget;
+      var data = new FormData(form);
+      var url = String(data.get('url') || '').trim();
+      var source = String(data.get('source') || '');
+      try {
+        if (!source && url) {
+          var response = await fetch(url);
+          source = await response.text();
+        }
+        if (!source) throw new Error('Укажите URL или вставьте HTML/текст статьи.');
+        var parsed = parseImportedArticleHtml(source, url);
+        document.getElementById('viz-voice-title').value = parsed.title || '';
+        document.getElementById('viz-voice-content').value = (parsed.body || source.trim()) + '\n\n' + buildVizVoiceFooter(url);
+        document.getElementById('viz-voice-source-url').value = url;
+        setOperationResult(form, 'Черновик Voice подготовлен локально. Проверьте заголовок, текст и изображения перед публикацией.', 'ok');
+      } catch (error) {
+        setOperationResult(form, profiles.formatError(error) + ' Если браузер заблокировал URL из-за CORS, вставьте HTML/текст вручную.', 'error');
+      }
+    });
+
+    bindOperationForm(chain, 'viz-voice-publish-form', async function (form) {
+      var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Автор Voice публикации');
+      var sourceUrl = String(form.get('source_url') || '').trim();
+      var content = String(form.get('content') || '').trim();
+      if (sourceUrl && content.indexOf('источник') === -1) content += '\n\n' + buildVizVoiceFooter(sourceUrl);
+      var account = await fetchChainAccount(chain, from);
+      var payload = buildVizVoicePostPayload(account, form.get('title'), content);
+      return broadcast.prepare(chain, 'regular', 'custom', [from, 'V', payload], { title: 'Voice publication custom', protocol: 'V', to: 'readdle.me', warnings: ['Проверьте текст публикации: static v3 не переносит изображения через Imgur и не использует legacy CORS proxy.'] });
+    });
+    setStatus('VIZ voice-import открыт: импорт выполняется локально, публикация — через подтверждаемый custom protocol V.', 'info');
+  }
+
   function renderImport(chain) {
     const draftKey = `${chain.id}_v3_import_draft`;
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: импорт статьи</h2>
-        <p>Вставьте URL или текст статьи. Если сайт разрешает загрузку из браузера, текст будет подготовлен как черновик для редактора.</p>
+        <p>Вставьте URL или HTML/текст статьи. v3 разбирает Telegra.ph/Mirror-like HTML локально через DOMParser; произвольные URL могут не загрузиться из-за CORS, тогда вставьте HTML вручную.</p>
         <form id="import-form" class="stacked-form">
           <fieldset>
             <legend>Источник</legend>
@@ -3765,42 +6755,311 @@
       const data = new FormData(form);
       let source = String(data.get('text') || '');
       const url = String(data.get('url') || '').trim();
+      const warnings = [];
       if (!source && url) {
-        const response = await fetch(url);
-        source = await response.text();
+        try {
+          const response = await fetch(url);
+          source = await response.text();
+        } catch (error) {
+          warnings.push('URL не загрузился из браузера — вероятно CORS. Вставьте HTML/текст статьи вручную.');
+          setOperationResult(form, profiles.formatError(error), 'error');
+          return;
+        }
       }
-      const titleMatch = source.match(/<title[^>]*>([^<]+)<\/title>/i) || source.match(/^#\s+(.+)$/m);
-      const title = titleMatch ? titleMatch[1].trim() : '';
-      const body = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s{3,}/g, '\n\n').trim();
-      const draft = { title, body, sourceUrl: url, importedAt: new Date().toISOString() };
+      const parsed = parseImportedArticleHtml(source, url);
+      const draft = { title: parsed.title, body: parsed.body, sourceUrl: url, importedAt: new Date().toISOString() };
       localStorage.setItem(draftKey, JSON.stringify(draft));
-      setOperationResult(form, `Черновик сохранён. Откройте редактор ${chain.title}, чтобы проверить заголовок и текст.`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'importDraft', params: [{ title, body: body.slice(0, 1000), sourceUrl: url }], meta: { title: 'Импорт черновика', warnings: url ? ['Если URL не загрузился из-за ограничений сайта, вставьте текст вручную.'] : [] } });
+      const editorUrl = appHash({ chain: chain.id, app: 'editor', account: auth.getCurrentLogin(chain) });
+      setOperationResult(form, `<p>Черновик сохранён. <a href="${escapeHtml(editorUrl)}">Открыть редактор ${escapeHtml(chain.title)}</a>.</p>`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'importDraft', params: [{ title: parsed.title, body: parsed.body.slice(0, 1000), sourceUrl: url }], meta: { title: 'Импорт черновика', warnings } });
     });
     setStatus(`${chain.title} импорт готов: URL/text → черновик.`, 'ok');
+  }
+
+  function buildTelegramInstantViewUrl(url) {
+    const source = String(url || '').trim();
+    if (!/^https?:\/\//i.test(source)) throw new Error('Для Telegram Instant View нужен полный http/https URL.');
+    const params = new URLSearchParams({ url: source, rhash: '1d27d6e1501db6' });
+    return `https://t.me/iv?${params.toString()}`;
+  }
+
+  function blockRandomSeed(block, fallback, chain) {
+    if (!block || typeof block !== 'object') return String(fallback || '');
+    if (chain && (chain.id === 'minter' || chain.id === 'decimal') && block.hash) return String(block.hash);
+    if (chain && ['viz', 'steem', 'hive'].includes(chain.id) && block.witness_signature) return String(block.witness_signature);
+    return [
+      block.hash,
+      block.block_id,
+      block.previous,
+      block.transaction_merkle_root,
+      block.witness,
+      block.timestamp,
+      block.witness_signature,
+      JSON.stringify(block.transactions || [])
+    ].filter(Boolean).join('|') || String(fallback || '');
+  }
+
+  async function fetchMinterRandomBlock(chain, text) {
+    const response = await fetch(`${(chain.apiBase || 'https://api.minter.one/v2').replace(/\/$/, '')}/block/${encodeURIComponent(text)}`);
+    if (!response.ok) throw new Error(`Minter block ${text}: HTTP ${response.status}`);
+    const data = await response.json();
+    return data.result || data.data || data;
+  }
+
+  async function fetchDecimalRandomBlock(chain, text) {
+    const response = await fetch(`${(chain.apiBase || 'https://api.decimalchain.com/api/v1').replace(/\/$/, '')}/blocks/${encodeURIComponent(text)}`);
+    if (!response.ok) throw new Error(`Decimal block ${text}: HTTP ${response.status}`);
+    const data = await response.json();
+    const block = data.Result || data.result || data.data || data;
+    return block.block || block;
+  }
+
+  async function resolveRandomBlockchainSeed(chain, connection, value) {
+    const text = String(value || '').trim();
+    if (/^\d+$/.test(text)) {
+      const blockNum = Number(text);
+      if (chain.id === 'minter') {
+        const block = await fetchMinterRandomBlock(chain, text);
+        return { input: text, type: 'block', blockNum, seed: blockRandomSeed(block, text, chain), hash: block && block.hash, block };
+      }
+      if (chain.id === 'decimal') {
+        const block = await fetchDecimalRandomBlock(chain, text);
+        return { input: text, type: 'block', blockNum, seed: blockRandomSeed(block, text, chain), hash: block && block.hash, block };
+      }
+      const block = await profiles.apiCall(connection, 'getBlock', [blockNum]);
+      return { input: text, type: 'block', blockNum, seed: blockRandomSeed(block, text, chain), witnessSignature: block && block.witness_signature, block };
+    }
+    return { input: text, type: 'literal', seed: text };
   }
 
   function renderInstantView(chain) {
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: Instant View</h2>
-        <p>Показывает очищенный предпросмотр HTML/Markdown без отправки операций.</p>
+        <p>Локальный предпросмотр HTML/Markdown и legacy-ссылка Telegram Instant View без backend.</p>
+        <form id="instant-view-link-form" class="stacked-form">
+          <fieldset>
+            <legend>Telegram Instant View link</legend>
+            <div class="field"><label for="instant-view-url">URL статьи</label><input id="instant-view-url" name="url" type="url" placeholder="https://example.com/post" required></div>
+            <button type="submit">Сгенерировать ссылку Telegram IV</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
         <form id="instant-view-form" class="stacked-form">
           <fieldset>
-            <legend>Предпросмотр</legend>
+            <legend>Локальный предпросмотр</legend>
             <div class="field"><label for="instant-view-source">HTML/Markdown</label><textarea id="instant-view-source" name="source" rows="12" required></textarea></div>
-            <button type="submit">Показать Instant View</button>
+            <button type="submit">Показать очищенный предпросмотр</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>
       </section>`;
+    document.getElementById('instant-view-link-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      try {
+        const url = String(new FormData(form).get('url') || '').trim();
+        const ivUrl = buildTelegramInstantViewUrl(url);
+        setOperationResult(form, `<p>Telegram Instant View: <a href="${escapeHtml(ivUrl)}" target="_blank" rel="noopener">открыть</a></p><p><button type="button" data-copy-value="${escapeHtml(ivUrl)}">Скопировать ссылку</button></p>`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'none', operationName: 'telegramInstantViewLink', params: [{ url, rhash: '1d27d6e1501db6', ivUrl }], meta: { title: 'Telegram Instant View link', warnings: [] } });
+        bindCopyButtons(form);
+      } catch (error) {
+        setOperationResult(form, profiles.formatError(error), 'error');
+      }
+    });
     document.getElementById('instant-view-form').addEventListener('submit', (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       const source = String(new FormData(form).get('source') || '');
-      const text = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      const text = source.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
       setOperationResult(form, 'Instant View готов.', 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'posting', operationName: 'instantView', params: [{ text }], meta: { title: 'Instant View', warnings: [] } });
     });
     setStatus(`${chain.title} Instant View готов.`, 'ok');
+  }
+
+  function renderOrderRows(rows, emptyText) {
+    if (!Array.isArray(rows) || !rows.length) return `<p class="muted">${escapeHtml(emptyText || 'Нет данных.')}</p>`;
+    return `<div class="table-scroll"><table><caption>Market data</caption><thead><tr><th scope="col">Цена</th><th scope="col">База</th><th scope="col">Котировка</th><th scope="col">Данные</th></tr></thead><tbody>${rows.map((row) => {
+      const price = row.real_price || row.price || row.order_price || '';
+      const base = row.steem || row.base || row.sell_price && row.sell_price.base || row.for_sale || '';
+      const quote = row.sbd || row.quote || row.sell_price && row.sell_price.quote || '';
+      return `<tr><td>${escapeHtml(price)}</td><td>${escapeHtml(base)}</td><td>${escapeHtml(quote)}</td><td><code>${escapeHtml(JSON.stringify(row).slice(0, 240))}</code></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+
+  async function loadGrapheneOrderBook(chain, limit) {
+    const connection = await getConnection(chain);
+    const count = Math.max(1, Math.min(100, Math.trunc(Number(limit || 20))));
+    return profiles.apiCall(connection, 'getOrderBook', [count]);
+  }
+
+  async function loadGrapheneOpenOrders(chain, account) {
+    const connection = await getConnection(chain);
+    return profiles.apiCall(connection, 'getOpenOrders', [account]);
+  }
+
+  async function loadGolosSwapAccountAssets(chain, account) {
+    if (chain.id !== 'golos') return { balances: {}, assets: [] };
+    const connection = await getConnection(chain);
+    const api = connection.client && connection.client.api;
+    if (!api) throw new Error('Golos API недоступен для загрузки токенов swap.');
+    const [accounts, uiaBalances, assets] = await Promise.all([
+      typeof api.getAccountsAsync === 'function' ? api.getAccountsAsync([account]) : [],
+      typeof api.getAccountsBalancesAsync === 'function' ? api.getAccountsBalancesAsync([account]) : [],
+      typeof api.getAssetsAsync === 'function' ? fetchAllGolosAssets(api, 200) : []
+    ]);
+    const balances = {};
+    const profile = accounts && accounts[0];
+    if (profile && profile.balance) balances.GOLOS = String(profile.balance).split(' ')[0];
+    if (profile && profile.sbd_balance) balances.GBG = String(profile.sbd_balance).split(' ')[0];
+    const firstBalances = uiaBalances && uiaBalances[0] ? uiaBalances[0] : {};
+    Object.entries(firstBalances).forEach(([symbol, info]) => {
+      const balance = info && (info.balance || info.amount || info);
+      balances[normalizeSwapTokenSymbol(symbol, 'UIA')] = String(balance).split(' ')[0];
+    });
+    return { balances, assets: Array.isArray(assets) ? assets : [] };
+  }
+
+  function golosSwapBuySymbolsForSell(sellSymbol, assets) {
+    const sell = normalizeSwapTokenSymbol(sellSymbol || 'GOLOS', 'Токен продажи');
+    const symbols = new Set();
+    if (sell !== 'GOLOS') symbols.add('GOLOS');
+    if (sell !== 'GBG') symbols.add('GBG');
+    (assets || []).forEach((asset) => {
+      const symbol = golosSymbolFromAssetField(asset && asset.max_supply);
+      if (!symbol || symbol === sell) return;
+      const whitelist = Array.isArray(asset.symbols_whitelist) ? asset.symbols_whitelist : [];
+      if (whitelist.length === 0 || whitelist.includes(sell)) symbols.add(symbol);
+    });
+    const sellAsset = (assets || []).find((asset) => golosSymbolFromAssetField(asset && asset.max_supply) === sell);
+    const sellWhitelist = sellAsset && Array.isArray(sellAsset.symbols_whitelist) ? sellAsset.symbols_whitelist : [];
+    sellWhitelist.forEach((symbol) => {
+      if (symbol && symbol !== sell) symbols.add(symbol);
+    });
+    return Array.from(symbols).sort();
+  }
+
+  function renderGolosSwapTokenHints(state) {
+    const balances = state && state.balances ? state.balances : {};
+    const assets = state && state.assets ? state.assets : [];
+    const sellSymbols = Object.keys(balances).filter((symbol) => Number(balances[symbol]) > 0).sort();
+    const allSymbols = new Set(['GOLOS', 'GBG']);
+    assets.forEach((asset) => {
+      const symbol = golosSymbolFromAssetField(asset && asset.max_supply);
+      if (symbol) allSymbols.add(symbol);
+    });
+    const sellList = document.getElementById('golos-swap-sell-symbols');
+    const buyList = document.getElementById('golos-swap-buy-symbols');
+    const maxInfo = document.getElementById('golos-swap-max-amount');
+    const sellInput = document.getElementById('swap-direct-sell-symbol');
+    const sell = sellInput ? normalizeSwapTokenSymbol(sellInput.value || 'GOLOS', 'Токен продажи') : 'GOLOS';
+    if (sellList) sellList.innerHTML = sellSymbols.map((symbol) => `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)} — максимум ${escapeHtml(balances[symbol])}</option>`).join('');
+    const buySymbols = golosSwapBuySymbolsForSell(sell, assets).filter((symbol) => allSymbols.has(symbol) || symbol === 'GOLOS' || symbol === 'GBG');
+    if (buyList) buyList.innerHTML = buySymbols.map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join('');
+    if (maxInfo) maxInfo.textContent = balances[sell] ? `Максимум для ${sell}: ${balances[sell]}` : `Баланс ${sell} не найден или равен 0`;
+  }
+
+  async function bindGolosSwapTokenLoader(chain) {
+    if (chain.id !== 'golos') return;
+    const button = document.getElementById('golos-swap-load-tokens');
+    const status = document.getElementById('golos-swap-token-status');
+    const sellInput = document.getElementById('swap-direct-sell-symbol');
+    const state = { balances: {}, assets: [] };
+    if (sellInput) sellInput.addEventListener('change', () => renderGolosSwapTokenHints(state));
+    if (!button) return;
+    button.addEventListener('click', async () => {
+      try {
+        status.textContent = 'Загружаю балансы и UIA whitelist через публичный Golos RPC...';
+        Object.assign(state, await loadGolosSwapAccountAssets(chain, auth.getCurrentLogin(chain)));
+        renderGolosSwapTokenHints(state);
+        status.textContent = 'Токены загружены. Поля продажи/покупки можно выбрать из подсказок; максимум показан рядом.';
+      } catch (error) {
+        status.textContent = profiles.formatError(error);
+      }
+    });
+  }
+
+  async function ensureGolosDex(chain) {
+    if (chain.id !== 'golos') throw new Error('Прямой DEX exchange доступен только для Golos.');
+    await loadScript(chain.libraryPath);
+    await loadScript(chain.dexPath);
+    const client = global[chain.libraryGlobal];
+    if (!client) throw new Error('Библиотека Golos недоступна.');
+    if (global.GolosDexApi && (!client.libs || !client.libs.dex)) {
+      new global.GolosDexApi(client, { host: 'https://api-dex.golos.app' });
+    }
+    const dex = client.libs && client.libs.dex;
+    if (!dex || typeof dex.getExchange !== 'function' || typeof dex.makeExchangeTx !== 'function') {
+      throw new Error('Golos DEX API недоступен: нужен vendored golos-dex.min.js.');
+    }
+    return dex;
+  }
+
+  function normalizeSwapTokenSymbol(value, label) {
+    const symbol = String(value || '').trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]{1,15}$/.test(symbol)) {
+      throw new Error(`${label || 'Токен'} должен быть символом A-Z/0-9 длиной 2-16.`);
+    }
+    return symbol;
+  }
+
+  async function getGolosTokenPrecision(chain, symbol) {
+    const token = normalizeSwapTokenSymbol(symbol, 'Токен');
+    if (token === chain.liquidSymbol || token === chain.debtSymbol) return 3;
+    const asset = await fetchGolosAsset(chain, token);
+    const precision = Number(asset && asset.precision);
+    if (!Number.isInteger(precision) || precision < 0 || precision > 12) {
+      throw new Error(`Не удалось определить precision для UIA ${token}.`);
+    }
+    return precision;
+  }
+
+  function formatFixedNoRounding(value, precision, label) {
+    const text = String(value || '').trim().replace(',', '.');
+    if (!/^\d+(?:\.\d+)?$/.test(text) || Number(text) <= 0) {
+      throw new Error(`${label || 'Сумма'} должна быть положительным числом.`);
+    }
+    const [whole, rawFraction = ''] = text.split('.');
+    return `${whole}.${rawFraction.slice(0, precision).padEnd(precision, '0')}`;
+  }
+
+  function bestGolosRpcNode(chain) {
+    const preferred = (chain.nodes || []).find((node) => /api-full\.golos\.id/.test(node));
+    if (preferred) return preferred.replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
+    return 'wss://api-full.golos.id/ws';
+  }
+
+  async function buildGolosDirectExchangePrepared(chain, form) {
+    const owner = auth.getCurrentLogin(chain);
+    const sellSymbol = normalizeSwapTokenSymbol(form.get('sellSymbol'), 'Токен продажи');
+    const buySymbol = normalizeSwapTokenSymbol(form.get('buySymbol'), 'Токен покупки');
+    if (sellSymbol === buySymbol) throw new Error('Токены продажи и покупки должны отличаться.');
+    const precision = await getGolosTokenPrecision(chain, sellSymbol);
+    const amount = `${formatFixedNoRounding(form.get('sellAmount'), precision, 'Сумма продажи')} ${sellSymbol}`;
+    const dex = await ensureGolosDex(chain);
+    const quote = await dex.getExchange({
+      node: bestGolosRpcNode(chain),
+      amount,
+      symbol: buySymbol,
+      direction: 'sell'
+    });
+    const path = quote && (quote.direct || quote.best || quote);
+    if (!path || !Array.isArray(path.steps) || !path.steps.length) {
+      throw new Error(`Не удалось найти подходящие ордера для обмена ${sellSymbol} → ${buySymbol}.`);
+    }
+    const resultAsset = String(path.res || '');
+    if (!resultAsset.endsWith(` ${buySymbol}`)) {
+      throw new Error('DEX вернул некорректный результат обмена. Проверьте токены и сумму.');
+    }
+    const operations = await dex.makeExchangeTx(path.steps, { owner, fill_or_kill: true });
+    if (!Array.isArray(operations) || !operations.length) {
+      throw new Error('DEX не сформировал операции обмена.');
+    }
+    const bestPrice = path.best_price || path.price || '';
+    return broadcast.prepare(chain, 'active', 'sendOperations', [operations], {
+      title: 'Golos direct market exchange',
+      amount: `${amount} → ${resultAsset}`,
+      warnings: ['Операции сформированы через Golos DEX по текущему стакану с fill_or_kill=true. Перед отправкой проверьте JSON и результат обмена.'],
+      quote: { input: amount, output: resultAsset, best_price: bestPrice, steps: path.steps }
+    });
   }
 
   function renderSwap(chain) {
@@ -3808,10 +7067,26 @@
       renderServicePlaceholder(chain, { id: 'swap', title: 'Swap', description: 'У VIZ в старом коде нет ясного DEX/swap flow.' });
       return;
     }
+    const hiveSwapNotice = chain.id === 'hive' ? `<p class="notice">Legacy Hive swap менял только пару HIVE/HBD: выбиралась сумма продажи, показывался расчёт покупки по стакану, режим переключался между моментальным обменом fill_or_kill=true и произвольным ордером, открытые ордера удалялись через cancel. В v3 это сохранено как static-safe формы limit order create/cancel и read-only getOrderBook/getOpenOrders через публичную ноду, без backend/service.</p><p><a href="${escapeHtml(appHash({ chain: 'hive', app: 'history', account: auth.getCurrentLogin(chain), ops: 'limit_order_create,limit_order_cancel,fill_order' }))}">История обменов</a></p>` : '';
+    const steemSwapNotice = chain.id === 'steem' ? `<p class="notice">Legacy Steem swap менял только пару STEEM/SBD: выбиралась сумма продажи, показывался расчёт покупки по стакану, режим переключался между моментальным обменом и произвольным ордером, открытые ордера удалялись через cancel. В v3 это сохранено как static-safe формы limit order create/cancel и read-only getOrderBook/getOpenOrders через публичную ноду, без backend/service.</p><p><a href="${escapeHtml(appHash({ chain: 'steem', app: 'history', account: auth.getCurrentLogin(chain), ops: 'limit_order_create,limit_order_cancel,fill_order' }))}">История обменов</a></p>` : '';
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: маркет / обмен</h2>
-        <p>Создание и отмена рыночных ордеров с подтверждением операции.</p>
+        <p>Создание/отмена ордеров и прямой обмен по текущему стакану с подтверждением операции.</p>
+        ${hiveSwapNotice}
+        ${steemSwapNotice}
+        ${chain.id === 'golos' ? `<form id="swap-direct-form" class="stacked-form"><fieldset>
+          <legend>Прямой обмен по рынку</legend>
+          <p class="muted">Legacy flow из dpos.space/golos/swap: расчёт через Golos DEX, затем отправка цепочки limit_order_create с fill_or_kill=true.</p>
+          <button type="button" id="golos-swap-load-tokens">Загрузить мои токены и доступные пары</button>
+          <div id="golos-swap-token-status" class="muted" role="status" aria-live="polite"></div>
+          <datalist id="golos-swap-sell-symbols"></datalist><datalist id="golos-swap-buy-symbols"></datalist>
+          <div class="field"><label for="swap-direct-sell-amount">Сумма продажи <span id="golos-swap-max-amount" class="muted">максимум загрузится по кнопке</span></label><input id="swap-direct-sell-amount" name="sellAmount" type="text" required placeholder="1.000"></div>
+          <div class="field"><label for="swap-direct-sell-symbol">Токен продажи</label><input id="swap-direct-sell-symbol" name="sellSymbol" type="text" list="golos-swap-sell-symbols" required value="${escapeHtml(chain.liquidSymbol)}"></div>
+          <div class="field"><label for="swap-direct-buy-symbol">Токен покупки</label><input id="swap-direct-buy-symbol" name="buySymbol" type="text" list="golos-swap-buy-symbols" required value="${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
+          <button type="submit" name="intent" value="preview">Рассчитать и проверить обмен</button><button type="submit" name="intent" value="send">Совершить обмен в сети</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>` : ''}
         <form id="swap-create-form" class="stacked-form"><fieldset>
           <legend>Создание лимитного ордера</legend>
           <div class="field"><label for="swap-order-id">ID ордера</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
@@ -3828,7 +7103,19 @@
           <button type="submit" name="intent" value="preview">Проверить отмену</button><button type="submit" name="intent" value="send">Отменить ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form>
+        <section class="subpanel" aria-labelledby="swap-readonly-heading">
+          <h3 id="swap-readonly-heading">Стакан и мои ордера</h3>
+          <p class="muted">Read-only legacy parity для market/my-orders через публичный RPC, без backend.</p>
+          <div class="field"><label for="swap-orderbook-limit">Лимит строк стакана</label><input id="swap-orderbook-limit" type="number" min="1" max="100" value="20"></div>
+          <button type="button" id="swap-orderbook-load">Показать стакан</button>
+          <button type="button" id="swap-open-orders-load">Показать мои открытые ордера</button>
+          <div id="swap-readonly-result" class="operation-result" role="status" aria-live="polite"></div>
+        </section>
       </section>`;
+    if (chain.id === 'golos') {
+      bindGolosSwapTokenLoader(chain);
+      bindOperationForm(chain, 'swap-direct-form', (form) => buildGolosDirectExchangePrepared(chain, form));
+    }
     bindOperationForm(chain, 'swap-create-form', (form) => {
       const owner = auth.getCurrentLogin(chain);
       const orderId = broadcast.validateRequestId(form.get('orderId'));
@@ -3841,7 +7128,28 @@
       const orderId = broadcast.validateRequestId(form.get('orderId'));
       return broadcast.prepare(chain, 'active', 'cancelOrder', [auth.getCurrentLogin(chain), orderId], { title: 'Cancel limit order', requestId: orderId });
     });
-    setStatus(`${chain.title} swap/market готов: создание/отмена ордера.`, 'ok');
+    const readonlyResult = document.getElementById('swap-readonly-result');
+    const orderbookBtn = document.getElementById('swap-orderbook-load');
+    if (orderbookBtn) orderbookBtn.addEventListener('click', async () => {
+      try {
+        readonlyResult.textContent = 'Загружаю стакан через getOrderBook...';
+        const data = await loadGrapheneOrderBook(chain, document.getElementById('swap-orderbook-limit').value);
+        readonlyResult.innerHTML = renderOrderRows((data && (data.bids || data.asks)) ? [].concat(data.bids || [], data.asks || []) : data, 'Стакан пуст или API вернул пустой ответ.') + rawJsonDetails('Raw order book', data);
+      } catch (error) {
+        readonlyResult.textContent = profiles.formatError(error);
+      }
+    });
+    const openOrdersBtn = document.getElementById('swap-open-orders-load');
+    if (openOrdersBtn) openOrdersBtn.addEventListener('click', async () => {
+      try {
+        readonlyResult.textContent = 'Загружаю открытые ордера через getOpenOrders...';
+        const data = await loadGrapheneOpenOrders(chain, auth.getCurrentLogin(chain));
+        readonlyResult.innerHTML = renderOrderRows(data, 'Открытых ордеров нет.') + rawJsonDetails('Raw open orders', data);
+      } catch (error) {
+        readonlyResult.textContent = profiles.formatError(error);
+      }
+    });
+    setStatus(`${chain.title} swap/market готов: прямой обмен, создание/отмена ордера и read-only стакан/ордера.`, 'ok');
   }
 
   function renderRegister(chain) {
@@ -3852,13 +7160,25 @@
         <h2>${escapeHtml(chain.title)}: регистрация</h2>
         ${isGolos || isViz ? `<p>Регистрация по invite: WIF подписанта используется только в памяти для отправки и не сохраняется. Для ${escapeHtml(chain.title)} нужен приватный WIF service/invite аккаунта с правом регистрации.</p>` : '<p>Для Hive/Steem укажите fee/delegation и публичные ключи нового аккаунта. Операция отправляется только после подтверждения текущим active key.</p>'}
         ${isGolos ? '<p class="notice">Для Golos также доступно создание аккаунта с делегированием. Вводится только публичный ключ нового аккаунта; приватные ключи не генерируются и не показываются.</p>' : ''}
+        ${isViz ? '<p class="notice">Legacy VIZ registration восстановлен безопаснее: приватный WIF нового аккаунта генерируется локально, хранится только в памяти страницы, показывается для копии/backup и не попадает в preview JSON.</p>' : ''}
         <form id="register-form" class="stacked-form"><fieldset>
           <legend>Создание аккаунта</legend>
           <div class="field"><label for="register-name">Новый аккаунт</label><input id="register-name" name="name" type="text" required></div>
+          ${isViz ? '<button type="button" id="viz-register-check-name">Проверить доступность имени</button><div id="viz-register-name-status" class="muted" role="status" aria-live="polite"></div>' : ''}
           ${isGolos || isViz ? '<div class="field"><label for="register-invite">Секрет/код invite</label><input id="register-invite" name="invite" type="text" required></div>' : `<div class="field"><label for="register-fee">Комиссия</label><input id="register-fee" name="fee" type="text" required placeholder="3.000 ${escapeHtml(chain.liquidSymbol)}"></div>`}
           ${isGolos ? '<div class="field"><label for="register-signer">Аккаунт service-подписанта</label><input id="register-signer" name="signer" type="text" required value="dpos.space-reg"></div>' : ''}
           ${isViz ? '<div class="field"><label for="register-signer">Аккаунт invite-подписанта</label><input id="register-signer" name="signer" type="text" required value="invite"></div>' : ''}
           ${isGolos || isViz ? '<div class="field"><label for="register-signer-wif">Приватный WIF service/invite подписанта</label><input id="register-signer-wif" name="signerWif" type="password" autocomplete="off" required><small>Используется только в памяти для подписи. Не вставляйте сюда ключ нового аккаунта.</small></div>' : ''}
+          ${isViz ? `<fieldset class="subtle-panel">
+            <legend>Ключ нового VIZ-аккаунта</legend>
+            <p>Можно оставить ручной путь и вставить public key ниже. Для legacy UX нажмите генерацию: private WIF появится только здесь, public key заполнится автоматически.</p>
+            <button type="button" id="viz-register-generate-private-key">Генерировать private WIF нового аккаунта</button>
+            <div class="field"><label for="viz-register-generated-private-key">Private WIF нового аккаунта — сохраните до отправки</label><textarea id="viz-register-generated-private-key" rows="3" readonly aria-describedby="viz-register-backup-warning"></textarea><small id="viz-register-backup-warning">Этот ключ нельзя восстановить после потери. Он не сохраняется в localStorage/sessionStorage и не включается в preview операции.</small></div>
+            <button type="button" id="viz-register-copy-private-key" data-copy-value="">Скопировать</button>
+            <button type="button" id="viz-register-download-backup">Скачать backup</button>
+            <label class="inline-choice"><input type="checkbox" id="viz-register-private-key-saved" name="privateKeySaved" value="yes"> Я сохранил private key нового аккаунта в надёжном месте</label>
+            <div id="viz-register-key-status" class="muted" role="status" aria-live="polite"></div>
+          </fieldset>` : ''}
           <div class="field"><label for="register-public-key">Публичный ключ для authority нового аккаунта</label><input id="register-public-key" name="publicKey" type="text" required></div>
           <button type="submit" name="intent" value="preview">Проверить регистрацию</button>
           <button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
@@ -3876,7 +7196,72 @@
         </fieldset></form>` : ''}
       </section>`;
 
-    bindOperationForm(chain, 'register-form', (form) => {
+    let vizRegistrationKey = null;
+    if (isViz) {
+      const generateButton = document.getElementById('viz-register-generate-private-key');
+      const checkNameButton = document.getElementById('viz-register-check-name');
+      const nameStatus = document.getElementById('viz-register-name-status');
+      const privateKeyField = document.getElementById('viz-register-generated-private-key');
+      const publicKeyField = document.getElementById('register-public-key');
+      const copyButton = document.getElementById('viz-register-copy-private-key');
+      const downloadButton = document.getElementById('viz-register-download-backup');
+      const savedCheckbox = document.getElementById('viz-register-private-key-saved');
+      const keyStatus = document.getElementById('viz-register-key-status');
+
+      if (checkNameButton) {
+        checkNameButton.addEventListener('click', async () => {
+          try {
+            const name = normalizeAccountInput(chain, document.getElementById('register-name').value, 'Новый аккаунт');
+            if (nameStatus) nameStatus.textContent = 'Проверяю аккаунт через публичную VIZ-ноду...';
+            const connection = await getConnection(chain);
+            const accounts = await profiles.apiCall(connection, 'getAccounts', [[name]]);
+            const exists = Array.isArray(accounts) && accounts.length > 0;
+            if (nameStatus) nameStatus.textContent = exists ? 'Аккаунт уже существует. Введите другой логин.' : 'Аккаунт свободен.';
+            setStatus(exists ? 'VIZ registration: аккаунт уже существует.' : 'VIZ registration: аккаунт свободен.', exists ? 'error' : 'ok');
+          } catch (error) {
+            if (nameStatus) nameStatus.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+
+      if (generateButton) {
+        generateButton.addEventListener('click', async () => {
+          try {
+            await loadScript(chain.cryptoPath);
+            await loadScript(chain.walletPath);
+            await loadScript(chain.libraryPath);
+            vizRegistrationKey = generateVizRegistrationKey();
+            if (privateKeyField) privateKeyField.value = vizRegistrationKey.privateKey;
+            if (publicKeyField) publicKeyField.value = vizRegistrationKey.publicKey;
+            if (copyButton) copyButton.dataset.copyValue = vizRegistrationKey.privateKey;
+            if (savedCheckbox) savedCheckbox.checked = false;
+            if (keyStatus) keyStatus.textContent = `Сгенерирован private WIF и public key ${vizRegistrationKey.publicKey}. Сохраните private WIF перед отправкой.`;
+            setStatus('VIZ private WIF нового аккаунта сгенерирован локально. Сохраните backup перед отправкой.', 'ok');
+          } catch (error) {
+            vizRegistrationKey = null;
+            if (keyStatus) keyStatus.textContent = profiles.formatError(error);
+            setStatus(profiles.formatError(error), 'error');
+          }
+        });
+      }
+
+      if (copyButton) bindCopyButtons(document.getElementById('register-form'));
+      if (downloadButton) {
+        downloadButton.addEventListener('click', () => {
+          if (!vizRegistrationKey || !vizRegistrationKey.privateKey) {
+            setStatus('Сначала сгенерируйте private WIF нового VIZ-аккаунта.', 'error');
+            return;
+          }
+          const name = String(document.getElementById('register-name').value || '').trim() || 'new-viz-account';
+          downloadTextFile(`viz-account-${name}.txt`, `dpos.space VIZ registration backup\r\n\r\nAccount login: ${name}\r\nPublic key: ${vizRegistrationKey.publicKey}\r\nPrivate WIF: ${vizRegistrationKey.privateKey}\r\n\r\nСохраните private WIF: он не хранится в dpos.space v3 и не может быть восстановлен.`);
+          if (savedCheckbox) savedCheckbox.checked = true;
+          if (keyStatus) keyStatus.textContent = 'Backup скачан. Проверьте файл и оставьте подтверждение перед отправкой.';
+        });
+      }
+    }
+
+    bindOperationForm(chain, 'register-form', (form, context) => {
       const name = normalizeAccountInput(chain, form.get('name'), 'Новый аккаунт');
       const key = String(form.get('publicKey') || '').trim();
       const publicKeyWarning = 'Use a public key for the new account only; never paste the new account private WIF into public-key fields.';
@@ -3889,6 +7274,10 @@
         if (broadcast.isLikelyWif(key)) throw new Error('Поле публичного ключа содержит приватный ключ, похожий на WIF. Вставьте публичный ключ.');
 
         if (isViz) {
+          const usingGeneratedKey = Boolean(vizRegistrationKey && vizRegistrationKey.publicKey === key);
+          if (context && context.intent === 'send' && usingGeneratedKey && form.get('privateKeySaved') !== 'yes') {
+            throw new Error('Перед отправкой подтвердите, что private key нового VIZ-аккаунта сохранён. Он не хранится в dpos.space v3 и не попадёт в preview JSON.');
+          }
           return broadcast.prepareWithPrivateKey(chain, signer, 'active', signerWif, 'inviteRegistration', [signer, name, inviteSecret, key], {
             title: 'VIZ invite registration',
             to: name,
@@ -3925,6 +7314,1020 @@
     setStatus(`${chain.title}: регистрация готова. Доступны проверка и отправка по подтверждению.`, 'ok');
   }
 
+  async function hashRandomBlockchainSeeds(chain, firstSeed, secondSeed, modulo) {
+    if (chain.id === 'minter' || chain.id === 'decimal') {
+      const hex = `${firstSeed.seed}${secondSeed.seed}`.replace(/^0x/i, '').replace(/[^0-9a-f]/gi, '');
+      if (!hex) throw new Error(`${chain.title} block hashes are empty; cannot calculate lucky number.`);
+      const value = Number(BigInt(`0x${hex}`) % BigInt(modulo));
+      return { algorithm: 'Minter/Decimal block_hash_1 + block_hash_2', hash: hex, value, luckyNumber: value + 1 };
+    }
+    if (chain.id === 'viz' || chain.id === 'steem' || chain.id === 'hive') {
+      await loadScript(chain.randomHashPath || 'v3/vendor/viz/sha3.min.js');
+      if (typeof global.keccak_256 !== 'function') throw new Error('keccak_256 недоступен: не загружен legacy sha3.min.js.');
+      const hex = global.keccak_256.update(`${firstSeed.seed}${secondSeed.seed}`).toString();
+      const value = Number(BigInt(`0x${hex}`) % BigInt(modulo));
+      return { algorithm: 'keccak_256(witness_signature_1 + witness_signature_2)', hash: hex, value, luckyNumber: value + 1 };
+    }
+    const bytes = new TextEncoder().encode(`${chain.id}:${firstSeed.seed}:${secondSeed.seed}:${modulo}`);
+    const digest = await global.crypto.subtle.digest('SHA-256', bytes);
+    const hex = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const value = Number(BigInt(`0x${hex}`) % BigInt(modulo));
+    return { algorithm: 'SHA-256(chain:first:second:participants)', hash: hex, value, luckyNumber: value + 1 };
+  }
+
+  function renderRandomBlockchain(chain) {
+    appEl.innerHTML = `
+      <section class="panel">
+        <h2>${escapeHtml(chain.title)}: случайный блокчейн</h2>
+        <p>Статический перенос legacy randomblockchain: если введены номера блоков, v3 получает их через публичную ноду/API. Для Minter и Decimal сохранён legacy-алгоритм: hash двух блоков → hex modulo → номер участника 1..N. Для VIZ/Steem/Hive сохранён legacy-алгоритм: witness_signature двух блоков → keccak_256 → номер участника 1..N.</p>
+        ${chain.id === 'minter' || chain.id === 'decimal' ? `<p><a href="https://mcorp.space/post/65" target="_blank" rel="noopener">Принцип генерации случайных чисел в этом посте</a>. Репозиторий: <a href="${chain.id === 'decimal' ? 'https://github.com/denis-skripnik/decimal_random' : 'https://github.com/denis-skripnik/minter_random'}" target="_blank" rel="noopener">${chain.id === 'decimal' ? 'https://github.com/denis-skripnik/decimal_random' : 'https://github.com/denis-skripnik/minter_random'}</a></p>` : '<p><a href="https://golos.id/ru/@denis-skripnik/ru-generator-sluchaijnykh-chisel-na-baze-dannykh-iz-bch" target="_blank" rel="noopener">Принцип генерации случайных чисел</a>. Репозиторий: <a href="https://github.com/gropox/randomblockchain" target="_blank" rel="noopener">https://github.com/gropox/randomblockchain</a></p>'}
+        <form id="randomblockchain-form" class="stacked-form">
+          <fieldset>
+            <legend>Генератор случайного числа</legend>
+            <div class="field"><label for="randomblockchain-first">Первый блок (начальный) / Сигнатура первого указанного блока</label><input id="randomblockchain-first" name="first" type="text" required inputmode="numeric" placeholder="Введите стартовый блок"></div>
+            <div class="field"><label for="randomblockchain-second">Второй блок, на основе которого будет производиться генерация / Сигнатура второго указанного блока</label><input id="randomblockchain-second" name="second" type="text" required inputmode="numeric" placeholder="Введите второй блок"></div>
+            <div class="field"><label for="randomblockchain-participants">Количество участников (максимальное число)</label><input id="randomblockchain-participants" name="participants" type="number" min="2" value="100" placeholder="Введите число участников"></div>
+            <div class="field"><label for="randomblockchain-list">Список данных, указывайте каждый элемент с новой строки</label><textarea id="randomblockchain-list" name="data_list" rows="6" placeholder="Если заполнено, N берётся из количества строк, а победитель будет показан текстом."></textarea></div>
+            <button type="submit">Вычислить счастливое число</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    const form = document.getElementById('randomblockchain-form');
+    const resultEl = form.querySelector('[data-operation-result]');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const first = String(data.get('first') || '').trim();
+      const second = String(data.get('second') || '').trim();
+      const list = String(data.get('data_list') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+      const participants = list.length || (Number.parseInt(String(data.get('participants') || '100'), 10) || 100);
+      const modulo = Math.max(2, participants);
+      try {
+        resultEl.textContent = 'Получаю блоки и считаю random локально...';
+        const connection = await getConnection(chain);
+        const [firstSeed, secondSeed] = await Promise.all([
+          resolveRandomBlockchainSeed(chain, connection, first),
+          resolveRandomBlockchainSeed(chain, connection, second)
+        ]);
+        const random = await hashRandomBlockchainSeeds(chain, firstSeed, secondSeed, modulo);
+        const winner = list.length ? list[random.value] : '';
+        resultEl.innerHTML = `<p><strong>Счастливое число:</strong> ${escapeHtml(random.luckyNumber)}</p>${winner ? `<p><strong>Победитель:</strong> ${escapeHtml(winner)}</p>` : ''}<p class="muted">Алгоритм: ${escapeHtml(random.algorithm)}. Legacy VIZ возвращает остаток + 1, поэтому диапазон результата — 1..N.</p>${rawJsonDetails('Данные расчёта', { chain: chain.id, participants: modulo, hash: random.hash, resultIndexZeroBased: random.value, luckyNumber: random.luckyNumber, winner, first: firstSeed, second: secondSeed })}`;
+        setStatus(`${chain.title}: randomblockchain посчитан по публичным данным.`, 'ok');
+      } catch (error) {
+        resultEl.textContent = profiles.formatError(error);
+        setStatus(profiles.formatError(error), 'error');
+      }
+    });
+    setStatus(`${chain.title}: randomblockchain готов.`, 'ok');
+  }
+
+  function renderGolosStakebot(chain, state) {
+    const requestedPage = String((state && state.stakebotPage) || 'bids').toLowerCase();
+    const page = ['bids', 'jackpot', 'loto'].includes(requestedPage) ? requestedPage : 'bids';
+    const pageTitle = {
+      bids: 'Текущие ставки в Golos Stake Bot',
+      jackpot: 'Джекпот golos_stake_bot',
+      loto: 'Лотерея golos_stake_bot'
+    }[page];
+    const nav = [
+      ['bids', 'Текущие ставки'],
+      ['jackpot', 'Джекпот'],
+      ['loto', 'Лотерея']
+    ].map(([id, label]) => `<a href="${escapeHtml(appHash({ chain: chain.id, app: 'stakebot', stakebotPage: id }))}" ${id === page ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a>`).join(' · ');
+    const historyLink = appHash({ chain: chain.id, app: 'history', account: 'golos-stake-bot' });
+    const profileLink = appHash({ chain: chain.id, app: 'profiles', account: 'golos-stake-bot' });
+    const backendNotice = '<p class="notice">Legacy-таблицы участников брались из серверного endpoint `golos-api?service=stakebot` на 178.20.43.121. Static v3 не восстанавливает этот backend, cron/bot state и списки участников, чтобы не добавлять скрытую серверную зависимость.</p>';
+    let body = '';
+    if (page === 'bids') {
+      body = `
+        <p>В legacy этот раздел показывал текущие ставки участников golos_stake_bot и очищался в 18:00 по Москве.</p>
+        <p>Для проверки on-chain активности используйте ${accountLink(chain, 'golos-stake-bot')} или <a href="${escapeHtml(historyLink)}">историю аккаунта golos-stake-bot в v3</a>.</p>
+        ${backendNotice}
+        <div class="table-wrap"><table aria-label="Legacy поля таблицы текущих ставок"><caption>Legacy таблица текущих ставок — backend-only данные</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody><tr><td>№</td><td>Порядок строки приходил от backend-сервиса.</td></tr><tr><td>Логин</td><td>Профиль можно открыть через ${accountLink(chain, 'golos-stake-bot')} и историю переводов.</td></tr><tr><td>Сумма GOLOS</td><td>Агрегированная сумма ставки не рассчитывается в браузере без правил backend-бота.</td></tr></tbody></table></div>`;
+    } else if (page === 'jackpot') {
+      body = `
+        <p>Список очищался после получения джекпота победителями: в полночь GMT (3 часа по Москве) 1 числа каждого месяца.</p>
+        <p>Фонд формировался за счёт 5% от сумм ставок участников.</p>
+        <p>Legacy показывал сумму джекпота и таблицу аккаунтов из backend <code>type=jackpot</code>.</p>
+        <p>Публичную историю переводов можно смотреть через <a href="${escapeHtml(historyLink)}">историю golos-stake-bot</a> или ${accountLink(chain, 'golos-stake-bot')}.</p>
+        ${backendNotice}`;
+    } else {
+      body = `
+        <p>Лотерея среди получающих CLAIM запускалась 2 раза в сутки: в полночь и полдень по МСК.</p>
+        <ul>
+          <li>Порог участия legacy: от 50000 GESTS (18000 СГ).</li>
+          <li>Для участия запускали <a href="https://t.me/golos_stake_bot" target="_blank" rel="noopener">@golos_stake_bot</a> и авторизовали Golos аккаунт.</li>
+        </ul>
+        <p>Legacy список билетов приходил текстом из backend <code>type=loto</code>; static v3 оставляет правила и ссылку на bot, но не показывает устаревший серверный список билетов.</p>
+        ${backendNotice}`;
+    }
+    appEl.innerHTML = `
+      <section class="panel golos-stakebot">
+        <h2>${escapeHtml(pageTitle)}</h2>
+        <nav aria-label="Разделы Golos Stake Bot">${nav}</nav>
+        <p class="muted">Статическая parity-страница: справка и безопасные ссылки сохранены, backend-виджеты не восстановлены.</p>
+        ${body}
+        <p><a href="${escapeHtml(profileLink)}">Открыть профиль golos-stake-bot</a></p>
+      </section>`;
+    setStatus(`${chain.title}: Stake bot открыт в статическом режиме (${page}).`, 'info');
+  }
+
+  function buildVizSearchMemo(keyword, link, inlink) {
+    return `${keyword}~${link}~${inlink}`;
+  }
+
+  function normalizeVizLinkValue(value) {
+    const text = String(value || '').trim();
+    if (!text) throw new Error('Ссылка обязательна.');
+    if (/^viz:\/\//i.test(text)) return `https://hackathon-on-internet-freedom.github.io/Free-Speech-Project/dapp.html#${text}`;
+    if (/^ipfs:\/\//i.test(text)) return `https://ipfs.io/ipfs/${text.slice(7)}`;
+    return text;
+  }
+
+  function renderVizSearch(chain, state) {
+    const page = String((state && state.searchPage) || 'find');
+    const type = String((state && state.searchType) || 'full_search');
+    const query = String((state && state.query) || '');
+    const addLinkUrl = appHash({ chain: chain.id, app: 'search', searchPage: 'add-link' });
+    const findUrl = appHash({ chain: chain.id, app: 'search' });
+    const searchAction = appHash({ chain: chain.id, app: 'search', searchType: type, query });
+    const searchPanel = `
+      <section class="subpanel" aria-labelledby="viz-search-find-heading">
+        <h3 id="viz-search-find-heading">Найти viz-links</h3>
+        <p>Legacy поиск вызывал <code>viz-api?service=links</code> с типами <code>full_search</code> и <code>unfull_search</code>. Static v3 не восстанавливает backend index; search results остаются backend-only non-goal.</p>
+        <form id="viz-search-form" class="stacked-form" action="${escapeHtml(searchAction)}">
+          <fieldset><legend>Тип поиска</legend>
+            <label class="inline-choice"><input type="radio" name="searchType" value="full_search" ${type === 'full_search' ? 'checked' : ''}> С точным совпадением</label>
+            <label class="inline-choice"><input type="radio" name="searchType" value="unfull_search" ${type === 'unfull_search' ? 'checked' : ''}> С поиском запроса в анкорах ссылок</label>
+          </fieldset>
+          <div class="field"><label for="viz-search-query">Поисковый запрос</label><input id="viz-search-query" name="query" type="search" value="${escapeHtml(query)}" placeholder="Введите поисковый запрос"></div>
+          <button type="submit">Найти</button>
+        </form>
+        ${query ? `<p class="notice">Запрос <strong>${escapeHtml(query)}</strong> (${escapeHtml(type)}): live список результатов, inlinks и пагинация «Предыдущая/Следующая» требовали удалённый backend. Для ручной проверки ссылок v3 сохраняет правила преобразования <code>viz://</code> и <code>ipfs://</code>: ${escapeHtml(normalizeVizLinkValue(query))}</p>` : '<p class="muted">Введите запрос или откройте форму добавления ссылки.</p>'}
+      </section>`;
+    const addPanel = `
+      <section class="subpanel" aria-labelledby="viz-search-add-heading">
+        <h3 id="viz-search-add-heading">Добавить ссылку</h3>
+        <p>Legacy add-link отправлял VIZ award на <code>committee</code> с memo <code>keyword~link~inlink</code>, где custom_sequence задавал протокол: <code>viz://</code>, <code>https://</code>, <code>ipfs://</code>, <code>magnet</code>.</p>
+        <form id="viz-search-add-link-form" class="stacked-form">
+          <input type="hidden" name="target" value="committee">
+          <div class="field"><label for="viz-search-energy">Процент энергии</label><input id="viz-search-energy" name="energy" type="number" min="0.01" max="100" step="0.01" value="1" required></div>
+          <div class="field"><label for="viz-search-custom-sequence">Протокол</label><select id="viz-search-custom-sequence" name="custom_sequence"><option value="0">viz://</option><option value="1">https://</option><option value="2">ipfs://</option><option value="3">magnet</option></select></div>
+          <div class="field"><label for="viz-search-keyword">Анкор ссылки</label><input id="viz-search-keyword" name="keyword" type="text" required></div>
+          <div class="field"><label for="viz-search-link">Адрес ссылки без протокола</label><input id="viz-search-link" name="link" type="text" required></div>
+          <div class="field"><label for="viz-search-inlink">Адрес родительской ссылки без протокола</label><input id="viz-search-inlink" name="inlink" type="text"></div>
+          <button type="submit">Проверить award для viz-links</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </form>
+      </section>`;
+    appEl.innerHTML = `<section class="panel viz-search"><h2>Viz-links</h2><p><a href="${escapeHtml(findUrl)}">Найти</a> · <a href="${escapeHtml(addLinkUrl)}">добавить ссылку</a></p>${page === 'add-link' ? addPanel + searchPanel : searchPanel + addPanel}</section>`;
+    const form = document.getElementById('viz-search-form');
+    if (form) form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      navigate({ chain: chain.id, app: 'search', searchType: data.get('searchType') || 'full_search', query: data.get('query') || '' });
+    });
+    bindOperationForm(chain, 'viz-search-add-link-form', (formData) => {
+      const from = auth.getCurrentLogin(chain);
+      const targetAccount = 'committee';
+      const keyword = String(formData.get('keyword') || '').trim();
+      const link = String(formData.get('link') || '').replace(/^https?:\/\//i, '').trim();
+      const inlink = String(formData.get('inlink') || '').replace(/^https?:\/\//i, '').trim();
+      const memo = buildVizSearchMemo(keyword, link, inlink);
+      if (broadcast.isLikelyWif(memo)) throw new Error('Memo похоже на приватный WIF. Отправка остановлена.');
+      return broadcast.prepare(chain, 'regular', 'award', [from, targetAccount, normalizeVizEnergy(formData.get('energy')), normalizeVizCustomSequence(formData.get('custom_sequence')), memo, []], { title: 'VIZ viz-links award', to: targetAccount, customSequence: normalizeVizCustomSequence(formData.get('custom_sequence')), warnings: ['Операция отправит award на committee для добавления ссылки в viz-links.'] });
+    });
+    setStatus(`${chain.title}: Viz-links открыт в static-only режиме.`, 'info');
+  }
+
+  const vizTopRankingOptions = [
+    ['shares', 'Соц. капитал', 'Соц. капитал'],
+    ['VIZ', 'VIZ', 'Баланс VIZ'],
+    ['effective_shares', 'Эффективный соц. капитал', 'Эффективный соц. капитал'],
+    ['received_shares', 'Полученный делегированием соц. капитал', 'Получено соц. капитала от других делегированием'],
+    ['delegated_shares', 'Делегированный другим соц. капитал', 'Делегировано соц. капитала другим'],
+    ['vesting_withdraw_rate', 'Выводимый соц. капитал', 'Выводимый соц. капитал']
+  ];
+
+  const vizTopRankingById = Object.fromEntries(vizTopRankingOptions.map((option) => [option[0].toLowerCase(), option]));
+
+  function renderVizTopFieldRows() {
+    const fields = ['№', 'Логин', 'Соц. капитал', '% от всего соц. капитала', 'Делегировано соц. капитала другим', 'Получено соц. капитала от других делегированием', 'Эффективный соц. капитал', 'Выводимый соц. капитал', 'Баланс VIZ', '% от всех VIZ'];
+    return fields.map((field) => `<tr><td>${escapeHtml(field)}</td><td>Legacy поле таблицы сохранено как документация; живые значения требовали удалённый серверный 100-row leaderboard, counter и pagination.</td></tr>`).join('');
+  }
+
+  function renderVizTop(chain, state) {
+    const selectedType = String((state && state.topType) || '').trim();
+    const selected = selectedType ? vizTopRankingById[selectedType.toLowerCase()] : null;
+    const selectedTitle = selected ? selected[1] : 'категория не выбрана';
+    const rankingLinks = vizTopRankingOptions.map(([id, label]) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: id }))}" ${selected && selected[0].toLowerCase() === id.toLowerCase() ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a></li>`).join('');
+    const profileExample = appHash({ chain: chain.id, app: 'profiles', account: chain.defaultAccount || 'denis-skripnik' });
+    appEl.innerHTML = `
+      <section class="panel viz-top">
+        <h2>Топ пользователей VIZ</h2>
+        <p>Статическая parity-страница для legacy VIZ top: категории рейтингов сохранены, а серверные leaderboard-таблицы честно отмечены как backend-only non-goal.</p>
+        <nav aria-label="Варианты сортировки рейтинга VIZ">
+          <h3>Выберите токен/поле сортировки</h3>
+          <ol>${rankingLinks}</ol>
+        </nav>
+        <section class="subpanel" aria-labelledby="viz-top-selected-heading">
+          <h3 id="viz-top-selected-heading">Выбранный рейтинг: ${escapeHtml(selectedTitle)}</h3>
+          ${selected ? `<p class="notice">Выбран legacy тип <code>${escapeHtml(selected[0])}</code>. В PHP этот URL вызывал <code>viz-api?service=top&type=${escapeHtml(selected[0].toLowerCase())}&page=N</code>, получал <code>users</code>, <code>counter</code>, 100-row таблицу и ссылки «Предыдущая», «Следующая», «Последняя». Static v3 не восстанавливает удалённый backend; для проверки отдельных аккаунтов используйте <a href="${escapeHtml(profileExample)}">профили VIZ через public RPC</a>.</p>` : `<p class="muted">Выберите один из legacy рейтингов: shares, VIZ, effective_shares, received_shares, delegated_shares или vesting_withdraw_rate.</p>`}
+        </section>
+        <section class="subpanel" aria-labelledby="viz-top-fields-heading">
+          <h3 id="viz-top-fields-heading">Legacy поля таблицы</h3>
+          <div class="table-wrap"><table aria-label="Legacy поля VIZ top"><caption>Legacy поля VIZ top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderVizTopFieldRows()}</tbody></table></div>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-top-pagination-heading">
+          <h3 id="viz-top-pagination-heading">Пагинация legacy</h3>
+          <p>Ссылки «Предыдущая», «Следующая» и «Последняя» зависели от backend <code>counter</code> и размера страницы 100 записей. Без серверного индекса v3 не показывает устаревший leaderboard и не делает скрытых private API вызовов.</p>
+          <div role="status" aria-live="polite"><p class="muted">VIZ top открыт в static-only режиме. Backend-only non-goal: live ranked table/counter/pages.</p></div>
+        </section>
+      </section>`;
+    setStatus(`${chain.title}: top открыт в статическом режиме.`, 'info');
+  }
+
+  const golosTopRankingOptions = [
+    ['gbg', 'GBG', 'Баланс GBG (%)'],
+    ['golos', 'GOLOS', 'Баланс GOLOS (%)'],
+    ['tip_balance', 'TIP-баланс', 'TIP-баланс'],
+    ['gp', 'СГ', 'СГ (%)'],
+    ['delegated_gp', 'Делегированная СГ', 'Делегировано СГ другим'],
+    ['received_gp', 'Полученная делегированием СГ', 'Получено СГ от других делегированием'],
+    ['effective_gp', 'Эффективная СГ (личная - делегированная + полученна делегированием)', 'Эффективная СГ, учитываемая при апвоутинге'],
+    ['emission_received_gp', 'Полученная с эмиссией СГ', 'Получено СГ с эмиссией'],
+    ['gp_withdraw_rate', 'Выводимая СГ', 'Выводится СГ'],
+    ['emission_delegated_gp', 'Делегированная с эмиссией СГ', 'Делегировано СГ с эмиссией'],
+    ['market_balance', 'Маркет-баланс', 'Маркет-баланс'],
+    ['reputation', 'Репутация', 'Репутация']
+  ];
+
+  const golosTopRankingById = Object.fromEntries(golosTopRankingOptions.map((option) => [option[0], option]));
+
+  function renderGolosTopFieldRows(fields) {
+    return fields.map((field) => `<tr><td>${escapeHtml(field)}</td><td>Legacy field preserved for documentation; live ranked values required the removed server-side 100-row leaderboard and counter.</td></tr>`).join('');
+  }
+
+  function renderGolosTopLevelRows() {
+    return [
+      ['≥ 5%', 'Повелители морей'],
+      ['≥ 1%', 'Киты'],
+      ['≥ 0.5%', 'Косатки'],
+      ['≥ 0.25%', 'Акулы'],
+      ['≥ 0.1%', 'Дельфины'],
+      ['≥ 0.05%', 'Черепахи'],
+      ['≥ 0.025%', 'Рыбы'],
+      ['≥ 0.01%', 'Осьминоги'],
+      ['≥ 0.005%', 'Крабы'],
+      ['≥ 0%', 'Креветки']
+    ].map(([threshold, name]) => `<tr><td>${escapeHtml(threshold)}</td><td>${escapeHtml(name)}</td></tr>`).join('');
+  }
+
+  async function loadGolosTopUiaAssets(chain) {
+    const target = document.getElementById('golos-top-uia-assets');
+    if (!target) return;
+    target.textContent = 'Загружаю UIA активы через публичный Golos RPC...';
+    try {
+      await loadScript(chain.libraryPath);
+      const connection = await profiles.connect(chain);
+      const api = connection.client && connection.client.api;
+      if (!api || typeof api.getAssetsAsync !== 'function') {
+        throw new Error('golos.api.getAssetsAsync недоступен в загруженной библиотеке.');
+      }
+      const assets = await fetchAllGolosAssets(api, 200);
+      const symbols = Array.from(new Set((assets || []).map((asset) => golosSymbolFromAssetField((asset && asset.max_supply) || (asset && asset.supply))).filter(Boolean))).sort();
+      if (!symbols.length) {
+        target.innerHTML = '<p class="muted">UIA активы не найдены в ответе публичной ноды.</p>';
+        return;
+      }
+      target.innerHTML = `<ul>${symbols.map((symbol) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: symbol }))}">${escapeHtml(symbol)}</a></li>`).join('')}</ul>`;
+      setStatus(`Golos top: загружено UIA активов: ${symbols.length}.`, 'ok');
+    } catch (error) {
+      target.innerHTML = `<p class="muted">Не удалось загрузить UIA активы через публичный RPC: ${escapeHtml(profiles.formatError(error))}</p>`;
+      setStatus(`Golos top: UIA активы не загрузились: ${profiles.formatError(error)}`, 'error');
+    }
+  }
+
+  function renderGolosTop(chain, state) {
+    const selectedType = String((state && state.topType) || '').trim();
+    const selectedNative = selectedType ? golosTopRankingById[selectedType.toLowerCase()] : null;
+    const selectedIsUia = selectedType && !selectedNative;
+    const rankingLinks = golosTopRankingOptions.map(([id, label]) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: id }))}" ${selectedNative && selectedNative[0] === id ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a></li>`).join('');
+    const nativeFields = ['№', 'Логин', 'СГ (%)', 'Делегировано СГ другим', 'Получено СГ от других делегированием', 'Эффективная СГ, учитываемая при апвоутинге', 'Получено СГ с эмиссией', 'Делегировано СГ с эмиссией', 'Выводится СГ', 'Баланс GOLOS (%)', 'Баланс GBG (%)', 'TIP-баланс', 'Маркет-баланс', 'Репутация'];
+    const uiaFields = ['№', 'Логин', 'Суммарный баланс аккаунта', 'Основной баланс (ликвид)', 'TIP баланс (донаты)', 'Market-баланс'];
+    const profileExample = appHash({ chain: chain.id, app: 'profiles', account: chain.defaultAccount || 'denis-skripnik' });
+    const selectedTitle = selectedNative ? selectedNative[1] : (selectedIsUia ? selectedType.toUpperCase() : 'категория не выбрана');
+    const selectedNotice = selectedNative
+      ? `<p class="notice">Выбран native рейтинг: ${escapeHtml(selectedTitle)}. В legacy таблица, счётчик, 100-row pagination и ссылки «Предыдущая/Следующая/Последняя» приходили из серверной агрегации. Static v3 не восстанавливает этот backend; для проверки аккаунтов используйте <a href="${escapeHtml(profileExample)}">профили v3</a>, историю и публичный RPC.</p>`
+      : selectedIsUia
+        ? `<p class="notice">Выбран UIA токен ${escapeHtml(selectedTitle)}. Legacy holder leaderboard для UIA требовал серверную агрегацию суммарного, liquid, TIP и Market-баланса по аккаунтам. Static v3 сохраняет discovery токенов через публичный RPC, но не показывает устаревший backend-рейтинг держателей.</p>`
+        : '<p class="muted">Выберите вариант сортировки рейтинга или загрузите список UIA активов.</p>';
+
+    appEl.innerHTML = `
+      <section class="panel golos-top">
+        <h2>Топ пользователей Golos</h2>
+        <p>Статическая parity-страница для legacy Golos top: категории рейтингов и UIA token discovery сохранены, а серверные leaderboard-таблицы честно отмечены как backend-only non-goal.</p>
+        <nav aria-label="Варианты сортировки рейтинга Golos">
+          <h3>Выберите вариант сортировки рейтинга</h3>
+          <ol>${rankingLinks}</ol>
+        </nav>
+        <section class="subpanel" aria-labelledby="golos-top-selected-heading">
+          <h3 id="golos-top-selected-heading">Выбранный рейтинг: ${escapeHtml(selectedTitle)}</h3>
+          ${selectedNotice}
+        </section>
+        <section class="subpanel" aria-labelledby="golos-top-uia-heading">
+          <h3 id="golos-top-uia-heading">UIA активы</h3>
+          <p>Legacy <code>top/js/app.js</code> вызывал <code>golos.api.getAssetsAsync('')</code> и строил ссылки на токены. В v3 это выполняется по кнопке через публичную ноду и hash-маршруты.</p>
+          <button type="button" id="golos-top-load-uia">Загрузить UIA активы через public RPC</button>
+          <div id="golos-top-uia-assets" role="status" aria-live="polite"><p class="muted">UIA список ещё не загружен.</p></div>
+        </section>
+        <section class="subpanel" aria-labelledby="golos-top-fields-heading">
+          <h3 id="golos-top-fields-heading">Legacy поля таблиц</h3>
+          <div class="table-wrap"><table aria-label="Legacy поля native top"><caption>Legacy поля native top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderGolosTopFieldRows(nativeFields)}</tbody></table></div>
+          <div class="table-wrap"><table aria-label="Legacy поля UIA top"><caption>Legacy поля UIA top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderGolosTopFieldRows(uiaFields)}</tbody></table></div>
+        </section>
+        <section class="subpanel" aria-labelledby="golos-top-levels-heading">
+          <h3 id="golos-top-levels-heading">Gamification уровни GP</h3>
+          <p>Legacy <code>getLevel(gp_percent)</code> добавлял картинку уровня к логину. В v3 уровни сохранены текстом, чтобы screen reader не зависел от image-only состояния.</p>
+          <div class="table-wrap"><table aria-label="Golos GP gamification levels"><caption>Golos GP gamification levels from legacy getLevel</caption><thead><tr><th scope="col">GP percent</th><th scope="col">Уровень</th></tr></thead><tbody>${renderGolosTopLevelRows()}</tbody></table></div>
+        </section>
+      </section>`;
+    const loadButton = document.getElementById('golos-top-load-uia');
+    if (loadButton) loadButton.addEventListener('click', () => loadGolosTopUiaAssets(chain));
+    setStatus(`${chain.title}: top открыт в статическом режиме.`, 'info');
+  }
+
+  const golosWitnessRewardColumns = [
+    ['Логин', 'login', 'Имя делегата/witness и ссылка на профиль witness.'],
+    ['за вчерашний день', 'old_daily_profit', 'Предыдущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за сегодня', 'now_daily_profit', 'Текущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за прошлый месяц', 'old_monthly_profit', 'Предыдущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за текущий месяц', 'now_monthly_profit', 'Текущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.']
+  ];
+
+  function renderGolosWitnessRewardColumnRows() {
+    return golosWitnessRewardColumns.map(([label, field, meaning]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(field)}</code></td><td>${escapeHtml(meaning)}</td><td>${field === 'login' ? 'заменено v3 profile/witness hash-ссылкой и public RPC witness list' : 'backend-only non-goal: public witness RPC does not expose historical daily/monthly reward sums'}</td></tr>`).join('');
+  }
+
+  function normalizeGolosWitnessRows(result) {
+    const rows = Array.isArray(result) ? result : [];
+    return rows.map((item) => {
+      const owner = item && (item.owner || item.account || item.name || item.witness || item.id || item[0]);
+      if (!owner) return null;
+      return {
+        owner: String(owner),
+        url: item.url || item.signing_key || '',
+        votes: item.votes || item.virtual_scheduled_time || item.total_missed || '',
+        produced: item.produced || item.signing_key || '',
+        raw: item
+      };
+    }).filter(Boolean);
+  }
+
+  async function loadGolosWitnessesByVote(chain) {
+    const status = document.getElementById('golos-witnesses-rewards-status');
+    const target = document.getElementById('golos-witnesses-rewards-list');
+    if (!status || !target) return;
+    status.textContent = 'Загружаю список делегатов Golos через публичный RPC...';
+    try {
+      await loadScript(chain.libraryPath);
+      const connection = await profiles.connect(chain);
+      let witnesses = normalizeGolosWitnessRows(await profiles.apiCall(connection, 'getWitnessesByVote', ['', 50]));
+      if (!witnesses.length) {
+        const names = await profiles.apiCall(connection, 'lookupWitnessAccounts', ['', 50]);
+        const witnessResults = await Promise.all((Array.isArray(names) ? names : []).slice(0, 50).map((name) => profiles.apiCall(connection, 'getWitnessByAccount', [name]).catch(() => null)));
+        witnesses = normalizeGolosWitnessRows(witnessResults.filter(Boolean));
+      }
+      if (!witnesses.length) {
+        target.innerHTML = '<p class="muted">Публичная нода не вернула witness-список.</p>';
+        status.textContent = 'Witness-список не найден в ответе публичной ноды.';
+        return;
+      }
+      const rows = witnesses.map((witness) => `<tr><td><a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: witness.owner }))}">${escapeHtml(witness.owner)}</a> <span class="muted">профиль witness</span></td><td><code>${escapeHtml(String(witness.url || ''))}</code></td><td>${escapeHtml(String(witness.votes || ''))}</td><td>${escapeHtml(String(witness.produced || ''))}</td></tr>`).join('');
+      target.innerHTML = `<div class="table-wrap"><table aria-label="Публичный список делегатов Golos"><caption>Публичный список делегатов Golos из witness_api</caption><thead><tr><th scope="col">Делегат</th><th scope="col">URL/signing key</th><th scope="col">Votes / service field</th><th scope="col">Produced/signing data</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      status.textContent = `Загружено делегатов Golos через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
+      setStatus(`Golos witnesses-rewards: загружено witness records: ${witnesses.length}.`, 'ok');
+    } catch (error) {
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный witness-список: ${escapeHtml(profiles.formatError(error))}</p>`;
+      status.textContent = `Ошибка загрузки witness-списка: ${profiles.formatError(error)}`;
+      setStatus(`Golos witnesses-rewards: ${profiles.formatError(error)}`, 'error');
+    }
+  }
+
+  function renderGolosWitnessesRewards(chain) {
+    appEl.innerHTML = `
+      <section class="panel golos-witnesses-rewards">
+        <h2>Награды делегатов</h2>
+        <p>Страница со списком делегатов блокчейна Golos и их наград за текущий день и месяц, предыдущий день и месяц.</p>
+        <p><strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong></p>
+        <section class="subpanel" aria-labelledby="golos-witnesses-live-heading">
+          <h3 id="golos-witnesses-live-heading">Public RPC witness list</h3>
+          <p>Публичный RPC может показать текущих делегатов/witness records без приватных ключей и без старого backend. Это отдельный статический слой: он не заменяет исторические reward-агрегаты.</p>
+          <button type="button" id="golos-witnesses-rewards-load">Загрузить делегатов через public RPC</button>
+          <p id="golos-witnesses-rewards-status" role="status" aria-live="polite">Witness-список ещё не загружен.</p>
+          <div id="golos-witnesses-rewards-list"><p class="muted">Нажмите кнопку, чтобы запросить <code>getWitnessesByVote</code> / <code>lookupWitnessAccounts</code> через публичную ноду.</p></div>
+        </section>
+        <section class="subpanel" aria-labelledby="golos-witnesses-columns-heading">
+          <h3 id="golos-witnesses-columns-heading">Legacy reward columns</h3>
+          <p class="notice">Старые поля <code>old_daily_profit</code>, <code>now_daily_profit</code>, <code>old_monthly_profit</code>, <code>now_monthly_profit</code> приходили из <code>golos-api?service=witnesses</code> на приватном backend/IP. Static v3 не восстанавливает этот backend и не показывает вымышленные суммы.</p>
+          <div class="table-wrap"><table aria-label="Legacy columns for Golos witnesses rewards"><caption>Legacy columns for Golos witnesses rewards</caption><thead><tr><th scope="col">Колонка</th><th scope="col">Legacy field</th><th scope="col">Meaning</th><th scope="col">v3 status</th></tr></thead><tbody>${renderGolosWitnessRewardColumnRows()}</tbody></table></div>
+        </section>
+      </section>`;
+    const loadButton = document.getElementById('golos-witnesses-rewards-load');
+    if (loadButton) loadButton.addEventListener('click', () => loadGolosWitnessesByVote(chain));
+    setStatus('Golos: witnesses-rewards открыт в статическом режиме.', 'info');
+  }
+
+  const vizWitnessRewardColumns = [
+    ['Логин', 'login', 'Имя делегата/witness и ссылка на профиль witness.'],
+    ['за вчерашний день', 'old_daily_profit', 'Предыдущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за сегодня', 'now_daily_profit', 'Текущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за прошлый месяц', 'old_monthly_profit', 'Предыдущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.'],
+    ['за текущий месяц', 'now_monthly_profit', 'Текущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.']
+  ];
+
+  function renderVizWitnessRewardColumnRows() {
+    return vizWitnessRewardColumns.map(([label, field, meaning]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(field)}</code></td><td>${escapeHtml(meaning)}</td><td>${field === 'login' ? 'заменено v3 profile/witness hash-ссылкой и public RPC witness list' : 'backend-only non-goal: public witness RPC does not expose historical daily/monthly reward sums'}</td></tr>`).join('');
+  }
+
+  function normalizeVizWitnessRows(result) {
+    const rows = Array.isArray(result) ? result : [];
+    return rows.map((item) => {
+      const owner = item && (item.owner || item.account || item.name || item.witness || item.id || item[0]);
+      if (!owner) return null;
+      return {
+        owner: String(owner),
+        url: item.url || item.signing_key || '',
+        votes: item.votes || item.virtual_scheduled_time || item.total_missed || '',
+        produced: item.produced || item.signing_key || '',
+        raw: item
+      };
+    }).filter(Boolean);
+  }
+
+  async function loadVizWitnessesByVote(chain) {
+    const status = document.getElementById('viz-witnesses-rewards-status');
+    const target = document.getElementById('viz-witnesses-rewards-list');
+    if (!status || !target) return;
+    status.textContent = 'Загружаю список делегатов VIZ через публичный RPC...';
+    try {
+      await loadScript(chain.libraryPath);
+      const connection = await profiles.connect(chain);
+      let witnesses = normalizeVizWitnessRows(await profiles.apiCall(connection, 'getWitnessesByVote', ['', 50]));
+      if (!witnesses.length) {
+        const names = await profiles.apiCall(connection, 'lookupWitnessAccounts', ['', 50]);
+        const witnessResults = await Promise.all((Array.isArray(names) ? names : []).slice(0, 50).map((name) => profiles.apiCall(connection, 'getWitnessByAccount', [name]).catch(() => null)));
+        witnesses = normalizeVizWitnessRows(witnessResults.filter(Boolean));
+      }
+      if (!witnesses.length) {
+        target.innerHTML = '<p class="muted">Публичная нода не вернула witness-список.</p>';
+        status.textContent = 'Witness-список не найден в ответе публичной ноды.';
+        return;
+      }
+      const rows = witnesses.map((witness) => `<tr><td><a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: witness.owner }))}">${escapeHtml(witness.owner)}</a> <span class="muted">профиль witness</span></td><td><code>${escapeHtml(String(witness.url || ''))}</code></td><td>${escapeHtml(String(witness.votes || ''))}</td><td>${escapeHtml(String(witness.produced || ''))}</td></tr>`).join('');
+      target.innerHTML = `<div class="table-wrap"><table aria-label="Публичный список делегатов VIZ"><caption>Публичный список делегатов VIZ из witness_api</caption><thead><tr><th scope="col">Делегат</th><th scope="col">URL/signing key</th><th scope="col">Votes / service field</th><th scope="col">Produced/signing data</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      status.textContent = `Загружено делегатов VIZ через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
+      setStatus(`VIZ witnesses-rewards: загружено witness records: ${witnesses.length}.`, 'ok');
+    } catch (error) {
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный witness-список: ${escapeHtml(profiles.formatError(error))}</p>`;
+      status.textContent = `Ошибка загрузки witness-списка: ${profiles.formatError(error)}`;
+      setStatus(`VIZ witnesses-rewards: ${profiles.formatError(error)}`, 'error');
+    }
+  }
+
+  function renderVizWitnessesRewards(chain) {
+    appEl.innerHTML = `
+      <section class="panel viz-witnesses-rewards">
+        <h2>Награды делегатов</h2>
+        <p>Страница со списком делегатов Viz и их наград за текущий день и месяц, предыдущий день и месяц.</p>
+        <p><strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong></p>
+        <section class="subpanel" aria-labelledby="viz-witnesses-live-heading">
+          <h3 id="viz-witnesses-live-heading">Public RPC witness list</h3>
+          <p>Публичный RPC может показать текущих делегатов/witness records без приватных ключей и без старого backend. В vendored VIZ client найдены descriptors <code>witness_api</code>: <code>get_witnesses_by_vote</code>, <code>lookup_witness_accounts</code>, <code>get_witness_by_account</code>, <code>get_active_witnesses</code>. Это отдельный статический слой: он не заменяет исторические reward-агрегаты.</p>
+          <button type="button" id="viz-witnesses-rewards-load">Загрузить делегатов через public RPC</button>
+          <p id="viz-witnesses-rewards-status" role="status" aria-live="polite">Witness-список ещё не загружен.</p>
+          <div id="viz-witnesses-rewards-list"><p class="muted">Нажмите кнопку, чтобы запросить <code>getWitnessesByVote</code> / <code>lookupWitnessAccounts</code> через публичную ноду.</p></div>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-witnesses-columns-heading">
+          <h3 id="viz-witnesses-columns-heading">Legacy reward columns</h3>
+          <p class="notice">Старые поля <code>old_daily_profit</code>, <code>now_daily_profit</code>, <code>old_monthly_profit</code>, <code>now_monthly_profit</code> приходили из <code>viz-api?service=witnesses</code> на приватном backend/IP. Static v3 не восстанавливает этот backend и не показывает вымышленные суммы.</p>
+          <div class="table-wrap"><table aria-label="Legacy columns for VIZ witnesses rewards"><caption>Legacy columns for VIZ witnesses rewards</caption><thead><tr><th scope="col">Колонка</th><th scope="col">Legacy field</th><th scope="col">Meaning</th><th scope="col">v3 status</th></tr></thead><tbody>${renderVizWitnessRewardColumnRows()}</tbody></table></div>
+        </section>
+      </section>`;
+    const loadButton = document.getElementById('viz-witnesses-rewards-load');
+    if (loadButton) loadButton.addEventListener('click', () => loadVizWitnessesByVote(chain));
+    setStatus('VIZ: witnesses-rewards открыт в статическом режиме.', 'info');
+  }
+
+  function buildVizProjectMemo(type, data) {
+    var kind = String(type || '').trim();
+    var payload = data || {};
+    if (kind !== 'project' && kind !== 'task') throw new Error('Неизвестный тип viz-projects memo.');
+    if (!String(payload.name || '').trim()) throw new Error('Укажите название.');
+    if (!String(payload.description || '').trim()) throw new Error('Укажите описание.');
+    return JSON.stringify([kind, payload]);
+  }
+
+  function vizProjectsHistoryHash(chain, account) {
+    return appHash({ chain: chain.id, app: 'history', account: account || chain.defaultAccount || '', ops: 'transfer,custom', query: 'viz-projects' });
+  }
+
+  function renderVizProjects(chain) {
+    var login = auth.getCurrentLogin(chain) || '';
+    var historyUrl = vizProjectsHistoryHash(chain, login);
+    appEl.innerHTML = `
+      <section class="panel viz-projects">
+        <h2>VIZ: Проекты</h2>
+        <p>Legacy <code>projects</code> был каталогом проектов, задач, новостей и рабочих отчётов протокола <code>viz-projects</code>.</p>
+        <p class="notice"><strong>Backend yes:</strong> каталог, задачи, новости, типы/категории и рабочие отчёты читались из <code>viz-api?service=viz-projects</code> на приватном IP. Static v3 не восстанавливает backend/indexer-only списки и не вызывает PHP endpoints.</p>
+        <nav aria-label="Разделы projects"><ul><li><a href="#viz-projects-catalog">Каталог проектов</a></li><li><a href="#viz-projects-tasks">Список задач</a></li><li><a href="#viz-projects-add-project">Добавить проект</a></li><li><a href="#viz-projects-add-task">Добавить задачу</a></li></ul></nav>
+        <section class="subpanel" id="viz-projects-catalog" aria-labelledby="viz-projects-catalog-heading">
+          <h3 id="viz-projects-catalog-heading">Каталог проектов</h3>
+          <p>Legacy catalog filters (<code>types</code>, <code>categories</code>, <code>projects</code>) были backend/indexer-only. В v3 используйте <a href="${escapeHtml(historyUrl)}">историю аккаунта с query: 'viz-projects'</a> или публичный RPC для сырых transfer/custom операций.</p>
+        </section>
+        <section class="subpanel" id="viz-projects-tasks" aria-labelledby="viz-projects-tasks-heading">
+          <h3 id="viz-projects-tasks-heading">Список задач</h3>
+          <p>Legacy tasks/working-tasks/news pages также читали приватный индекс <code>service=viz-projects</code>. Static v3 не показывает непроверенные списки, но сохраняет безопасные формы создания project/task через блокчейн.</p>
+        </section>
+        <section class="subpanel" id="viz-projects-add-project" aria-labelledby="viz-projects-add-project-heading">
+          <h3 id="viz-projects-add-project-heading">Добавить проект</h3>
+          <p><strong>Стоимость добавления проекта: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['project', data]</code>.</p>
+          <form id="viz-projects-add-project-form" class="stacked-form"><fieldset>
+            <legend>Новый проект</legend>
+            <div class="field"><label for="viz-project-name">Название</label><input id="viz-project-name" name="name" type="text" required></div>
+            <div class="field"><label for="viz-project-description">Описание</label><textarea id="viz-project-description" name="description" rows="3" required></textarea></div>
+            <div class="field"><label for="viz-project-image">Изображение</label><input id="viz-project-image" name="image_link" type="url"></div>
+            <div class="field"><label for="viz-project-type">Тип</label><input id="viz-project-type" name="type" type="text" placeholder="app, service, library"></div>
+            <div class="field"><label for="viz-project-category">Категория</label><input id="viz-project-category" name="category" type="text"></div>
+            <div class="field"><label for="viz-project-dev-status">Статус разработки</label><select id="viz-project-dev-status" name="dev_status"><option value="test">Тестовая версия</option><option value="stable">Стабильная версия</option></select></div>
+            <div class="field"><label for="viz-project-command">Команда, логины через запятую</label><input id="viz-project-command" name="command" type="text"></div>
+            <div class="field"><label for="viz-project-site">Сайт</label><input id="viz-project-site" name="site" type="url"></div>
+            <div class="field"><label for="viz-project-github">Github</label><input id="viz-project-github" name="github" type="url"></div>
+            <button type="submit" name="intent" value="preview">Проверить проект</button><button type="submit" name="intent" value="send">Отправить проект</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset></form>
+        </section>
+        <section class="subpanel" id="viz-projects-add-task" aria-labelledby="viz-projects-add-task-heading">
+          <h3 id="viz-projects-add-task-heading">Добавить задачу</h3>
+          <p><strong>Стоимость добавления задачи: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['task', data]</code>.</p>
+          <form id="viz-projects-add-task-form" class="stacked-form"><fieldset>
+            <legend>Новая задача</legend>
+            <div class="field"><label for="viz-task-name">Название</label><input id="viz-task-name" name="name" type="text" required></div>
+            <div class="field"><label for="viz-task-description">Описание</label><textarea id="viz-task-description" name="description" rows="3" required></textarea></div>
+            <button type="submit" name="intent" value="preview">Проверить задачу</button><button type="submit" name="intent" value="send">Отправить задачу</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset></form>
+        </section>
+      </section>`;
+    bindOperationForm(chain, 'viz-projects-add-project-form', function (form) {
+      var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Создатель проекта');
+      var data = {
+        name: String(form.get('name') || '').trim(),
+        description: String(form.get('description') || '').trim(),
+        image_link: String(form.get('image_link') || '').trim(),
+        type: String(form.get('type') || '').trim(),
+        category: String(form.get('category') || '').trim(),
+        dev_status: String(form.get('dev_status') || 'test'),
+        command: String(form.get('command') || '').split(',').map(function (item) { return item.trim(); }).filter(Boolean),
+        site: String(form.get('site') || '').trim(),
+        github: String(form.get('github') || '').trim()
+      };
+      var memo = buildVizProjectMemo('project', data);
+      return broadcast.prepare(chain, 'active', 'transfer', [from, 'viz-projects', '1.000 VIZ', memo], { title: 'VIZ projects add project', to: 'viz-projects', amount: '1.000 VIZ' });
+    });
+    bindOperationForm(chain, 'viz-projects-add-task-form', function (form) {
+      var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Создатель задачи');
+      var data = { name: String(form.get('name') || '').trim(), description: String(form.get('description') || '').trim(), mambers: [], status: 'open' };
+      var memo = buildVizProjectMemo('task', data);
+      return broadcast.prepare(chain, 'active', 'transfer', [from, 'viz-projects', '1.000 VIZ', memo], { title: 'VIZ projects add task', to: 'viz-projects', amount: '1.000 VIZ' });
+    });
+    setStatus('VIZ: projects открыт в static-safe режиме. Backend catalog/tasks/news не восстанавливаются.', 'info');
+  }
+
+  const vizVmpPoolTokens = ['USDTE', 'USDCE', 'USDTBSC', 'USDCBSC', 'DAIE', 'DAIBSC', 'BTC', 'BTCBSC', 'ETH', 'MUSD', 'HUB', 'METAGARDEN', 'BIP'];
+  const vizVmpCalcPairs = ['BIP/VIZCHAIN', 'USDTE/VIZCHAIN', 'USDTBSC/VIZCHAIN', 'USDCE/VIZCHAIN', 'USDCBSC/VIZCHAIN', 'DAIE/VIZCHAIN', 'DAIBSC/VIZCHAIN', 'BTC/VIZCHAIN', 'BTCBSC/VIZCHAIN', 'ETH/VIZCHAIN', 'MUSD/VIZCHAIN', 'HUB/VIZCHAIN'];
+
+  function renderVizVmpPoolLinks() {
+    return vizVmpPoolTokens.map(function (token) {
+      var pair = token + '/VIZCHAIN';
+      var href = 'https://chainik.io/pool/' + encodeURIComponent(token) + '/VIZCHAIN';
+      return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
+    }).join(' ');
+  }
+
+  function parseVizVmpAddressFromMemo(memo) {
+    var text = String(memo || '');
+    var match = text.match(/for\s([^:\s])\s*:/i);
+    return match ? match[1] : '';
+  }
+
+  async function loadVizVmpAwardData(chain, login) {
+    var account = normalizeAccountInput(chain, login, 'VIZ farmer');
+    var connection = await getConnection(chain);
+    var history = await profiles.apiCall(connection, 'getAccountHistory', [account, -1, 1000]);
+    var sharesCounter = 0;
+    var awardsCounter = 0;
+    var memo = '';
+    (Array.isArray(history) ? history : []).forEach(function (entry) {
+      if (awardsCounter >= 7) return;
+      var op = entry && entry[1] && entry[1].op;
+      var opType = op && op[0];
+      var opData = op && op[1] || {};
+      if (opType === 'receive_award' && opData.initiator === 'viz-projects') {
+        sharesCounter = parseFloat(opData.shares || 0);
+        awardsCounter = 1;
+        memo = opData.memo || memo;
+      }
+    });
+    if (!awardsCounter) return { account: account, shares: 0, awards: 0, address: '' };
+    return { account: account, shares: Math.round(sharesCounter / awardsCounter * 365), awards: awardsCounter, address: parseVizVmpAddressFromMemo(memo), memo: memo };
+  }
+
+  async function loadVizVmpPairLiquidity(pair, address) {
+    var page = 1;
+    var liquidity = 0;
+    while (page <= 20 && liquidity === 0) {
+      var url = 'https://explorer-api.minter.network/api/v2/pools/coins/' + encodeURIComponent(pair) + '/providers?page=' + page;
+      var payload = await fetchJsonText(url, 'Minter VMP providers ' + pair);
+      var providers = payload && payload.data || [];
+      providers.forEach(function (provider) {
+        if (provider && provider.address === address) liquidity += parseFloat(provider.amount1 || 0) * 2;
+      });
+      if (!payload || !payload.links || !payload.links.next) break;
+      page += 1;
+    }
+    return liquidity;
+  }
+
+  async function loadVizVmpLiquidity(address) {
+    var total = 0;
+    for (var index = 0; index < vizVmpCalcPairs.length; index += 1) {
+      total += await loadVizVmpPairLiquidity(vizVmpCalcPairs[index], address);
+    }
+    return total;
+  }
+
+  function renderVizVmpResult(data) {
+    var vizProfile = appHash({ chain: 'viz', app: 'profiles', account: data.account });
+    var minterProfile = appHash({ chain: 'minter', app: 'profiles', account: data.address });
+    if (!data.awards) return `<p class="notice">Не найдены последние <code>receive_award</code> от <code>viz-projects</code> в истории @${escapeHtml(data.account)}. Проверьте логин или историю аккаунта.</p>`;
+    if (!data.address) return `<p class="notice">В последних наградах VMP найдено ${escapeHtml(String(data.awards))} выплат, но Minter address не распознан из memo формата <code>for Mx...:</code>.</p>`;
+    if (!data.liquidity) return `<p class="notice">Адрес <a href="${escapeHtml(minterProfile)}">${escapeHtml(data.address)}</a> не найден в публичных provider списках VIZCHAIN пулов или API сейчас недоступен.</p>`;
+    return `<p>Доходность для <a href="${escapeHtml(vizProfile)}">${escapeHtml(data.account)}</a> (<a href="${escapeHtml(minterProfile)}">${escapeHtml(data.address)}</a>) примерно <strong>${escapeHtml(data.profitPercent.toFixed(2))}%</strong>.</p><dl class="kv-list"><div><dt>Годовая награда по последним выплатам</dt><dd>${escapeHtml(String(data.shares))} SHARES</dd></div><div><dt>Ликвидность в VIZCHAIN пулах</dt><dd>${escapeHtml(data.liquidity.toFixed(6))}</dd></div></dl>`;
+  }
+
+  function renderVizVmp(chain) {
+    appEl.innerHTML = `
+      <section class="panel viz-vmp">
+        <h2>VIZ: Шлюз в Minter / VMP</h2>
+        <section class="subpanel" aria-labelledby="viz-vmp-pools-heading">
+          <h3 id="viz-vmp-pools-heading">Поддерживаемые токены Minter, в пулах с которыми идёт фарминг</h3>
+          <p><strong>${renderVizVmpPoolLinks()}</strong></p>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-vmp-details-heading">
+          <h3 id="viz-vmp-details-heading">Подробности про работу со шлюзом</h3>
+          <p><strong><a href="https://viz.media/zapusk-shlyuza-viz-v-minter/" target="_blank" rel="noopener">Читать</a></strong></p>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-vmp-farm-heading">
+          <h3 id="viz-vmp-farm-heading">Ваша доходность с фарминга</h3>
+          <p>Расчёт повторяет legacy data flow: последние <code>receive_award</code> от <code>viz-projects</code> в истории VIZ аккаунта  публичный <code>explorer-api.minter.network/api/v2/pools/coins</code> provider list для пар <code>VIZCHAIN</code>. Это read-only раздел: операций и подписей нет.</p>
+          <form id="viz-vmp-farm-form" class="stacked-form"><fieldset>
+            <legend>Рассчитать доходность VMP</legend>
+            <div class="field"><label for="farmer">Логин в Viz без @</label><input type="text" name="farmer" id="farmer" required autocomplete="off"></div>
+            <button type="submit" id="farm_calc">Рассчитать</button>
+            <div id="farm_result" class="operation-result" role="status" aria-live="polite">Введите VIZ логин и запустите расчёт.</div>
+          </fieldset></form>
+        </section>
+      </section>`;
+    document.getElementById('viz-vmp-farm-form').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var result = document.getElementById('farm_result');
+      var farmer = String(new FormData(event.currentTarget).get('farmer') || '').trim();
+      try {
+        result.innerHTML = 'Ожидайте... Сканируем историю VIZ и вычисляем ликвидность пользователя...';
+        var awards = await loadVizVmpAwardData(chain, farmer);
+        var liquidity = awards.address ? await loadVizVmpLiquidity(awards.address) : 0;
+        var profitPercent = liquidity > 0 ? awards.shares / liquidity * 100 : 0;
+        result.innerHTML = renderVizVmpResult(Object.assign({}, awards, { liquidity: liquidity, profitPercent: profitPercent }));
+      } catch (error) {
+        result.innerHTML = escapeHtml(profiles.formatError(error));
+      }
+    });
+    setStatus('VIZ VMP открыт: ссылки на пулы и read-only расчёт фарминга используют публичные API без backend dpos.space.', 'info');
+  }
+
+  function normalizeVizCustomProtocol(value) {
+    var protocol = String(value || '').trim();
+    if (!protocol) throw new Error('Укажите ID/protocol custom_json.');
+    if (protocol.length > 32) throw new Error('ID/protocol custom_json должен быть не длиннее 32 символов.');
+    if (!/^[a-z0-9_.-]$/i.test(protocol)) throw new Error('ID/protocol может содержать только латиницу, цифры, точку, подчёркивание и дефис.');
+    return protocol;
+  }
+
+  function normalizeVizCustomJson(value) {
+    var raw = String(value || '').trim();
+    if (!raw) throw new Error('Вставьте JSON payload для custom_json.');
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error('JSON payload невалиден: ' + error.message);
+    }
+    return JSON.stringify(parsed);
+  }
+
+  function renderVizCustomGenerator(chain) {
+    appEl.innerHTML = `
+      <section class="panel viz-custom-generator">
+        <h2>VIZ: JSON-генератор custom_json</h2>
+        <p>Legacy <code>custom-generator</code> собирал произвольную форму, генерировал HTML/JS и отправлял <code>viz.broadcast.custom</code> после POST в <code>json_encode.php</code>.</p>
+        <p class="notice"><strong>Backend yes:</strong> старый сгенерированный скрипт зависел от PHP <code>json_encode.php</code>, который преобразовывал form-urlencoded поля в JSON. Static v3 не восстанавливает PHP endpoint, jQuery UI drag/drop builder и вставляемый внешний скрипт; JSON проверяется локально в браузере.</p>
+        <form id="viz-custom-generator-form" class="stacked-form"><fieldset>
+          <legend>Подготовить VIZ custom_json</legend>
+          <div class="field"><label for="viz-custom-protocol">ID/protocol custom_json</label><input id="viz-custom-protocol" name="protocol" type="text" maxlength="32" pattern="[A-Za-z0-9_.-]" placeholder="my-protocol" required></div>
+          <div class="field"><label for="viz-custom-json">JSON payload</label><textarea id="viz-custom-json" name="json" rows="10" spellcheck="false" required>{"example":true}</textarea></div>
+          <p class="muted">Заменяет legacy действия «Получить JSON текущей формы» и «Открыть получившуюся форму»: вставьте уже готовый JSON, проверьте preview, затем отправляйте только после явного подтверждения.</p>
+          <button type="submit" name="intent" value="preview">Проверить JSON и операцию</button><button type="submit" name="intent" value="send">Отправить custom_json в сеть</button>
+          <div id="viz-custom-generator-preview" class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </section>`;
+    bindOperationForm(chain, 'viz-custom-generator-form', function (form) {
+      var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Отправитель custom_json');
+      var protocol = normalizeVizCustomProtocol(form.get('protocol'));
+      var json = normalizeVizCustomJson(form.get('json'));
+      return broadcast.prepare(chain, 'regular', 'custom', [from, protocol, json], { title: 'VIZ custom_json', protocol: protocol });
+    });
+    setStatus('VIZ: JSON-генератор открыт. PHP json_encode и drag/drop builder не восстанавливаются; отправка идёт через общий подтверждаемый broadcast flow.', 'info');
+  }
+
+  function buildVizPollCreateMemo(question, answers, endDate, consider) {
+    var text = String(question || '').trim();
+    var parsedAnswers = Array.isArray(answers) ? answers : [];
+    var filteredAnswers = parsedAnswers.map(function (item) { return String(item || '').trim(); }).filter(Boolean);
+    var timestamp = Math.floor(new Date(endDate).getTime() / 1000);
+    var considerValue = Number(consider);
+    if (!text) throw new Error('Введите вопрос опроса.');
+    if (filteredAnswers.length < 2) throw new Error('Нужно минимум два варианта ответа, каждый с новой строки.');
+    if (!isFinite(timestamp) || timestamp <= Math.floor(Date.now() / 1000)) throw new Error('Дата окончания опроса должна быть в будущем.');
+    if (considerValue !== 0 && considerValue !== 1 && considerValue !== 2) throw new Error('Выберите режим учёта соц. капитала.');
+    return JSON.stringify({
+      contractName: 'viz-votes',
+      contractAction: 'createVote',
+      contractPayload: {
+        question: text,
+        answers: filteredAnswers,
+        end_date: timestamp,
+        consider: considerValue
+      }
+    });
+  }
+
+  function buildVizPollVoteMemo(permlink, answerId) {
+    var slug = String(permlink || '').trim();
+    var numericAnswer = Number(answerId);
+    if (!slug) throw new Error('Укажите permlink опроса.');
+    if (numericAnswer !== Math.floor(numericAnswer) || numericAnswer < 0) throw new Error('Укажите номер варианта ответа, начиная с 0.');
+    return JSON.stringify({
+      contractName: 'viz-votes',
+      contractAction: 'voteing',
+      contractPayload: {
+        votePermlink: slug,
+        answerId: numericAnswer
+      }
+    });
+  }
+
+  function vizPollsHistoryHash(chain, account, query) {
+    return appHash({ chain: chain.id, app: 'history', account: account || chain.defaultAccount || '', ops: 'transfer,custom', query: query || 'viz-votes' });
+  }
+
+  function renderVizPolls(chain) {
+    var login = auth.getCurrentLogin(chain) || '';
+    var historyUrl = vizPollsHistoryHash(chain, login, 'viz-votes');
+    appEl.innerHTML = `
+      <section class="panel viz-polls">
+        <h2>Опросы</h2>
+        <p>Legacy VIZ polls использовали протокол <code>viz-votes</code>: создание платным переводом <code>1.000 VIZ</code> на <code>committee</code> с memo <code>createVote</code>, голосование через <code>custom</code>/<code>custom_json</code> с <code>contractAction: voteing</code>.</p>
+        <p class="notice"><strong>Backend yes:</strong> список, lookup poll по permlink, страница голосования и взвешенные результаты читались из <code>http://178.20.43.121:3100/viz-api?service=votes</code>. Это backend/indexer-only non-goal для статической v3: здесь нет скрытого сервера, не показываются вымышленные списки/проценты.</p>
+        <nav aria-label="Разделы опросов"><ul><li><a href="#viz-polls-create-heading">Создание опроса</a></li><li><a href="#viz-polls-list-heading">Список/просмотр опросов</a></li><li><a href="#viz-polls-vote-heading">Голосование</a></li><li><a href="#viz-polls-results-heading">Результаты</a></li></ul></nav>
+        <section class="subpanel" aria-labelledby="viz-polls-create-heading">
+          <h3 id="viz-polls-create-heading">Создание опроса</h3>
+          <p>Форма повторяет static-safe часть legacy <code>pages/create</code>: готовит memo <code>contractName: viz-votes</code>, <code>contractAction: createVote</code> и отправляет перевод на <code>committee</code>. Нужен выбранный VIZ-аккаунт с active key или Vizonator.</p>
+          <form id="viz-polls-create-form" class="stacked-form"><fieldset>
+            <legend>Создать опрос через перевод 1.000 VIZ</legend>
+            <div class="field"><label for="viz-polls-question">Вопрос</label><input id="viz-polls-question" name="question" type="text" required></div>
+            <div class="field"><label for="viz-polls-answers">Варианты ответа, каждый с новой строки</label><textarea id="viz-polls-answers" name="answers" rows="5" required></textarea></div>
+            <div class="field"><label for="viz-polls-end-date">Дата и время окончания опроса</label><input id="viz-polls-end-date" name="end_date" type="datetime-local" required></div>
+            <div class="field"><label for="viz-polls-consider">Учитывать при расчёте результатов соц. капитал</label><select id="viz-polls-consider" name="consider"><option value="0">Личный</option><option value="1">Личный  прокси</option><option value="2">Как при награждении</option></select></div>
+            <button type="submit" name="intent" value="preview">Проверить создание опроса</button><button type="submit" name="intent" value="send">Отправить создание опроса в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset></form>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-polls-list-heading">
+          <h3 id="viz-polls-list-heading">Список/просмотр опросов</h3>
+          <p>Legacy <code>pages/list/content.php</code> вызывал backend list endpoint. Public RPC не имеет готового индекса всех <code>viz-votes</code> poll records, поэтому статическая замена безопасно ведёт в <a href="${escapeHtml(historyUrl)}">История</a> выбранного аккаунта с фильтром <code>transfer,custom</code> / <code>viz-votes</code>. Для известного permlink используйте форму голосования ниже.</p>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-polls-vote-heading">
+          <h3 id="viz-polls-vote-heading">Голосование</h3>
+          <p>Так как ответы и активность опроса legacy получал из backend/indexer, v3 не угадывает список вариантов. Введите известный <code>votePermlink</code> и номер <code>answerId</code> из источника опроса; отправка использует существующий <code>broadcast.prepare</code> для <code>custom</code> с regular authority.</p>
+          <form id="viz-polls-vote-form" class="stacked-form"><fieldset>
+            <legend>Проголосовать через custom_json viz-votes</legend>
+            <div class="field"><label for="viz-polls-permlink">Permlink опроса</label><input id="viz-polls-permlink" name="permlink" type="text" required></div>
+            <div class="field"><label for="viz-polls-answer-id">answerId (0, 1, 2... как в legacy форме)</label><input id="viz-polls-answer-id" name="answer_id" type="number" min="0" step="1" required></div>
+            <button type="submit" name="intent" value="preview">Проверить голос</button><button type="submit" name="intent" value="send">Отправить голос в сеть</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset></form>
+        </section>
+        <section class="subpanel" aria-labelledby="viz-polls-results-heading">
+          <h3 id="viz-polls-results-heading">Результаты</h3>
+          <p>Legacy <code>pages/results/content.php</code> складывал голоса, SHARES/proxy-веса, top voters и проценты через backend endpoint <code>type=vote</code> плюс global properties. Static v3 оставляет это как backend-only non-goal; безопасная замена — проверять сырые операции в истории/RPC и не публиковать неподтверждённые агрегаты.</p>
+        </section>
+      </section>`;
+    bindOperationForm(chain, 'viz-polls-create-form', function (form) {
+      var from = auth.getCurrentLogin(chain);
+      var answers = String(form.get('answers') || '').split(/\r?\n/);
+      var memo = buildVizPollCreateMemo(form.get('question'), answers, form.get('end_date'), form.get('consider'));
+      var creator = normalizeAccountInput(chain, from, 'Создатель опроса');
+      return broadcast.prepare(chain, 'active', 'transfer', [creator, 'committee', '1.000 VIZ', memo], { title: 'VIZ polls createVote', to: 'committee', amount: '1.000 VIZ' });
+    });
+    bindOperationForm(chain, 'viz-polls-vote-form', function (form) {
+      var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Голосующий');
+      var permlink = String(form.get('permlink') || '').trim();
+      var memo = buildVizPollVoteMemo(permlink, form.get('answer_id'));
+      return broadcast.prepare(chain, 'regular', 'custom', [from, 'viz-votes', memo], { title: 'VIZ polls voteing', protocol: 'viz-votes', permlink: permlink });
+    });
+    setStatus('VIZ: polls открыт в static-safe режиме. Backend list/results не восстанавливаются.', 'info');
+  }
+
+  const STEEM_BACKUP_LIMIT = 100;
+  const STEEM_BACKUP_MAX_PAGES = 5;
+
+  function safeSteemBackupFilenamePart(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'account';
+  }
+
+  function parseSteemBackupTags(post) {
+    try {
+      const metadata = JSON.parse(post.json_metadata || '{}');
+      return Array.isArray(metadata.tags) ? metadata.tags.filter(Boolean).join(' ') : '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function filterSteemBackupPosts(posts, account, includeReblogs) {
+    const list = Array.isArray(posts) ? posts : [];
+    if (includeReblogs === 'yes3') return list;
+    return list.filter((post) => post && post.author === account);
+  }
+
+  function formatSteemBackupPost(post, format) {
+    const title = post.title || `${post.author || ''}/${post.permlink || ''}`;
+    const tags = parseSteemBackupTags(post);
+    if (format === 'HTML') {
+      return `<article>\n<h2>${escapeHtml(title)}</h2>\n<p><strong>Автор:</strong> ${escapeHtml(post.author || '')}</p>\n<p><strong>Permlink:</strong> ${escapeHtml(post.permlink || '')}</p>\n<p><strong>Дата:</strong> ${escapeHtml(post.created || '')}</p>\n<div>${escapeHtml(post.body || '').replace(/\n/g, '<br>')}</div>\n<p><strong>Теги:</strong> ${escapeHtml(tags)}</p>\n</article>`;
+    }
+    return `Заголовок: ${title}\nАвтор: ${post.author || ''}\nPermlink: ${post.permlink || ''}\nДата: ${post.created || ''}\nТекст:\n${post.body || ''}\nТеги:\n${tags}\n`;
+  }
+
+  async function loadSteemBackupPosts(chain, account) {
+    const connection = await getConnection(chain);
+    const posts = [];
+    let startAuthor = '';
+    let startPermlink = '';
+    for (let page = 0; page < STEEM_BACKUP_MAX_PAGES; page += 1) {
+      const query = { tag: account, limit: STEEM_BACKUP_LIMIT };
+      if (startAuthor && startPermlink) {
+        query.start_author = startAuthor;
+        query.start_permlink = startPermlink;
+      }
+      const chunk = await profiles.apiCall(connection, 'getDiscussionsByBlog', [query]);
+      if (!Array.isArray(chunk) || !chunk.length) break;
+      const next = startAuthor && startPermlink ? chunk.slice(1) : chunk;
+      posts.push(...next);
+      const last = chunk[chunk.length - 1];
+      if (chunk.length < STEEM_BACKUP_LIMIT || !last || !last.author || !last.permlink) break;
+      startAuthor = last.author;
+      startPermlink = last.permlink;
+    }
+    return posts;
+  }
+
+  async function bindSteemBackupForm(chain) {
+    const form = document.getElementById('steem-backup-form');
+    if (!form) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const account = normalizeAccountInput(chain, data.get('user'), 'Steem login');
+      const includeReblogs = String(data.get('reblogs') || 'yes2');
+      const format = String(data.get('contentformat') || 'Markdown') === 'HTML' ? 'HTML' : 'Markdown';
+      setOperationResult(form, `Загружаю публичные посты @${account} через Steem RPC...`, 'info');
+      try {
+        const allPosts = await loadSteemBackupPosts(chain, account);
+        const posts = filterSteemBackupPosts(allPosts, account, includeReblogs);
+        if (!posts.length) throw new Error('Публичные посты для выбранного режима не найдены.');
+        const body = posts.map((post) => formatSteemBackupPost(post, format)).join(format === 'HTML' ? '\n<hr>\n' : '\n---\n');
+        const text = format === 'HTML' ? `<!doctype html>\n<html lang="ru"><meta charset="utf-8"><title>Steem backup ${escapeHtml(account)}</title><body>\n${body}\n</body></html>` : body;
+        const safeAccount = safeSteemBackupFilenamePart(account);
+        const extension = format === 'HTML' ? 'html' : 'md';
+        downloadTextFile(`steem-posts-${safeAccount}.${extension}`, text);
+        setOperationResult(form, `Готово: подготовлено ${posts.length} записей. Файл скачан локально в браузере; данные и ключи не отправлялись на сервер.`, 'ok');
+      } catch (error) {
+        setOperationResult(form, profiles.formatError(error), 'error');
+      }
+    });
+  }
+
+  async function renderSteemBackup(chain, account) {
+    const current = account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
+    appEl.innerHTML = `
+      <section class="panel steem-backup-panel">
+        <h2>Бекап постов</h2>
+        <p>Static v3 сохраняет резервную копию публичных постов локально в браузере. Старый платный PHP-сервис создавал server-side archive после проверки платежа; здесь backend-архив, оплата и серверное хранение не восстанавливаются.</p>
+        <p class="notice">Можно скачать только записи, доступные публичной Steem RPC-ноде. Приватные ключи, SJCL/localStorage и аккаунтные секреты не читаются и не экспортируются.</p>
+        <form id="steem-backup-form" class="stacked-form">
+          <fieldset>
+            <legend>Список действий</legend>
+            <ol>
+              <li>Введите логин Steem без символа @.</li>
+              <li>Выберите, включать ли репосты.</li>
+              <li>Выберите формат сохранения материалов.</li>
+              <li>Нажмите «Запуск» — файл будет создан только в вашем браузере.</li>
+            </ol>
+            <div class="field"><label for="steem-backup-user">Имя пользователя (логин) на Steem (Без @):</label><input id="steem-backup-user" name="user" type="text" value="${escapeHtml(current)}" required></div>
+            <fieldset id="steem-backup-reblogs"><legend>Скачивать ли репосты?</legend>
+              <label><input type="radio" name="reblogs" value="yes2" checked> Нет: только посты моего аккаунта</label>
+              <label><input type="radio" name="reblogs" value="yes3"> Да: все репосты</label>
+            </fieldset>
+            <div class="field"><label for="steem-backup-format">Выберите формат сохранения материалов:</label><select id="steem-backup-format" name="contentformat"><option value="Markdown">Markdown</option><option value="HTML">HTML</option></select></div>
+            <button type="submit">Запуск</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    await bindSteemBackupForm(chain);
+    setStatus('Steem backup готов: экспорт выполняется локально через public RPC без backend.', 'ok');
+  }
+
+  async function bindHiveBackupForm(chain) {
+    const form = document.getElementById('hive-backup-form');
+    if (!form) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const account = normalizeAccountInput(chain, data.get('user'), 'Hive login');
+      const includeReblogs = String(data.get('reblogs') || 'yes2');
+      const format = String(data.get('contentformat') || 'Markdown') === 'HTML' ? 'HTML' : 'Markdown';
+      setOperationResult(form, `Загружаю публичные посты @${account} через Hive RPC...`, 'info');
+      try {
+        const allPosts = await loadSteemBackupPosts(chain, account);
+        const posts = filterSteemBackupPosts(allPosts, account, includeReblogs);
+        if (!posts.length) throw new Error('Публичные посты для выбранного режима не найдены.');
+        const body = posts.map((post) => formatSteemBackupPost(post, format)).join(format === 'HTML' ? '\n<hr>\n' : '\n---\n');
+        const text = format === 'HTML' ? `<!doctype html>\n<html lang="ru"><meta charset="utf-8"><title>Hive backup ${escapeHtml(account)}</title><body>\n${body}\n</body></html>` : body;
+        const safeAccount = safeSteemBackupFilenamePart(account);
+        const extension = format === 'HTML' ? 'html' : 'md';
+        downloadTextFile(`hive-posts-${safeAccount}.${extension}`, text);
+        setOperationResult(form, `Готово: подготовлено ${posts.length} записей. Файл скачан локально в браузере; данные и ключи не отправлялись на сервер.`, 'ok');
+      } catch (error) {
+        setOperationResult(form, profiles.formatError(error), 'error');
+      }
+    });
+  }
+
+  async function renderHiveBackup(chain, account) {
+    const current = account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
+    appEl.innerHTML = `
+      <section class="panel hive-backup-panel">
+        <h2>Бекап постов</h2>
+        <p>Static v3 сохраняет резервную копию публичных постов локально в браузере. Старый платный PHP-сервис просил отправить 0.5 HBD или 1 HIVE с memo posts и создавал server-side archive после проверки платежа; здесь backend-архив, оплата и серверное хранение не восстанавливаются.</p>
+        <p class="notice">Можно скачать только записи, доступные публичной Hive RPC-ноде. Приватные ключи, SJCL/localStorage и аккаунтные секреты не читаются и не экспортируются.</p>
+        <form id="hive-backup-form" class="stacked-form">
+          <fieldset>
+            <legend>Список действий</legend>
+            <ol>
+              <li>Введите логин Hive без символа @.</li>
+              <li>Выберите, включать ли репосты.</li>
+              <li>Выберите формат сохранения материалов.</li>
+              <li>Нажмите «Запуск» — файл будет создан только в вашем браузере.</li>
+            </ol>
+            <div class="field"><label for="hive-backup-user">Имя пользователя (логин) на Hive (Без @):</label><input id="hive-backup-user" name="user" type="text" value="${escapeHtml(current)}" required></div>
+            <fieldset id="hive-backup-reblogs"><legend>Скачивать ли репосты?</legend>
+              <label><input type="radio" name="reblogs" value="yes2" checked> Нет: только посты моего аккаунта</label>
+              <label><input type="radio" name="reblogs" value="yes3"> Да: все репосты</label>
+            </fieldset>
+            <div class="field"><label for="hive-backup-format">Выберите формат сохранения материалов:</label><select id="hive-backup-format" name="contentformat"><option value="Markdown">Markdown</option><option value="HTML">HTML</option></select></div>
+            <button type="submit">Запуск</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </fieldset>
+        </form>
+      </section>`;
+    await bindHiveBackupForm(chain);
+    setStatus('Hive backup готов: экспорт выполняется локально через public RPC без backend.', 'ok');
+  }
+
   function renderServicePlaceholder(chain, app) {
     const details = {
       registration: 'Регистрация VIZ пока требует отдельной безопасной формы и проверки ключей.',
@@ -3935,7 +8338,22 @@
       escrow: 'Escrow пока недоступен.',
       'instant-view': 'Instant View пока недоступен.',
       swap: `${chain.title}: обмен пока недоступен для этой сети.`,
-      register: `${chain.title}: регистрация аккаунта пока недоступна для этой сети.`
+      register: `${chain.title}: регистрация аккаунта пока недоступна для этой сети.`,
+      activities: 'Активности в старой версии собирались backend-агрегацией. В v3 используйте историю аккаунта и фильтр операций; серверная агрегация намеренно удалена.',
+      api: 'Старые PHP API-страницы заменены прямыми публичными RPC-запросами браузера. Сырые JSON-данные доступны в предпросмотрах операций и проводнике.',
+      backup: 'Backup в v3 выполняется через раздел История: загрузите аккаунт, отфильтруйте операции и скопируйте JSON/табличные данные без backend.',
+      help: 'v3 — статическая локальная версия: выберите блокчейн, аккаунт и приложение. Операции сначала показывают preview и JSON, затем требуют явного подтверждения отправки.',
+      polls: 'Legacy polls завязаны на custom_json/публичные операции. В v3 они показаны как безопасный статический раздел; отправка без отдельной формы не выполняется.',
+      referrers: 'Реферальные рейтинги старой версии зависели от backend. В v3 они оставлены как non-goal, чтобы не возвращать серверную зависимость.',
+      stakebot: 'Stakebot был внешним/backend-сервисом и в статическую v3 не переносится.',
+      top: 'Топы старой версии строились сервером. В v3 используйте профили, историю и публичные проводники без backend.dpos.space.',
+      'witnesses-rewards': 'Расчёты witness rewards были backend-only. В v3 оставлен справочный раздел без скрытых серверных запросов.',
+      analytics: 'Аналитика старой версии зависела от backend/API агрегации. v3 сохраняет только локальные и публичные RPC-сценарии.',
+      'custom-generator': 'Генератор custom_json требует отдельной точной схемы операции. v3 не отправляет произвольный JSON без безопасной формы подтверждения.',
+      projects: 'Проектные каталоги/рейтинги старой версии зависели от backend. В v3 этот раздел справочный.',
+      search: 'Для поиска используйте поля аккаунта, проводник блока/транзакции и прямые hash-маршруты v3.',
+      vmp: 'VMP оставлен как справочный статический раздел: серверные расчёты и backend-интеграции удалены.',
+      'voice-import': 'Voice import в старой версии зависел от внешнего импорта. В v3 подготовьте текст локально и перенесите его в редактор.'
     };
 
     if (chain.id === 'hive' || chain.id === 'steem') {
@@ -3977,8 +8395,57 @@
     return num < 0.001 && num > 0 ? num.toFixed(8) : num.toFixed(digits);
   }
 
+  function isValidChainAddress(chain, value) {
+    try {
+      broadcast.validateAddress(chain, value, `${chain.title} address`);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function decryptCurrentSeed(chain, user) {
+    if (!user || !user.seed || !global.sjcl || typeof global.sjcl.decrypt !== 'function') return '';
+    const login = auth.getUserLogin(user);
+    const sourceChain = user.importFrom || chain.id;
+    if (!login) return '';
+    try {
+      return global.sjcl.decrypt(`dpos.space_${sourceChain}_${login}_seed`, user.seed);
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  function deriveSeedWalletAddress(chain, user) {
+    const type = auth.getUserType(user);
+    if (type === 'bip.to' && user && user.address) return broadcast.validateAddress(chain, user.address, `${chain.title} address`);
+    const seed = decryptCurrentSeed(chain, user);
+    if (!seed) return '';
+    if (chain.id === 'minter') {
+      if (!global.minterWallet || typeof global.minterWallet.walletFromMnemonic !== 'function') return '';
+      const wallet = global.minterWallet.walletFromMnemonic(seed);
+      if (wallet && typeof wallet.getAddressString === 'function') return broadcast.validateAddress(chain, wallet.getAddressString(), 'Minter address');
+    }
+    if (chain.id === 'decimal') {
+      if (!global.DecimalSDK || typeof global.DecimalSDK.Wallet !== 'function') return '';
+      const wallet = new global.DecimalSDK.Wallet(seed);
+      if (wallet && wallet.address) return broadcast.validateAddress(chain, wallet.address, 'Decimal address');
+    }
+    return '';
+  }
+
+  function resolveSeedWalletAddress(chain, account) {
+    const current = auth.getCurrentUser(chain);
+    const login = auth.getUserLogin(current);
+    const value = String(account || '').trim();
+    if (value && isValidChainAddress(chain, value) && value !== login) return broadcast.validateAddress(chain, value, `${chain.title} address`);
+    const derived = deriveSeedWalletAddress(chain, current);
+    if (derived) return derived;
+    return broadcast.validateAddress(chain, value, `${chain.title} address`);
+  }
+
   async function loadMinterWalletData(chain, account) {
-    const address = broadcast.validateAddress(chain, account, 'Minter address');
+    const address = resolveSeedWalletAddress(chain, account);
     const [addressData, delegationsData, transactionsData] = await Promise.all([
       fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}`, 'Minter address API'),
       fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/delegations`, 'Minter delegations API').catch((error) => ({ _error: error.message, data: [] })),
@@ -4052,6 +8519,9 @@
   async function renderMinterWallet(chain, account) {
     appEl.innerHTML = '<section class="panel wallet-minter"><h2>Minter: кошелёк</h2><p>Загружаю балансы, делегирования и последние транзакции...</p></section>';
     setStatus(`Загружаю Minter кошелёк: ${account}...`, 'loading');
+    await loadScript(chain.cryptoPath);
+    if (chain.walletPath) await loadScript(chain.walletPath);
+    if (chain.libraryPath) await loadScript(chain.libraryPath);
     const data = await loadMinterWalletData(chain, account);
     appEl.innerHTML = `<section class="panel wallet-minter">
       <h2>Minter: кошелёк ${escapeHtml(data.address)}</h2>
@@ -4093,7 +8563,7 @@
         const base = 10n ** 18n;
         const intPart = bi / base;
         const fracPart = bi % base;
-        const frac = fracPart.toString().padStart(18, '0').slice(0, digits === 8 ? 8 : 6).replace(/0+$/, '');
+        const frac = fracPart.toString().padStart(18, '0').slice(0, digits === 8 ? 8 : 6).replace(/0$/, '');
         return frac ? `${intPart}.${frac}` : intPart.toString();
       } catch (error) { /* fall back below */ }
     }
@@ -4115,10 +8585,8 @@
   function getDecimalStakeAddress(chain, address) {
     try {
       const user = auth.getCurrentUser(chain);
-      if (!user || !user.seed || user.type === 'bip.to' || !global.DecimalSDK || typeof global.DecimalSDK.Wallet !== 'function') return address;
-      const login = auth.getUserLogin(user);
-      const sourceChain = user.importFrom || chain.id;
-      const seed = auth.tryDecrypt(`dpos.space_${sourceChain}_${login}_seed`, user.seed);
+      if (!user || !user.seed || auth.getUserType(user) === 'bip.to' || !global.DecimalSDK || typeof global.DecimalSDK.Wallet !== 'function') return address;
+      const seed = decryptCurrentSeed(chain, user);
       if (!seed) return address;
       const wallet = new global.DecimalSDK.Wallet(seed);
       if (wallet.address && String(wallet.address).toLowerCase() !== String(address).toLowerCase()) return address;
@@ -4129,7 +8597,7 @@
   }
 
   async function loadDecimalWalletData(chain, account) {
-    const address = broadcast.validateAddress(chain, account, 'Decimal address');
+    const address = resolveSeedWalletAddress(chain, account);
     const stakeAddress = getDecimalStakeAddress(chain, address);
     const api = chain.apiBase || 'https://api.decimalchain.com/api/v1';
     const [balancesData, stakesCoinsData, stakesNftsData, transactionsData, rewardsData, nftsData] = await Promise.all([
@@ -4225,7 +8693,7 @@
     const delStakeMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-delegate-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
     return `<form id="decimal-send-form" class="stacked-form"><fieldset>
       <legend>Decimal: перевод DEL / coin / token</legend>
-      <div class="field"><label for="decimal-send-to">Адрес получателя</label><input id="decimal-send-to" name="to" type="text" required placeholder="dx... или 0x..."></div>
+      <div class="field"><label for="decimal-send-to">Адрес получателя</label><input id="decimal-send-to" name="to" type="text" required placeholder="d0..., dx... или 0x..."></div>
       <div class="field"><label for="decimal-send-amount">Сумма</label><input id="decimal-send-amount" name="amount" type="text" required placeholder="1.000">${delMaxButton}</div>
       <div class="field"><label for="decimal-send-coin">Монета/токен</label><input id="decimal-send-coin" name="coin" type="text" required value="DEL"></div>
       <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
@@ -4246,6 +8714,9 @@
   async function renderDecimalWallet(chain, account) {
     appEl.innerHTML = '<section class="panel wallet-decimal"><h2>Decimal: кошелёк</h2><p>Загружаю балансы, stake, NFT и последние транзакции...</p></section>';
     setStatus(`Загружаю Decimal кошелёк: ${account}...`, 'loading');
+    await loadScript(chain.cryptoPath);
+    if (chain.walletPath) await loadScript(chain.walletPath);
+    if (chain.libraryPath) await loadScript(chain.libraryPath);
     const data = await loadDecimalWalletData(chain, account);
     appEl.innerHTML = `<section class="panel wallet-decimal">
       <h2>Decimal: кошелёк ${escapeHtml(data.address)}</h2>
@@ -4303,7 +8774,10 @@
   }
 
   function minterSwapForms() {
-    return `<form id="minter-swap-form" class="stacked-form"><fieldset>
+    return `<article class="card"><h3>Minter swap: static parity notes</h3>
+      <p class="notice">Legacy swap auto-quote used public explorer endpoints <code>https://explorer-api.minter.network/api/v2/pools/coins/{from}/{to}/route</code> and <code>https://explorer-api.minter.network/api/v2/pools/providers/{address}</code>. v3 keeps the direct browser wallet operations and asks you to enter minimum buy amount and optional route explicitly; it does not add a proxy, PHP endpoint, indexer, daemon, private API, or hidden service.</p>
+    </article>
+    <form id="minter-swap-form" class="stacked-form"><fieldset>
       <legend>Minter: обмен / продажа</legend>
       <div class="field"><label for="minter-swap-from">Монета к продаже</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-swap-to">Монета к покупке</label><input id="minter-swap-to" name="to" type="text" required></div>
@@ -4407,7 +8881,7 @@
       const amount = normalizeAmountInput(form.get('amount'), 'Stake');
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const validator = String(form.get('validator') || '').trim();
-      if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator public key должен быть MP + 64 hex chars.');
+      if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator public key должен быть MP  64 hex chars.');
       const txType = mode === 'unbond' ? 'UNBOND' : 'DELEGATE';
       const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
       return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${txType}`, amount: `${amount} ${coin}`, txType, coin, validator });
@@ -4418,7 +8892,7 @@
       const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
       const min = String(form.get('min') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
       const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
       const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
       const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
@@ -4431,7 +8905,7 @@
       const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
       const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
       const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const data = mode === 'REMOVE_LIQUIDITY'
         ? { coin0, coin1, liquidity: Number(volume0) }
@@ -4447,10 +8921,10 @@
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
       const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const [feeWhole, feeFrac = ''] = hubFee.split('.');
-      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
+      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0(?=\d)/, '') || '0';
       const memo = JSON.stringify({ recipient: to, type: `send_to_${destinationChain}`, fee: feeMinimal });
       const tx = minterTx('SEND', { to: 'Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', value: Number(amount), coin }, gasCoin, memo);
       return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub: вывод', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Адрес Minter Hub: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
@@ -4467,8 +8941,10 @@
         data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Начальный резерв')) };
       } else if (mode === 'CREATE_TOKEN' || mode === 'RECREATE_TOKEN') {
         data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), mintable: true, burnable: true };
-      } else {
+      } else if (mode === 'MINT_TOKEN' || mode === 'BURN_TOKEN') {
         data = { coin: symbol, value: Number(amount) };
+      } else {
+        throw new Error('Неподдерживаемая операция Minter coin/token.');
       }
       return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
     });
@@ -4499,7 +8975,7 @@
       if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
       return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
     });
 
@@ -4539,7 +9015,7 @@
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const validator = String(form.get('validator') || '').trim();
       if (chain.id === 'minter') {
-        if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator key должен быть MP + 64 hex chars.');
+        if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator key должен быть MP  64 hex chars.');
         const txType = mode === 'unbond' ? 'UNBOND' : 'DELEGATE';
         const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
         return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${mode}`, amount: `${amount} ${coin}`, txType, coin, validator });
@@ -4553,7 +9029,7 @@
       const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
       const min = String(form.get('min') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
       const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
       const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
       const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
@@ -4566,7 +9042,7 @@
       const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
       const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
       const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const data = mode === 'REMOVE_LIQUIDITY'
         ? { coin0, coin1, liquidity: Number(volume0) }
@@ -4582,10 +9058,10 @@
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
       const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const [feeWhole, feeFrac = ''] = hubFee.split('.');
-      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '') || '0';
+      const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0(?=\d)/, '') || '0';
       const memo = JSON.stringify({ recipient: to, type: `send_to_${destinationChain}`, fee: feeMinimal });
       const tx = minterTx('SEND', { to: 'Mx68f4839d7f32831b9234f9575f3b95e1afe21a56', value: Number(amount), coin }, gasCoin, memo);
       return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter Hub: вывод', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin, warnings: ['Адрес Minter Hub: Mx68f4839d7f32831b9234f9575f3b95e1afe21a56.', `Memo: ${memo}`] });
@@ -4602,8 +9078,10 @@
         data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), constantReserveRatio: Number(form.get('crr') || 10), initialReserve: Number(normalizeAmountInput(form.get('reserve'), 'Начальный резерв')) };
       } else if (mode === 'CREATE_TOKEN' || mode === 'RECREATE_TOKEN') {
         data = { name: String(form.get('name') || symbol).trim(), symbol, initialAmount: Number(amount), maxSupply: Number(normalizeAmountInput(form.get('max'), 'Максимальная эмиссия')), mintable: true, burnable: true };
-      } else {
+      } else if (mode === 'MINT_TOKEN' || mode === 'BURN_TOKEN') {
         data = { coin: symbol, value: Number(amount) };
+      } else {
+        throw new Error('Неподдерживаемая операция Minter coin/token.');
       }
       return broadcast.prepare(chain, 'seed', 'minterTx', [minterTx(mode, data, 'BIP', '')], { title: `Minter ${mode}`, amount: `${amount} ${symbol}`, txType: mode, coin: symbol });
     });
@@ -4616,7 +9094,7 @@
       if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
-      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
+      if (!/^\d(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
       return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
     });
 
@@ -4685,15 +9163,6 @@
     setStatus('Minter: отправка signed TX и multisig готова.', 'ok');
   }
 
-  function longUrl(path, params = {}) {
-    const base = window.location && window.location.origin ? window.location.origin : 'https://dpos.blinddev.xyz';
-    const url = new URL(`${LONG_API_BASE}${path || ''}`, base);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
-    });
-    return url.pathname + url.search;
-  }
-
   function parseJsonMaybeText(text, sourceLabel) {
     let value = text;
     for (let attempt = 0; attempt < 2 && typeof value === 'string'; attempt++) {
@@ -4722,10 +9191,6 @@
     } finally {
       if (timer) clearTimeout(timer);
     }
-  }
-
-  async function fetchLongJson(path, params) {
-    return fetchJsonText(longUrl(path, params), 'LONG backend');
   }
 
   async function fetchMinterLongPool() {
@@ -4788,7 +9253,7 @@
     for (let day = start; day <= investDays; day++) {
       if (day % 50 === 0) {
         supersCounter = day / 50;
-        power += toNumber(provider.liquidity) * supersCounter;
+        power = toNumber(provider.liquidity) * supersCounter;
       }
     }
     return { supersCounter, power };
@@ -4835,83 +9300,62 @@
     }).join('')}</tbody></table></div>`;
   }
 
+  function renderLongPoolSummary(poolStats) {
+    if (!poolStats) return '<p class="muted">Публичный Minter API пула сейчас недоступен. Откройте Chainik или explorer Minter для ручной проверки BIP/LONG.</p>';
+    return `<ul>
+      <li><strong>Пул BIP/LONG:</strong> ${formatLongNumber(poolStats.liquidity)} LP</li>
+      <li><strong>Резервы:</strong> ${formatLongNumber(poolStats.bip)} BIP и ${formatLongNumber(poolStats.long)} LONG</li>
+      <li><strong>Курс:</strong> 1 LONG ≈ ${formatLongNumber(poolStats.price, 8)} BIP</li>
+    </ul>`;
+  }
+
+  function renderLongStaticNonGoals() {
+    return `<article class="card" role="status" aria-live="polite"><h3>Backend/indexer-only non-goals</h3>
+      <p>Legacy LONG строил рейтинг провайдеров, лотереи, ставки, опросы, драконов и отложенные отправки из приватного smartfarm backend и PHP-шаблонов. Static v3 не добавляет hidden server API, PHP runtime, indexer, daemon или hosted helper app.</p>
+      <ul>
+        <li><strong>Рейтинг провайдеров</strong> недоступен без legacy backend; показываем только проверяемый публичный пул BIP/LONG и адреса.</li>
+        <li><strong>Ставки, Опросы, Лотереи, RPS, драконы, семейный калькулятор и Отложенные транзакции</strong> требуют серверного состояния или индексированных списков. Они оставлены как документированные static-only non-goals.</li>
+        <li><strong>Direct wallet actions</strong> для LONG не добавлены в этот раздел: используйте Minter кошелёк/swap только для уже поддержанных явных операций.</li>
+      </ul></article>`;
+  }
+
   async function renderLongMain() {
-    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю обзор и рейтинг LONG...</p></section>';
-    setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
-    const [data, pool] = await Promise.all([fetchLongJson(''), fetchMinterLongPool()]);
+    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю публичные данные пула LONG...</p></section>';
+    setStatus('Загружаю LONG: публичный пул BIP/LONG...', 'loading');
+    const pool = await fetchMinterLongPool();
     const poolStats = calcLongPoolStats(pool);
-    const { farmingAmount, totalExperience } = calcLongProviderRows(data, poolStats);
-    appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
-      <p>Раздел показывает параметры LONG по данным backend и публичной сети Minter. Это информационный расчёт: итоговые значения зависят от состояния блокчейна, ликвидности, правил сервиса и доступности backend.</p>
-      <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a></p>
-      <article class="card"><h3>Кошелёк рассылки</h3><p>Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: ${accountLink(chains.minter, LONG_FARMING_SENDER)}</p><p class="muted">Из-за комиссий в BIP и LONG накопленные суммы могут отправляться отложенно. Смотрите раздел «Отложенные транзакции».</p></article>
-      <article class="card"><h3>Основные параметры</h3><ul>
-        <li><strong>Максимальная дневная сумма по backend:</strong> ${formatLongNumber(data.max_amount)} LONG</li>
-        <li><strong>Резерв для лотереи и бонусных инвест. дней:</strong> ${formatLongNumber(toNumber(data.max_prize) * 2)} LONG</li>
-        <li><strong>Расчётная часть для распределения:</strong> ${formatLongNumber(farmingAmount)} LONG</li>
-        <li><strong>Суммарный опыт провайдеров:</strong> ${formatLongNumber(totalExperience)}</li>
-        ${poolStats ? `<li><strong>Пул BIP/LONG:</strong> ${formatLongNumber(poolStats.liquidity)} LP, ${formatLongNumber(poolStats.bip)} BIP и ${formatLongNumber(poolStats.long)} LONG</li><li><strong>Курс:</strong> 1 LONG ≈ ${formatLongNumber(poolStats.price, 8)} BIP</li>` : '<li><strong>Пул BIP/LONG:</strong> Minter API сейчас недоступен, показываю backend-данные без состава пула.</li>'}
+    appEl.innerHTML = `<section class="panel"><h2>Minter LONG farming</h2>${renderLongNav('main')}
+      <p>Legacy app: <code>LONG farming</code>, инструмент просмотра данных по провайдерам пула BIP/LONG. Static v3 сохраняет безопасную read-only часть: описание, ссылки, адрес рассылки и публичный Minter pool API без приватного backend.</p>
+      <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a> · <a href="https://chainik.io/pool/BIP/LONG" target="_blank" rel="noopener">Пул BIP/LONG</a></p>
+      <article class="card"><h3>Кошелёк рассылки</h3><p>Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: ${accountLink(chains.minter, LONG_FARMING_SENDER)}</p><p class="muted">Фактические начисления и отложенные отправки проверяйте по транзакциям адреса в публичном explorer.</p></article>
+      <article class="card"><h3>Публичный пул BIP/LONG</h3>${renderLongPoolSummary(poolStats)}</article>
+      <article class="card"><h3>Что было в legacy LONG</h3><ul>
+        <li>Обзор LONG farming, расчёт опыта и будущего фарминга провайдеров.</li>
+        <li>Ставки на курс крипты и пулов в Minter.</li>
+        <li>Лотерея, paid-loto, RPS, опросы LONG, драконы, roadmap и отложенные транзакции.</li>
       </ul></article>
-      <article class="card"><h3>Как читать расчёты</h3><p>Инвест. дни, множитель, LP и накопленные значения берутся из backend. Таблица ниже помогает проверить рейтинг и текущую формулу; она не является обещанием результата и не заменяет проверку транзакций в сети.</p></article>
-      ${renderLongProvidersTable(data, poolStats)}
-      ${rawJsonDetails('Исходные данные LONG backend', data)}
+      ${renderLongStaticNonGoals()}
       ${pool ? rawJsonDetails('Исходные данные Minter pool API', pool) : ''}
     </section>`;
-    setStatus('LONG: обзор и рейтинг загружены.', 'ok');
+    setStatus('LONG открыт в static-safe режиме: приватный backend не используется.', 'ok');
   }
 
-  function renderLongProjects(projects) {
-    const entries = Object.entries(projects || {});
-    if (!entries.length) return '<p class="muted">Активные токены и пулы не найдены.</p>';
-    return `<div class="table-wrap"><table aria-label="Активные токены и пулы LONG bids"><caption>Активные токены и пулы для ставок</caption><thead><tr><th scope="col">Токен/пул</th><th scope="col">Текущее значение</th></tr></thead><tbody>${entries.map(([name, price]) => `<tr><td>${escapeHtml(name)}</td><td>${formatLongNumber(price, 8)}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-
-  function renderLongAllowedCoins(data, selectedCoin) {
-    const coins = String(data.allowedCoins || '').split(',').map((item) => item.trim()).filter(Boolean);
-    const mins = String(data.minAmountsAllowedCoins || '').split(',').map((item) => item.trim());
-    if (!coins.length) return '<p class="muted">Backend не вернул список разрешённых монет.</p>';
-    return `<ul>${coins.map((coin, index) => `<li>${coin === selectedCoin ? `<strong>${escapeHtml(coin)}</strong>` : `<a href="${escapeHtml(longPageHash('bids', { coin }))}">${escapeHtml(coin)}</a>`} — минимум ${escapeHtml(mins[index] || 'не указан')}</li>`).join('')}</ul>`;
-  }
-
-  function renderLongActiveBids(rows, coin) {
-    if (!Array.isArray(rows) || !rows.length) return `<p class="muted">Активных ставок${coin ? ` для ${escapeHtml(coin)}` : ''} сейчас нет или backend вернул пустой список.</p>`;
-    return `<div class="table-wrap"><table aria-label="Активные ставки LONG"><caption>Активные ставки${coin ? `: ${escapeHtml(coin)}` : ''}</caption><thead><tr><th scope="col">Токен</th><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Направление</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.token || row.coin || row.name || coin || '')}</td><td>${renderAccountCell(chains.minter, row.address || row.sender || row.from)}</td><td>${escapeHtml([formatLongNumber(row.amount || row.value, 8), row.send_coin || row.coin].filter(Boolean).join(' '))}</td><td>${escapeHtml(row.direction || row.predict || row.side || '')}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-
-  async function renderLongBids() {
-    const state = parseHash();
-    const coin = String(state.coin || '').trim();
-    appEl.innerHTML = '<section class="panel"><h2>LONG: ставки</h2><p>Загружаю LONG bids...</p></section>';
-    setStatus('Загружаю LONG bids...', 'loading');
-    const data = await fetchLongJson('/bids', coin ? { coin } : {});
-    let activeBids = [];
-    if (coin) {
-      try { activeBids = await fetchLongJson('/bids/active', { coin }); } catch (error) { activeBids = []; }
-    }
-    const address = data.address || LONG_FARMING_SENDER;
+  function renderLongBids() {
     appEl.innerHTML = `<section class="panel"><h2>LONG: ставки на токены и пулы</h2>${renderLongNav('bids')}
-      <p>Сервис принимает транзакции Minter с memo. Перед отправкой проверяйте монету, сумму, адрес и memo в кошельке.</p>
-      <article class="card"><h3>Разрешённые монеты для отправки</h3>${renderLongAllowedCoins(data, coin)}</article>
-      <article class="card"><h3>Инструкция memo</h3><p>Адрес получателя: <code>${escapeHtml(address)}</code></p><p>Memo: <code>lbid BTC +</code> или <code>lbid BTC -</code>. Вместо BTC укажите токен или пул из списка активных.</p><p class="muted">Если выбранная монета поддерживается вашим Minter-кошельком, используйте раздел «Кошелёк» и сначала сделайте предпросмотр операции.</p></article>
-      <h3>Активные токены и пулы</h3>${renderLongProjects(data.projects)}
-      ${coin ? `<h3>Активные ставки: ${escapeHtml(coin)}</h3>${renderLongActiveBids(Array.isArray(activeBids) ? activeBids : (activeBids.items || activeBids.bids || []), coin)}` : '<p>Выберите монету выше, чтобы открыть список активных ставок по ней.</p>'}
-      ${data.file ? `<details><summary>Описание сервиса из backend</summary><div class="longtext">${escapeHtml(data.file)}</div></details>` : ''}
-      ${rawJsonDetails('Исходные данные LONG bids', data)}
+      <p>Legacy bids показывал список проектов, разрешённые монеты и активные ставки из smartfarm backend, затем принимал Minter memo-транзакции.</p>
+      <article class="card"><h3>Static-safe инструкция</h3><p>Без серверного списка активных ставок v3 не публикует неподтверждённые коэффициенты и не создаёт новую отправку. Проверяйте условия в официальном LONG канале и используйте обычный Minter кошелёк только если знаете точный адрес, монету, сумму и memo.</p></article>
+      ${renderLongStaticNonGoals()}
     </section>`;
-    setStatus('LONG bids загружен.', 'ok');
+    setStatus('LONG bids открыт как static-only non-goal: backend ставок не используется.', 'info');
   }
 
-  async function renderLongDeferredTxs() {
-    appEl.innerHTML = '<section class="panel"><h2>LONG: отложенные транзакции</h2><p>Загружаю отложенные транзакции...</p></section>';
-    setStatus('Загружаю LONG: отложенные транзакции...', 'loading');
-    const data = await fetchLongJson('/deferred-txs');
-    const rows = Array.isArray(data) ? data : (data.items || data.txs || []);
+  function renderLongDeferredTxs() {
     appEl.innerHTML = `<section class="panel"><h2>LONG: отложенные транзакции</h2>${renderLongNav('deferred-txs')}
-      <p>Таблица показывает накопленные backend отложенные отправки. Перед любыми действиями сверяйте фактическую транзакцию в Minter explorer.</p>
-      ${rows.length ? `<div class="table-wrap"><table aria-label="Отложенные транзакции LONG"><caption>Отложенные транзакции LONG</caption><thead><tr><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Memo</th></tr></thead><tbody>${rows.map((tx) => `<tr><td>${renderAccountCell(chains.minter, tx.to || tx.address || tx.recipient)}</td><td>${escapeHtml([formatLongNumber(tx.value || tx.amount, 8), tx.coin].filter(Boolean).join(' '))}</td><td class="longtext">${escapeHtml(tx.memo || tx.payload || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Отложенных транзакций нет или backend вернул пустой список.</p>'}
-      ${rawJsonDetails('Исходные данные deferred-txs', data)}
+      <p>Legacy страница читала накопленные backend отложенные отправки и показывала адрес, сумму и memo.</p>
+      <article class="card"><h3>Static-safe проверка</h3><p>В v3 нет серверного списка отложенных транзакций. Для проверки используйте публичную историю кошелька рассылки: ${accountLink(chains.minter, LONG_FARMING_SENDER)}.</p></article>
+      ${renderLongStaticNonGoals()}
     </section>`;
-    setStatus(`LONG: отложенные транзакции загружены (${rows.length}).`, 'ok');
+    setStatus('LONG deferred-txs открыт как static-only non-goal: backend-список не используется.', 'info');
   }
 
   async function renderMinterLong() {
@@ -4922,10 +9366,27 @@
     return renderLongMain();
   }
 
+  function compareDecimalStakeDesc(a, b) {
+    const left = String(a && a.stake !== undefined ? a.stake : '0').replace(/\D/g, '') || '0';
+    const right = String(b && b.stake !== undefined ? b.stake : '0').replace(/\D/g, '') || '0';
+    if (left.length === right.length) return right.localeCompare(left);
+    return right.length - left.length;
+  }
+
+  function sortDecimalValidatorsByStake(items) {
+    return items.slice().sort(compareDecimalStakeDesc);
+  }
+
+  function formatDecimalPercent(value) {
+    const numeric = Number(value || 0) * 100;
+    if (!Number.isFinite(numeric)) return '';
+    return `${Number(numeric.toFixed(2))}%`;
+  }
+
   async function renderCosmosValidators(chain) {
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Загружаю...</p></section>`;
     setStatus(`${chain.title} валидаторы: загружаю список...`, 'loading');
-    const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators`;
+    const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators/validators`;
 
     try {
       const controller = new AbortController();
@@ -4934,8 +9395,42 @@
       global.clearTimeout(timeoutId);
       if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
       const data = await response.json();
-      const list = data.data || data.result || data.validators || [];
-      appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка».</p><ul>${list.slice(0, 100).map((v) => `<li><code>${escapeHtml(v.public_key || v.address || v.operator_address || '')}</code> ${escapeHtml(v.name || v.moniker || '')} ${escapeHtml(v.stake || v.power || '')}</li>`).join('') || '<li>Список пуст или API вернул неизвестный формат.</li>'}</ul>${rawJsonDetails('Исходные данные валидаторов', data)}</section>`;
+      const source = chain.id === 'decimal' ? (data.Result || data.result || data.data || data) : data;
+      const rawList = source.validators || source.data || source.result || data.validators || [];
+      const list = chain.id === 'decimal' ? sortDecimalValidatorsByStake(rawList) : rawList.slice().sort((a, b) => Number(b.stake || b.power || 0) - Number(a.stake || a.power || 0));
+      const renderRows = (items) => items.map((v, index) => {
+        const key = chain.id === 'decimal' ? (v.evmAddress || v.address || v.operator_address || '') : (v.public_key || v.address || v.operator_address || '');
+        const name = v.name || v.moniker || '';
+        const icon = v.icon_url ? `<img src="${escapeHtml(v.icon_url)}" alt="" width="48" height="48" loading="lazy"> ` : '';
+        const title = v.site_url && name && name !== key ? `<a href="${escapeHtml(v.site_url)}" target="_blank" rel="noopener">${icon}${escapeHtml(name)}</a>` : `${icon}${escapeHtml(name === key ? '' : name)}`;
+        const minStake = v.min_stake || v.minStake || '';
+        const stake = chain.id === 'decimal' ? formatDecimalAmount(v.stake || 0, 3) : formatMinterAmount(v.stake || v.power || 0);
+        const minimum = chain.id === 'decimal' ? (v.mins ? formatDecimalAmount(v.mins, 3) : '') : (minStake ? formatMinterAmount(minStake) : '');
+        const commission = chain.id === 'decimal' ? formatDecimalPercent(v.fee) : `${v.commission ?? ''}%`;
+        const skipped = chain.id === 'decimal' ? `<td>${escapeHtml(v.skippedBlocks ?? 0)}</td>` : '';
+        const symbol = chain.id === 'decimal' ? 'DEL' : 'BIP';
+        return `<tr><td>${index + 1}</td><td><code id="validator-${index + 1}-key">${escapeHtml(key)}</code> <button type="button" class="copy-validator-key" data-key="${escapeHtml(key)}">копировать</button></td><td>${title}</td><td>${escapeHtml(stake)} ${symbol}${minimum ? ` (Мин. ${escapeHtml(minimum)})` : ''}</td><td>${escapeHtml(commission)}</td>${skipped}</tr>`;
+      }).join('');
+      const active = chain.id === 'decimal' ? list.filter((validator) => validator.kind === 'Approved') : list.filter((validator) => Number(validator.status) === 2 || validator.status === '2');
+      const candidates = chain.id === 'decimal' ? list.filter((validator) => validator.kind !== 'Approved') : list.filter((validator) => Number(validator.status) === 1 || validator.status === '1');
+      const keyHeader = chain.id === 'decimal' ? 'Адрес' : 'Публичный ключ';
+      const skippedHeader = chain.id === 'decimal' ? '<th scope="col">Пропущено блоков</th>' : '';
+      const validatorsTable = (title, rows, empty) => `<section class="subpanel"><h3>${escapeHtml(title)}</h3>${rows ? `<div class="table-wrap"><table><caption>${escapeHtml(title)}</caption><thead><tr><th scope="col">№</th><th scope="col">${keyHeader}</th><th scope="col">Название</th><th scope="col">Stake</th><th scope="col">Комиссия</th>${skippedHeader}</tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted">${escapeHtml(empty)}</p>`}</section>`;
+      const notice = chain.id === 'minter'
+        ? '<p class="notice">Legacy Minter validators читали публичный endpoint https://explorer-api.minter.network/api/v2/validators, делили список на «Активные валидаторы» и «Кандидаты», сортировали по stake и позволяли копировать публичный ключ. v3 делает то же без PHP/backend runtime.</p>'
+        : '<p class="notice">Legacy Decimal validators читали публичный endpoint https://api.decimalchain.com/api/v1/validators/validators из PHP, делили список по kind Approved/кандидаты, сортировали по stake и позволяли копировать evmAddress. v3 делает тот же read-only просмотр напрямую из браузера, без PHP/backend runtime.</p>';
+      appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка».</p><div id="validators-copy-status" class="muted" role="status" aria-live="polite"></div>${notice}${validatorsTable('Активные валидаторы', renderRows(active), 'Активные валидаторы не найдены.')}${validatorsTable('Кандидаты', renderRows(candidates), 'Кандидаты не найдены.')}${rawJsonDetails('Исходные данные валидаторов', data)}</section>`;
+      appEl.querySelectorAll('.copy-validator-key').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const status = document.getElementById('validators-copy-status');
+          try {
+            await navigator.clipboard.writeText(button.dataset.key || '');
+            if (status) status.textContent = 'Публичный ключ валидатора скопирован.';
+          } catch (error) {
+            if (status) status.textContent = 'Не удалось скопировать публичный ключ автоматически.';
+          }
+        });
+      });
       setStatus(`${chain.title} валидаторы загружены: ${list.length}.`, 'ok');
     } catch (error) {
       appEl.innerHTML = `<section class="panel warning-panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Не удалось загрузить список валидаторов из публичного API: ${escapeHtml(profiles.formatError(error))}</p><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка». Проверьте API позже или откройте старую страницу валидаторов, если она ещё доступна.</p></section>`;
@@ -4943,21 +9438,73 @@
     }
   }
 
+  async function loadDecimalExplorerOverview(chain) {
+    const [blocksData, statusData] = await Promise.all([
+      fetchJsonText(`${chain.apiBase}/blocks?limit=10&offset=0`, 'Decimal blocks API'),
+      fetchJsonText(`${chain.apiBase}/rpc/node_info`, 'Decimal node info API').catch((error) => ({ _error: error.message }))
+    ]);
+    return { blocks: decimalPayloadList(blocksData, ['blocks']), status: statusData, raw: { blocksData, statusData } };
+  }
+
+  function renderDecimalExplorerOverview(chain, overview) {
+    const blocks = (overview.blocks || []).slice(0, 10);
+    const latest = blocks[0] || {};
+    const status = overview.status || {};
+    const nodeInfo = status.default_node_info || status.node_info || {};
+    const rows = blocks.map((block) => {
+      const height = block.height || block.number || block.id || '';
+      const txsCount = block.txsCount ?? block.tx_count ?? block.transactions_count ?? 0;
+      const emission = formatDecimalAmount(block.emission || 0, 3);
+      return `<li>${explorerLink(chain, 'block', height, String(height))} (${escapeHtml(txsCount)} транзакций, эмиссия ${escapeHtml(emission)} DEL)</li>`;
+    }).join('');
+    return `<article class="card decimal-explorer-overview"><h3>Введите номер блока или хэш-сумму транзакции</h3><p>Форма выше открывает адрес, блок или транзакцию Decimal через публичные API.</p><h3 id="last_blocks">Последние блоки</h3><ul>${rows || '<li class="muted">Последние блоки не найдены.</li>'}</ul><h3 id="status">Статус</h3><ul><li>Сеть: ${escapeHtml(nodeInfo.network || status.network || '')}</li><li>Хеш последнего блока: ${escapeHtml(latest.hash || '')}</li><li>Номер последнего блока: ${escapeHtml(latest.height || '')}</li><li>Дата и время последнего блока: ${escapeHtml(latest.date || latest.timestamp || '')}</li></ul>${rawJsonDetails('Исходные данные проводника Decimal', overview.raw)}</article>`;
+  }
+
   async function renderCosmosExplorer(chain, account) {
     const state = parseHash();
-    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} проводник</h2>
-      <p>Откройте адрес, транзакцию или блок. Основные данные показаны первыми; исходные данные доступны отдельно для проверки.</p>
+    const isDecimal = chain.id === 'decimal';
+    appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(isDecimal ? 'Decimal проводник' : `${chain.title} проводник`)}</h2>
+      <p>${isDecimal ? 'Введите номер блока или хэш-сумму транзакции Decimal, либо адрес аккаунта. Основные данные показаны первыми; исходные данные доступны отдельно для проверки.' : 'Откройте адрес, транзакцию или блок. Основные данные показаны первыми; исходные данные доступны отдельно для проверки.'}</p>
       <form id="explorer-form" class="route-form"><div class="field"><label for="explorer-kind">Что открыть</label><select id="explorer-kind" name="kind"><option value="address" ${state.kind === 'address' ? 'selected' : ''}>Адрес</option><option value="tx" ${state.kind === 'tx' ? 'selected' : ''}>Транзакция</option><option value="block" ${state.kind === 'block' ? 'selected' : ''}>Блок</option></select></div><div class="field field-grow"><label for="explorer-value">Адрес, tx hash или номер блока</label><input id="explorer-value" name="value" type="text" value="${escapeHtml(state.value || account)}"></div><button type="submit">Открыть</button></form>
-      <div id="explorer-result" class="operation-result" role="status" aria-live="polite">Выберите, что открыть, и введите адрес, tx hash или номер блока.</div></section>`;
+      <div id="explorer-result" class="operation-result" role="status" aria-live="polite">${isDecimal ? 'Последние блоки и Статус загрузятся автоматически; либо выберите, что открыть, и введите адрес, tx hash или номер блока.' : 'Выберите, что открыть, и введите адрес, tx hash или номер блока.'}</div></section>`;
     document.getElementById('explorer-form').addEventListener('submit', (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); navigate({ chain: chain.id, app: 'explorer', account, kind: form.get('kind'), value: String(form.get('value') || '').trim() }); });
     if (!state.kind || !state.value) {
+      if (chain.id === 'decimal') {
+        const overview = await loadDecimalExplorerOverview(chain);
+        document.getElementById('explorer-result').innerHTML = renderDecimalExplorerOverview(chain, overview);
+        setStatus('Decimal проводник: последние блоки и статус загружены через публичные API.', 'ok');
+        return;
+      }
+      if (chain.id === 'minter') {
+        const overview = await loadMinterExplorerOverview(chain);
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerOverview(chain, overview);
+        setStatus('Minter проводник: последние блоки и статус загружены через публичные API.', 'ok');
+        return;
+      }
       setStatus(`${chain.title} проводник готов.`, 'info');
       return;
+    }
+    if (chain.id === 'minter') {
+      if (state.kind === 'block') {
+        const block = await loadMinterExplorerBlock(chain, state.value);
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerBlock(chain, block, state.value);
+        setStatus('Minter проводник: блок загружен через публичный API.', 'ok');
+        return;
+      }
+      if (state.kind === 'tx') {
+        const tx = await loadMinterExplorerTx(chain, state.value);
+        document.getElementById('explorer-result').innerHTML = renderMinterExplorerTx(chain, tx, state.value);
+        setStatus('Minter проводник: транзакция загружена через публичный explorer API.', 'ok');
+        return;
+      }
     }
     let url;
     if (chain.id === 'minter') {
       const base = chain.explorerBase;
-      url = state.kind === 'tx' ? `${base}/transactions/${state.value}` : state.kind === 'block' ? `${base}/blocks/${state.value}` : `${base}/addresses/${state.value}`;
+      url = `${base}/addresses/${state.value}`;
+    } else if (chain.id === 'decimal') {
+      const base = chain.apiBase;
+      url = state.kind === 'tx' ? `${chain.apiBase}/txs/${state.value}` : state.kind === 'block' ? `${chain.apiBase}/blocks/${state.value}` : `${chain.apiBase}/addresses/${state.value}/balances`;
     } else {
       const base = chain.apiBase;
       url = state.kind === 'tx' ? `${base}/txs/${state.value}` : state.kind === 'block' ? `${base}/blocks/${state.value}` : `${base}/addresses/${state.value}/balances`;
@@ -5025,20 +9572,36 @@
 
   async function renderProfileRoute(chain, account) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка профиля</h2><p>Подключаю библиотеку и публичную ноду...</p></section>';
-    setStatus(`Загружаю ${chain.title}: @${account}...`, 'loading');
+    const initialLabel = chain.id === 'minter' || chain.id === 'decimal' ? account : `@${account}`;
+    setStatus(`Загружаю ${chain.title}: ${initialLabel}...`, 'loading');
 
+    if (chain.id === 'minter' || chain.id === 'decimal') {
+      await loadScript(chain.cryptoPath);
+      if (chain.walletPath) await loadScript(chain.walletPath);
+    }
+    const resolvedAccount = (chain.id === 'minter' || chain.id === 'decimal') ? resolveSeedWalletAddress(chain, account) : account;
     const connection = await getConnection(chain);
-    const rawAccount = await profiles.fetchAccount(connection, account);
+    const rawAccount = await profiles.fetchAccount(connection, resolvedAccount);
+    if (chain.id === 'golos') {
+      rawAccount.uiaBalances = await fetchGolosUiaBalances(connection, account);
+      rawAccount.golosProfileExtras = await fetchGolosProfileExtras(connection, account);
+    } else if (chain.id === 'steem') {
+      rawAccount.steemProfileExtras = await fetchSteemProfileExtras(connection, account);
+    } else if (chain.id === 'hive') {
+      rawAccount.hiveProfileExtras = await fetchHiveProfileExtras(connection, account);
+    }
     const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);
     renderProfile(profiles.normalizeAccount(connection, enrichedAccount));
-    const accountLabel = chain.id === 'minter' || chain.id === 'decimal' ? account : `@${account}`;
+    const accountLabel = chain.id === 'minter' || chain.id === 'decimal' ? resolvedAccount : `@${account}`;
     setStatus(`Профиль ${chain.title}: ${accountLabel} загружен.`, 'ok');
   }
 
   async function renderRoute() {
     const state = parseHash();
     const chain = chains[state.chain] || chains.viz;
-    const app = chain.apps.find((item) => item.id === state.app) || chain.apps[0];
+    const requestedAppId = legacyAppTarget(chain, state.app);
+    const app = chain.apps.find((item) => item.id === requestedAppId) || chain.apps[0];
+    const effectiveAppId = app.id;
     const account = getRouteAccount(state, chain);
 
     fillChainSelect(chain.id);
@@ -5047,58 +9610,94 @@
     accountInput.value = account;
 
     try {
-      if (chain.id === 'minter' && app.id === 'broadcast') {
+      if (chain.id === 'minter' && effectiveAppId === 'broadcast') {
         renderMinterBroadcast(chain);
-      } else if (chain.id === 'decimal' && app.id === 'broadcast') {
+      } else if (chain.id === 'decimal' && effectiveAppId === 'broadcast') {
         await renderDecimalWallet(chain, account);
-      } else if (chain.id === 'minter' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
+      } else if (chain.id === 'minter' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
         await renderMinterWallet(chain, account);
-      } else if (chain.id === 'decimal' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
+      } else if (chain.id === 'decimal' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
         await renderDecimalWallet(chain, account);
-      } else if (isCosmosChain(chain) && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')) {
+      } else if (isCosmosChain(chain) && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
         renderCosmosWallet(chain, account);
-      } else if (isCosmosChain(chain) && app.id === 'validators') {
+      } else if (isCosmosChain(chain) && effectiveAppId === 'validators') {
         await renderCosmosValidators(chain);
-      } else if (isCosmosChain(chain) && app.id === 'explorer') {
+      } else if (isCosmosChain(chain) && effectiveAppId === 'explorer') {
         await renderCosmosExplorer(chain, account);
-      } else if (isCosmosChain(chain) && app.id === 'calculator') {
+      } else if (isCosmosChain(chain) && effectiveAppId === 'calculator') {
         renderCosmosCalculator(chain);
-      } else if (isCosmosChain(chain) && app.id === 'randomblockchain') {
-        renderServicePlaceholder(chain, app);
-      } else if (chain.id === 'minter' && app.id === 'long') {
+      } else if (isCosmosChain(chain) && effectiveAppId === 'randomblockchain') {
+        renderRandomBlockchain(chain);
+      } else if (chain.id === 'minter' && effectiveAppId === 'long') {
         await renderMinterLong();
-      } else if (app.id === 'profiles') {
+      } else if (effectiveAppId === 'profiles') {
         await renderProfileRoute(chain, account);
-      } else if (app.id === 'accounts') {
+      } else if (effectiveAppId === 'accounts') {
         await renderAccounts(chain);
-      } else if (app.id === 'wallet') {
+      } else if (effectiveAppId === 'wallet') {
         await renderGrapheneWalletByChain(chain, account);
-      } else if (app.id === 'history') {
+      } else if (effectiveAppId === 'history') {
         await renderHistory(chain, account);
-      } else if (app.id === 'broadcast') {
+      } else if (effectiveAppId === 'broadcast') {
         await renderBroadcast(chain);
-      } else if (chain.id === 'viz' && app.id === 'award') {
-        renderVizAward(chain);
-      } else if (chain.id === 'golos' && app.id === 'donate') {
-        renderGolosDonate(chain);
-      } else if (app.id === 'editor') {
+      } else if (chain.id === 'viz' && effectiveAppId === 'award') {
+        renderVizAward(chain, state);
+      } else if (chain.id === 'viz' && effectiveAppId === 'analytics') {
+        renderVizAnalytics(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'polls') {
+        renderVizPolls(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'projects') {
+        renderVizProjects(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'custom-generator') {
+        renderVizCustomGenerator(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
+        await renderGolosDonate(chain, state);
+      } else if (chain.id === 'golos' && effectiveAppId === 'stakebot') {
+        renderGolosStakebot(chain, state);
+      } else if (chain.id === 'golos' && effectiveAppId === 'top') {
+        renderGolosTop(chain, state);
+      } else if (chain.id === 'viz' && effectiveAppId === 'top') {
+        renderVizTop(chain, state);
+      } else if (chain.id === 'viz' && effectiveAppId === 'search') {
+        renderVizSearch(chain, state);
+      } else if (chain.id === 'viz' && effectiveAppId === 'voice-import') {
+        renderVizVoiceImport(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'vmp') {
+        renderVizVmp(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'witnesses-rewards') {
+        renderGolosWitnessesRewards(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'witnesses-rewards') {
+        renderVizWitnessesRewards(chain);
+      } else if (chain.id === 'steem' && effectiveAppId === 'backup') {
+        await renderSteemBackup(chain, account);
+      } else if (chain.id === 'hive' && effectiveAppId === 'backup') {
+        await renderHiveBackup(chain, account);
+      } else if (effectiveAppId === 'editor') {
         renderEditor(chain);
-      } else if (app.id === 'calculator') {
+      } else if (effectiveAppId === 'calculator') {
         await renderCalculator(chain, account);
-      } else if (app.id === 'manage') {
+      } else if (effectiveAppId === 'manage') {
         renderManage(chain);
-      } else if (app.id === 'explorer') {
+      } else if (effectiveAppId === 'explorer') {
         await renderExplorer(chain, account);
-      } else if (chain.id === 'viz' && app.id === 'exchanges') {
+      } else if (chain.id === 'viz' && effectiveAppId === 'exchanges') {
         renderVizExchanges(chain);
-      } else if (app.id === 'import') {
+      } else if (chain.id === 'minter' && effectiveAppId === 'help') {
+        renderMinterHelp(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'help') {
+        renderVizHelp(chain);
+      } else if (chain.id === 'steem' && effectiveAppId === 'help') {
+        renderSteemHelp(chain);
+      } else if (effectiveAppId === 'import') {
         renderImport(chain);
-      } else if (app.id === 'instant-view') {
+      } else if (effectiveAppId === 'instant-view') {
         renderInstantView(chain);
-      } else if (app.id === 'swap') {
+      } else if (effectiveAppId === 'swap') {
         renderSwap(chain);
-      } else if (app.id === 'register' || app.id === 'registration') {
+      } else if (effectiveAppId === 'register' || effectiveAppId === 'registration') {
         renderRegister(chain);
+      } else if (effectiveAppId === 'randomblockchain') {
+        renderRandomBlockchain(chain);
       } else {
         renderServicePlaceholder(chain, app);
       }

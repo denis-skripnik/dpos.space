@@ -38,7 +38,7 @@
     if (!user) return 'standard';
     if (user.type === 'vizonator') return 'vizonator';
     if (user.type === 'golos.app') return 'golos.app';
-    return 'standard';
+    return user.type || 'standard';
   }
 
   function isSameUser(a, b) {

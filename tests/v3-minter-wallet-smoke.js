@@ -12,13 +12,18 @@ const renderMinterForms = (appSource.match(/function renderMinterWalletForms[\s\
 const bindMinterForms = (appSource.match(/function bindMinterWalletForms[\s\S]*?\n  function bindDecimalWalletForms/) || [''])[0];
 
 assert(renderMinterWallet.includes('loadMinterWalletData'), 'Minter wallet uses a dedicated data loader');
+assert(appSource.includes('function resolveSeedWalletAddress(chain, account)'), 'Minter/Decimal wallet resolves display login to derived seed address');
+assert(appSource.includes('function deriveSeedWalletAddress(chain, user)'), 'seed wallet address derivation helper exists');
+assert(appSource.includes('global.minterWallet.walletFromMnemonic(seed)'), 'Minter wallet derives address from saved seed mnemonic, not from display login');
+assert(appSource.includes("if (value && isValidChainAddress(chain, value) && value !== login)"), 'explicit real address is still allowed, while display login can derive from seed');
+assert(appSource.includes('await loadScript(chain.cryptoPath);'), 'wallet renderer loads crypto before decrypting saved seed');
 assert(renderMinterWallet.includes('wallet-minter'), 'Minter wallet has a dedicated root marker');
 assert(renderMinterWallet.includes('renderMinterWalletBalances'), 'Minter wallet renders dedicated balances/delegations/history');
 assert(renderMinterWallet.includes('renderMinterWalletForms'), 'Minter wallet renders dedicated Minter forms');
 assert(renderMinterWallet.includes('bindMinterWalletForms'), 'Minter wallet binds dedicated Minter forms');
 assert(!renderMinterWallet.includes('return renderCosmosWallet'), 'Minter wallet is not a thin alias to generic Cosmos wallet');
 
-assert(appSource.includes("chain.id === 'minter' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')"), 'Minter wallet/swap/my-coin route dispatches to Minter-specific renderer before generic Cosmos');
+assert(appSource.includes("chain.id === 'minter' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')"), 'Minter wallet/swap/my-coin route dispatches to Minter-specific renderer before generic Cosmos');
 assert(chainsSource.includes('https://explorer-api.minter.network/api/v2'), 'Minter explorer API base is configured');
 assert(appSource.includes('/addresses/${encodeURIComponent(address)}'), 'Minter wallet fetches address balances endpoint');
 assert(appSource.includes('/addresses/${encodeURIComponent(address)}/delegations'), 'Minter wallet fetches delegations endpoint');
@@ -49,6 +54,7 @@ assert(!renderMinterWallet.includes('plan.md'), 'Minter UI does not mention plan
 assert(!renderMinterWallet.includes('evidence'), 'Minter UI does not expose evidence wording');
 assert(!renderMinterWallet.includes('seed/private key'), 'Minter UI avoids technical seed/private-key notes');
 
+assert(planSource.includes('### Rigorous parity: Minter / wallet'), 'plan.md contains exact Minter / wallet parity section');
 assert(planSource.includes('## Minter wallet parity evidence pass'), 'plan.md contains Minter wallet evidence section');
 assert(planSource.includes('`origin/master:blockchains/minter/apps/wallet/js/app.js`: wallet UI logic'), 'plan.md records legacy wallet app.js inspection');
 assert(planSource.includes('`origin/master:blockchains/minter/js/blockchain.js`'), 'plan.md records shared blockchain.js inspection');

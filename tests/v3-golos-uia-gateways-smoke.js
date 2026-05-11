@@ -4,6 +4,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+const historySource = fs.readFileSync(path.join(root, 'v3/js/history.js'), 'utf8');
 
 assert(appSource.includes('function bindCopyButtons'), 'Golos fixed/API deposit values have copy-button binding');
 assert(appSource.includes('data-copy-value'), 'Golos deposit address/memo renders copy buttons');
@@ -20,7 +21,8 @@ assert(appSource.includes('meta.withdrawal && meta.withdrawal.unavailable !== tr
 assert(appSource.includes('to_fixed: deposit.to_fixed || deposit.to'), 'deposit fixed address keeps legacy to fallback');
 assert(appSource.includes('account: withdrawal.account || withdrawal.to'), 'withdraw gateway account keeps legacy withdrawal.to fallback');
 assert(appSource.includes("replaceAll('<account>'"), 'gateway metadata substitutes legacy <account> placeholder');
-assert(appSource.includes('/golos/api/uia-deposit?asset='), 'deposit API lookup is preserved');
+assert(!appSource.includes('/golos/api/uia-deposit?asset='), 'static v3 does not call legacy backend deposit API');
+assert(appSource.includes('серверный запрос отключён'), 'API deposit metadata renders static-v3 limitation notice');
 assert(appSource.includes('0.001 GOLOS'), 'legacy deposit address request transfer amount is preserved');
 assert(appSource.includes('function buildGolosWithdrawMemo(prefix, main, postfix)'), 'withdraw memo builder exists');
 assert(appSource.includes('return extra ? `${base} ${extra}` : base;'), 'withdraw memo builder preserves prefix + main + optional postfix behavior');
@@ -30,7 +32,16 @@ assert(appSource.includes('data-fill-selected="wallet-golos-token-donate-token"'
 assert(appSource.includes('function golosTemplateStorageKey(kind, token)'), 'legacy template storage helper exists');
 assert(appSource.includes("`${normalizeGolosTokenSymbol(token || 'GOLOS', 'Токен шаблона')}_${kind}_templates`"), 'legacy template localStorage key format is preserved');
 assert(appSource.includes('На свой аккаунт в TIP-баланс'), 'built-in transfer template is preserved');
+assert(appSource.includes('id="wallet-transfer-in" name="in"'), 'Golos transfer form exposes destination select so template in=to_tip is effective');
+assert(appSource.includes("destination === 'to_tip'"), 'Golos transfer form routes to transferToTip when destination is TIP');
+assert(appSource.includes("destination === 'to_vesting'"), 'Golos transfer form routes to transferToVesting when destination is СГ');
+assert(appSource.includes("normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Сумма GOLOS в СГ')"), 'Golos transfer_to_vesting rejects non-GOLOS amounts');
+assert(appSource.includes('function assertGolosTipTransferAllowed'), 'Golos UIA transfer_to_tip preserves legacy allow_override_transfer guard');
+assert(appSource.includes('asset.allow_override_transfer === true'), 'Golos UIA transfer_to_tip blocks assets with allow_override_transfer');
+assert(appSource.includes('wallet-golos-uia-transfer-form'), 'Golos wallet exposes plain UIA main-balance transfer');
+assert(appSource.includes("title: 'Golos UIA transfer'"), 'Golos UIA main transfer prepares active transfer');
 assert(appSource.includes('Перевод с TIP-баланса в ликвид через tiptok'), 'built-in donate template is preserved');
 assert(!appSource.includes('UIA gateways/templates: later'), 'Golos UIA gateways/templates are no longer marked as later');
+assert(historySource.includes("'withdraw_vesting'"), 'Golos wallet history includes withdraw_vesting operations');
 
 console.log('v3 Golos UIA gateways/templates smoke passed');

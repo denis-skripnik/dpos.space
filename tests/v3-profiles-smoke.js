@@ -4,6 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
+const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const context = { window: null, localStorage: { getItem() { return null; }, setItem() {} } };
 context.window = context;
 vm.createContext(context);
@@ -82,13 +83,30 @@ const golosProfile = context.DposProfiles.normalizeAccount(golosChain, {
   vesting_shares: '1000000.000000 GESTS',
   delegated_vesting_shares: '250000.000000 GESTS',
   received_vesting_shares: '125000.000000 GESTS',
+  voting_power: 5000,
+  last_vote_time: '2026-05-09T00:00:00',
+  reputation: '1234567890123',
+  json_metadata: JSON.stringify({ profile: { name: 'Denis', profile_image: 'https://example.com/avatar.jpg', cover_image: 'https://example.com/cover.jpg', services: { telegram: 'denis' } } }),
   _v3ProfileContext: {
     dynamicProperties: {
+      time: '2026-05-10T00:00:00',
       total_vesting_fund_steem: '10.000 GOLOS',
       total_vesting_shares: '1000000.000000 GESTS'
-    }
+    },
   }
 });
 assert(golosProfile.balances.some(([label, value]) => label === 'СГ' && value === '10.000000 СГ'), 'Golos СГ balance is computed from enriched dynamic properties');
 assert(golosProfile.balances.some(([label, value]) => label === 'Делегировано СГ' && value === '2.500000 СГ'), 'Golos delegated СГ is computed when present');
 assert(golosProfile.balances.some(([label, value]) => label === 'Получено делегированием СГ' && value === '1.250000 СГ'), 'Golos received СГ is computed when present');
+assert(golosProfile.economyRows.some(([label]) => label === '100% батарейка'), 'Golos profile exposes time until full voting power');
+assert(golosProfile.activityRows.some(([label]) => label === 'Репутация'), 'Golos profile exposes human-readable reputation');
+assert(golosProfile.profileImage === 'https://example.com/avatar.jpg', 'Golos profile exposes profile image URL for rendering');
+assert(golosProfile.coverImage === 'https://example.com/cover.jpg', 'Golos profile exposes cover image URL for rendering');
+assert(golosProfile.socials.some(([label, value]) => label === 'telegram' && value === 'denis'), 'Golos socials stay structured for link rendering');
+assert(appSource.includes('UIA активы'), 'Profile route renders Golos UIA assets when loaded');
+assert(appSource.includes('fetchGolosUiaBalances(connection, account)'), 'Golos profile route loads UIA balances through static public RPC helpers');
+assert(appSource.includes('renderProfileMedia(profile)'), 'Profile rendering includes profile/cover images');
+assert(appSource.includes('renderSocialLinks(profile.socials)'), 'Profile rendering turns social metadata into safe links');
+assert(appSource.includes('renderHistoryQuickLinks(profile)'), 'Profile rendering exposes static history filter links instead of backend profile subpages');
+
+console.log('v3 profiles smoke passed');
