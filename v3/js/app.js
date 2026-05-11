@@ -8683,14 +8683,79 @@ Memo key: ${keys.memo}`);
       <article class="card"><h3>Последние транзакции</h3>${data.errors.transactions ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.errors.transactions)}</p>` : renderTransactionsTable(data.transactions, chains.decimal, { caption: 'Последние транзакции Decimal', emptyText: 'Транзакции не найдены.' })}</article>`;
   }
 
-  function decimalBalanceMaximum(data, symbol) {
-    const target = String(symbol || 'DEL').toUpperCase();
+  function decimalBalanceMaximum(data, symbolOrAddress) {
+    const target = String(symbolOrAddress || 'DEL').trim().toUpperCase();
+    const targetLower = String(symbolOrAddress || 'DEL').trim().toLowerCase();
     const balances = Array.isArray(data && data.balances) ? data.balances : [];
     for (const item of balances) {
-      const itemSymbol = String(item.denom || item.denomRaw || item.symbol || item.ticker || item.coin || item.currency || '').toUpperCase();
-      if (itemSymbol === target) return formatDecimalAmount(item.amount ?? item.value ?? 0, 8);
+      const coin = item.coin || item.token || {};
+      const itemSymbol = String(item.denom || item.denomRaw || item.symbol || item.ticker || item.coin || item.currency || coin.symbol || coin.ticker || '').toUpperCase();
+      const itemAddress = String(item.address || item.tokenAddress || item.contract || coin.address || '').toLowerCase();
+      if (itemSymbol === target || (itemAddress && itemAddress === targetLower)) return formatDecimalAmount(item.amount ?? item.value ?? 0, 8);
     }
     return '';
+  }
+
+  function decimalTokenCacheKey(chain) {
+    return `dpos_v3_${chain.id}_coins_index_v1`;
+  }
+
+  function decimalTokenIndexFromPayload(payload) {
+    const direct = payload || {};
+    const directResult = direct.Result || direct.result || (direct.data && (direct.data.Result || direct.data.result));
+    if (Array.isArray(directResult)) {
+      const first = directResult[0];
+      if (first && Array.isArray(first.coins)) return first.coins;
+      return directResult;
+    }
+    const root = unwrapDecimalData(payload);
+    if (Array.isArray(root)) return root;
+    if (root && Array.isArray(root.coins)) return root.coins;
+    if (root && Array.isArray(root.items)) return root.items;
+    return [];
+  }
+
+  async function loadDecimalTokenIndex(chain) {
+    const key = decimalTokenCacheKey(chain);
+    const ttl = 24 * 60 * 60 * 1000;
+    try {
+      const cached = JSON.parse(localStorage.getItem(key) || 'null');
+      if (cached && Array.isArray(cached.tokens) && Date.now() - Number(cached.ts || 0) < ttl) return cached.tokens;
+    } catch (error) { /* ignore broken cache */ }
+    const api = chain.apiBase || 'https://api.decimalchain.com/api/v1';
+    const tokens = [];
+    const seen = new Set();
+    let offset = 0;
+    const limit = 1000;
+    while (offset < 10000) {
+      const payload = await fetchJsonText(`${api}/coins/coins?limit=${limit}&offset=${offset}`, 'Decimal coins search API');
+      const coins = decimalTokenIndexFromPayload(payload);
+      for (const coin of coins) {
+        const symbol = String(coin.symbol || coin.ticker || coin.denom || '').trim().toUpperCase();
+        const address = String(coin.address || coin.tokenAddress || coin.contract || '').trim();
+        if (!symbol) continue;
+        const cacheKey = `${symbol}:${address}`;
+        if (seen.has(cacheKey)) continue;
+        seen.add(cacheKey);
+        tokens.push({ symbol, address, title: String(coin.title || coin.name || '').trim(), decimals: Number(coin.decimals || 18) || 18 });
+      }
+      if (coins.length < limit) break;
+      offset += limit;
+    }
+    tokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), tokens })); } catch (error) { /* cache best-effort */ }
+    return tokens;
+  }
+
+  async function resolveDecimalConvertAsset(chain, value, label) {
+    const raw = String(value || '').trim();
+    if (!raw) throw new Error(`${label}: укажите DEL, тикер токена или адрес 0x.`);
+    if (raw.toUpperCase() === 'DEL') return { input: raw, resolved: 'DEL', decimals: 18, symbol: 'DEL' };
+    if (/^0x[0-9a-fA-F]{40}$/.test(raw)) return { input: raw, resolved: raw, decimals: 18, symbol: raw };
+    const tokens = await loadDecimalTokenIndex(chain);
+    const hit = tokens.find((item) => item.symbol.toUpperCase() === raw.toUpperCase());
+    if (!hit || !/^0x[0-9a-fA-F]{40}$/.test(hit.address)) throw new Error(`${label}: токен ${raw} не найден. Используйте поиск токенов или вставьте адрес 0x.`);
+    return { input: raw, resolved: hit.address, decimals: hit.decimals || 18, symbol: hit.symbol };
   }
 
   function renderDecimalWalletForms(chain, data) {
@@ -8743,7 +8808,8 @@ Memo key: ${keys.memo}`);
       });
     }
     bindDecimalWalletForms(chain);
-    bindDecimalQuickActions(appEl);
+    bindDecimalQuickActions(appEl, data);
+    bindDecimalConvertHelpers(appEl, chain, data);
     bindMaxButtons(appEl);
     setStatus(`Decimal кошелёк ${data.address} загружен.`, 'ok');
   }
@@ -8835,10 +8901,12 @@ Memo key: ${keys.memo}`);
   function decimalNftForms() {
     return `<details id="decimal-convert-details" class="operation-details"><summary>Convert / swap</summary><form id="decimal-convert-form" class="stacked-form"><fieldset>
       <legend>Decimal: convert / swap</legend>
-      <p class="notice">Для токенов кроме DEL укажите адрес токена в формате 0x...</p>
-      <div class="field"><label for="decimal-convert-from">Из: DEL или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL"></div>
-      <div class="field"><label for="decimal-convert-to">В: DEL или адрес токена</label><input id="decimal-convert-to" name="to" type="text" required></div>
-      <div class="field"><label for="decimal-convert-amount">Сумма для конвертации</label><input id="decimal-convert-amount" name="amount" type="text" required></div>
+      <p class="notice">Можно вводить DEL, тикер токена или адрес 0x. Поиск использует публичный Decimal coins API без backend-сервиса.</p>
+      <datalist id="decimal-token-suggestions"></datalist>
+      <div class="field"><label for="decimal-convert-from">Из: DEL, тикер или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL" list="decimal-token-suggestions"></div>
+      <div class="field"><label for="decimal-convert-to">В: DEL, тикер или адрес токена</label><input id="decimal-convert-to" name="to" type="text" required list="decimal-token-suggestions"> <button type="button" id="decimal-token-search-button">Найти токены</button></div>
+      <div id="decimal-token-search-results" class="operation-result" role="status" aria-live="polite"></div>
+      <div class="field"><label for="decimal-convert-amount">Сумма для конвертации (<span id="decimal-convert-max-status">выберите исходный токен для максимума</span>)</label><input id="decimal-convert-amount" name="amount" type="text" required> <button type="button" id="decimal-convert-max-button" disabled>Максимум</button></div>
       <div class="field"><label for="decimal-convert-min">Минимальная сумма получения</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
       <div class="field"><label for="decimal-convert-from-decimals">Знаков после запятой у исходного токена</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
       <div class="field"><label for="decimal-convert-to-decimals">Знаков после запятой у целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
@@ -9016,7 +9084,7 @@ Memo key: ${keys.memo}`);
     if (field && value !== undefined && value !== null && String(value) !== '') field.value = String(value);
   }
 
-  function bindDecimalQuickActions(root) {
+  function bindDecimalQuickActions(root, data) {
     (root || document).querySelectorAll('[data-decimal-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.dataset.decimalAction;
@@ -9041,11 +9109,101 @@ Memo key: ${keys.memo}`);
         if (action === 'convert') {
           openDecimalOperationDetails('decimal-convert-details');
           setDecimalField('decimal-convert-from', button.dataset.decimalCoin || 'DEL');
+          updateDecimalConvertMaximum(data);
           const target = document.getElementById('decimal-convert-to');
           if (target) target.focus();
         }
       });
     });
+  }
+
+
+  function updateDecimalConvertMaximum(data) {
+    const fromField = document.getElementById('decimal-convert-from');
+    const amountField = document.getElementById('decimal-convert-amount');
+    const button = document.getElementById('decimal-convert-max-button');
+    const status = document.getElementById('decimal-convert-max-status');
+    if (!fromField || !button || !status) return;
+    const asset = String(fromField.value || 'DEL').trim() || 'DEL';
+    const max = decimalBalanceMaximum(data, asset);
+    if (max) {
+      button.disabled = false;
+      button.dataset.fillValue = max;
+      button.dataset.fillTarget = 'decimal-convert-amount';
+      button.textContent = `Максимум ${max} ${asset.toUpperCase()}`;
+      status.textContent = `доступно ${max} ${asset.toUpperCase()}`;
+      if (amountField && amountField.value === '') amountField.placeholder = max;
+    } else {
+      button.disabled = true;
+      delete button.dataset.fillValue;
+      status.textContent = `нет найденного баланса для ${asset.toUpperCase()}`;
+      button.textContent = 'Максимум';
+    }
+  }
+
+  function renderDecimalTokenSearchResults(tokens, targetId) {
+    const results = document.getElementById('decimal-token-search-results');
+    const suggestions = document.getElementById('decimal-token-suggestions');
+    if (suggestions) {
+      suggestions.innerHTML = tokens.slice(0, 50).map((token) => `<option value="${escapeHtml(token.symbol)}">${escapeHtml(token.title || token.address || '')}</option>`).join('');
+    }
+    if (!results) return;
+    if (!tokens.length) {
+      results.innerHTML = '<p class="muted">Токены не найдены.</p>';
+      return;
+    }
+    results.innerHTML = `<p>Найдено токенов: ${tokens.length}. Выберите для поля ${targetId === 'decimal-convert-from' ? 'Из' : 'В'}:</p><div class="button-row">${tokens.slice(0, 20).map((token) => `<button type="button" data-decimal-token-pick="${targetId}" data-decimal-token-symbol="${escapeHtml(token.symbol)}" data-decimal-token-address="${escapeHtml(token.address || '')}" data-decimal-token-decimals="${escapeHtml(String(token.decimals || 18))}">${escapeHtml(token.symbol)}${token.title ? ` — ${escapeHtml(token.title)}` : ''}</button>`).join(' ')}</div>`;
+    results.querySelectorAll('[data-decimal-token-pick]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const fieldId = button.dataset.decimalTokenPick;
+        setDecimalField(fieldId, button.dataset.decimalTokenSymbol);
+        setDecimalField(fieldId === 'decimal-convert-from' ? 'decimal-convert-from-decimals' : 'decimal-convert-to-decimals', button.dataset.decimalTokenDecimals || '18');
+        if (fieldId === 'decimal-convert-from') updateDecimalConvertMaximum(window.__decimalWalletData || {});
+      });
+    });
+  }
+
+  function bindDecimalConvertHelpers(root, chain, data) {
+    window.__decimalWalletData = data || {};
+    const fromField = document.getElementById('decimal-convert-from');
+    const toField = document.getElementById('decimal-convert-to');
+    const maxButton = document.getElementById('decimal-convert-max-button');
+    const searchButton = document.getElementById('decimal-token-search-button');
+    if (fromField) {
+      fromField.addEventListener('input', () => updateDecimalConvertMaximum(data));
+      fromField.addEventListener('change', () => updateDecimalConvertMaximum(data));
+    }
+    if (maxButton) {
+      maxButton.addEventListener('click', () => {
+        const value = maxButton.dataset.fillValue;
+        if (value) setDecimalField('decimal-convert-amount', value);
+      });
+    }
+    const hydrateDecimals = async (field, decimalsFieldId) => {
+      if (!field) return;
+      try {
+        const asset = await resolveDecimalConvertAsset(chain, field.value, 'Decimal token');
+        setDecimalField(decimalsFieldId, String(asset.decimals || 18));
+      } catch (error) { /* keep user-editable defaults */ }
+    };
+    if (fromField) fromField.addEventListener('change', () => hydrateDecimals(fromField, 'decimal-convert-from-decimals'));
+    if (toField) toField.addEventListener('change', () => hydrateDecimals(toField, 'decimal-convert-to-decimals'));
+    if (searchButton) {
+      searchButton.addEventListener('click', async () => {
+        const active = document.activeElement && (document.activeElement.id === 'decimal-convert-from' || document.activeElement.id === 'decimal-convert-to') ? document.activeElement : toField;
+        const query = String((active && active.value) || (toField && toField.value) || '').trim().toUpperCase();
+        const results = document.getElementById('decimal-token-search-results');
+        if (results) results.textContent = 'Ищу токены через публичный Decimal API...';
+        try {
+          const tokens = await loadDecimalTokenIndex(chain);
+          const filtered = query ? tokens.filter((token) => token.symbol.includes(query) || String(token.title || '').toUpperCase().includes(query) || String(token.address || '').toUpperCase().includes(query)).slice(0, 50) : tokens.slice(0, 50);
+          renderDecimalTokenSearchResults(filtered, active && active.id ? active.id : 'decimal-convert-to');
+        } catch (error) {
+          if (results) results.innerHTML = `<p class="muted">Поиск токенов сейчас недоступен: ${escapeHtml(profiles.formatError(error))}</p>`;
+        }
+      });
+    }
+    updateDecimalConvertMaximum(data);
   }
 
   function bindDecimalWalletForms(chain) {
@@ -9064,16 +9222,14 @@ Memo key: ${keys.memo}`);
       return broadcast.prepare(chain, 'seed', mode === 'unbond' ? 'decimalUnbond' : 'decimalDelegate', [{ validator, amount, coin }], { title: `Decimal ${mode}`, amount: `${amount} ${coin}`, validator });
     });
 
-    bindOperationForm(chain, 'decimal-convert-form', (form) => {
-      const from = String(form.get('from') || '').trim();
-      const to = String(form.get('to') || '').trim();
-      if (!from || !to) throw new Error('Для Decimal convert нужны исходный и целевой активы. Используйте DEL или адрес токена 0x.');
-      if (from.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(from)) throw new Error('Исходный актив должен быть DEL или адресом токена 0x.');
-      if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
+    bindOperationForm(chain, 'decimal-convert-form', async (form) => {
+      const fromAsset = await resolveDecimalConvertAsset(chain, form.get('from'), 'Исходный актив');
+      const toAsset = await resolveDecimalConvertAsset(chain, form.get('to'), 'Целевой актив');
+      if (fromAsset.resolved.toUpperCase() === 'DEL' && toAsset.resolved.toUpperCase() === 'DEL') throw new Error('Decimal convert DEL → DEL is not valid.');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
       if (!/^\d(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
-      return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
+      return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from: fromAsset.resolved, to: toAsset.resolved, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || fromAsset.decimals || 18), toDecimals: Number(form.get('toDecimals') || toAsset.decimals || 18) }], { title: 'Decimal convert', amount: `${amount} ${fromAsset.symbol || fromAsset.input} → ${toAsset.symbol || toAsset.input}`, warnings: [fromAsset.resolved !== fromAsset.input ? `Исходный токен ${fromAsset.input} → ${fromAsset.resolved}` : '', toAsset.resolved !== toAsset.input ? `Целевой токен ${toAsset.input} → ${toAsset.resolved}` : ''].filter(Boolean) });
     });
 
     bindOperationForm(chain, 'decimal-token-form', (form) => broadcast.prepare(chain, 'seed', 'decimalCreateToken', [{

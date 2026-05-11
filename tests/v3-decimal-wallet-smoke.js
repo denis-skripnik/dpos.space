@@ -28,7 +28,8 @@ assert(renderDecimalWallet.includes('renderDecimalWalletBalances'), 'Decimal wal
 assert(renderDecimalWallet.includes('renderDecimalWalletForms'), 'Decimal wallet renders dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindDecimalWalletForms'), 'Decimal wallet binds dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindMaxButtons(appEl)'), 'Decimal wallet supports legacy maximum fill buttons');
-assert(renderDecimalWallet.includes('bindDecimalQuickActions(appEl)'), 'Decimal wallet binds table action buttons that open the matching operation details');
+assert(renderDecimalWallet.includes('bindDecimalQuickActions(appEl, data)'), 'Decimal wallet binds table action buttons that open the matching operation details');
+assert(renderDecimalWallet.includes('bindDecimalConvertHelpers(appEl, chain, data)'), 'Decimal wallet binds convert token search and dynamic max helpers');
 assert(!renderDecimalWallet.includes('return renderCosmosWallet'), 'Decimal wallet is not a thin alias to generic Cosmos wallet');
 
 assert(appSource.includes("chain.id === 'decimal' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')"), 'Decimal wallet/swap/my-coin route dispatches to Decimal-specific renderer before generic Cosmos');
@@ -53,6 +54,10 @@ assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 
   'Тикер токена',
   'data-decimal-action="unbond"',
   'decimal-delegate-details',
+  'decimal-token-search-button',
+  'decimal-convert-max-button',
+  'decimal-token-suggestions',
+  'Можно вводить DEL, тикер токена или адрес 0x',
   'Адрес валидатора',
   'stake',
   'Анбонд',
@@ -70,6 +75,10 @@ assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalCreat
 assert(bindDecimalForms.includes("form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT'"), 'Decimal NFT form maps delegate/unbond operations');
 assert(!appSource.includes('<th scope="col">Адрес токена</th>'), 'Decimal stake table does not expose token address as the primary column');
 assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\')'), 'Decimal table unbond action opens stake/unbond operation spoiler');
+assert(appSource.includes('/coins/coins?limit=${limit}&offset=${offset}'), 'Decimal token search uses public coins index API');
+assert(appSource.includes('first && Array.isArray(first.coins)'), 'Decimal token search supports legacy Result[0].coins payload shape');
+assert(appSource.includes('resolveDecimalConvertAsset(chain, form.get(\'from\')'), 'Decimal convert resolves typed token tickers before broadcast');
+assert(appSource.includes('updateDecimalConvertMaximum(data)'), 'Decimal convert updates maximum from the selected source token balance');
 assert(!bindDecimalForms.includes('decimalEVM.broadcast'), 'Decimal wallet forms do not directly broadcast outside bindOperationForm');
 
 [
