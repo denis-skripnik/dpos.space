@@ -12,7 +12,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8'), con
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const plan = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 const runtimeStart = appSource.indexOf('function buildVizSearchMemo');
-const runtimeEnd = appSource.indexOf('const vizTopRankingOptions');
+const runtimeEnd = appSource.indexOf('function normalizeGolosWitnessRows');
 const runtimeSlice = appSource.slice(runtimeStart, runtimeEnd);
 
 const viz = context.DposChains.viz;

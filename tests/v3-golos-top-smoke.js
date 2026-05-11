@@ -29,10 +29,6 @@ assert(!golosAppsSource.includes("id: 'top'"), 'Golos registry slice has no top 
 assert(golosAppsSource.includes("id: 'witnesses-rewards'"), 'Neighbor Golos apps remain registered after removing top');
 assert(golosAppsSource.includes("id: 'stakebot'"), 'Stakebot remains registered after removing top');
 
-assert(appSource.includes("chain.id === 'viz' && effectiveAppId === 'top'"), 'VIZ top route is untouched');
-assert(chains.viz.apps.some((app) => app.id === 'top'), 'VIZ top app remains registered');
-assert(appSource.includes('function renderVizTop'), 'VIZ top renderer remains available');
-
 assert(planSource.includes('### Decommission: Golos / top'), 'plan.md records the deliberate Golos/top removal decision');
 assert(planSource.includes('Golos top removed from v3 runtime registry'), 'plan.md records registry/runtime removal evidence');
 
