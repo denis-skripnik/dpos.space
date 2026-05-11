@@ -8711,6 +8711,38 @@ Memo key: ${keys.memo}`);
     };
   }
 
+  function decimalNftId(item) {
+    return String(item.nftId || item.tokenId || item.id || item.nft_id || item.token_id || '').trim();
+  }
+
+  function decimalNftCollection(item) {
+    return String(item.collection || item.nftCollection || item.collectionId || item.collection_id || '').trim();
+  }
+
+  function decimalNftTitle(item) {
+    return String(item.title || item.name || item.creator || item.description || '').trim();
+  }
+
+  function decimalNftLabel(item) {
+    const collection = decimalNftCollection(item);
+    const id = decimalNftId(item);
+    const title = decimalNftTitle(item);
+    const identity = [collection, id].filter(Boolean).join('/');
+    return identity || title || 'NFT';
+  }
+
+  function decimalNftOptions(data) {
+    const nfts = Array.isArray(data && data.nfts) ? data.nfts : [];
+    return nfts.map((item) => {
+      const id = decimalNftId(item) || decimalNftLabel(item);
+      if (!id) return '';
+      const label = decimalNftLabel(item);
+      const title = decimalNftTitle(item);
+      const optionText = title && title !== label ? `${label} — ${title}` : label;
+      return `<option value="${escapeHtml(id)}">${escapeHtml(optionText)}</option>`;
+    }).filter(Boolean).join('');
+  }
+
   function renderDecimalWalletBalances(data) {
     const balances = Array.isArray(data.balances) ? data.balances : [];
     const balanceRows = balances.map((item) => {
@@ -8743,8 +8775,8 @@ Memo key: ${keys.memo}`);
       const validator = stake.validator || {};
       const validatorAddress = stake.validatorId || validator.address || stake.address || '';
       const validatorName = validator.details || validator.name || '';
-      const nftLabel = [stake.nftCollection || stake.collection, stake.nftId || stake.tokenId || stake.id].filter(Boolean).join('/');
-      const nftId = stake.nftId || stake.tokenId || stake.id || nftLabel || '';
+      const nftLabel = decimalNftLabel(stake);
+      const nftId = decimalNftId(stake) || nftLabel;
       const quickUnbond = `<button type="button" data-decimal-nft-action="unbond" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-validator="${escapeHtml(validatorAddress)}">Анбонд NFT</button>`;
       return `<tr><td>${escapeHtml(nftLabel || 'NFT')}</td><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(validator.status || stake.status || '')}</td><td>${quickUnbond}</td></tr>`;
     }).join('');
@@ -8756,14 +8788,19 @@ Memo key: ${keys.memo}`);
       return `<tr><td>${escapeHtml(amount)} ${escapeHtml(coin)}</td><td>${escapeHtml(validator)}</td><td>${escapeHtml(history.formatDate(item.timestamp || item.time || item.created_at || ''))}</td></tr>`;
     }).join('');
 
-    const nftRows = (data.nfts || []).map((item) => `<tr><td>${escapeHtml(item.collection || item.nftCollection || '')}</td><td>${escapeHtml(item.id || item.nftId || item.tokenId || '')}</td><td>${escapeHtml(item.title || item.name || item.creator || '')}</td></tr>`).join('');
+    const nftRows = (data.nfts || []).map((item) => {
+      const nftId = decimalNftId(item) || decimalNftLabel(item);
+      const title = decimalNftTitle(item);
+      const quickDelegate = `<button type="button" data-decimal-nft-action="delegate" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-nft-title="${escapeHtml(title)}">Stake NFT</button>`;
+      return `<tr><td>${escapeHtml(decimalNftCollection(item))}</td><td>${escapeHtml(nftId)}</td><td>${escapeHtml(title)}</td><td>${quickDelegate}</td></tr>`;
+    }).join('');
 
     return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.decimal, data.address)}</p><p><button type="button" id="decimal-copy-address">Копировать адрес</button></p></article>
       <article class="card"><h3>Балансы</h3>${data.errors.balances ? `<p class="muted">Балансы сейчас не загрузились: ${escapeHtml(data.errors.balances)}</p>` : ''}${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Decimal"><caption>Балансы Decimal</caption><thead><tr><th scope="col">Монета/токен</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
       <article class="card"><h3>Stake монет</h3>${data.errors.coinStakes ? `<p class="muted">Stake монет сейчас не загрузился: ${escapeHtml(data.errors.coinStakes)}</p>` : ''}${coinStakeRows.length ? `<div class="table-wrap"><table aria-label="Stake монет Decimal"><caption>Stake монет Decimal</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Stake</th><th scope="col">Тикер токена</th><th scope="col">Действие</th></tr></thead><tbody>${coinStakeRows.join('')}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
       <article class="card"><h3>NFT stake</h3>${data.errors.nftStakes ? `<p class="muted">NFT stake сейчас не загрузился: ${escapeHtml(data.errors.nftStakes)}</p>` : ''}${nftStakeRows ? `<div class="table-wrap"><table aria-label="NFT stake Decimal"><caption>NFT stake Decimal</caption><thead><tr><th scope="col">NFT</th><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Действие</th></tr></thead><tbody>${nftStakeRows}</tbody></table></div>` : '<p class="muted">NFT stake не найден.</p>'}</article>
       <article class="card"><h3>Начисления</h3>${data.errors.rewards ? `<p class="muted">Начисления сейчас не загрузились: ${escapeHtml(data.errors.rewards)}</p>` : ''}${rewardRows ? `<div class="table-wrap"><table aria-label="Начисления Decimal"><caption>Начисления Decimal</caption><thead><tr><th scope="col">Сумма</th><th scope="col">Валидатор</th><th scope="col">Дата</th></tr></thead><tbody>${rewardRows}</tbody></table></div>` : '<p class="muted">Начисления не найдены.</p>'}</article>
-      <article class="card"><h3>NFT</h3>${data.errors.nfts ? `<p class="muted">NFT сейчас не загрузились: ${escapeHtml(data.errors.nfts)}</p>` : ''}${nftRows ? `<div class="table-wrap"><table aria-label="NFT Decimal"><caption>NFT Decimal</caption><thead><tr><th scope="col">Коллекция</th><th scope="col">ID</th><th scope="col">Описание</th></tr></thead><tbody>${nftRows}</tbody></table></div>` : '<p class="muted">NFT не найдены.</p>'}</article>
+      <article class="card"><h3>NFT</h3>${data.errors.nfts ? `<p class="muted">NFT сейчас не загрузились: ${escapeHtml(data.errors.nfts)}</p>` : ''}${nftRows ? `<div class="table-wrap"><table aria-label="NFT Decimal"><caption>NFT Decimal</caption><thead><tr><th scope="col">Коллекция</th><th scope="col">ID</th><th scope="col">Описание</th><th scope="col">Доступные действия</th></tr></thead><tbody>${nftRows}</tbody></table></div>` : '<p class="muted">NFT не найдены.</p>'}</article>
       <article class="card"><h3>Последние транзакции</h3>${data.errors.transactions ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.errors.transactions)}</p>` : renderTransactionsTable(data.transactions, chains.decimal, { caption: 'Последние транзакции Decimal', emptyText: 'Транзакции не найдены.' })}</article>`;
   }
 
@@ -8863,7 +8900,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    ${decimalNftForms()}`;
+    ${decimalNftForms(data)}`;
   }
 
   async function renderDecimalWallet(chain, account) {
@@ -8982,7 +9019,9 @@ Memo key: ${keys.memo}`);
     </fieldset></form></details>`;
   }
 
-  function decimalNftForms() {
+  function decimalNftForms(data) {
+    const nftOptions = decimalNftOptions(data);
+    const nftPicker = nftOptions ? `<div class="field"><label for="decimal-nft-pick">NFT из кошелька</label><select id="decimal-nft-pick"><option value="">Выберите NFT из списка</option>${nftOptions}</select></div>` : '<p class="muted">Если NFT есть в таблице выше, нажмите «Stake NFT» в строке NFT, чтобы заполнить форму.</p>';
     return `<details id="decimal-convert-details" class="operation-details"><summary>Convert / swap</summary><form id="decimal-convert-form" class="stacked-form"><fieldset>
       <legend>Decimal: convert / swap</legend>
       <p class="notice">Можно вводить DEL, тикер токена или адрес 0x. Поиск использует публичный Decimal coins API без backend-сервиса.</p>
@@ -9009,6 +9048,7 @@ Memo key: ${keys.memo}`);
     <details id="decimal-nft-details" class="operation-details"><summary>NFT stake</summary><form id="decimal-nft-form" class="stacked-form"><fieldset>
       <legend>Decimal: NFT stake</legend>
       <div class="field"><label for="decimal-nft-mode">Операция</label><select id="decimal-nft-mode" name="mode"><option value="delegate">Делегировать NFT</option><option value="unbond">Анбонд NFT</option></select></div>
+      ${nftPicker}
       <div class="field"><label for="decimal-nft-id">NFT ID</label><input id="decimal-nft-id" name="nftId" type="text" required></div>
       <div class="field"><label for="decimal-nft-validator">ID/адрес валидатора</label><input id="decimal-nft-validator" name="validator" type="text" required></div>
       <button type="submit" name="intent" value="preview">Проверить NFT</button><button type="submit" name="intent" value="send">Отправить NFT-операцию в сеть</button>
@@ -9228,8 +9268,20 @@ Memo key: ${keys.memo}`);
         if (target) target.focus();
       });
     });
+    bindDecimalNftPicker(root);
   }
 
+
+  function bindDecimalNftPicker(root) {
+    const nftPick = (root || document).querySelector('#decimal-nft-pick');
+    if (!nftPick) return;
+    nftPick.addEventListener('change', () => {
+      if (!nftPick.value) return;
+      setDecimalField('decimal-nft-id', nftPick.value);
+      const target = document.getElementById('decimal-nft-validator');
+      if (target) target.focus();
+    });
+  }
 
   function updateDecimalConvertMaximum(data) {
     const fromField = document.getElementById('decimal-convert-from');

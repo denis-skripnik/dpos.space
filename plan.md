@@ -4311,12 +4311,14 @@ Files inspected:
 UX matrix:
 | Legacy UX/control | v3 before this pass | UX polish in this pass | Test coverage | Status |
 | --- | --- | --- | --- | --- |
-| NFT stake/anbond modal keeps NFT ID visible and operation-specific. | v3 had the NFT stake/unbond form, but the NFT stake table was read-only and required manual NFT ID/validator copying. | NFT stake rows now expose `Анбонд NFT` action buttons that open the NFT details form and prefill NFT ID + validator. | `v3-decimal-wallet-smoke.js` checks `data-decimal-nft-action="unbond"`, `openDecimalOperationDetails('decimal-nft-details')`, and field prefill markers. | Implemented static-safe. |
-| Table/card action should reveal the matching form rather than forcing manual scrolling. | Coin stake rows already opened stake/unbond details; NFT rows did not. | `bindDecimalQuickActions` now also binds scoped NFT action buttons. | Focused smoke covers the binding markers. | Implemented static-safe. |
-| Human-readable NFT/stake columns. | v3 already uses NFT label/validator/status; raw token addresses are not primary for Decimal stake. | Preserved, with one additional action column. | Existing Decimal wallet smoke checks native labels and no primary raw token address column. | Kept. |
+| NFT stake/anbond modal keeps NFT ID visible and operation-specific. | v3 had the NFT stake/unbond form, but the NFT stake table was read-only and required manual NFT ID/validator copying. | NFT stake rows expose `Анбонд NFT` action buttons that open the NFT details form and prefill NFT ID + validator. | `v3-decimal-wallet-smoke.js` checks `data-decimal-nft-action="unbond"`, `openDecimalOperationDetails('decimal-nft-details')`, and field prefill markers. | Implemented static-safe. |
+| Owned NFT list should behave like balances: visible table rows with available actions. | v3 showed owned NFTs as a read-only collection/id/description table, so staking required manual copy/paste into the NFT form. | Owned NFT rows now have `Stake NFT` (`data-decimal-nft-action="delegate"`) actions that open the NFT details form, set mode=delegate, prefill NFT ID, and focus the validator field. | Focused smoke checks delegate action marker, readable NFT title marker, and action column. | Implemented static-safe. |
+| NFT ID should be selectable from existing account NFTs. | v3 NFT form had only a free-text NFT ID field. | `decimal-nft-form` now receives account NFT options via `decimalNftOptions(data)` and renders `decimal-nft-pick` / `NFT из кошелька`; changing the select fills `decimal-nft-id`. | Focused smoke checks selector/id-prefill binding markers. | Implemented static-safe. |
+| Table/card action should reveal the matching form rather than forcing manual scrolling. | Coin stake rows already opened stake/unbond details; NFT rows did not. | `bindDecimalQuickActions` binds scoped NFT action buttons and the owned-NFT picker. | Focused smoke covers the binding markers. | Implemented static-safe. |
+| Human-readable NFT/stake columns. | v3 already uses NFT label/validator/status; raw token addresses are not primary for Decimal stake. | Preserved, with additional action columns for staked and owned NFT tables. | Existing Decimal wallet smoke checks native labels and no primary raw token address column. | Kept. |
 
 Validation notes:
-- Focused RED was confirmed before implementation by `node tests/v3-decimal-wallet-smoke.js` failing on the new NFT action marker.
+- Focused RED was confirmed before implementation by `node tests/v3-decimal-wallet-smoke.js` failing on the new NFT action marker; the follow-up selector/action assertions also fail before the owned-NFT picker/table actions are present.
 - This is direct client-side form prefill only; backend-only legacy behavior remains a non-goal.
 
 ### UX polish: Graphene wallets
@@ -4350,9 +4352,9 @@ Remaining gaps/non-goals:
 Scope: bounded browser/runtime QA block for wallet UX across VIZ, Golos, Steem, Hive, Minter, and Decimal after the source/static wallet UX passes. Static-safe only: no backend service, PHP route/runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Final send/broadcast buttons are intentionally not exercised.
 
 Runtime availability:
-- Static server started from repo root with `python3 -m http.server 8765`.
-- Camofox browser automation was unavailable in this CLI environment (`Cannot connect to Camofox at http://localhost:9377`), and local Playwright/Puppeteer/Selenium/jsdom packages were not installed.
-- Fallback QA used server-backed route fetches plus focused DOM-binding/static-runtime assertions in `/tmp/dpos-wallet-ux-qa.js`; this verifies that the SPA entrypoint and wallet scripts are served, and that click/fill/focus/open/preview bindings exist without introducing browser-only selector/function mistakes. It does not claim live visual browser execution.
+- Static server starts from repo root with `python3 -m http.server 8765 --bind 127.0.0.1`.
+- Root cause of the earlier browser-QA fallback: Camofox was expected as an already-running automation service at `http://localhost:9377`, but no service was listening there; local project dependencies also intentionally do not include Playwright/Puppeteer/Selenium/jsdom, so the prior pass had no browser backend to attach to.
+- Fix for this investigation: keep Playwright outside the project (`/tmp/dpos-playwright`) and run browser QA from a temporary harness, so the static app stays dependency-free. No Playwright package, npm dependency, or permanent test harness is required in the project.
 
 Matrix:
 | Chain | Route/account checked | Panel/error result | Details/quick actions/maximum/focus/preview result | Hard JS errors | Network/RPC noise and non-goals | Fixes |
@@ -4365,13 +4367,13 @@ Matrix:
 | Decimal wallet | `/#chain=decimal&app=wallet&account=dx0000000000000000000000000000000000000000` | Static server returned SPA entrypoint; focused Decimal wallet smoke is green. | Fallback QA confirms Decimal quick actions open send/delegate/convert/NFT `<details>`, prefill amount/coin/validator/NFT fields, update convert maximum helper, focus target fields, and bind prepare handlers. | None found in fallback/static checks. | Live Decimal API failures are network/static-safe limitations, not a reason to add services. | No code fix needed. |
 
 Validation notes:
-- Route/static-server fetch check returned HTTP 200 for all six wallet hash routes.
-- Fallback QA command: `node /tmp/dpos-wallet-ux-qa.js` -> `wallet UX QA fallback checks passed`.
-- Focused wallet gate before this plan update: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-{viz,golos,steem,hive,minter,decimal}-wallet-smoke.js; do node "$f" || exit 1; done && git diff --check` -> green.
-- Full broad gate is required after this plan-only update before commit/push.
+- Route/static-server fetch check returned HTTP 200 for all six wallet hash routes in the earlier fallback pass.
+- Real browser command after installing Playwright into an external temp QA directory: `node /tmp/dpos-playwright/dpos-browser-qa.js > /tmp/dpos-playwright/browser-qa-result.json`.
+- Real browser QA result: 25 routes rendered in headless Chromium, 0 hard JS errors, safe quick-action/maximum/prefill buttons clicked on wallet routes, operation `<details>` opened, focus movement observed on wallet quick actions, 14 network/RPC noise events ignored as expected public-node noise.
+- Full broad gate after the external browser QA remained green; no application code fixes were needed or pushed.
 
 Remaining gaps/non-goals:
-- True browser-level click execution could not be completed in this environment because no browser automation backend was available. The fallback checks are documented honestly and do not replace future real-browser QA when Camofox/Playwright is available.
+- Camofox itself is still not required: the project can now run real browser QA through Playwright when an external QA environment provides it.
 - No RPC/CORS/429/502 behavior is fixed as backend; graceful degradation only.
 - No final send/broadcast buttons were clicked.
 
