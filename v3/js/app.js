@@ -7894,116 +7894,6 @@ Memo key: ${keys.memo}`);
     setStatus(`${chain.title}: top открыт в статическом режиме.`, 'info');
   }
 
-  const golosTopRankingOptions = [
-    ['gbg', 'GBG', 'Баланс GBG (%)'],
-    ['golos', 'GOLOS', 'Баланс GOLOS (%)'],
-    ['tip_balance', 'TIP-баланс', 'TIP-баланс'],
-    ['gp', 'СГ', 'СГ (%)'],
-    ['delegated_gp', 'Делегированная СГ', 'Делегировано СГ другим'],
-    ['received_gp', 'Полученная делегированием СГ', 'Получено СГ от других делегированием'],
-    ['effective_gp', 'Эффективная СГ (личная - делегированная + полученна делегированием)', 'Эффективная СГ, учитываемая при апвоутинге'],
-    ['emission_received_gp', 'Полученная с эмиссией СГ', 'Получено СГ с эмиссией'],
-    ['gp_withdraw_rate', 'Выводимая СГ', 'Выводится СГ'],
-    ['emission_delegated_gp', 'Делегированная с эмиссией СГ', 'Делегировано СГ с эмиссией'],
-    ['market_balance', 'Маркет-баланс', 'Маркет-баланс'],
-    ['reputation', 'Репутация', 'Репутация']
-  ];
-
-  const golosTopRankingById = Object.fromEntries(golosTopRankingOptions.map((option) => [option[0], option]));
-
-  function renderGolosTopFieldRows(fields) {
-    return fields.map((field) => `<tr><td>${escapeHtml(field)}</td><td>Legacy field preserved for documentation; live ranked values required the removed server-side 100-row leaderboard and counter.</td></tr>`).join('');
-  }
-
-  function renderGolosTopLevelRows() {
-    return [
-      ['≥ 5%', 'Повелители морей'],
-      ['≥ 1%', 'Киты'],
-      ['≥ 0.5%', 'Косатки'],
-      ['≥ 0.25%', 'Акулы'],
-      ['≥ 0.1%', 'Дельфины'],
-      ['≥ 0.05%', 'Черепахи'],
-      ['≥ 0.025%', 'Рыбы'],
-      ['≥ 0.01%', 'Осьминоги'],
-      ['≥ 0.005%', 'Крабы'],
-      ['≥ 0%', 'Креветки']
-    ].map(([threshold, name]) => `<tr><td>${escapeHtml(threshold)}</td><td>${escapeHtml(name)}</td></tr>`).join('');
-  }
-
-  async function loadGolosTopUiaAssets(chain) {
-    const target = document.getElementById('golos-top-uia-assets');
-    if (!target) return;
-    target.textContent = 'Загружаю UIA активы через публичный Golos RPC...';
-    try {
-      await loadScript(chain.libraryPath);
-      const connection = await profiles.connect(chain);
-      const api = connection.client && connection.client.api;
-      if (!api || typeof api.getAssetsAsync !== 'function') {
-        throw new Error('golos.api.getAssetsAsync недоступен в загруженной библиотеке.');
-      }
-      const assets = await fetchAllGolosAssets(api, 200);
-      const symbols = Array.from(new Set((assets || []).map((asset) => golosSymbolFromAssetField((asset && asset.max_supply) || (asset && asset.supply))).filter(Boolean))).sort();
-      if (!symbols.length) {
-        target.innerHTML = '<p class="muted">UIA активы не найдены в ответе публичной ноды.</p>';
-        return;
-      }
-      target.innerHTML = `<ul>${symbols.map((symbol) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: symbol }))}">${escapeHtml(symbol)}</a></li>`).join('')}</ul>`;
-      setStatus(`Golos top: загружено UIA активов: ${symbols.length}.`, 'ok');
-    } catch (error) {
-      target.innerHTML = `<p class="muted">Не удалось загрузить UIA активы через публичный RPC: ${escapeHtml(profiles.formatError(error))}</p>`;
-      setStatus(`Golos top: UIA активы не загрузились: ${profiles.formatError(error)}`, 'error');
-    }
-  }
-
-  function renderGolosTop(chain, state) {
-    const selectedType = String((state && state.topType) || '').trim();
-    const selectedNative = selectedType ? golosTopRankingById[selectedType.toLowerCase()] : null;
-    const selectedIsUia = selectedType && !selectedNative;
-    const rankingLinks = golosTopRankingOptions.map(([id, label]) => `<li><a href="${escapeHtml(appHash({ chain: chain.id, app: 'top', topType: id }))}" ${selectedNative && selectedNative[0] === id ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a></li>`).join('');
-    const nativeFields = ['№', 'Логин', 'СГ (%)', 'Делегировано СГ другим', 'Получено СГ от других делегированием', 'Эффективная СГ, учитываемая при апвоутинге', 'Получено СГ с эмиссией', 'Делегировано СГ с эмиссией', 'Выводится СГ', 'Баланс GOLOS (%)', 'Баланс GBG (%)', 'TIP-баланс', 'Маркет-баланс', 'Репутация'];
-    const uiaFields = ['№', 'Логин', 'Суммарный баланс аккаунта', 'Основной баланс (ликвид)', 'TIP баланс (донаты)', 'Market-баланс'];
-    const profileExample = appHash({ chain: chain.id, app: 'profiles', account: chain.defaultAccount || 'denis-skripnik' });
-    const selectedTitle = selectedNative ? selectedNative[1] : (selectedIsUia ? selectedType.toUpperCase() : 'категория не выбрана');
-    const selectedNotice = selectedNative
-      ? `<p class="notice">Выбран native рейтинг: ${escapeHtml(selectedTitle)}. В legacy таблица, счётчик, 100-row pagination и ссылки «Предыдущая/Следующая/Последняя» приходили из серверной агрегации. Static v3 не восстанавливает этот backend; для проверки аккаунтов используйте <a href="${escapeHtml(profileExample)}">профили v3</a>, историю и публичный RPC.</p>`
-      : selectedIsUia
-        ? `<p class="notice">Выбран UIA токен ${escapeHtml(selectedTitle)}. Legacy holder leaderboard для UIA требовал серверную агрегацию суммарного, liquid, TIP и Market-баланса по аккаунтам. Static v3 сохраняет discovery токенов через публичный RPC, но не показывает устаревший backend-рейтинг держателей.</p>`
-        : '<p class="muted">Выберите вариант сортировки рейтинга или загрузите список UIA активов.</p>';
-
-    appEl.innerHTML = `
-      <section class="panel golos-top">
-        <h2>Топ пользователей Golos</h2>
-        <p>Статическая parity-страница для legacy Golos top: категории рейтингов и UIA token discovery сохранены, а серверные leaderboard-таблицы честно отмечены как backend-only non-goal.</p>
-        <nav aria-label="Варианты сортировки рейтинга Golos">
-          <h3>Выберите вариант сортировки рейтинга</h3>
-          <ol>${rankingLinks}</ol>
-        </nav>
-        <section class="subpanel" aria-labelledby="golos-top-selected-heading">
-          <h3 id="golos-top-selected-heading">Выбранный рейтинг: ${escapeHtml(selectedTitle)}</h3>
-          ${selectedNotice}
-        </section>
-        <section class="subpanel" aria-labelledby="golos-top-uia-heading">
-          <h3 id="golos-top-uia-heading">UIA активы</h3>
-          <p>Legacy <code>top/js/app.js</code> вызывал <code>golos.api.getAssetsAsync('')</code> и строил ссылки на токены. В v3 это выполняется по кнопке через публичную ноду и hash-маршруты.</p>
-          <button type="button" id="golos-top-load-uia">Загрузить UIA активы через public RPC</button>
-          <div id="golos-top-uia-assets" role="status" aria-live="polite"><p class="muted">UIA список ещё не загружен.</p></div>
-        </section>
-        <section class="subpanel" aria-labelledby="golos-top-fields-heading">
-          <h3 id="golos-top-fields-heading">Legacy поля таблиц</h3>
-          <div class="table-wrap"><table aria-label="Legacy поля native top"><caption>Legacy поля native top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderGolosTopFieldRows(nativeFields)}</tbody></table></div>
-          <div class="table-wrap"><table aria-label="Legacy поля UIA top"><caption>Legacy поля UIA top</caption><thead><tr><th scope="col">Поле</th><th scope="col">Static v3 статус</th></tr></thead><tbody>${renderGolosTopFieldRows(uiaFields)}</tbody></table></div>
-        </section>
-        <section class="subpanel" aria-labelledby="golos-top-levels-heading">
-          <h3 id="golos-top-levels-heading">Gamification уровни GP</h3>
-          <p>Legacy <code>getLevel(gp_percent)</code> добавлял картинку уровня к логину. В v3 уровни сохранены текстом, чтобы screen reader не зависел от image-only состояния.</p>
-          <div class="table-wrap"><table aria-label="Golos GP gamification levels"><caption>Golos GP gamification levels from legacy getLevel</caption><thead><tr><th scope="col">GP percent</th><th scope="col">Уровень</th></tr></thead><tbody>${renderGolosTopLevelRows()}</tbody></table></div>
-        </section>
-      </section>`;
-    const loadButton = document.getElementById('golos-top-load-uia');
-    if (loadButton) loadButton.addEventListener('click', () => loadGolosTopUiaAssets(chain));
-    setStatus(`${chain.title}: top открыт в статическом режиме.`, 'info');
-  }
-
   const golosWitnessRewardColumns = [
     ['Логин', 'login', 'Имя делегата/witness и ссылка на профиль witness.'],
     ['за вчерашний день', 'old_daily_profit', 'Предыдущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
@@ -10427,8 +10317,6 @@ Memo key: ${keys.memo}`);
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'stakebot') {
         renderGolosStakebot(chain, state);
-      } else if (chain.id === 'golos' && effectiveAppId === 'top') {
-        renderGolosTop(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'top') {
         renderVizTop(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {

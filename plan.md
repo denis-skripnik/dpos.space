@@ -2086,6 +2086,19 @@ Recheck after changes:
 - Static-feasible gaps were fixed: Golos `top` route exposure, preserved ranking categories/labels, accessible native/UIA field documentation, text GP gamification levels, public-RPC UIA token discovery, profile hash links, no auth/private-key requirement.
 - Remaining gaps are precisely classified as backend-only non-goals: server-ranked native top pages, UIA holder leaderboards, backend counters and 100-row pagination. No old private backend URL is used at runtime.
 
+### Decommission: Golos / top
+
+User decision after parity: Golos top is not useful in static v3 because users still cannot get the actual leaderboard rows without the old server aggregation. To avoid runtime weight and public-RPC UIA discovery work for a page that cannot deliver the needed data, Golos top is removed rather than only hidden.
+
+Removal matrix:
+
+| Runtime surface | Previous behavior | Decommissioned v3 behavior | Test coverage | Status |
+|---|---|---|---|---|
+| `v3/js/chains.js` Golos apps | Registered `id: 'top'` and showed “Топ пользователей” in the Golos app selector. | Golos top removed from v3 runtime registry; neighboring apps `stakebot` and `witnesses-rewards` remain. | `tests/v3-golos-top-smoke.js` asserts no Golos `top` app entry and neighbor app presence. | removed |
+| `v3/js/app.js::renderGolosTop` and Golos top constants | Rendered documentation-only top page, ranking option constants, UIA button, and GP level table. | Renderer, constants, DOM hooks, and UIA loader removed from the runtime bundle. | Smoke asserts no `renderGolosTop`, `golosTopRankingOptions`, `loadGolosTopUiaAssets`, `golos-top-load-uia`, or `golos-top-uia-assets`. | removed |
+| Route dispatch | `#chain=golos&app=top` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'golos' && effectiveAppId === 'top'` dispatch. | removed |
+| VIZ top | Separate VIZ static top route. | Untouched. | Smoke asserts VIZ `top` app, route branch, and `renderVizTop` remain. | kept |
+
 ### Rigorous parity: Golos / witnesses-rewards
 
 Scope lock for this stop-gate: only legacy `blockchains/golos/apps/witnesses-rewards` is audited and changed here. VIZ/Steem/Hive/Minter/Decimal and every other Golos app are explicitly out of scope for this pass.
