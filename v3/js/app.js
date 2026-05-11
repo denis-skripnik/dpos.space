@@ -8713,7 +8713,14 @@ Memo key: ${keys.memo}`);
   }
 
   function decimalNftId(item) {
-    return String(item.nftId || item.tokenId || item.id || item.nft_id || item.token_id || '').trim();
+    const nested = item.nft && typeof item.nft === 'object' ? item.nft : null;
+    const raw = item.tokenId || item.token_id || item.nftTokenId || item.nft_token_id || item.nftId || item.nft_id || (nested && (nested.tokenId || nested.token_id || nested.nftId || nested.nft_id)) || '';
+    const tokenId = String(raw).trim();
+    if (/^\d+$/.test(tokenId)) return tokenId;
+    const genericId = String(item.id || (nested && nested.id) || '').trim();
+    if (/^\d+$/.test(genericId)) return genericId;
+    if (decimalKnownNftCollectionAddress(item.collection || item.nftCollection || item.collectionName || item.collection_name) && (!tokenId || /^[0-9a-fA-F]{32,}$/.test(tokenId) || /^[0-9a-fA-F]{32,}$/.test(genericId))) return '1';
+    return tokenId;
   }
 
   function decimalNftCollection(item) {
@@ -8756,7 +8763,7 @@ Memo key: ${keys.memo}`);
     if (!input) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
     const tokenId = String(nftId || '').trim();
     const escaped = input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    const tokenFilter = tokenId ? `, tokenId: "${tokenId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : '';
+    const tokenFilter = tokenId && /^\d+$/.test(tokenId) ? `, tokenId: "${tokenId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : '';
     const query = `{
       nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}, first: 1) { collection { address name tokenType } tokenId }
       nftcollections(where:{name: "${escaped}"}, first: 1) { address name tokenType }
