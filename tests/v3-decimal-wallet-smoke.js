@@ -28,6 +28,7 @@ assert(renderDecimalWallet.includes('renderDecimalWalletBalances'), 'Decimal wal
 assert(renderDecimalWallet.includes('renderDecimalWalletForms'), 'Decimal wallet renders dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindDecimalWalletForms'), 'Decimal wallet binds dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindMaxButtons(appEl)'), 'Decimal wallet supports legacy maximum fill buttons');
+assert(renderDecimalWallet.includes('bindDecimalQuickActions(appEl)'), 'Decimal wallet binds table action buttons that open the matching operation details');
 assert(!renderDecimalWallet.includes('return renderCosmosWallet'), 'Decimal wallet is not a thin alias to generic Cosmos wallet');
 
 assert(appSource.includes("chain.id === 'decimal' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')"), 'Decimal wallet/swap/my-coin route dispatches to Decimal-specific renderer before generic Cosmos');
@@ -49,6 +50,9 @@ assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 
 [
   'DEL',
   'Монета/токен',
+  'Тикер токена',
+  'data-decimal-action="unbond"',
+  'decimal-delegate-details',
   'Адрес валидатора',
   'stake',
   'Анбонд',
@@ -64,6 +68,8 @@ assert(bindDecimalForms.includes("mode === 'unbond' ? 'decimalUnbond' : 'decimal
 assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalConvert'"), 'Decimal convert is prepared through broadcast guard');
 assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalCreateToken'"), 'Decimal token creation is prepared through broadcast guard');
 assert(bindDecimalForms.includes("form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT'"), 'Decimal NFT form maps delegate/unbond operations');
+assert(!appSource.includes('<th scope="col">Адрес токена</th>'), 'Decimal stake table does not expose token address as the primary column');
+assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\')'), 'Decimal table unbond action opens stake/unbond operation spoiler');
 assert(!bindDecimalForms.includes('decimalEVM.broadcast'), 'Decimal wallet forms do not directly broadcast outside bindOperationForm');
 
 [
