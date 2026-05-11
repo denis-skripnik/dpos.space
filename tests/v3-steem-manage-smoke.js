@@ -80,6 +80,9 @@ assert(profilePrefill.includes("chain.id !== 'golos' && chain.id !== 'hive' && c
 assert(manageRenderer.includes('manage-profile-prefill-result'), 'Steem manage exposes profile preload status');
 assert(witnessList.includes("chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem'"), 'Steem manage can load witness list via public RPC');
 assert(manageRenderer.includes("chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem'"), 'Steem manage exposes batch witness voting and witness preload controls');
+for (const marker of ['manage-proxy-details', 'manage-witness-details', 'manage-witnesses-batch-details', 'manage-witness-update-details', 'manage-authority-details', 'manage-profile-details']) {
+  assert(manageRenderer.includes(`id="${marker}" class="operation-details"`), `Steem manage wraps broadcast form in details: ${marker}`);
+}
 assert(broadcastSource.includes("steem: { posting: 'posting"), 'Steem broadcast authority map supports posting/active authorities');
 assert(profilesSource.includes('fetchAccount'), 'Steem manage can fetch accounts through shared profiles helpers');
 assert(historySource.includes('account_witness_vote'), 'History labels include witness vote operations for account history navigation');

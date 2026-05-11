@@ -15,6 +15,8 @@ assert(renderRegister.includes('generateVizRegistrationKey'), 'VIZ registration 
 assert(appSource.includes('client.auth.wifToPublic(privateKey)'), 'VIZ registration derives public key from generated private WIF');
 assert(renderRegister.includes('register-public-key'), 'manual public-key registration path remains available');
 assert(renderRegister.includes("'inviteRegistration'"), 'VIZ registration prepares inviteRegistration route');
+assert(renderRegister.includes('id="register-form-details" class="operation-details"'), 'registration account create form is hidden under operation details');
+assert(renderRegister.includes('id="golos-register-delegation-details" class="operation-details"'), 'Golos delegation registration form is hidden under operation details');
 assert(renderRegister.includes('viz-register-check-name'), 'VIZ registration can check account-name availability like legacy');
 assert(appSource.includes("chain.id === 'viz' && (appId === 'calc' || appId === 'awards')"), 'VIZ legacy calc/awards aliases stay active without breaking registration route');
 assert(renderRegister.includes('getAccounts'), 'VIZ registration availability check uses public RPC getAccounts');

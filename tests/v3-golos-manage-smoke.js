@@ -56,4 +56,18 @@ assert(appSource.includes('getWitnessesByVote'), 'Golos manage can load witness 
 assert(appSource.includes("['account_witness_vote'"), 'Golos manage batch voting prepares account_witness_vote operations');
 assert(appSource.includes('witnessVoteState.proxy'), 'Golos manage warns when proxy exists during manual witness voting');
 
+[
+  'manage-proxy-details',
+  'manage-witness-details',
+  'manage-witnesses-batch-details',
+  'manage-witness-update-details',
+  'manage-authority-details',
+  'manage-profile-details',
+  'manage-create-account-details',
+  'manage-reset-keys-details',
+  'manage-follow-details',
+  'manage-workers-details',
+  'manage-witness-props-details'
+].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-details"`), `Golos manage wraps dangerous form in details: ${marker}`));
+
 console.log('v3 Golos manage smoke passed');

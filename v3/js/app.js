@@ -5524,7 +5524,7 @@
           <a href="#viz-manage-multisig">Мультисиг</a>
         </nav>` : ''}
         <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">Делегаты / witness votes</h3></section>
-        <form id="manage-proxy-form" class="stacked-form">
+        <details id="manage-proxy-details" class="operation-details"><summary>Witness proxy — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
           <fieldset>
             <legend>Witness proxy</legend>
             <div class="field"><label for="manage-proxy-login">Прокси-аккаунт</label><input id="manage-proxy-login" name="proxy" type="text" autocomplete="off" placeholder="пусто = снять proxy"></div>
@@ -5532,8 +5532,8 @@
             <button type="submit" name="intent" value="send">Установить proxy в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-witness-form" class="stacked-form">
+        </form></details>
+        <details id="manage-witness-details" class="operation-details"><summary>Голосование за witness — preview перед отправкой</summary><form id="manage-witness-form" class="stacked-form">
           <fieldset>
             <legend>Голосование за witness</legend>
             <div class="field"><label for="manage-witness-login">Witness</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
@@ -5542,8 +5542,8 @@
             <button type="submit" name="intent" value="send">Отправить голос в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<form id="manage-witnesses-batch-form" class="stacked-form">
+        </form></details>
+        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witnesses-batch-details" class="operation-details"><summary>Batch witness vote — загрузить и проверить изменения</summary><form id="manage-witnesses-batch-form" class="stacked-form">
           <fieldset>
             <legend>Список делегатов / batch witness vote</legend>
             <p class="muted">Загружает текущие witness_votes и список делегатов через публичный RPC. Отправляет только изменения.</p>
@@ -5553,8 +5553,8 @@
             <div id="manage-witnesses-result" class="operation-result" role="status" aria-live="polite"></div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>` : ''}
-        <form id="manage-witness-update-form" class="stacked-form">
+        </form></details>` : ''}
+        <details id="manage-witness-update-details" class="operation-details"><summary>Настройки witness — preview перед обновлением</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Настройки / активация witness</span></legend>
             <p class="muted">Настройки witness: URL, публичный signing key и параметры. Пустые параметры будут обработаны библиотекой или нодой, если это поддерживается.</p>
@@ -5567,15 +5567,15 @@
             <button type="submit" name="intent" value="send">Обновить witness в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        ${chain.id === 'viz' ? `<form id="viz-witness-props-form" class="stacked-form"><fieldset>
+        </form></details>
+        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>VIZ witness props — опасная операция</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
           <legend>VIZ witness props / versionedChainPropertiesUpdate</legend>
           <p class="notice">Опасная операция witness: меняет chain properties VIZ. Legacy строил props из getWitnessByAccount; v3 принимает явный JSON preview перед отправкой.</p>
           <div class="field"><label for="viz-witness-props-json">Props JSON</label><textarea id="viz-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"10.000 VIZ"}'></textarea></div>
           <button type="submit" name="intent" value="preview">Проверить versionedChainPropertiesUpdate</button><button type="submit" name="intent" value="send">Отправить versionedChainPropertiesUpdate</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>` : ''}
-        <form id="manage-authority-form" class="stacked-form">
+        </fieldset></form></details>` : ''}
+        <details id="manage-authority-details" class="operation-details"><summary>Authority / доступы — owner WIF только в памяти</summary><form id="manage-authority-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-access">Обновление authority / доступа</span></legend>
             <p class="muted">Обновление прав доступа: введите готовые публичные ключи/account auths. Owner WIF используется только для подписи и не сохраняется.</p>
@@ -5589,8 +5589,8 @@
             <button type="submit" name="intent" value="send">Обновить authority в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-profile-form" class="stacked-form">
+        </form></details>
+        <details id="manage-profile-details" class="operation-details"><summary>Метаданные профиля — preview перед обновлением</summary><form id="manage-profile-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-profile">Метаданные профиля</span></legend>
             ${(chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') ? '<p id="manage-profile-prefill-result" class="muted" role="status" aria-live="polite">Текущий профиль будет загружен из json_metadata.</p>' : ''}
@@ -5615,8 +5615,8 @@
             <button type="submit" name="intent" value="send">Обновить профиль в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        ${chain.id === 'golos' ? `<form id="manage-create-account-form" class="stacked-form">
+        </form></details>
+        ${chain.id === 'golos' ? `<details id="manage-create-account-details" class="operation-details"><summary>Создание аккаунта Golos — ключи и preview</summary><form id="manage-create-account-form" class="stacked-form">
           <fieldset>
             <legend>Создание аккаунта Golos</legend>
             <p class="notice">Новые ключи генерируются локально. Перед отправкой скачайте backup нового аккаунта.</p>
@@ -5631,8 +5631,8 @@
             <div id="manage-create-generated" class="operation-result" role="status" aria-live="polite">Ключи нового аккаунта ещё не сгенерированы.</div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-reset-keys-form" class="stacked-form">
+        </form></details>
+        <details id="manage-reset-keys-details" class="operation-details"><summary>Сброс ключей Golos — опасная операция</summary><form id="manage-reset-keys-form" class="stacked-form">
           <fieldset>
             <legend>Сброс ключей Golos</legend>
             <p class="notice">Опасная операция: старые owner/active/posting/memo ключи и account auths будут заменены одиночными новыми ключами. Сначала нажмите «Сгенерировать ключи» и сохраните backup.</p>
@@ -5645,8 +5645,8 @@
             <div id="manage-reset-generated" class="operation-result" role="status" aria-live="polite">Ключи ещё не сгенерированы.</div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-follow-form" class="stacked-form">
+        </form></details>
+        <details id="manage-follow-details" class="operation-details"><summary>Golos follow/unfollow — posting preview</summary><form id="manage-follow-form" class="stacked-form">
           <fieldset>
             <legend>Подписки / follow</legend>
             <p class="muted">Static-safe перенос legacy subscribes: custom_json follow через posting key.</p>
@@ -5658,8 +5658,8 @@
             <div id="manage-following-result" class="operation-result" role="status" aria-live="polite"></div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-workers-form" class="stacked-form">
+        </form></details>
+        <details id="manage-workers-details" class="operation-details"><summary>Golos workers — create/vote preview</summary><form id="manage-workers-form" class="stacked-form">
           <fieldset>
             <legend>Golos workers / комитет</legend>
             <p class="muted">Static-safe перенос legacy workers: создание worker_request и голос worker_request_vote через posting key.</p>
@@ -5680,8 +5680,8 @@
             <div id="manage-workers-result" class="operation-result" role="status" aria-live="polite"></div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>
-        <form id="manage-witness-props-form" class="stacked-form">
+        </form></details>
+        <details id="manage-witness-props-details" class="operation-details"><summary>Golos witness props — опасная операция</summary><form id="manage-witness-props-form" class="stacked-form">
           <fieldset>
             <legend>Golos witness props / chain_properties_update</legend>
             <p class="notice">Опасная операция witness: меняет chain properties. Проверьте JSON вручную.</p>
@@ -5690,8 +5690,8 @@
             <button type="submit" name="intent" value="send">Отправить chain_properties_update</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
-        </form>` : ''}
-        ${chain.id === 'viz' ? `<form id="viz-create-account-form" class="stacked-form"><fieldset>
+        </form></details>` : ''}
+        ${chain.id === 'viz' ? `<details id="viz-create-account-details" class="operation-details"><summary>VIZ: создать аккаунт/субаккаунт — ключи и preview</summary><form id="viz-create-account-form" class="stacked-form"><fieldset>
           <legend><span id="viz-manage-create-account">VIZ: создать аккаунт/субаккаунт</span></legend>
           <p class="notice">Новые master/active/regular/memo ключи генерируются локально через crypto.getRandomValues. Preview операции показывает только публичные ключи; приватные ключи доступны только в backup-файле.</p>
           <div class="field"><label for="viz-create-name">Новый логин или имя субаккаунта</label><input id="viz-create-name" name="name" type="text" required autocomplete="off"></div>
@@ -5704,8 +5704,8 @@
           <button type="submit" name="intent" value="preview">Проверить accountCreate</button><button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
           <div id="viz-create-generated" class="operation-result" role="status" aria-live="polite">Ключи нового аккаунта ещё не сгенерированы.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="viz-reset-keys-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="viz-reset-keys-details" class="operation-details"><summary>VIZ: сброс ключей — опасная операция</summary><form id="viz-reset-keys-form" class="stacked-form"><fieldset>
           <legend><span id="viz-manage-reset-keys">VIZ: сброс ключей</span></legend>
           <p class="notice">Опасная операция: заменяет master/active/regular/memo authority одним новым ключом каждого типа. Owner/master WIF используется только в памяти; private WIF не попадает в preview/result.</p>
           <div class="field"><label for="viz-reset-account">Аккаунт для сброса</label><input id="viz-reset-account" name="account" type="text" value="${escapeHtml(auth.getCurrentLogin(chain) || '')}" required></div>
@@ -5716,9 +5716,9 @@
           <button type="submit" name="intent" value="preview">Проверить сброс ключей</button><button type="submit" name="intent" value="send">Сбросить ключи в сети</button>
           <div id="viz-reset-generated" class="operation-result" role="status" aria-live="polite">Ключи ещё не сгенерированы.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
+        </fieldset></form></details>
         <section id="viz-manage-many-invites" aria-labelledby="viz-many-invites-title"><h3 id="viz-many-invites-title">Множество инвайтов (чеков)</h3></section>
-        <form id="viz-many-invites-form" class="stacked-form"><fieldset>
+        <details id="viz-many-invites-details" class="operation-details"><summary>VIZ: множество инвайтов — secrets и preview</summary><form id="viz-many-invites-form" class="stacked-form"><fieldset>
           <legend>VIZ: batch create/use/claim invites</legend>
           <p class="notice">Генерация invite secret выполняется локально через crypto.getRandomValues. Preview create_invite содержит только публичные invite_key; секреты скачиваются отдельным backup.</p>
           <div class="field"><label for="viz-many-invites-mode">Режим</label><select id="viz-many-invites-mode" name="mode"><option value="create">создать много чеков</option><option value="use">использовать в SHARES</option><option value="claim">получить на баланс VIZ</option></select></div>
@@ -5730,23 +5730,23 @@
           <button type="submit" name="intent" value="preview">Проверить batch invite</button><button type="submit" name="intent" value="send">Отправить batch invite</button>
           <div id="viz-many-invites-result" class="operation-result" role="status" aria-live="polite">Secrets не отображаются в preview; скачайте backup после генерации.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="viz-create-invite-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="viz-create-invite-details" class="operation-details"><summary>VIZ: создать один invite — preview</summary><form id="viz-create-invite-form" class="stacked-form"><fieldset>
           <legend>VIZ: создание одного invite</legend>
           <div class="field"><label for="viz-invite-balance">Баланс инвайта</label><input id="viz-invite-balance" name="balance" type="text" required placeholder="1.000 VIZ"></div>
           <div class="field"><label for="viz-invite-public">Публичный ключ invite</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
           <button type="submit" name="intent" value="preview">Проверить create_invite</button><button type="submit" name="intent" value="send">Создать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="viz-use-invite-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="viz-use-invite-details" class="operation-details"><summary>VIZ: use/claim invite balance — secret only in form</summary><form id="viz-use-invite-form" class="stacked-form"><fieldset>
           <legend>VIZ: использование/получение invite balance</legend>
           <div class="field"><label for="viz-use-invite-secret">Секрет invite</label><input id="viz-use-invite-secret" name="secret" type="text" required></div>
           <div class="field"><label for="viz-use-invite-receiver">Получатель</label><input id="viz-use-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
           <label class="inline-choice"><input name="toVesting" type="checkbox" checked> use_invite_balance в SHARES; иначе claim_invite_balance в VIZ</label>
           <button type="submit" name="intent" value="preview">Проверить invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="viz-committee-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="viz-committee-details" class="operation-details"><summary>VIZ committee — create/vote preview</summary><form id="viz-committee-form" class="stacked-form"><fieldset>
           <legend><span id="viz-manage-workers">VIZ committee: заявка воркера / голос</span></legend>
           <div class="field"><label for="viz-committee-mode">Режим</label><select id="viz-committee-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
           <div class="field"><label for="viz-committee-id">ID запроса для голоса</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
@@ -5758,9 +5758,9 @@
           <div class="field"><label for="viz-committee-vote">Процент голоса</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
           <button type="submit" name="intent" value="preview">Проверить committee</button><button type="submit" name="intent" value="send">Отправить committee в сеть</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
+        </fieldset></form></details>
         <section id="viz-manage-multisig" aria-labelledby="viz-multisig-title"><h3 id="viz-multisig-title">Мультисиг</h3><p class="notice">Legacy multisig подписывал JSON-транзакции client-side и отправлял signed transaction через публичную ноду. В v3 доступны static-safe helpers: настройка account auths через accountUpdate и отправка заранее подписанной transaction JSON без хранения WIF.</p></section>
-        <form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
+        <details id="viz-multisig-authority-details" class="operation-details"><summary>VIZ multisig authority — проверить accountUpdate</summary><form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
           <legend>VIZ multisig authority</legend>
           <div class="field"><label for="viz-multisig-owner-wif">Active WIF текущего аккаунта</label><input id="viz-multisig-owner-wif" name="activeWif" type="password" autocomplete="off" required></div>
           <div class="field"><label for="viz-multisig-kind">Authority</label><select id="viz-multisig-kind" name="kind"><option value="regular">regular</option><option value="active">active</option></select></div>
@@ -5768,13 +5768,13 @@
           <div class="field"><label for="viz-multisig-auths">Account auths account=weight, по одному на строку</label><textarea id="viz-multisig-auths" name="accountAuths" rows="4" placeholder="alice=1&#10;bob=1"></textarea></div>
           <button type="submit" name="intent" value="preview">Проверить multisig accountUpdate</button><button type="submit" name="intent" value="send">Отправить multisig accountUpdate</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        <form id="viz-multisig-signed-tx-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        <details id="viz-multisig-signed-tx-details" class="operation-details"><summary>VIZ signed transaction — проверить JSON перед broadcast</summary><form id="viz-multisig-signed-tx-form" class="stacked-form"><fieldset>
           <legend>VIZ signed transaction submit</legend>
           <div class="field"><label for="viz-multisig-signed-json">Signed transaction JSON</label><textarea id="viz-multisig-signed-json" name="signedTx" rows="6" required></textarea></div>
           <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>` : ''}
+        </fieldset></form></details>` : ''}
       </section>`;
 
     bindOperationForm(chain, 'manage-proxy-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessProxy', [
@@ -7223,7 +7223,7 @@ Memo key: ${keys.memo}`);
         ${isGolos || isViz ? `<p>Регистрация по invite: WIF подписанта используется только в памяти для отправки и не сохраняется. Для ${escapeHtml(chain.title)} нужен приватный WIF service/invite аккаунта с правом регистрации.</p>` : '<p>Для Hive/Steem укажите fee/delegation и публичные ключи нового аккаунта. Операция отправляется только после подтверждения текущим active key.</p>'}
         ${isGolos ? '<p class="notice">Для Golos также доступно создание аккаунта с делегированием. Вводится только публичный ключ нового аккаунта; приватные ключи не генерируются и не показываются.</p>' : ''}
         ${isViz ? '<p class="notice">Legacy VIZ registration восстановлен безопаснее: приватный WIF нового аккаунта генерируется локально, хранится только в памяти страницы, показывается для копии/backup и не попадает в preview JSON.</p>' : ''}
-        <form id="register-form" class="stacked-form"><fieldset>
+        <details id="register-form-details" class="operation-details"><summary>Создание аккаунта — проверить перед отправкой</summary><form id="register-form" class="stacked-form"><fieldset>
           <legend>Создание аккаунта</legend>
           <div class="field"><label for="register-name">Новый аккаунт</label><input id="register-name" name="name" type="text" required></div>
           ${isViz ? '<button type="button" id="viz-register-check-name">Проверить доступность имени</button><div id="viz-register-name-status" class="muted" role="status" aria-live="polite"></div>' : ''}
@@ -7245,8 +7245,8 @@ Memo key: ${keys.memo}`);
           <button type="submit" name="intent" value="preview">Проверить регистрацию</button>
           <button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
-        ${isGolos ? `<form id="golos-register-delegation-form" class="stacked-form"><fieldset>
+        </fieldset></form></details>
+        ${isGolos ? `<details id="golos-register-delegation-details" class="operation-details"><summary>Golos: создание с делегированием — preview перед отправкой</summary><form id="golos-register-delegation-form" class="stacked-form"><fieldset>
           <legend>Golos: создание аккаунта с делегированием</legend>
           <div class="field"><label for="golos-register-delegation-name">Новый аккаунт</label><input id="golos-register-delegation-name" name="name" type="text" required></div>
           <div class="field"><label for="golos-register-delegation-fee">Комиссия</label><input id="golos-register-delegation-fee" name="fee" type="text" required value="1.000 GOLOS"></div>
@@ -7255,7 +7255,7 @@ Memo key: ${keys.memo}`);
           <button type="submit" name="intent" value="preview">Проверить создание с делегированием</button>
           <button type="submit" name="intent" value="send">Создать с делегированием в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>` : ''}
+        </fieldset></form></details>` : ''}
       </section>`;
 
     let vizRegistrationKey = null;
