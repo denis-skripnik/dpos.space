@@ -35,6 +35,23 @@ assert(appSource.includes('id="viz-manage-nav"'), 'VIZ manage exposes legacy sub
 ].forEach((marker) => assert(appSource.includes(marker), `VIZ manage form/control exists: ${marker}`));
 
 [
+  'manage-proxy-details',
+  'manage-witness-details',
+  'manage-witnesses-batch-details',
+  'manage-witness-update-details',
+  'manage-authority-details',
+  'manage-profile-details',
+  'viz-create-account-details',
+  'viz-reset-keys-details',
+  'viz-many-invites-details',
+  'viz-create-invite-details',
+  'viz-use-invite-details',
+  'viz-committee-details',
+  'viz-multisig-authority-details',
+  'viz-multisig-signed-tx-details'
+].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-details"`), `VIZ manage wraps dangerous form in details: ${marker}`));
+
+[
   'accountMetadata',
   'accountWitnessProxy',
   'accountWitnessVote',

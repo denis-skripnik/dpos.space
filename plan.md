@@ -4401,3 +4401,31 @@ Remaining gaps/non-goals:
 - Non-wallet manage/registration/editor/swap/broadcast operation forms still need a later focused UX pass for spoilers, safe presets/quick actions, and any table/card prefill opportunities.
 - No wallet forms were touched.
 - No backend/indexer-only legacy behavior was reintroduced; list/catalog/result aggregation that required private PHP/indexers remains documented static-only non-goal.
+
+### UX polish: Manage and registration forms
+
+Scope: bounded second pass over non-wallet operation forms, limited to Graphene manage and registration-like forms. Static-safe only: no backend service, PHP runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Existing form ids/classes and broadcast bindings are preserved; wallet forms are intentionally untouched.
+
+Files inspected:
+- v3 source: `v3/js/app.js` shared `renderManage`, `renderRegister`, manage prefill/load helpers, `v3/js/chains.js` route inventory, `v3/js/broadcast.js` operation preparation/sanitizer behavior, `v3/js/profiles.js` account/public RPC helpers.
+- Focused tests: `tests/v3-viz-manage-smoke.js`, `tests/v3-golos-manage-smoke.js`, `tests/v3-steem-manage-smoke.js`, `tests/v3-hive-manage-smoke.js`, `tests/v3-viz-registration-smoke.js`.
+- Existing parity evidence remains in `### Rigorous parity: VIZ / manage`, `### Rigorous parity: Golos / manage`, `### Rigorous parity: Steem / manage`, `### Rigorous parity: Hive / manage`, and the registration/auth broadcast notes above.
+
+Matrix:
+| Chain/app/form | Current UX evidence before this pass | Fix/non-goal | Test |
+| --- | --- | --- | --- |
+| VIZ/Golos/Steem/Hive / manage / shared proxy, witness vote, batch witness vote, witness update, authority, profile forms | Shared `renderManage` forms already had labels, preview/check buttons before send buttons, `role="status" aria-live="polite"`, public-RPC preload buttons for witness/profile data where available, and sanitized broadcast previews. They were displayed directly in the page, so dangerous/broadcast-like controls were not visually collapsed. | Wrapped each shared broadcast form in `<details class="operation-details">` with accessible summaries. Profile remains open by default because it is the least dangerous common manage action, while still keeping the same preview-before-send pattern. No backend/indexer behavior added. | `tests/v3-viz-manage-smoke.js`, `tests/v3-golos-manage-smoke.js`, `tests/v3-steem-manage-smoke.js`, and `tests/v3-hive-manage-smoke.js` assert details wrappers and existing operation coverage. |
+| VIZ / manage / witness props, account/subaccount create, key reset, many invites, single invite, invite use/claim, committee, multisig authority, signed transaction submit | VIZ manage already exposed explicit preview/send controls, local key/secret generation and backup buttons, memory-only WIF warnings, and operation result live regions. Dangerous forms were visible directly after navigation anchors. | Wrapped each VIZ-only operation form in `<details class="operation-details">` with summaries that describe the action and risk before the preserved form. No private keys/secrets are added to preview or storage; backend/indexer-only legacy helpers remain non-goals. | `tests/v3-viz-manage-smoke.js` asserts `viz-*-details` wrappers and existing VIZ manage markers. |
+| Golos / manage / account create, key reset, follow, workers, witness props | Golos manage already had local key generation/backup confirmation, public RPC load buttons for following/workers/witnesses, preview/send buttons, and live status regions. Forms were visible directly. | Wrapped Golos-only broadcast forms in `<details class="operation-details">`; preserved safe load/prefill buttons and existing no-backend stance for donates/aggregations. | `tests/v3-golos-manage-smoke.js` asserts `manage-*-details` wrappers and existing Golos operation markers. |
+| VIZ/Golos/Steem/Hive / registration / account create form | `renderRegister` supports VIZ invite registration, Golos invite registration, and Hive/Steem account create paths with preview before send. VIZ already has local key generation, copy/download backup, account availability check, and saved-key gating. The main create form was displayed directly. | Wrapped the main registration form in `<details class="operation-details">`. This keeps check/preview/send order, labels, and live statuses while reducing accidental send risk. | `tests/v3-viz-registration-smoke.js` asserts `register-form-details` plus existing VIZ registration safety markers. |
+| Golos / registration / account creation with delegation | The optional Golos delegation form already used preview/send and explicit public-key input, with no generated private-key storage. It was displayed directly. | Wrapped it in `<details class="operation-details">`; no new backend or key-generation flow added. | `tests/v3-viz-registration-smoke.js` asserts the source marker `golos-register-delegation-details`; broad Golos registration/auth tests continue to cover behavior. |
+
+Validation plan:
+- RED confirmed before implementation with `node tests/v3-viz-manage-smoke.js` failing on missing `manage-proxy-details`.
+- Focused gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-viz-manage-smoke.js && node tests/v3-golos-manage-smoke.js && node tests/v3-steem-manage-smoke.js && node tests/v3-hive-manage-smoke.js && node tests/v3-viz-registration-smoke.js && git diff --check`.
+- Broad gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- No wallet forms were touched.
+- No backend/indexer-only registration or manage behavior is reintroduced. Legacy private PHP/indexer flows remain documented non-goals.
+- Editor/swap/broadcast non-wallet forms remain candidates for the next focused UX-polish block.
