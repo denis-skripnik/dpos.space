@@ -365,6 +365,45 @@ summary {
   margin-right: 0.35rem;
 }
 
+.witness-choice-grid,
+.request-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.witness-choice,
+.request-card,
+.request-detail-page {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  background: rgba(127, 127, 127, 0.04);
+}
+
+.witness-choice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-weight: 400;
+}
+
+.witness-choice input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  margin-top: 0.25rem;
+}
+
+.request-card h4 {
+  margin-top: 0;
+}
+
+.request-detail-page[hidden] {
+  display: none;
+}
+
 fieldset {
   border: 1px solid var(--border);
   border-radius: 0.5rem;

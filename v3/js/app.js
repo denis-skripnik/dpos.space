@@ -1758,44 +1758,220 @@
   async function loadGolosWorkerRequests(chain) {
     if (chain.id !== 'golos') return;
     const result = document.getElementById('manage-workers-result');
+    const activeList = document.getElementById('manage-workers-active-list');
+    const historyList = document.getElementById('manage-workers-history-list');
     try {
       if (result) result.textContent = 'Загружаю worker requests через getWorkerRequests...';
       const connection = await getConnection(chain);
       const states = ['created', 'payment', 'payment_complete', 'closed_by_author', 'closed_by_expiration', 'closed_by_voters'];
       const groups = [];
       for (const state of states) {
-        const query = { state, limit: 20 };
-        const rows = await profiles.apiCall(connection, 'getWorkerRequests', [query, 'by_created', true]).catch(() => []);
+        const modernQuery = state === 'created' ? { limit: 100, select_states: [state] } : { limit: 30, select_states: [state] };
+        const legacyQuery = { state, limit: state === 'created' ? 100 : 30 };
+        let rows = await profiles.apiCall(connection, 'getWorkerRequests', [modernQuery, 'by_created', true]).catch(() => []);
+        if (!Array.isArray(rows) || !rows.length) rows = await profiles.apiCall(connection, 'getWorkerRequests', [legacyQuery, 'by_created', true]).catch(() => []);
         groups.push([state, Array.isArray(rows) ? rows : []]);
       }
-      if (!result) return;
-      result.innerHTML = groups.map(([state, rows]) => `<details><summary>${escapeHtml(state)}: ${rows.length}</summary>${rows.length ? `<ul>${rows.map((row) => {
-        const author = row.author || row.creator || '';
-        const permlink = row.permlink || row.url || '';
-        return `<li><button type="button" data-worker-author="${escapeHtml(author)}" data-worker-permlink="${escapeHtml(permlink)}">выбрать для голоса</button> ${escapeHtml(author)}/${escapeHtml(permlink)} ${escapeHtml(row.worker || '')}</li>`;
-      }).join('')}</ul>` : '<p class="muted">Нет заявок.</p>'}</details>`).join('');
-      result.querySelectorAll('[data-worker-author]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const form = document.getElementById('manage-workers-form');
-          fillFormValue(form, 'mode', 'vote');
-          fillFormValue(form, 'author', button.dataset.workerAuthor || '');
-          fillFormValue(form, 'permlink', button.dataset.workerPermlink || '');
-          setStatus('Worker request выбран в форме голосования.', 'info');
+      const activeRows = groups.find(([state]) => state === 'created')?.[1] || [];
+      const historyRows = groups.filter(([state]) => state !== 'created');
+      if (activeList) activeList.innerHTML = activeRows.length ? activeRows.map((row) => renderGolosWorkerCard(row, true)).join('') : '<p class="muted">Активных заявок для голосования нет.</p>';
+      if (historyList) historyList.innerHTML = historyRows.map(([state, rows]) => `<details><summary>${escapeHtml(workerStateLabel(state))}: ${rows.length}</summary>${rows.length ? `<div class="request-list">${rows.map((row) => renderGolosWorkerCard(row, false)).join('')}</div>` : '<p class="muted">Нет заявок.</p>'}</details>`).join('');
+      const bindButtons = (root) => {
+        if (!root) return;
+        root.querySelectorAll('[data-worker-vote]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const form = document.getElementById('manage-workers-vote-form');
+            fillFormValue(form, 'author', button.dataset.workerVote || '');
+            fillFormValue(form, 'permlink', button.dataset.workerPermlink || '');
+            setStatus('Worker request выбран в форме голосования.', 'info');
+          });
         });
-      });
+        root.querySelectorAll('[data-worker-open]').forEach((button) => {
+          button.addEventListener('click', () => loadGolosWorkerRequestDetail(chain, button.dataset.workerOpen || '', button.dataset.workerPermlink || ''));
+        });
+      };
+      bindButtons(activeList);
+      bindButtons(historyList);
+      if (result) result.textContent = 'Worker requests загружены: активные заявки отдельно от истории.';
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
     }
   }
 
+  async function loadGolosWorkerRequestDetail(chain, author, permlink) {
+    if (chain.id !== 'golos') return;
+    const page = document.getElementById('manage-worker-detail-page');
+    if (!page) return;
+    try {
+      page.hidden = false;
+      page.innerHTML = '<p class="muted">Загружаю заявку и голоса...</p>';
+      const connection = await getConnection(chain);
+      const rows = await profiles.apiCall(connection, 'getWorkerRequests', [{ limit: 1, start_author: author, start_permlink: permlink }, 'by_created', true]);
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (!row) throw new Error('Заявка не найдена.');
+      const post = row.post || {};
+      const reqAuthor = post.author || row.author || author;
+      const reqPermlink = post.permlink || row.permlink || permlink;
+      const votes = await profiles.apiCall(connection, 'getWorkerRequestVotes', [reqAuthor, reqPermlink, '', 100]).catch(() => []);
+      const voteHtml = Array.isArray(votes) && votes.length ? `<ol>${votes.map((vote) => `<li>${accountLink(chain, vote.voter)} — ${escapeHtml((Number(vote.vote_percent || 0) / 100).toString())}%</li>`).join('')}</ol>` : '<p class="muted">Голоса не найдены или RPC их не вернул.</p>';
+      page.innerHTML = `<article class="request-detail"><button type="button" id="manage-worker-detail-back">← Вернуться к управлению</button><h3>${escapeHtml(requestTitle(row))}</h3><dl class="kv-list"><div><dt>Статус</dt><dd>${escapeHtml(workerStateLabel(row.state))}</dd></div><div><dt>Автор</dt><dd>${accountLink(chain, reqAuthor)}</dd></div><div><dt>Воркер</dt><dd>${accountLink(chain, row.worker)}</dd></div><div><dt>Ссылка</dt><dd>${post.url ? `<a href="${escapeHtml(post.url)}" target="_blank" rel="noopener">${escapeHtml(post.url)}</a>` : `${escapeHtml(reqAuthor)}/${escapeHtml(reqPermlink)}`}</dd></div><div><dt>Мин/макс</dt><dd>${escapeHtml(row.required_amount_min || '')} — ${escapeHtml(row.required_amount_max || '')}</dd></div><div><dt>Длительность</dt><dd>${escapeHtml(row.duration ? `${Number(row.duration) / 86400} дней` : '')}</dd></div></dl><h4>Голоса за заявку</h4>${voteHtml}</article>`;
+      const back = document.getElementById('manage-worker-detail-back');
+      if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
+    } catch (error) {
+      page.innerHTML = `<p class="error">${escapeHtml(profiles.formatError(error))}</p><button type="button" id="manage-worker-detail-back">← Вернуться к управлению</button>`;
+      const back = document.getElementById('manage-worker-detail-back');
+      if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
+    }
+  }
+
+  async function loadVizCommitteeRequests(chain) {
+    if (chain.id !== 'viz') return;
+    const result = document.getElementById('viz-committee-result');
+    const activeList = document.getElementById('viz-committee-active-list');
+    const historyList = document.getElementById('viz-committee-history-list');
+    try {
+      if (result) result.textContent = 'Загружаю заявки фонда развития через публичный RPC...';
+      const connection = await getConnection(chain);
+      const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []).catch(() => ({}));
+      if (result && props.committee_fund) result.textContent = `Фонд развития: ${props.committee_fund}`;
+      const latestId = Number(props.committee_requests || props.committee_requests_count || props.committee_request_count || 0);
+      const ids = latestId ? Array.from({ length: Math.min(latestId, 100) }, (_, index) => latestId - index).filter((id) => id > 0) : Array.from({ length: 50 }, (_, index) => index + 1);
+      const rows = [];
+      for (const id of ids) {
+        const row = await profiles.apiCall(connection, 'getCommitteeRequest', [id, 20]).catch(() => null);
+        if (row && (row.request_id !== undefined || row.id !== undefined || row.worker)) rows.push(row);
+      }
+      const activeRows = rows.filter((row) => Number(row.status ?? row.state) === 0);
+      const historyRows = rows.filter((row) => Number(row.status ?? row.state) !== 0);
+      if (activeList) activeList.innerHTML = activeRows.length ? activeRows.map((row) => renderVizCommitteeCard(row, true)).join('') : '<p class="muted">Активных заявок фонда развития нет.</p>';
+      if (historyList) historyList.innerHTML = historyRows.length ? historyRows.map((row) => renderVizCommitteeCard(row, false)).join('') : '<p class="muted">История заявок не загружена или пуста.</p>';
+      const bindButtons = (root) => {
+        if (!root) return;
+        root.querySelectorAll('[data-viz-committee-vote]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const form = document.getElementById('viz-committee-vote-form');
+            fillFormValue(form, 'requestId', button.dataset.vizCommitteeVote || '');
+            setStatus('Заявка фонда развития выбрана в форме голосования.', 'info');
+          });
+        });
+        root.querySelectorAll('[data-viz-committee-open]').forEach((button) => {
+          button.addEventListener('click', () => loadVizCommitteeRequestDetail(chain, button.dataset.vizCommitteeOpen || ''));
+        });
+      };
+      bindButtons(activeList);
+      bindButtons(historyList);
+    } catch (error) {
+      if (result) result.textContent = profiles.formatError(error);
+    }
+  }
+
+  async function loadVizCommitteeRequestDetail(chain, requestId) {
+    if (chain.id !== 'viz') return;
+    const page = document.getElementById('viz-committee-detail-page');
+    if (!page) return;
+    try {
+      page.hidden = false;
+      page.innerHTML = '<p class="muted">Загружаю заявку фонда развития...</p>';
+      const connection = await getConnection(chain);
+      const row = await profiles.apiCall(connection, 'getCommitteeRequest', [Number(requestId), 100]);
+      if (!row) throw new Error('Заявка не найдена.');
+      const votes = Array.isArray(row.votes) ? row.votes : [];
+      const voteHtml = votes.length ? `<ol>${votes.map((vote) => `<li>${escapeHtml(vote.time ? history.formatDate(vote.time) : '')} ${accountLink(chain, vote.voter)} — ${escapeHtml((Number(vote.vote_percent || 0) / 100).toString())}%</li>`).join('')}</ol>` : '<p class="muted">Голоса не найдены или RPC их не вернул.</p>';
+      page.innerHTML = `<article class="request-detail"><button type="button" id="viz-committee-detail-back">← Вернуться к управлению</button><h3>Заявка №${escapeHtml(row.request_id ?? requestId)}</h3><dl class="kv-list"><div><dt>Статус</dt><dd>${escapeHtml(workerStateLabel(row.status ?? row.state))}</dd></div><div><dt>Создатель</dt><dd>${accountLink(chain, row.creator)}</dd></div><div><dt>Воркер</dt><dd>${accountLink(chain, row.worker)}</dd></div><div><dt>URL</dt><dd>${row.url ? `<a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(row.url)}</a>` : ''}</dd></div><div><dt>Мин/макс</dt><dd>${escapeHtml(row.required_amount_min || '')} — ${escapeHtml(row.required_amount_max || '')}</dd></div></dl><h4>Голоса за заявку</h4>${voteHtml}</article>`;
+      const back = document.getElementById('viz-committee-detail-back');
+      if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
+    } catch (error) {
+      page.innerHTML = `<p class="error">${escapeHtml(profiles.formatError(error))}</p><button type="button" id="viz-committee-detail-back">← Вернуться к управлению</button>`;
+      const back = document.getElementById('viz-committee-detail-back');
+      if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
+    }
+  }
+
   function parseGolosWorkerPostUrl(rawUrl) {
     const text = String(rawUrl || '').trim();
-    const match = text.match(/@([a-z0-9.-])\/([^/?#])/i);
+    const match = text.match(/@([a-z0-9.-]+)\/([^/?#]+)/i);
     if (!match) throw new Error('URL заявки должен содержать @author/permlink.');
     return { author: match[1], permlink: match[2] };
   }
 
+  function manageNullSigningKey(chain) {
+    if (chain.id === 'golos') return 'GOLOS1111111111111111111111111111111114T1Anm';
+    if (chain.id === 'viz') return 'VIZ1111111111111111111111111111111114T1Anm';
+    if (chain.id === 'hive') return 'HIVE1111111111111111111111111111111114T1Anm';
+    if (chain.id === 'steem') return 'STM1111111111111111111111111111111114T1Anm';
+    return '';
+  }
+
+  function manageDeactivateSigningKey(chain) {
+    if (chain.id === 'golos') return 'GLS1111111111111111111111111111111114T1Anm';
+    return manageNullSigningKey(chain);
+  }
+
+  function isManageWitnessActive(chain, witness) {
+    const key = String((witness && (witness.signing_key || witness.signingKey)) || '');
+    const nullKey = manageNullSigningKey(chain);
+    return Boolean(key && (!nullKey || key !== nullKey));
+  }
+
+  function witnessUrlLabel(chain, url) {
+    const text = String(url || '');
+    if (!text) return '';
+    if (chain.id === 'golos' && /golos\.(id|in|today)/i.test(text)) return 'пост';
+    if (chain.id === 'viz' && /(control\.)?viz\.world\/media/i.test(text)) return 'пост';
+    return 'сайт';
+  }
+
+  function renderWitnessChoice(chain, witness, state) {
+    const owner = (witness && (witness.owner || witness[0])) || '';
+    if (!owner) return '';
+    const url = (witness && witness.url) || '';
+    const active = isManageWitnessActive(chain, witness);
+    const checked = state.currentVotes.has(owner) ? 'checked' : '';
+    const status = active ? 'активный делегат' : 'неактивный делегат';
+    const urlHtml = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(witnessUrlLabel(chain, url))}</a>` : '<span class="muted">без URL</span>';
+    return `<label class="witness-choice"><input type="checkbox" data-witness-vote="${escapeHtml(owner)}" ${checked}> <span><strong>${escapeHtml(owner)}</strong><br><span class="muted">${status}; ${urlHtml}; ${accountLink(chain, owner)}; ${explorerLink(chain, 'account', owner, 'Параметры')}</span></span></label>`;
+  }
+
+  function workerStateLabel(state) {
+    return {
+      created: 'Голосование',
+      payment: 'Выплачивается',
+      payment_complete: 'Выплачено',
+      closed_by_author: 'Отменено автором',
+      closed_by_expiration: 'Отменена по времени',
+      closed_by_voters: 'Отменена голосами',
+      0: 'ожидает голосования',
+      1: 'отменена заявителем',
+      2: 'не набрала доли голосов',
+      3: 'не набрала минимальную сумму',
+      4: 'одобрена и выплачивается',
+      5: 'выплаты завершены'
+    }[state] || String(state || 'неизвестно');
+  }
+
+  function requestTitle(row) {
+    const post = row && row.post;
+    return (post && post.title) || row.title || row.url || row.permlink || (post && post.permlink) || `Заявка ${row.request_id ?? row.id ?? ''}`;
+  }
+
+  function renderGolosWorkerCard(row, active) {
+    const post = row.post || {};
+    const author = post.author || row.author || row.creator || '';
+    const permlink = post.permlink || row.permlink || row.url || '';
+    const worker = row.worker || '';
+    const title = requestTitle(row);
+    const end = row.created && row.duration ? history.formatDate(new Date(Date.parse(row.created) + Number(row.duration) * 1000).toISOString()) : '';
+    return `<article class="request-card"><h4><button type="button" data-worker-open="${escapeHtml(author)}" data-worker-permlink="${escapeHtml(permlink)}">${escapeHtml(title)}</button></h4><p>${accountLink({ id: 'golos' }, author)} → ${accountLink({ id: 'golos' }, worker)}<br><span class="muted">${escapeHtml(workerStateLabel(row.state))}${end ? `; до ${escapeHtml(end)}` : ''}</span></p>${active ? `<button type="button" data-worker-vote="${escapeHtml(author)}" data-worker-permlink="${escapeHtml(permlink)}">Голосовать за эту заявку</button>` : ''}</article>`;
+  }
+
+  function renderVizCommitteeCard(row, active) {
+    const requestId = row.request_id ?? row.id ?? row[0] ?? '';
+    const title = requestTitle(row);
+    return `<article class="request-card"><h4><button type="button" data-viz-committee-open="${escapeHtml(requestId)}">№${escapeHtml(requestId)} — ${escapeHtml(title)}</button></h4><p>${accountLink({ id: 'viz' }, row.creator)} → ${accountLink({ id: 'viz' }, row.worker)}<br><span class="muted">${escapeHtml(workerStateLabel(row.status ?? row.state))}</span></p>${active ? `<button type="button" data-viz-committee-vote="${escapeHtml(requestId)}">Голосовать за эту заявку</button>` : ''}</article>`;
+  }
+
   async function loadWitnessVoteList(chain, state) {
+    // Legacy inactive witness null keys: HIVE1111111111111111111111111111111114T1Anm, STM1111111111111111111111111111111114T1Anm.
     if (chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem') return;
     const result = document.getElementById('manage-witnesses-result');
     try {
@@ -1811,15 +1987,16 @@
         if (!Array.isArray(chunk) || !chunk.length) break;
         chunk.forEach((row) => {
           const owner = row.owner || row[0] || '';
-          if (owner && owner !== from) witnesses.push(owner);
+          if (owner && owner !== from) witnesses.push(row);
         });
-        const last = witnesses[witnesses.length - 1];
+        const lastRow = witnesses[witnesses.length - 1] || {};
+        const last = lastRow.owner || lastRow[0] || '';
         if (!last || last === from || chunk.length < 100) break;
         from = last;
       }
       if (!result) return;
       const proxyNotice = state.proxy ? `<p class="notice">У аккаунта установлен proxy <strong>${escapeHtml(state.proxy)}</strong>. Ручное witness voting конфликтует с proxy; сначала снимите proxy, если нужно голосовать вручную.</p>` : '';
-      result.innerHTML = `${proxyNotice}<fieldset><legend>Делегаты</legend>${witnesses.map((name) => `<label class="inline-choice"><input type="checkbox" data-witness-vote="${escapeHtml(name)}" ${state.currentVotes.has(name) ? 'checked' : ''}> ${escapeHtml(name)}</label>`).join('')}</fieldset>`;
+      result.innerHTML = `${proxyNotice}<fieldset><legend>Делегаты</legend><div class="witness-choice-grid">${witnesses.map((row) => renderWitnessChoice(chain, row, state)).join('')}</div></fieldset>`;
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
     }
@@ -5819,21 +5996,20 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>` : ''}
-        <details id="manage-witness-update-details" class="operation-details"><summary>Настройки witness — preview перед обновлением</summary><form id="manage-witness-update-form" class="stacked-form">
+        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — preview перед обновлением</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
-            <legend><span id="viz-manage-witness">Настройки / активация witness</span></legend>
-            <p class="muted">Настройки witness: URL, публичный signing key и параметры. Пустые параметры будут обработаны библиотекой или нодой, если это поддерживается.</p>
-            <div class="field"><label for="manage-witness-url">URL witness</label><input id="manage-witness-url" name="url" type="url" required></div>
+            <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
+            <p class="muted">Отдельная операция для URL и публичного signing key. Оставьте signing key пустым, чтобы деактивировать witness через null-key сети.</p>
+            <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" required></div>
             <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" placeholder="пусто = деактивировать witness"></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
-            <div class="field"><label for="manage-witness-props">Props JSON (опционально)</label><textarea id="manage-witness-props" name="props" rows="4" placeholder='{"account_creation_fee":"3.000 ${escapeHtml(chain.liquidSymbol)}"}'></textarea></div>
             ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие witness настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
-            <button type="submit" name="intent" value="preview">Проверить обновление witness</button>
-            <button type="submit" name="intent" value="send">Обновить witness в сети</button>
+            <button type="submit" name="intent" value="preview">Проверить активацию / деактивацию</button>
+            <button type="submit" name="intent" value="send">Сохранить активацию / деактивацию</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>VIZ witness props — опасная операция</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
+        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — опасная операция</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
           <legend>VIZ witness props / versionedChainPropertiesUpdate</legend>
           <p class="notice">Опасная операция witness: меняет chain properties VIZ. Legacy строил props из getWitnessByAccount; v3 принимает явный JSON preview перед отправкой.</p>
           <div class="field"><label for="viz-witness-props-json">Props JSON</label><textarea id="viz-witness-props-json" name="props" rows="5" required placeholder='{"account_creation_fee":"10.000 VIZ"}'></textarea></div>
@@ -5924,29 +6100,47 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-workers-details" class="operation-details"><summary>Golos workers — create/vote preview</summary><form id="manage-workers-form" class="stacked-form">
-          <fieldset>
-            <legend>Golos workers / комитет</legend>
-            <p class="muted">Static-safe перенос legacy workers: создание worker_request и голос worker_request_vote через posting key.</p>
-            <div class="field"><label for="manage-workers-mode">Режим</label><select id="manage-workers-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
-            <div class="field"><label for="manage-workers-url">URL поста заявки</label><input id="manage-workers-url" name="request_url" type="url" placeholder="https://.../@author/permlink"></div>
-            <div class="field"><label for="manage-workers-worker">Аккаунт воркера</label><input id="manage-workers-worker" name="worker" type="text" autocomplete="off"></div>
-            <div class="field"><label for="manage-workers-min">Минимальная сумма</label><input id="manage-workers-min" name="min" type="text" placeholder="1.000 GOLOS"></div>
-            <div class="field"><label for="manage-workers-max">Максимальная сумма</label><input id="manage-workers-max" name="max" type="text" placeholder="2.000 GOLOS"></div>
-            <div class="field"><label for="manage-workers-token">Токен</label><select id="manage-workers-token" name="token"><option value="GOLOS">GOLOS</option><option value="GBG">GBG</option></select></div>
-            <div class="field"><label for="manage-workers-days">Длительность, дней</label><input id="manage-workers-days" name="days" type="number" min="5" max="30" step="1" value="5"></div>
-            <label class="inline-choice"><input id="manage-workers-vest-reward" name="vest_reward" type="checkbox"> награда в СГ / vest_reward</label>
-            <div class="field"><label for="manage-workers-author">Автор заявки для голоса</label><input id="manage-workers-author" name="author" type="text" autocomplete="off"></div>
-            <div class="field"><label for="manage-workers-permlink">Permlink заявки для голоса</label><input id="manage-workers-permlink" name="permlink" type="text"></div>
-            <div class="field"><label for="manage-workers-percent">Процент голоса</label><input id="manage-workers-percent" name="percent" type="number" min="-100" max="100" step="1" value="100"></div>
-            <button type="submit" name="intent" value="preview">Проверить workers operation</button>
-            <button type="submit" name="intent" value="send">Отправить workers operation</button>
+        <details id="manage-workers-details" class="operation-details"><summary>Golos workers — заявки, голосование и создание</summary>
+          <section id="manage-workers-vote-section" aria-labelledby="manage-workers-vote-title">
+            <h3 id="manage-workers-vote-title">Голосовать за воркеров</h3>
+            <p class="muted">Активные заявки подгружаются через публичный RPC. Откройте заявку без модального окна, чтобы увидеть детали и голоса.</p>
             <button type="button" id="manage-workers-load">Показать worker requests</button>
             <div id="manage-workers-result" class="operation-result" role="status" aria-live="polite"></div>
-            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset>
-        </form></details>
-        <details id="manage-witness-props-details" class="operation-details"><summary>Golos witness props — опасная операция</summary><form id="manage-witness-props-form" class="stacked-form">
+            <div id="manage-workers-active-list" class="request-list" aria-live="polite"></div>
+            <div id="manage-worker-detail-page" class="request-detail-page" hidden></div>
+            <form id="manage-workers-vote-form" class="stacked-form"><fieldset>
+              <legend>Голосование за заявку</legend>
+              <div class="field"><label for="manage-workers-author">Автор заявки</label><input id="manage-workers-author" name="author" type="text" autocomplete="off" required></div>
+              <div class="field"><label for="manage-workers-permlink">Permlink заявки</label><input id="manage-workers-permlink" name="permlink" type="text" required></div>
+              <div class="field"><label for="manage-workers-percent">Процент голоса</label><input id="manage-workers-percent" name="percent" type="number" min="-100" max="100" step="1" value="100"></div>
+              <button type="submit" name="intent" value="preview">Проверить worker vote</button>
+              <button type="submit" name="intent" value="send">Отправить worker vote</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset></form>
+          </section>
+          <section id="manage-workers-history-section" aria-labelledby="manage-workers-history-title">
+            <h3 id="manage-workers-history-title">История заявок</h3>
+            <div id="manage-workers-history-list" class="request-list"></div>
+          </section>
+          <section id="manage-workers-create-section" aria-labelledby="manage-workers-create-title">
+            <h3 id="manage-workers-create-title">Создать заявку</h3>
+            <form id="manage-workers-create-form" class="stacked-form"><fieldset>
+              <legend>Новая worker request</legend>
+              <p class="muted">Static-safe перенос legacy workers: создание worker_request через posting key.</p>
+              <div class="field"><label for="manage-workers-url">URL поста заявки</label><input id="manage-workers-url" name="request_url" type="url" placeholder="https://.../@author/permlink" required></div>
+              <div class="field"><label for="manage-workers-worker">Аккаунт воркера</label><input id="manage-workers-worker" name="worker" type="text" autocomplete="off" required></div>
+              <div class="field"><label for="manage-workers-min">Минимальная сумма</label><input id="manage-workers-min" name="min" type="text" placeholder="1.000 GOLOS" required></div>
+              <div class="field"><label for="manage-workers-max">Максимальная сумма</label><input id="manage-workers-max" name="max" type="text" placeholder="2.000 GOLOS" required></div>
+              <div class="field"><label for="manage-workers-token">Токен</label><select id="manage-workers-token" name="token"><option value="GOLOS">GOLOS</option><option value="GBG">GBG</option></select></div>
+              <div class="field"><label for="manage-workers-days">Длительность, дней</label><input id="manage-workers-days" name="days" type="number" min="5" max="30" step="1" value="5"></div>
+              <label class="inline-choice"><input id="manage-workers-vest-reward" name="vest_reward" type="checkbox"> награда в СГ / vest_reward</label>
+              <button type="submit" name="intent" value="preview">Проверить создание worker request</button>
+              <button type="submit" name="intent" value="send">Создать worker request</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset></form>
+          </section>
+        </details>
+        <details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — опасная операция</summary><form id="manage-witness-props-form" class="stacked-form">
           <fieldset>
             <legend>Golos witness props / chain_properties_update</legend>
             <p class="notice">Опасная операция witness: меняет chain properties. Проверьте JSON вручную.</p>
@@ -6011,19 +6205,39 @@
           <button type="submit" name="intent" value="preview">Проверить invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-committee-details" class="operation-details"><summary>VIZ committee — create/vote preview</summary><form id="viz-committee-form" class="stacked-form"><fieldset>
-          <legend><span id="viz-manage-workers">VIZ committee: заявка воркера / голос</span></legend>
-          <div class="field"><label for="viz-committee-mode">Режим</label><select id="viz-committee-mode" name="mode"><option value="create">создать заявку</option><option value="vote">голосовать за заявку</option></select></div>
-          <div class="field"><label for="viz-committee-id">ID запроса для голоса</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
-          <div class="field"><label for="viz-committee-url">URL</label><input id="viz-committee-url" name="url" type="url"></div>
-          <div class="field"><label for="viz-committee-worker">Воркер</label><input id="viz-committee-worker" name="worker" type="text"></div>
-          <div class="field"><label for="viz-committee-min">Минимальная награда</label><input id="viz-committee-min" name="min" type="text" placeholder="1.000 VIZ"></div>
-          <div class="field"><label for="viz-committee-max">Максимальная награда</label><input id="viz-committee-max" name="max" type="text" placeholder="2.000 VIZ"></div>
-          <div class="field"><label for="viz-committee-days">Длительность, дней</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
-          <div class="field"><label for="viz-committee-vote">Процент голоса</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
-          <button type="submit" name="intent" value="preview">Проверить committee</button><button type="submit" name="intent" value="send">Отправить committee в сеть</button>
-          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form></details>
+        <details id="viz-committee-details" class="operation-details"><summary>VIZ committee / фонд развития — заявки, голосование и создание</summary>
+          <section id="viz-committee-vote-section" aria-labelledby="viz-committee-vote-title">
+            <h3 id="viz-committee-vote-title"><span id="viz-manage-workers">Голосовать за заявки фонда развития</span></h3>
+            <button type="button" id="viz-committee-load">Показать заявки фонда развития</button>
+            <div id="viz-committee-result" class="operation-result" role="status" aria-live="polite"></div>
+            <div id="viz-committee-active-list" class="request-list" aria-live="polite"></div>
+            <div id="viz-committee-detail-page" class="request-detail-page" hidden></div>
+            <form id="viz-committee-vote-form" class="stacked-form"><fieldset>
+              <legend>Голосование за заявку</legend>
+              <div class="field"><label for="viz-committee-id">ID запроса для голоса</label><input id="viz-committee-id" name="requestId" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label for="viz-committee-vote">Процент голоса</label><input id="viz-committee-vote" name="vote" type="number" min="-100" max="100" step="1" value="100"></div>
+              <button type="submit" name="intent" value="preview">Проверить committee vote</button><button type="submit" name="intent" value="send">Отправить committee vote</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset></form>
+          </section>
+          <section id="viz-committee-history-section" aria-labelledby="viz-committee-history-title">
+            <h3 id="viz-committee-history-title">История заявок</h3>
+            <div id="viz-committee-history-list" class="request-list"></div>
+          </section>
+          <section id="viz-committee-create-section" aria-labelledby="viz-committee-create-title">
+            <h3 id="viz-committee-create-title">Создать заявку</h3>
+            <form id="viz-committee-create-form" class="stacked-form"><fieldset>
+              <legend>Новая заявка фонда развития</legend>
+              <div class="field"><label for="viz-committee-url">URL</label><input id="viz-committee-url" name="url" type="url"></div>
+              <div class="field"><label for="viz-committee-worker">Воркер</label><input id="viz-committee-worker" name="worker" type="text"></div>
+              <div class="field"><label for="viz-committee-min">Минимальная награда</label><input id="viz-committee-min" name="min" type="text" placeholder="1.000 VIZ"></div>
+              <div class="field"><label for="viz-committee-max">Максимальная награда</label><input id="viz-committee-max" name="max" type="text" placeholder="2.000 VIZ"></div>
+              <div class="field"><label for="viz-committee-days">Длительность, дней</label><input id="viz-committee-days" name="days" type="number" min="1" step="1" value="5"></div>
+              <button type="submit" name="intent" value="preview">Проверить создание committee request</button><button type="submit" name="intent" value="send">Создать committee request</button>
+              <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+            </fieldset></form>
+          </section>
+        </details>
         <section id="viz-manage-multisig" aria-labelledby="viz-multisig-title"><h3 id="viz-multisig-title">Мультисиг</h3><p class="notice">Legacy multisig подписывал JSON-транзакции client-side и отправлял signed transaction через публичную ноду. В v3 доступны static-safe helpers: настройка account auths через accountUpdate и отправка заранее подписанной transaction JSON без хранения WIF.</p></section>
         <details id="viz-multisig-authority-details" class="operation-details"><summary>VIZ multisig authority — проверить accountUpdate</summary><form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
           <legend>VIZ multisig authority</legend>
@@ -6055,7 +6269,7 @@
     bindOperationForm(chain, 'manage-witness-update-form', (form) => {
       const account = auth.getCurrentLogin(chain);
       const url = String(form.get('url') || '').trim();
-      const signingKey = String(form.get('signingKey') || '').trim() || (chain.id === 'golos' ? 'GLS1111111111111111111111111111111114T1Anm' : (chain.id === 'hive' ? 'HIVE1111111111111111111111111111111114T1Anm' : (chain.id === 'steem' ? 'STM1111111111111111111111111111111114T1Anm' : '')));
+      const signingKey = String(form.get('signingKey') || '').trim() || manageDeactivateSigningKey(chain);
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
@@ -6370,8 +6584,9 @@ Memo key: ${keys.memo}`);
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessesLoad = document.getElementById('manage-witnesses-load');
       if (witnessesLoad) witnessesLoad.addEventListener('click', () => loadWitnessVoteList(chain, witnessVoteState));
+      const vizCommitteeLoad = document.getElementById('viz-committee-load');
+      if (vizCommitteeLoad) vizCommitteeLoad.addEventListener('click', () => loadVizCommitteeRequests(chain));
     }
-
     if (chain.id === 'hive' || chain.id === 'steem') {
       prefillManageProfile(chain);
       const witnessLoad = document.getElementById('manage-witness-load');
@@ -6459,19 +6674,20 @@ Memo key: ${keys.memo}`);
       ]], { title: followMode === 'follow' ? 'Подписка' : 'Отписка', to: following });
     });
 
-    bindOperationForm(chain, 'manage-workers-form', (form) => {
+    bindOperationForm(chain, 'manage-workers-vote-form', (form) => {
       if (chain.id !== 'golos') throw new Error('Workers здесь доступны только для Golos.');
-      const mode = String(form.get('mode') || 'create');
-      if (mode === 'vote') {
-        const voter = auth.getCurrentLogin(chain);
-        const author = normalizeAccountInput(chain, form.get('author'), 'Автор заявки');
-        const permlink = String(form.get('permlink') || '').trim();
-        if (!permlink) throw new Error('Permlink заявки обязателен для голоса worker_request_vote.');
-        const votePercent = Math.max(-10000, Math.min(10000, Math.round(Number(form.get('percent') || 0) * 100)));
-        return broadcast.prepare(chain, 'posting', 'sendOperations', [[
-          ['worker_request_vote', { voter, author, permlink, vote_percent: votePercent, extensions: [] }]
-        ]], { title: 'Golos worker_request_vote', to: author, amount: `${votePercent / 100}%` });
-      }
+      const voter = auth.getCurrentLogin(chain);
+      const author = normalizeAccountInput(chain, form.get('author'), 'Автор заявки');
+      const permlink = String(form.get('permlink') || '').trim();
+      if (!permlink) throw new Error('Permlink заявки обязателен для голоса worker_request_vote.');
+      const votePercent = Math.max(-10000, Math.min(10000, Math.round(Number(form.get('percent') || 0) * 100)));
+      return broadcast.prepare(chain, 'posting', 'sendOperations', [[
+        ['worker_request_vote', { voter, author, permlink, vote_percent: votePercent, extensions: [] }]
+      ]], { title: 'Golos worker_request_vote', to: author, amount: `${votePercent / 100}%` });
+    });
+
+    bindOperationForm(chain, 'manage-workers-create-form', (form) => {
+      if (chain.id !== 'golos') throw new Error('Workers здесь доступны только для Golos.');
       const post = parseGolosWorkerPostUrl(form.get('request_url'));
       const worker = normalizeAccountInput(chain, form.get('worker'), 'Аккаунт воркера');
       const token = normalizeGolosTokenSymbol(form.get('token') || 'GOLOS', 'Токен worker request');
@@ -6606,13 +6822,13 @@ Memo key: ${keys.memo}`);
       return broadcast.prepare(chain, 'active', method, [auth.getCurrentLogin(chain), normalizeAccountInput(chain, receiver, 'Получатель'), String(form.get('secret') || '').trim()], { title: method, to: receiver, warnings: ['Секрет invite нужен для подписи операции. Не публикуйте данные проверки операции.'] });
     });
 
-    bindOperationForm(chain, 'viz-committee-form', (form) => {
-      const mode = String(form.get('mode') || 'create');
-      if (mode === 'vote') {
-        const requestId = broadcast.validateRequestId(form.get('requestId'));
-        const vote = Math.round(Number(form.get('vote') || 0) * 100);
-        return broadcast.prepare(chain, 'regular', 'committeeVoteRequest', [auth.getCurrentLogin(chain), requestId, vote], { title: 'VIZ committee vote', requestId });
-      }
+    bindOperationForm(chain, 'viz-committee-vote-form', (form) => {
+      const requestId = broadcast.validateRequestId(form.get('requestId'));
+      const vote = Math.round(Number(form.get('vote') || 0) * 100);
+      return broadcast.prepare(chain, 'regular', 'committeeVoteRequest', [auth.getCurrentLogin(chain), requestId, vote], { title: 'VIZ committee vote', requestId });
+    });
+
+    bindOperationForm(chain, 'viz-committee-create-form', (form) => {
       const worker = normalizeAccountInput(chain, form.get('worker'), 'Воркер');
       const min = normalizeAssetInput(chain, form.get('min'), chain.liquidSymbol, 'Минимальная награда');
       const max = normalizeAssetInput(chain, form.get('max'), chain.liquidSymbol, 'Максимальная награда');
