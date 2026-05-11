@@ -31,6 +31,9 @@ for (const marker of [
   'swap-cancel-form',
   'swap-orderbook-load',
   'swap-open-orders-load',
+  'swap-create-details',
+  'swap-cancel-details',
+  'data-swap-cancel-prefill',
   'role="status" aria-live="polite"',
   'fill or kill',
   'getOrderBook',
@@ -47,6 +50,7 @@ assert(!steemRuntimeBundle.includes('backend.dpos.space'), 'Steem swap v3 runtim
 assert(!/\.php\b|file_get_contents|XMLHttpRequest/.test(steemRuntimeBundle), 'Steem swap v3 runtime has no PHP/backend dependency');
 
 assert(planSource.includes('### Rigorous parity: Steem / swap'), 'plan.md contains required Steem/swap rigorous parity section');
+assert(planSource.includes('### UX polish: Editor swap and broadcast forms'), 'plan.md records editor/swap/broadcast UX pass');
 for (const evidence of [
   'blockchains/steem/apps/swap/config.json',
   'blockchains/steem/apps/swap/content.php',

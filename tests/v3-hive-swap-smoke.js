@@ -32,6 +32,9 @@ for (const marker of [
   'swap-cancel-form',
   'swap-orderbook-load',
   'swap-open-orders-load',
+  'swap-create-details',
+  'swap-cancel-details',
+  'data-swap-cancel-prefill',
   'role="status" aria-live="polite"',
   'fill or kill',
   'getOrderBook',
@@ -48,6 +51,7 @@ assert(!hiveRuntimeBundle.includes('backend.dpos.space'), 'Hive swap v3 runtime 
 assert(!/\.php\b|file_get_contents|XMLHttpRequest/.test(hiveRuntimeBundle), 'Hive swap v3 runtime has no PHP/backend dependency');
 
 assert(planSource.includes('### Rigorous parity: Hive / swap'), 'plan.md contains required Hive/swap rigorous parity section');
+assert(planSource.includes('### UX polish: Editor swap and broadcast forms'), 'plan.md records editor/swap/broadcast UX pass');
 for (const evidence of [
   'blockchains/hive/apps/swap/config.json',
   'blockchains/hive/apps/swap/content.php',

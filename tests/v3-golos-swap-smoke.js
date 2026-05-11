@@ -52,6 +52,11 @@ assert(appSource.includes('loadGrapheneOrderBook') && appSource.includes("profil
 assert(appSource.includes('loadGrapheneOpenOrders') && appSource.includes("profiles.apiCall(connection, 'getOpenOrders'"), 'my-orders view uses public RPC open orders');
 assert(appSource.includes('swap-cancel-form') && appSource.includes("broadcast.prepare(chain, 'active', 'cancelOrder'"), 'cancel order form prepares active cancelOrder operation');
 assert(appSource.includes('swap-create-form') && appSource.includes("broadcast.prepare(chain, 'active', 'createLimitOrder'"), 'limit order form prepares active createLimitOrder operation');
+assert(appSource.includes('id="swap-direct-details" class="operation-details"'), 'Golos direct market exchange form is collapsed under operation details');
+assert(appSource.includes('id="swap-create-details" class="operation-details"'), 'Golos limit order form is collapsed under operation details');
+assert(appSource.includes('id="swap-cancel-details" class="operation-details"'), 'Golos cancel order form is collapsed under operation details');
+assert(appSource.includes('data-swap-cancel-prefill'), 'Golos open-order rows expose a safe cancel prefill action');
+assert(appSource.includes("openSwapCancelDetails(orderId)"), 'Golos cancel prefill opens and focuses the matching cancel form');
 
 assert(broadcastSource.includes("if (prepared.operationName === 'sendOperations')"), 'broadcast has sendOperations execution path for DEX operation chains');
 assert(broadcastSource.includes('client.broadcast.sendOperationsAsync(prepared.params[0], key)'), 'sendOperations uses operation array plus active key without exposing key in params');
@@ -66,5 +71,6 @@ assert(planSource.includes('legacy function/handler/form/control/helper: `creati
 assert(planSource.includes('legacy function/handler/form/control/helper: `#action_buy_token click`'), 'plan matrix maps legacy direct exchange send handler');
 assert(planSource.includes('legacy function/handler/form/control/helper: `#action_create_order click`'), 'plan matrix maps legacy limit-order creation handler');
 assert(planSource.includes('legacy function/handler/form/control/helper: `deleteOrder(orderid)`'), 'plan matrix maps legacy cancel handler');
+assert(planSource.includes('Golos/Steem/Hive / swap / direct exchange, limit order create, order cancel'), 'UX plan records swap form matrix row');
 
 console.log('Golos swap parity smoke checks passed');
