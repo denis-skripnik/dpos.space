@@ -89,6 +89,10 @@ assert(appSource.includes('data-decimal-nft-collection'), 'Decimal NFT selector/
 assert(appSource.includes('decimal-nft-collection'), 'Decimal NFT form exposes collection/contract address required by Decimal SDK');
 assert(appSource.includes('decimal-nft-amount'), 'Decimal NFT form exposes integer amount for DRC1155 and defaults to one for DRC721');
 assert(appSource.includes('Количество NFT должно быть положительным целым числом'), 'Decimal NFT form validates integer NFT amount before broadcast');
+assert(appSource.includes('resolveDecimalNftCollectionAddress(chain, form.get(\'collection\'), nftId)'), 'Decimal NFT form resolves collection names from Gate API to EVM contract addresses before broadcast');
+assert(appSource.includes('nftcollections(where:{name:'), 'Decimal NFT collection resolver uses public Decimal subgraph by collection name');
+assert(appSource.includes('nfttokens(where:{collection_:'), 'Decimal NFT collection resolver can narrow public subgraph lookup by collection name and token id');
+assert(broadcastSource.includes('collection должна быть EVM contract address 0x'), 'Decimal broadcast guard rejects collection display names before ethers throws invalid address');
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
 assert(appSource.includes('decimalNftOptions(data)'), 'Decimal NFT form receives account NFT options');

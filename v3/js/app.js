@@ -8717,8 +8717,50 @@ Memo key: ${keys.memo}`);
   }
 
   function decimalNftCollection(item) {
-    const collection = item.collection || item.nftCollection || item.collectionId || item.collection_id || item.collectionAddress || item.collection_address || item.contract || item.contractAddress || item.address || '';
+    const collectionObject = item.collection && typeof item.collection === 'object' ? item.collection : null;
+    const directAddress = item.collectionAddress || item.collection_address || item.contractAddress || item.contract_address || item.contract || item.nftCollectionAddress || item.nft_collection_address || (collectionObject && (collectionObject.address || collectionObject.id || collectionObject.contractAddress || collectionObject.contract)) || '';
+    if (directAddress) return String(directAddress).trim();
+    const genericAddress = String(item.address || '').trim();
+    if (isDecimalContractAddress(genericAddress)) return genericAddress;
+    const collection = item.collection || item.nftCollection || item.collectionId || item.collection_id || '';
     return String(collection).trim();
+  }
+
+  function decimalNftCollectionName(item) {
+    const collectionObject = item.collection && typeof item.collection === 'object' ? item.collection : null;
+    return String(item.collectionName || item.collection_name || item.collectionTitle || item.collection_title || (collectionObject && (collectionObject.name || collectionObject.symbol)) || (/^0x[0-9a-fA-F]{40}$/.test(String(item.collection || '').trim()) ? '' : item.collection) || item.nftCollection || '').trim();
+  }
+
+  function isDecimalContractAddress(value) {
+    return /^0x[0-9a-fA-F]{40}$/.test(String(value || '').trim());
+  }
+
+  function decimalNftSubgraphUrl(chain) {
+    return chain.subgraphUrl || 'https://mainnet-thegraph.decimalchain.com/subgraphs/name/contract-center-2';
+  }
+
+  async function resolveDecimalNftCollectionAddress(chain, collection, nftId) {
+    const input = String(collection || '').trim();
+    if (isDecimalContractAddress(input)) return input;
+    if (!input) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
+    const tokenId = String(nftId || '').trim();
+    const escaped = input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const tokenFilter = tokenId ? `, tokenId: "${tokenId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : '';
+    const query = `{
+      nfttokens(where:{collection_: {name: "${escaped}"}${tokenFilter}}, first: 1) { collection { address name tokenType } tokenId }
+      nftcollections(where:{name: "${escaped}"}, first: 1) { address name tokenType }
+    }`;
+    const response = await fetchJsonText(decimalNftSubgraphUrl(chain), 'Decimal NFT subgraph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const data = response && response.data ? response.data : {};
+    const tokenCollection = data.nfttokens && data.nfttokens[0] && data.nfttokens[0].collection;
+    const directCollection = data.nftcollections && data.nftcollections[0];
+    const resolved = (tokenCollection && tokenCollection.address) || (directCollection && directCollection.address) || '';
+    if (isDecimalContractAddress(resolved)) return resolved;
+    throw new Error(`Коллекция NFT "${input}" не является contract address 0x и не найдена в публичном Decimal subgraph. Откройте NFT в explorer и вставьте адрес контракта коллекции вручную.`);
   }
 
   function decimalNftTitle(item) {
@@ -8729,7 +8771,8 @@ Memo key: ${keys.memo}`);
     const collection = decimalNftCollection(item);
     const id = decimalNftId(item);
     const title = decimalNftTitle(item);
-    const identity = [collection, id].filter(Boolean).join('/');
+    const collectionLabel = isDecimalContractAddress(collection) ? collection : (decimalNftCollectionName(item) || collection);
+    const identity = [collectionLabel, id].filter(Boolean).join('/');
     return identity || title || 'NFT';
   }
 
@@ -9419,13 +9462,12 @@ Memo key: ${keys.memo}`);
       crr: 0
     }], { title: 'Decimal: создание токена' }));
 
-    bindOperationForm(chain, 'decimal-nft-form', (form) => {
+    bindOperationForm(chain, 'decimal-nft-form', async (form) => {
       const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
-      const collection = String(form.get('collection') || '').trim();
       const nftId = String(form.get('nftId') || '').trim();
+      const collection = await resolveDecimalNftCollectionAddress(chain, form.get('collection'), nftId);
       const amount = String(form.get('amount') || '1').trim().replace(',', '.');
       if (!/^\d+$/.test(amount) || Number(amount) <= 0) throw new Error('Количество NFT должно быть положительным целым числом.');
-      if (!collection) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
       if (!nftId) throw new Error('Нужен NFT ID.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
       return broadcast.prepare(chain, 'seed', op, [{ collection, nftId, amount, validator }], { title: op, validator, nft: `${collection}/${nftId}` });
@@ -9542,13 +9584,12 @@ Memo key: ${keys.memo}`);
       crr: 0
     }], { title: 'Decimal: создание токена' }));
 
-    bindOperationForm(chain, 'decimal-nft-form', (form) => {
+    bindOperationForm(chain, 'decimal-nft-form', async (form) => {
       const validator = broadcast.validateDecimalValidator(form.get('validator'), 'Валидатор');
-      const collection = String(form.get('collection') || '').trim();
       const nftId = String(form.get('nftId') || '').trim();
+      const collection = await resolveDecimalNftCollectionAddress(chain, form.get('collection'), nftId);
       const amount = String(form.get('amount') || '1').trim().replace(',', '.');
       if (!/^\d+$/.test(amount) || Number(amount) <= 0) throw new Error('Количество NFT должно быть положительным целым числом.');
-      if (!collection) throw new Error('Нужна коллекция/contract address NFT. Выберите NFT из списка или строки таблицы.');
       if (!nftId) throw new Error('Нужен NFT ID.');
       const op = form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT';
       return broadcast.prepare(chain, 'seed', op, [{ collection, nftId, amount, validator }], { title: op, validator, nft: `${collection}/${nftId}` });
@@ -9618,11 +9659,12 @@ Memo key: ${keys.memo}`);
     return value;
   }
 
-  async function fetchJsonText(url, sourceLabel) {
+  async function fetchJsonText(url, sourceLabel, options = {}) {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+    const headers = Object.assign({ accept: 'application/json, text/plain;q=0.9, */*;q=0.1' }, options.headers || {});
     try {
-      const response = await fetch(url, { headers: { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' }, signal: controller ? controller.signal : undefined });
+      const response = await fetch(url, Object.assign({}, options, { headers, signal: controller ? controller.signal : options.signal }));
       if (!response.ok) throw new Error(`${sourceLabel || 'API'} HTTP ${response.status}`);
       const text = await response.text();
       return parseJsonMaybeText(text, sourceLabel);
