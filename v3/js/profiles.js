@@ -695,6 +695,13 @@
       return 'unknown error';
     }
 
+    const errorName = String(error.errorName || (error.error && error.error.errorName) || '');
+    const errorSignature = String(error.errorSignature || (error.error && error.error.errorSignature) || '');
+    const message = String(error.message || error.reason || error.data || error || '');
+    if (errorName === 'EnforcedPause' || errorSignature === 'EnforcedPause()' || message.includes('EnforcedPause')) {
+      return 'Операция сейчас недоступна: Decimal NFT staking contract вернул EnforcedPause. Это on-chain pause смарт-контракта, а не ошибка полей формы; транзакцию нельзя отправить, пока контракт не будет разблокирован в сети.';
+    }
+
     if (error.message) {
       return error.message;
     }

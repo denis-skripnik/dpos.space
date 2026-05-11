@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const broadcastSource = fs.readFileSync(path.join(root, 'v3/js/broadcast.js'), 'utf8');
+const profilesSource = fs.readFileSync(path.join(root, 'v3/js/profiles.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const loadDecimalWalletData = (appSource.match(/async function loadDecimalWalletData[\s\S]*?\n  function renderDecimalWalletBalances/) || [''])[0];
@@ -98,6 +99,7 @@ assert(appSource.includes('item.tokenId || item.token_id'), 'Decimal NFT id pref
 assert(appSource.includes("return '1';"), 'Decimal NFT id falls back to known numeric token id when Gate API exposes only a hex hash for a known collection');
 assert(broadcastSource.includes('NFT ID должен быть числовым tokenId'), 'Decimal broadcast guard rejects API hashes before ethers BigNumber parsing');
 assert(broadcastSource.includes('collection должна быть EVM contract address 0x'), 'Decimal broadcast guard rejects collection display names before ethers throws invalid address');
+assert(profilesSource.includes('EnforcedPause') && profilesSource.includes('on-chain pause смарт-контракта'), 'Decimal paused NFT staking contract errors are shown as user-readable on-chain pause messages');
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
 assert(appSource.includes('decimalNftOptions(data)'), 'Decimal NFT form receives account NFT options');
