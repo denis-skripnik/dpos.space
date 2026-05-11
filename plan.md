@@ -4305,20 +4305,24 @@ Scope: small Decimal wallet NFT-stake UX pass. No services, PHP runtime, private
 Files inspected:
 - Legacy: `/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/content.php` — NFT delegate/anbond modal forms (`delegate_nft_modal`, `anbond_nft_modal`) with NFT ID field and explicit operation buttons.
 - Legacy: `/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/js/app.js` — balance action spoiler pattern and Decimal wallet public API balance loading.
-- v3: `v3/js/app.js` — `renderDecimalWalletBalances`, `renderDecimalWalletForms`, `bindDecimalQuickActions`.
-- Test: `tests/v3-decimal-wallet-smoke.js`.
+- v3: `v3/js/app.js` — `loadDecimalWalletData`, `renderDecimalWalletBalances`, `renderDecimalWalletForms`, `bindDecimalQuickActions`.
+- v3: `v3/js/chains.js` — Decimal keeps legacy `apiBase` plus SDK `gateUrl`.
+- Decimal JS SDK docs/source: `README.md#getNfts()` and `src/api/get-nfts.js`/`src/api/index.js` show `decimal.getNfts(address, limit, offset, query)` calling gateway endpoint `/address/{address}/nfts` and returning `{ count, tokens }`.
+- Tests: `tests/v3-decimal-wallet-smoke.js`, `tests/v3-decimal-profiles-smoke.js`.
 
 UX matrix:
 | Legacy UX/control | v3 before this pass | UX polish in this pass | Test coverage | Status |
 | --- | --- | --- | --- | --- |
 | NFT stake/anbond modal keeps NFT ID visible and operation-specific. | v3 had the NFT stake/unbond form, but the NFT stake table was read-only and required manual NFT ID/validator copying. | NFT stake rows expose `Анбонд NFT` action buttons that open the NFT details form and prefill NFT ID + validator. | `v3-decimal-wallet-smoke.js` checks `data-decimal-nft-action="unbond"`, `openDecimalOperationDetails('decimal-nft-details')`, and field prefill markers. | Implemented static-safe. |
 | Owned NFT list should behave like balances: visible table rows with available actions. | v3 showed owned NFTs as a read-only collection/id/description table, so staking required manual copy/paste into the NFT form. | Owned NFT rows now have `Stake NFT` (`data-decimal-nft-action="delegate"`) actions that open the NFT details form, set mode=delegate, prefill NFT ID, and focus the validator field. | Focused smoke checks delegate action marker, readable NFT title marker, and action column. | Implemented static-safe. |
-| NFT ID should be selectable from existing account NFTs. | v3 NFT form had only a free-text NFT ID field. | `decimal-nft-form` now receives account NFT options via `decimalNftOptions(data)` and renders `decimal-nft-pick` / `NFT из кошелька`; changing the select fills `decimal-nft-id`. | Focused smoke checks selector/id-prefill binding markers. | Implemented static-safe. |
+| NFT ID should be selectable from existing account NFTs. | v3 NFT form had only a free-text NFT ID field. The first additive pass tried legacy OpenAPI `/nfts/{address}` and browser CORS returned `Failed to fetch`. | `decimal-nft-form` now receives account NFT options via `decimalNftOptions(data)` and renders `decimal-nft-pick` / `NFT из кошелька`; loading uses the Decimal JS SDK gateway path `/address/{address}/nfts?limit=20&offset=0`, unwraps the documented `tokens` payload, and changing the select fills `decimal-nft-id`. | Focused smoke checks selector/id-prefill binding markers, SDK `gateUrl`, gateway endpoint marker, and `tokens` unwrap. Browser fetch check confirms gateway URL returns 200 while old `/api/v1/nfts/{address}` fails CORS. | Implemented static-safe. |
 | Table/card action should reveal the matching form rather than forcing manual scrolling. | Coin stake rows already opened stake/unbond details; NFT rows did not. | `bindDecimalQuickActions` binds scoped NFT action buttons and the owned-NFT picker. | Focused smoke covers the binding markers. | Implemented static-safe. |
 | Human-readable NFT/stake columns. | v3 already uses NFT label/validator/status; raw token addresses are not primary for Decimal stake. | Preserved, with additional action columns for staked and owned NFT tables. | Existing Decimal wallet smoke checks native labels and no primary raw token address column. | Kept. |
 
 Validation notes:
 - Focused RED was confirmed before implementation by `node tests/v3-decimal-wallet-smoke.js` failing on the new NFT action marker; the follow-up selector/action assertions also fail before the owned-NFT picker/table actions are present.
+- Follow-up bug root cause: Decimal JS SDK documents `getNfts(address, limit, offset, query)` through gateway `/address/{address}/nfts` with `{ tokens }`; the legacy OpenAPI-style `/api/v1/nfts/{address}` URL is not browser-CORS accessible and produced `TypeError: Failed to fetch`.
+- Browser CORS verification from local origin: gateway URL `https://mainnet-gate.decimalchain.com/api/address/{address}/nfts?limit=20&offset=0` returned HTTP 200 JSON, while old `https://api.decimalchain.com/api/v1/nfts/{address}` failed with `TypeError: Failed to fetch`.
 - This is direct client-side form prefill only; backend-only legacy behavior remains a non-goal.
 
 ### UX polish: Graphene wallets

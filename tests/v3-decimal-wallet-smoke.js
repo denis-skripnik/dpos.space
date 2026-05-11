@@ -36,6 +36,9 @@ assert(appSource.includes("chain.id === 'decimal' && (effectiveAppId === 'wallet
 assert(appSource.includes("chain.id === 'decimal' && effectiveAppId === 'broadcast'"), 'Decimal broadcast route stays Decimal-specific');
 assert(appSource.includes('await renderDecimalWallet(chain, account);'), 'Decimal broadcast route reuses Decimal SDK wallet guard instead of generic Cosmos wallet');
 assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 'Decimal API base is configured');
+assert(chainsSource.includes("gateUrl: 'https://mainnet-gate.decimalchain.com/api/'"), 'Decimal SDK gateway base is configured for CORS-friendly NFT API');
+assert(loadDecimalWalletData.includes('/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0'), 'Decimal wallet fetches owned NFTs through SDK gateway getNfts endpoint');
+assert(appSource.includes("decimalPayloadList(nftsData, ['tokens', 'nfts', 'items'])"), 'Decimal wallet unwraps SDK getNfts tokens payload');
 
 [
   'decimal-send-form',

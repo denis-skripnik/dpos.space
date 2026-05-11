@@ -30,7 +30,8 @@ assert(decimalFetchSlice.includes('/addresses/${encodeURIComponent(address)}'), 
 assert(decimalFetchSlice.includes('/addresses/${encodeURIComponent(address)}/balances'), 'Decimal profile fetches balances endpoint');
 assert(decimalFetchSlice.includes('/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0'), 'Decimal profile fetches first transaction page');
 assert(decimalFetchSlice.includes('/rewards/${encodeURIComponent(address)}?limit=20&offset=0'), 'Decimal profile fetches rewards endpoint');
-assert(decimalFetchSlice.includes('/nfts/${encodeURIComponent(address)}?limit=20&offset=0'), 'Decimal profile fetches NFT endpoint');
+assert(decimalFetchSlice.includes('/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0'), 'Decimal profile fetches owned NFTs through SDK gateway endpoint');
+assert(decimalFetchSlice.includes('tokens ||'), 'Decimal profile unwraps SDK gateway getNfts tokens payload');
 assert(profilesSource.includes('fetchDecimalRewards'), 'Decimal profile exposes client-side rewards helper');
 assert(decimalRewardsSlice.includes('/rewards/${encodeURIComponent(address)}?limit=200&offset=${offset}'), 'Decimal rewards helper paginates the public rewards endpoint');
 assert(decimalRewardsSlice.includes('reward.currency'), 'Decimal rewards helper groups rewards by currency like legacy');

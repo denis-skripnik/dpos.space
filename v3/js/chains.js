@@ -220,6 +220,7 @@
       libraryPath: 'v3/vendor/decimal/decimal-sdk-web.js',
       cryptoPath: 'v3/vendor/decimal/sjcl.min.js',
       apiBase: 'https://api.decimalchain.com/api/v1',
+      gateUrl: 'https://mainnet-gate.decimalchain.com/api/',
       liquidSymbol: 'DEL',
       vestingSymbol: 'DEL',
       addressPrefix: 'dx',
