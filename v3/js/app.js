@@ -2529,20 +2529,33 @@
       if (value === undefined || value === null || value === '') return;
       rows.push([label, value, note || '']);
     };
+    const actions = (items) => items.filter(Boolean).join(' ');
 
     add('GOLOS', raw.balance, walletQuickActionButton('Перевести GOLOS', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.balance }) + ' ' + walletQuickActionButton('В СГ', 'wallet-vesting-form', { 'wallet-vesting-amount': raw.balance }));
     add('GBG', raw.sbd_balance || raw.gbg_balance, walletQuickActionButton('Перевести GBG', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.sbd_balance || raw.gbg_balance }));
     add('СГ', formatGolosPowerMax(profile, raw.vesting_shares), walletQuickActionButton('Вывести СГ', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': formatGolosPowerMax(profile, raw.vesting_shares) }) + ' ' + walletQuickActionButton('Делегировать СГ', 'wallet-delegation-form', { 'wallet-delegation-vesting': formatGolosPowerMax(profile, raw.vesting_shares) }));
     add('Делегировано СГ', formatGolosPowerMax(profile, raw.delegated_vesting_shares));
     add('Получено делегированием СГ', formatGolosPowerMax(profile, raw.received_vesting_shares));
-    add('TIP GOLOS', raw.tip_balance, 'донат и вывод из TIP доступны ниже');
-    add('Накопления GOLOS', raw.accumulative_balance, 'claim accumulative balance');
+    add('TIP GOLOS', raw.tip_balance, actions([
+      walletQuickActionButton('Донат GOLOS', 'wallet-golos-donate-form', { 'wallet-golos-donate-amount': raw.tip_balance }),
+      walletQuickActionButton('Вывести из TIP', 'wallet-golos-transfer-from-tip-form', { 'wallet-golos-transfer-from-tip-token': 'GOLOS', 'wallet-golos-transfer-from-tip-amount': raw.tip_balance })
+    ]));
+    add('Накопления GOLOS', raw.accumulative_balance, walletQuickActionButton('Получить накопления', 'wallet-golos-claim-form', { 'wallet-golos-claim-amount': raw.accumulative_balance }));
 
     (balanceRows || []).forEach((row) => {
       const meta = row && row[2];
       if (meta && meta.kind === 'uia') {
         const suffix = meta.balanceType === 'tip' ? 'TIP' : 'основной';
-        add(`UIA ${meta.symbol} (${suffix})`, row[1], meta.balanceType === 'tip' ? 'TIP actions доступны ниже; gateways/templates — later' : 'transfer/transfer_to_tip доступны ниже; gateways/templates — later');
+        const note = meta.balanceType === 'tip'
+          ? actions([
+            walletQuickActionButton('Вывести из TIP', 'wallet-golos-transfer-from-tip-form', { 'wallet-golos-transfer-from-tip-token': meta.symbol, 'wallet-golos-transfer-from-tip-amount': row[1] }),
+            walletQuickActionButton('Донат UIA', 'wallet-golos-token-donate-form', { 'wallet-golos-token-donate-token': meta.symbol, 'wallet-golos-token-donate-amount': row[1] })
+          ])
+          : actions([
+            walletQuickActionButton('Перевести UIA', 'wallet-golos-uia-transfer-form', { 'wallet-golos-uia-transfer-token': meta.symbol, 'wallet-golos-uia-transfer-amount': row[1] }),
+            walletQuickActionButton('На TIP', 'wallet-golos-transfer-to-tip-form', { 'wallet-golos-transfer-to-tip-token': meta.symbol, 'wallet-golos-transfer-to-tip-amount': row[1] })
+          ]);
+        add(`UIA ${meta.symbol} (${suffix})`, row[1], note);
       } else if (meta && meta.kind === 'uia-status') {
         add(row[0], row[1], 'UIA balances diagnostic');
       }
