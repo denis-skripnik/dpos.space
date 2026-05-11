@@ -53,6 +53,11 @@ assert(bindHiveForms.includes('encodeHiveMemoIfNeeded'), 'Hive wallet prepares e
 assert(bindHiveForms.includes('isSteemMemoWif'), 'Hive wallet preserves legacy WIF-in-memo guard');
 assert(appSource.includes('0.000000 VESTS'), 'Hive wallet can cancel withdraw/delegation with zero VESTS');
 assert(appSource.includes('prefillHiveTransferFromUrl'), 'Hive wallet keeps legacy transfer URL prefill behavior');
+assert(appSource.includes('bindGrapheneWalletQuickActions(appEl)'), 'Hive wallet binds shared Graphene quick-action UX helpers');
+assert(renderHiveForms.includes("walletQuickActionButton('Перевести максимум HIVE', 'wallet-transfer-form'"), 'Hive wallet balance actions can open transfer details');
+assert(renderHiveForms.includes("'wallet-transfer-amount': liquidMax"), 'Hive wallet balance actions prefill transfer amount');
+assert(renderHiveForms.includes("walletQuickActionButton('В savings HIVE', 'wallet-savings-to-form'"), 'Hive wallet savings actions can open savings details');
+assert(appSource.includes('target.focus()'), 'Hive wallet quick actions move focus to the target field');
 
 for (const evidence of [
   'blockchains/hive/apps/wallet/config.json',

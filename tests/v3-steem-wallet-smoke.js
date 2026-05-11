@@ -94,6 +94,11 @@ for (const op of ['transfer', 'transfer_to_vesting', 'withdraw_vesting', 'curati
 assert(broadcastSource.includes("steem: { posting: 'posting"), 'Steem broadcast authority map keeps posting/active authorities');
 assert(broadcastSource.includes('function validateAsset'), 'Steem wallet operation amounts are validated through shared broadcast helpers');
 assert(broadcastSource.includes('sanitizePrepared'), 'Steem wallet previews use sanitized prepared data before display');
+assert(appSource.includes('bindGrapheneWalletQuickActions(appEl)'), 'Steem wallet binds shared Graphene quick-action UX helpers');
+assert(steemRuntimeSlice.includes("walletQuickActionButton('Перевести максимум STEEM', 'wallet-transfer-form'"), 'Steem wallet balance actions can open transfer details');
+assert(steemRuntimeSlice.includes("'wallet-transfer-amount': liquidMax"), 'Steem wallet balance actions prefill transfer amount');
+assert(steemRuntimeSlice.includes("walletQuickActionButton('В savings STEEM', 'wallet-savings-to-form'"), 'Steem wallet savings actions can open savings details');
+assert(appSource.includes('target.focus()'), 'Steem wallet quick actions move focus to the target field');
 
 assert(!/backend\.dpos\.space|178\.20\.43\.121|hidden server API|new indexer|daemon|\.php\b|XMLHttpRequest|sendAjax\(/.test(steemRuntimeSlice), 'Steem wallet v3 runtime slice has no private/PHP/backend dependency or hidden service');
 assert(!steemRuntimeSlice.includes('blockchains/steem/apps/wallet'), 'Steem wallet runtime does not reference legacy runtime paths');

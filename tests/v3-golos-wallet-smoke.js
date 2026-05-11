@@ -18,6 +18,11 @@ mustInclude(appSource, "method = alreadyDelegated ? 'delegateVestingShares' : 'd
 mustInclude(appSource, "interestPercent < 0 || interestPercent > 80", 'Golos delegation validates legacy 0-80 percent interest range');
 mustInclude(appSource, 'getVestingDelegations', 'Golos wallet loads delegated/received vesting lists');
 mustInclude(appSource, 'data-golos-cancel-delegation', 'Golos delegated list offers cancel/prefill control');
+mustInclude(appSource, 'bindGrapheneWalletQuickActions(appEl)', 'Golos wallet binds shared Graphene quick-action UX helpers');
+mustInclude(appSource, "walletQuickActionButton('Перевести GOLOS', 'wallet-transfer-form'", 'Golos wallet balance actions can open transfer details');
+mustInclude(appSource, "'wallet-transfer-amount': raw.balance", 'Golos wallet balance actions prefill transfer amount');
+mustInclude(appSource, "walletQuickActionButton('Делегировать СГ', 'wallet-delegation-form'", 'Golos wallet delegation actions can open delegation details');
+mustInclude(appSource, 'target.focus()', 'Golos wallet quick actions move focus to the target field');
 mustInclude(appSource, 'wallet-golos-invite-claim-form', 'Golos wallet exposes invite claim form');
 mustInclude(appSource, "'inviteClaim'", 'Golos invite claim prepares inviteClaim broadcast operation');
 mustInclude(appSource, 'wallet-golos-create-invite-form', 'Golos wallet exposes create invite form');

@@ -4318,3 +4318,29 @@ UX matrix:
 Validation notes:
 - Focused RED was confirmed before implementation by `node tests/v3-decimal-wallet-smoke.js` failing on the new NFT action marker.
 - This is direct client-side form prefill only; backend-only legacy behavior remains a non-goal.
+
+### UX polish: Graphene wallets
+
+Scope: bounded Graphene wallet UX pass for VIZ, Golos, Steem, and Hive. Static-safe only: no backend service, PHP route/runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Existing operation ids/classes are preserved except for scoped quick-action markers.
+
+Files inspected:
+- v3: `v3/js/app.js`, `v3/js/chains.js`, `v3/js/broadcast.js`, `v3/js/profiles.js`.
+- Tests: `tests/v3-viz-wallet-smoke.js`, `tests/v3-golos-wallet-smoke.js`, `tests/v3-steem-wallet-smoke.js`, `tests/v3-hive-wallet-smoke.js`.
+- Existing parity evidence remains in the rigorous wallet sections for `blockchains/viz/apps/wallet/*`, `blockchains/golos/apps/wallet/*`, `blockchains/steem/apps/wallet/*`, and `blockchains/hive/apps/wallet/*`.
+
+UX matrix:
+| Chain | Current UX evidence before this pass | UX polish in this pass | Test coverage | Status |
+| --- | --- | --- | --- | --- |
+| VIZ wallet/forms | Dedicated VIZ renderer already had `<details>` operation groups, VIZ/SHARES maximum buttons, delegation cancel buttons, invite controls, labels, and `aria-live` operation results. Delegation table cancel prefilled fields but did not open/focus the operation group. | Added shared Graphene quick-action binding, balance-row/card buttons for transfer, VIZ→SHARES, withdraw SHARES, and delegate SHARES; max/fill buttons and delegation cancel now focus the target field, and delegation cancel opens the matching details block. | `v3-viz-wallet-smoke.js` checks shared quick-action binding, transfer/delegation quick-action markers, maximum prefill marker, and focus marker. | Implemented static-safe. |
+| Golos wallet/forms | Dedicated Golos renderer already had `<details>` operation groups, GOLOS/GBG/СГ/TIP/UIA forms, maximum buttons, delegation table cancel, labels, and `aria-live` operation results. Delegation cancel prefilled fields but did not reveal/focus the form. | Added shared Graphene quick-action binding, balance/card actions for GOLOS/GBG transfer, GOLOS→СГ, withdraw СГ, and delegate СГ; max/fill buttons and delegation cancel now focus target fields, and cancel opens the details block. | `v3-golos-wallet-smoke.js` checks shared quick-action binding, transfer/delegation quick-action markers, maximum prefill marker, and focus marker. | Implemented static-safe. |
+| Hive wallet/forms | Dedicated Hive renderer already had `<details>` groups, HIVE/HBD/HP rewards/savings forms, maximum buttons for liquid/power/withdraw/delegation, labels, and `aria-live` results. Savings forms had no quick maximum/open shortcuts. | Added shared Graphene quick-action binding and a compact quick-action row for HIVE/HBD transfer, HIVE→HP, HP withdraw/delegate, and savings HIVE; helper opens the matching details block, prefills safe balance-derived values, and focuses the target field. | `v3-hive-wallet-smoke.js` checks shared quick-action binding, transfer/savings markers, maximum prefill marker, and focus marker. | Implemented static-safe. |
+| Steem wallet/forms | Dedicated Steem renderer already had `<details>` groups, STEEM/SBD/SP rewards/savings forms, maximum buttons for liquid/power/withdraw/delegation, labels, and `aria-live` results. Savings forms had no quick maximum/open shortcuts. | Added shared Graphene quick-action binding and a compact quick-action row for STEEM/SBD transfer, STEEM→SP, SP withdraw/delegate, and savings STEEM; helper opens the matching details block, prefills safe balance-derived values, and focuses the target field. | `v3-steem-wallet-smoke.js` checks shared quick-action binding, transfer/savings markers, maximum prefill marker, and focus marker. | Implemented static-safe. |
+
+Validation notes:
+- Focused RED was confirmed before implementation by `node tests/v3-viz-wallet-smoke.js` failing on the new shared quick-action assertion.
+- Focused gate for this section: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-viz-wallet-smoke.js && node tests/v3-golos-wallet-smoke.js && node tests/v3-steem-wallet-smoke.js && node tests/v3-hive-wallet-smoke.js && git diff --check`.
+- Broad gate for this section: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- No backend/indexer-only wallet behavior is added; if a legacy wallet feature requires server-side data, it remains a documented non-goal.
+- This pass intentionally avoids large visual redesign and preserves existing operation ids/classes for compatibility with current smoke coverage.
