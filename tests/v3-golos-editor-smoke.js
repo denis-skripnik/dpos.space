@@ -1,0 +1,29 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+
+assert(appSource.includes("post: 'editor'"), 'legacy post route aliases to editor');
+assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor remains in authorized-account routing context');
+assert(appSource.includes('function golosLegacyTransform'), 'Golos editor ports legacy transliteration helper');
+assert(appSource.includes('function normalizeGolosEditorTags'), 'Golos editor normalizes tags and appends dpos-post');
+assert(appSource.includes('function buildGolosEditorOperations'), 'Golos editor isolates legacy payload construction');
+assert(appSource.includes('editor-category'), 'Golos editor has a category selector');
+assert(appSource.includes('ru--blokcheijn') && appSource.includes('ru--golos') && appSource.includes('nsfw'), 'Golos editor includes legacy category options');
+assert(appSource.includes('editor-image'), 'Golos editor has preview image metadata field');
+assert(appSource.includes('editor-payouts'), 'Golos editor exposes legacy payout mode');
+assert(appSource.includes('editor-curation-percent'), 'Golos editor exposes curator rewards percent');
+assert(appSource.includes('editor-beneficiary-account'), 'Golos editor exposes extra beneficiary input');
+assert(appSource.includes("{ account: 'denis-skripnik', weight: 100 }"), 'Golos editor keeps default 1% beneficiary');
+assert(appSource.includes('percent_steem_dollars: payoutPercent'), 'Golos editor sends Golos payout percent_steem_dollars');
+assert(appSource.includes("max_accepted_payout: '1000000.000 GBG'"), 'Golos editor uses legacy Golos max payout asset');
+assert(appSource.includes("[0, { beneficiaries }]"), 'Golos editor sends beneficiaries extension');
+assert(appSource.includes("[2, { percent: curationPercent }]"), 'Golos editor sends curator rewards extension');
+assert(appSource.includes("app: 'dpos.space/post'"), 'Golos editor preserves legacy metadata app marker');
+assert(appSource.includes("format: 'markdown'"), 'Golos editor preserves markdown metadata format');
+assert(appSource.includes('image: images'), 'Golos editor includes preview image metadata');
+assert(appSource.includes("tags.includes('dpos-post')"), 'Golos editor appends dpos-post tag');
+
+console.log('v3 Golos editor smoke passed');

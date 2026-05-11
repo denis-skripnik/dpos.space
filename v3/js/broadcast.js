@@ -208,7 +208,7 @@
     const text = String(value || '').trim();
     const patterns = {
       minter: /^Mx[0-9a-fA-F]{40}$/,
-      decimal: /^(dx|0x)[0-9a-fA-F]{40}$/
+      decimal: /^(dx|0x)[0-9a-fA-F]{40}$|^d0[0-9a-z]{39}$/
     };
     if (!patterns[chain.id] || !patterns[chain.id].test(text)) {
       throw new Error(`${label || 'Address'} должен быть корректным ${chain.title} address.`);
@@ -455,6 +455,14 @@
         memo: prepared.params[4] || '',
         beneficiaries: JSON.stringify(prepared.params[5] || [])
       }],
+      fixedAward: ['fixed_award', {
+        receiver: prepared.params[1],
+        reward_amount: prepared.params[2],
+        energy: prepared.params[3],
+        custom_sequence: prepared.params[4],
+        memo: prepared.params[5] || '',
+        beneficiaries: JSON.stringify(prepared.params[6] || [])
+      }],
       custom: ['custom', { protocol_id: prepared.params[1], json: prepared.params[2] }],
       committeeVoteRequest: ['committee_vote_request', { request_id: prepared.params[1], vote_percent: prepared.params[2] }]
     };
@@ -492,14 +500,29 @@
     if (chain.id === 'minter' && (prepared.operationName === 'minterSignedTx' || prepared.operationName === 'minterMultisigSubmit')) {
       return executeMinter(chain, prepared);
     }
+    if (chain.id === 'minter') return executeMinter(chain, prepared);
+    if (chain.id === 'decimal') return executeDecimal(chain, prepared);
+
+    if (prepared.operationName === 'broadcastTransactionSynchronous') {
+      const tx = prepared.params[0];
+      if (!tx || typeof tx !== 'object') throw new Error('Signed transaction JSON обязателен.');
+      if (typeof client.api.broadcastTransactionSynchronousAsync === 'function') {
+        return client.api.broadcastTransactionSynchronousAsync(tx);
+      }
+      if (typeof client.api.broadcastTransactionSynchronous === 'function') {
+        return toCallbackPromise(client.api.broadcastTransactionSynchronous, client.api, [tx]);
+      }
+      if (typeof client.broadcast.send === 'function') {
+        return toCallbackPromise(client.broadcast.send, client.broadcast, [tx]);
+      }
+      throw new Error(`Метод broadcastTransactionSynchronous недоступен в ${chain.libraryGlobal}.`);
+    }
+
     const authorityCheck = await verifyPreparedAuthority(chain, prepared);
     if (authorityCheck.warnings.length) {
       prepared.meta.warnings = prepared.meta.warnings.concat(authorityCheck.warnings);
     }
     const key = prepared.getPrivateKey();
-
-    if (chain.id === 'minter') return executeMinter(chain, prepared);
-    if (chain.id === 'decimal') return executeDecimal(chain, prepared);
 
     if (prepared.operationName === 'sendOperations') {
       if (typeof client.broadcast.sendOperationsAsync === 'function') {

@@ -103,6 +103,7 @@ async function run() {
   assert.strictEqual(decimalStatus.hasActive, true, 'decimal: legacy seed decrypts via old passphrase');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'dx0000000000000000000000000000000000000000'), 'dx0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, '0x0000000000000000000000000000000000000000'), '0x0000000000000000000000000000000000000000');
+  assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd'), 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd');
   assert.strictEqual(context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d');
   assert.throws(() => context.DposBroadcast.validateAddress(decimal, 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), /Decimal address/);
   assert.strictEqual(context.DposHistory.operationTitle('/decimal.coin.v1.MsgSendCoin'), 'Отправка', 'decimal OpenAPI message type is readable');

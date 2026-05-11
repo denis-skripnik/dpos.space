@@ -3,7 +3,7 @@
 
   const walletOps = {
     golos: new Set([
-      'transfer', 'transfer_to_vesting', 'transfer_from_tip', 'transfer_to_tip', 'donate', 'claim',
+      'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'transfer_from_tip', 'transfer_to_tip', 'donate', 'claim',
       'delegate_vesting_shares', 'delegate_vesting_shares_with_interest', 'delegation_reward',
       'curation_reward', 'author_reward', 'comment_benefactor_reward', 'producer_reward', 'fill_order'
     ]),

@@ -13,6 +13,10 @@ const renderDecimalWallet = (appSource.match(/async function renderDecimalWallet
 const renderDecimalForms = (appSource.match(/function renderDecimalWalletForms[\s\S]*?\n  async function renderDecimalWallet/) || [''])[0];
 const bindDecimalForms = (appSource.match(/function bindDecimalWalletForms[\s\S]*?\n  function bindCosmosForms/) || [''])[0];
 
+assert(loadDecimalWalletData.includes('const address = resolveSeedWalletAddress(chain, account);'), 'Decimal wallet resolves display login to address derived from saved seed');
+assert(appSource.includes('new global.DecimalSDK.Wallet(seed)'), 'Decimal wallet derives chain address from saved seed mnemonic, not from display login');
+assert(appSource.includes('const seed = decryptCurrentSeed(chain, user);'), 'Decimal wallet decrypts the actual seed value before deriving address/stake address');
+assert(appSource.includes("auth.getUserType(user) === 'bip.to'"), 'Decimal stake helper preserves BIP wallet-link non-seed branch');
 assert(loadDecimalWalletData.includes('/addresses/${encodeURIComponent(address)}/balances'), 'Decimal wallet fetches legacy balances endpoint');
 assert(loadDecimalWalletData.includes('/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/coins'), 'Decimal wallet fetches legacy coin stakes endpoint');
 assert(loadDecimalWalletData.includes('/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/nfts'), 'Decimal wallet fetches legacy NFT stakes endpoint');
@@ -26,8 +30,8 @@ assert(renderDecimalWallet.includes('bindDecimalWalletForms'), 'Decimal wallet b
 assert(renderDecimalWallet.includes('bindMaxButtons(appEl)'), 'Decimal wallet supports legacy maximum fill buttons');
 assert(!renderDecimalWallet.includes('return renderCosmosWallet'), 'Decimal wallet is not a thin alias to generic Cosmos wallet');
 
-assert(appSource.includes("chain.id === 'decimal' && (app.id === 'wallet' || app.id === 'swap' || app.id === 'my-coin')"), 'Decimal wallet/swap/my-coin route dispatches to Decimal-specific renderer before generic Cosmos');
-assert(appSource.includes("chain.id === 'decimal' && app.id === 'broadcast'"), 'Decimal broadcast route stays Decimal-specific');
+assert(appSource.includes("chain.id === 'decimal' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')"), 'Decimal wallet/swap/my-coin route dispatches to Decimal-specific renderer before generic Cosmos');
+assert(appSource.includes("chain.id === 'decimal' && effectiveAppId === 'broadcast'"), 'Decimal broadcast route stays Decimal-specific');
 assert(appSource.includes('await renderDecimalWallet(chain, account);'), 'Decimal broadcast route reuses Decimal SDK wallet guard instead of generic Cosmos wallet');
 assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 'Decimal API base is configured');
 
@@ -83,12 +87,13 @@ assert(!renderDecimalWallet.includes('plan.md'), 'Decimal UI does not mention pl
 assert(!renderDecimalWallet.includes('evidence'), 'Decimal UI does not expose evidence wording');
 assert(!renderDecimalWallet.includes('seed/private key'), 'Decimal UI avoids seed/private-key wording');
 
-assert(planSource.includes('## Decimal wallet parity evidence pass'), 'plan.md contains Decimal wallet evidence section');
-assert(planSource.includes('`js/app.js`: wallet behavior'), 'plan.md records legacy Decimal wallet app.js inspection');
-assert(planSource.includes('`blockchain.js`: Decimal SDK'), 'plan.md records Decimal blockchain.js inspection');
-assert(planSource.includes('send(to, amount, coin, memo, mode)'), 'plan.md records legacy send SDK method and params');
-assert(planSource.includes('delegate(coin, address, stake, mode)'), 'plan.md records legacy delegate SDK method and params');
-assert(planSource.includes('anbond(coin, address, stake, mode)'), 'plan.md records legacy unbond SDK method and params');
-assert(planSource.includes('`bip.to` account type'), 'plan.md records blocked BIP wallet flow reason');
+assert(planSource.includes('### Rigorous parity: Decimal / wallet'), 'plan.md contains exact Decimal wallet rigorous parity section');
+assert(planSource.includes('/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/config.json'), 'plan.md records legacy Decimal wallet config inspection');
+assert(planSource.includes('/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/content.php'), 'plan.md records legacy Decimal wallet content inspection');
+assert(planSource.includes('/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/index.php'), 'plan.md records legacy Decimal wallet index inspection');
+assert(planSource.includes('/root/ai-projects/dpos.space/blockchains/decimal/apps/wallet/js/app.js'), 'plan.md records legacy Decimal wallet app.js inspection');
+assert(planSource.includes('/root/ai-projects/dpos.space/blockchains/decimal/js/blockchain.js'), 'plan.md records Decimal blockchain.js inspection');
+assert(planSource.includes('`bip.to` hosted wallet-link flow'), 'plan.md records blocked BIP wallet flow reason');
+assert(planSource.includes('no backend service, PHP route/runtime, private IP runtime call'), 'plan.md records wallet static-only non-goals');
 
 console.log('v3-decimal-wallet-smoke ok');

@@ -115,13 +115,37 @@
     return date.toISOString().slice(0, 10);
   }
 
+  function minterAddressToEvm(address) {
+    const text = String(address || '').trim();
+    return /^Mx[0-9a-fA-F]{40}$/.test(text) ? `0x${text.slice(2)}` : '';
+  }
+
+  async function fetchMinterHubBalance(address, chainName, contractAddress) {
+    const evmAddress = minterAddressToEvm(address);
+    if (!evmAddress) return null;
+    const host = chainName === 'bsc' ? 'api.bscscan.com' : 'api.etherscan.io';
+    const data = await fetchOptional(`https://${host}/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${evmAddress}&tag=latest`);
+    const raw = data && data.result;
+    if (raw === undefined || raw === null || raw === '') return null;
+    return formatRestMinimalUnits(raw);
+  }
+
+  async function fetchMinterHubBalances(address) {
+    const [ethereumHub, bscHub] = await Promise.all([
+      fetchMinterHubBalance(address, 'ethereum', '0x8e9a29e7ed21db7c5b2e1cd75e676da0236dfb45'),
+      fetchMinterHubBalance(address, 'bsc', '0x8ac0a467f878f3561d309cf9b0994b0530b0a9d2')
+    ]);
+    return { ethereumHub, bscHub };
+  }
+
   async function fetchMinterAccount(chain, accountName) {
     const address = accountName;
-    const [addressData, delegationsData, transactionsData, rewardsData] = await Promise.all([
+    const [addressData, delegationsData, transactionsData, rewardsData, hubBalances] = await Promise.all([
       fetchJson(`${chain.config.explorerBase}/addresses/${encodeURIComponent(address)}`),
       fetchOptional(`${chain.config.explorerBase}/addresses/${encodeURIComponent(address)}/delegations`),
       fetchOptional(`${chain.config.explorerBase}/addresses/${encodeURIComponent(address)}/transactions?page=1`),
-      fetchOptional(`${chain.config.explorerBase}/addresses/${encodeURIComponent(address)}/statistics/rewards?start_time=${yesterdayIsoDate()}&end_time=${yesterdayIsoDate()}`)
+      fetchOptional(`${chain.config.explorerBase}/addresses/${encodeURIComponent(address)}/statistics/rewards?start_time=${yesterdayIsoDate()}&end_time=${yesterdayIsoDate()}`),
+      fetchMinterHubBalances(address)
     ]);
     const unwrapped = unwrapRestData(addressData) || {};
     return Object.assign({ name: address, address }, unwrapped, {
@@ -129,11 +153,13 @@
       delegations: unwrapRestData(delegationsData) || unwrapped.delegations || [],
       transactions: unwrapRestData(transactionsData) || [],
       rewards: unwrapRestData(rewardsData) || null,
+      hubBalances: hubBalances || {},
       rawApi: {
         address: addressData,
         delegations: delegationsData,
         transactions: transactionsData,
-        rewards: rewardsData
+        rewards: rewardsData,
+        hubBalances: hubBalances || {}
       }
     });
   }
@@ -163,6 +189,36 @@
         nfts: nftsData
       }
     });
+  }
+
+  async function fetchDecimalRewards(chain, address, days) {
+    const safeDays = Math.max(1, Math.min(Number(days) || 1, 3650));
+    const endTime = Date.now() - (86400000 * safeDays);
+    const totals = {};
+    let offset = 0;
+    let shouldContinue = true;
+
+    while (shouldContinue) {
+      const page = await fetchOptional(`${chain.config.apiBase}/rewards/${encodeURIComponent(address)}?limit=200&offset=${offset}`);
+      const rewards = (unwrapRestData(page) || {}).rewards || unwrapRestData(page) || [];
+      if (!Array.isArray(rewards) || !rewards.length) break;
+
+      shouldContinue = false;
+      for (const reward of rewards) {
+        const rewardTime = Date.parse(reward.date || reward.timestamp || reward.created_at || '');
+        if (Number.isFinite(rewardTime) && rewardTime < endTime) continue;
+        shouldContinue = true;
+        const currency = reward.currency || reward.coin || reward.symbol || 'DEL';
+        const amount = Number(formatRestMinimalUnits(reward.value || reward.amount || 0));
+        if (!Number.isFinite(amount)) continue;
+        totals[currency] = (totals[currency] || 0) + amount;
+      }
+
+      if (rewards.length < 200) break;
+      offset += 200;
+    }
+
+    return totals;
   }
 
   async function fetchAccount(chain, accountName) {
@@ -272,6 +328,35 @@
     const regen = Number(regenSeconds) || 432000;
     const value = Number(rawValue) + Math.max(0, (now - lastVote) / 1000) * (10000 / regen);
     return `${Math.min(100, Math.round(value) / 100)}%`;
+  }
+
+  function timeUntilFullMana(account, rawValue, regenSeconds, nowTime) {
+    if (!present(rawValue)) return '';
+    const lastVote = Date.parse(account.last_vote_time || account.last_vote || 0);
+    const now = nowTime ? Date.parse(nowTime) : Date.now();
+    const regen = Number(regenSeconds) || 432000;
+    const value = Math.min(10000, Number(rawValue) + Math.max(0, (now - lastVote) / 1000) * (10000 / regen));
+    if (!Number.isFinite(value)) return '';
+    if (value >= 9999.5) return 'Сейчас';
+    const seconds = Math.ceil((10000 - value) * regen / 10000);
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.ceil((seconds % 3600) / 60);
+    const parts = [];
+    if (days) parts.push(`${days} д.`);
+    if (hours) parts.push(`${hours} ч.`);
+    if (minutes && parts.length < 2) parts.push(`${minutes} мин.`);
+    const date = new Date(now + seconds * 1000).toISOString().replace('T', ' ').slice(0, 16);
+    return `${parts.join(' ') || '< 1 мин.'} (${date} UTC)`;
+  }
+
+  function calculateReputation(raw) {
+    if (!present(raw)) return '';
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value === 0) return '0';
+    const score = Math.max(Math.log10(Math.abs(value)) - 9, 0);
+    const signed = value < 0 ? -score : score;
+    return (signed * 9 + 25).toFixed(2);
   }
 
   function getRegenSeconds(chainId, context) {
@@ -464,6 +549,7 @@
 
     if (['golos', 'hive', 'steem'].includes(chainId)) {
       addField(rows, 'Актуальная батарейка', currentMana(account, account.voting_power, getRegenSeconds(chainId, context), props.time));
+      addField(rows, '100% батарейка', timeUntilFullMana(account, account.voting_power, getRegenSeconds(chainId, context), props.time));
       addField(rows, 'Voting power в аккаунте', formatPercentHundredths(account.voting_power));
       addField(rows, `Личная ${chain.config.powerTitle || 'power'}`, computePower(chain, account, 'vesting_shares'));
       addField(rows, 'Получено делегированием', computePower(chain, account, 'received_vesting_shares'));
@@ -506,6 +592,7 @@
     addField(rows, 'Последнее голосование / награда', account.last_vote_time);
     addField(rows, 'Последний пост', account.last_post);
     addField(rows, 'Количество постов', account.post_count);
+    addField(rows, 'Репутация', calculateReputation(account.reputation));
     addField(rows, 'Репутация raw', account.reputation);
     addField(rows, 'Recovery account / регистратор', account.recovery_account);
     addField(rows, 'Reset account', account.reset_account);
@@ -523,6 +610,10 @@
     const rows = [];
     addField(rows, 'Адрес', account.address || account.name);
     addField(rows, 'Nonce', account.nonce || account.transaction_count || account.tx_count);
+    if (account.hubBalances) {
+      addField(rows, 'HUB в Ethereum', account.hubBalances.ethereumHub);
+      addField(rows, 'HUB в BSC', account.hubBalances.bscHub);
+    }
     addField(rows, 'Общий баланс', formatRestMinimalUnits(account.total_balance_sum || account.totalBalance || account.balance_sum));
     addField(rows, 'Делегировано', formatRestMinimalUnits(account.delegated || account.delegated_amount));
     addField(rows, 'Unbonding', formatRestMinimalUnits(account.unbonding || account.unbonding_amount));
@@ -586,11 +677,14 @@
       socials: extractSocials(profile),
       metadataJson: metadata.json,
       postingMetadataJson: metadata.posting,
+      profileImage: profile.profile_image || profile.avatar || '',
+      coverImage: profile.cover_image || profile.background_image || '',
       rawLists: {
         delegations: previewList(account.delegations, 20),
         transactions: previewRawItems(account.transactions, 20),
         rewards: previewList(Array.isArray(account.rewards) ? account.rewards : (account.rewards && account.rewards.data) || [], 20),
-        nfts: previewList(account.nfts, 20)
+        nfts: previewList(account.nfts, 20),
+        uiaBalances: previewRawItems(account.uiaBalances, 50)
       },
       raw: account
     };
@@ -613,6 +707,7 @@
     connect,
     enrichAccount,
     fetchAccount,
+    fetchDecimalRewards,
     formatError,
     golosPowerRate,
     normalizeAccount
