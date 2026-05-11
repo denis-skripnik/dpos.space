@@ -57,6 +57,8 @@ assert(pollsSource.includes("broadcast.prepare(chain, 'active', 'transfer'"), 'c
 assert(pollsSource.includes("broadcast.prepare(chain, 'regular', 'custom'"), 'vote uses existing regular custom broadcast helper');
 assert(pollsSource.includes("bindOperationForm(chain, 'viz-polls-create-form'"), 'create form is bound through existing operation helper');
 assert(pollsSource.includes("bindOperationForm(chain, 'viz-polls-vote-form'"), 'vote form is bound through existing operation helper');
+assert(pollsSource.includes('id="viz-polls-create-details" class="operation-details"'), 'poll create operation form is separated in an accessible spoiler');
+assert(pollsSource.includes('id="viz-polls-vote-details" class="operation-details"'), 'poll vote operation form is separated in an accessible spoiler');
 assert(pollsSource.includes("appHash({ chain: chain.id, app: 'history'"), 'static replacement links to history RPC route');
 
 const vizRuntimeBundle = [chainsSource.match(/const vizApps[\s\S]*?const golosApps/)?.[0] || '', pollsSource].join('\n');
@@ -65,6 +67,7 @@ assert(vizRuntimeBundle.includes('178.20.43.121:3100/viz-api?service=votes'), 'o
 assert(!vizRuntimeBundle.includes('blockchains/viz/apps/polls'), 'VIZ polls v3 does not reference old PHP app files at runtime');
 
 assert(planSource.includes('### Rigorous parity: VIZ / polls'), 'plan.md contains required VIZ/polls rigorous parity section');
+assert(planSource.includes('VIZ / polls / create+vote'), 'plan records polls operation form UX polish coverage');
 assert(planSource.includes("`pages/list/content.php` backend read `file_get_contents('http://178.20.43.121:3100/viz-api?service=votes&type=list')`"), 'plan records exact list backend evidence');
 assert(planSource.includes("`pages/create/page.js` built a paid transfer to `committee` for `1.000 VIZ` with memo `contractName: \"viz-votes\"`, `contractAction: \"createVote\"`"), 'plan records exact create operation evidence');
 assert(planSource.includes("`pages/voteing/page.js` built custom operation id `viz-votes` / `contractAction: \"voteing\"`"), 'plan records exact vote operation evidence');
