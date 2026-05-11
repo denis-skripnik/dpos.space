@@ -4457,3 +4457,33 @@ Remaining gaps/non-goals:
 - No wallet, manage, or registration form UX is changed in this pass.
 - Backend/indexer-only legacy quote services, Imgur uploads, Garlic/SimpleMDE persistence, private PHP endpoints, and hidden service flows remain documented non-goals.
 - If non-wallet UX continues, the next bounded block should inspect Minter broadcast/my-coin/validators plus any remaining Decimal operation-like forms.
+
+### UX polish: Minter and Decimal non-wallet forms
+
+Scope: bounded fourth pass over remaining Minter and Decimal non-wallet operation-like forms. Static-safe only: no backend service, PHP runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Wallet/manage/registration/editor/Graphene swap forms are intentionally out of scope unless a shared helper regression is discovered.
+
+Files inspected:
+- v3 source: `v3/js/app.js` `renderMinterBroadcast`, `minterSwapForms`, `renderMinterWalletForms`, `bindMinterWalletForms`, `renderCosmosValidators`, `renderCosmosExplorer`, `renderProfileRoute`, `renderRandomBlockchain`, and route dispatch for Minter/Decimal; `v3/js/chains.js` app inventories for Minter and Decimal; `v3/js/broadcast.js` external/seed prepare helpers; `v3/js/profiles.js` Decimal/Minter public lookup helpers.
+- Focused tests: `tests/v3-minter-broadcast-smoke.js`, `tests/v3-minter-my-coin-smoke.js`, `tests/v3-minter-validators-smoke.js`, `tests/v3-minter-swap-smoke.js`, `tests/v3-decimal-validators-smoke.js`, `tests/v3-decimal-explorer-smoke.js`, `tests/v3-decimal-profiles-smoke.js`, and `tests/v3-decimal-randomblockchain-smoke.js`.
+
+Inventory and selected sub-block:
+| Chain | App/form | Current UX evidence before this pass | Fix/non-goal | Test |
+| --- | --- | --- | --- | --- |
+| Minter | broadcast | Dedicated `renderMinterBroadcast` had signed TX and multisig forms with labels, preview buttons before send buttons, and `role="status" aria-live="polite"`, but the two dangerous external-broadcast forms were immediately visible instead of under operation spoilers. | Wrap signed TX and multisig forms in `<details class="operation-details">` with explicit preview-before-send summaries and risk notes. Preserve existing form ids/bindings and external broadcast flow; no seed requirement, backend, PHP, or hidden service is added. | `tests/v3-minter-broadcast-smoke.js` |
+| Minter | my-coin | `minter-coin-form` is already inside `<details id="minter-coin-details" class="operation-details">`, has preview/send buttons and live result, and focused coverage proves direct seed-based Minter tx preparation without fetch/backend. | No code change. Existing safe defaults/examples remain; do not invent max values or token discovery services. | `tests/v3-minter-my-coin-smoke.js` |
+| Minter | validators | `renderCosmosValidators` is read-only: public validators endpoint, active/candidate tables, copy buttons, live copy status, and no `broadcast.prepare`/`bindOperationForm`. | Document non-goal for operation UX here. Delegation/unbond controls remain in wallet/send forms; do not add fake validator actions or services. | `tests/v3-minter-validators-smoke.js` |
+| Minter | swap | Pass #3 already wrapped sell/liquidity/pool forms in operation details and kept preview before send. | No Minter-specific missed operation details found in this pass. | `tests/v3-minter-swap-smoke.js` |
+| Decimal | validators | Read-only public validators lookup/table with copy status; focused smoke asserts no broadcast/bind form behavior. | Non-goal for this operation-forms pass. Delegation/unbond remains in Decimal wallet forms; no fake services/indexers. | `tests/v3-decimal-validators-smoke.js` |
+| Decimal | explorer | Read-only lookup/navigation form for address/block/tx and public overview; no operation send controls. | Non-goal; keep as public lookup/navigation only. | `tests/v3-decimal-explorer-smoke.js` |
+| Decimal | profiles | Read-only profile/account route with public API loading and rewards calculator; operation-like tx controls live in wallet routes, not profiles. | Non-goal; do not invent profile operations or backend helpers. | `tests/v3-decimal-profiles-smoke.js` |
+| Decimal | randomblockchain | Local calculation from public block data and user-provided list/count; no chain transaction/broadcast. | Non-goal for operation UX; keep read-only/local calculator behavior. | `tests/v3-decimal-randomblockchain-smoke.js` |
+
+Validation plan:
+- RED: `tests/v3-minter-broadcast-smoke.js` was updated first to require `minter-signed-tx-details`, `minter-multisig-details`, operation-details spoilers, preview-before-send evidence, and this exact plan section; it failed before implementation on the missing details marker.
+- Focused gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-minter-broadcast-smoke.js && node tests/v3-minter-my-coin-smoke.js && node tests/v3-minter-validators-smoke.js && node tests/v3-minter-swap-smoke.js && node tests/v3-decimal-validators-smoke.js && node tests/v3-decimal-explorer-smoke.js && node tests/v3-decimal-profiles-smoke.js && node tests/v3-decimal-randomblockchain-smoke.js && git diff --check`.
+- Broad gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- Decimal validators/explorer/profiles/randomblockchain are read-only lookup/navigation/calculator routes in this scope; no operation controls are added.
+- Backend/indexer-only legacy behavior remains documented non-goal; this pass adds no service, PHP route/runtime, private IP/API, daemon, indexer, or hidden hosted app.
+- If another UX-polish block is needed, next inspect remaining read-only helper/calculator routes for copy/status/accessibility only, not operation controls.

@@ -9495,20 +9495,22 @@ Memo key: ${keys.memo}`);
     appEl.innerHTML = `<section class="panel">
       <h2>Minter: отправка</h2>
       <p>Отправка готовой Minter-транзакции: signed TX не требует seed, multisig принимает транзакцию и внешние подписи.</p>
-      <form id="minter-signed-tx-form" class="stacked-form"><fieldset>
+      <details id="minter-signed-tx-details" class="operation-details"><summary>Готовая signed TX — Проверить signed TX перед отправкой</summary><form id="minter-signed-tx-form" class="stacked-form"><fieldset>
         <legend>Готовая signed TX</legend>
+        <p class="notice">Опасная внешняя транзакция: сначала проверьте содержимое, затем отправляйте только если signed TX получена из доверенного кошелька.</p>
         <div class="field"><label for="minter-signed-tx">Signed TX hex/base64</label><textarea id="minter-signed-tx" name="tx" rows="4" required></textarea></div>
         <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX в сеть</button>
         <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-      </fieldset></form>
-      <form id="minter-multisig-form" class="stacked-form"><fieldset>
+      </fieldset></form></details>
+      <details id="minter-multisig-details" class="operation-details"><summary>Multisig — проверить перед отправкой</summary><form id="minter-multisig-form" class="stacked-form"><fieldset>
         <legend>Multisig: отправка транзакции</legend>
+        <p class="notice">Проверьте адрес multisig, JSON транзакции и количество подписей перед отправкой во внешнюю Minter сеть.</p>
         <div class="field"><label for="minter-multisig-address">Адрес multisig</label><input id="minter-multisig-address" name="multisig" type="text" required></div>
         <div class="field"><label for="minter-multisig-tx">JSON транзакции</label><textarea id="minter-multisig-tx" name="txJson" rows="6" required></textarea></div>
         <div class="field"><label for="minter-multisig-signatures">Подписи, по одной на строку</label><textarea id="minter-multisig-signatures" name="signatures" rows="5" required></textarea></div>
         <button type="submit" name="intent" value="preview">Проверить multisig submit</button><button type="submit" name="intent" value="send">Отправить multisig в сеть</button>
         <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-      </fieldset></form>
+      </fieldset></form></details>
     </section>`;
 
     bindOperationForm(chain, 'minter-signed-tx-form', (form) => {
