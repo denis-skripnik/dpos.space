@@ -16,6 +16,7 @@
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const loadedScripts = new Set();
+  const LONG_API_BASE = '/api/smartfarm';
   const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
   const IMGUR_CLIENT_ID = '372d5f766d47d1d';
@@ -10040,6 +10041,15 @@ Memo key: ${keys.memo}`);
     setStatus('Minter: отправка signed TX и multisig готова.', 'ok');
   }
 
+  function longUrl(path, params = {}) {
+    const base = global.location && global.location.origin ? global.location.origin : 'https://dpos.blinddev.xyz';
+    const url = new URL(`${LONG_API_BASE}${path || ''}`, base);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
+    });
+    return url.pathname + url.search;
+  }
+
   function parseJsonMaybeText(text, sourceLabel) {
     let value = text;
     for (let attempt = 0; attempt < 2 && typeof value === 'string'; attempt++) {
@@ -10069,6 +10079,10 @@ Memo key: ${keys.memo}`);
     } finally {
       if (timer) clearTimeout(timer);
     }
+  }
+
+  async function fetchLongJson(path, params) {
+    return fetchJsonText(longUrl(path, params), 'LONG backend');
   }
 
   async function fetchMinterLongPool() {
@@ -10131,7 +10145,7 @@ Memo key: ${keys.memo}`);
     for (let day = start; day <= investDays; day++) {
       if (day % 50 === 0) {
         supersCounter = day / 50;
-        power = toNumber(provider.liquidity) * supersCounter;
+        power += toNumber(provider.liquidity) * supersCounter;
       }
     }
     return { supersCounter, power };
@@ -10198,42 +10212,82 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderLongMain() {
-    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю публичные данные пула LONG...</p></section>';
-    setStatus('Загружаю LONG: публичный пул BIP/LONG...', 'loading');
-    const pool = await fetchMinterLongPool();
+    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю обзор и рейтинг LONG...</p></section>';
+    setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
+    const [data, pool] = await Promise.all([fetchLongJson(''), fetchMinterLongPool()]);
     const poolStats = calcLongPoolStats(pool);
-    appEl.innerHTML = `<section class="panel"><h2>Minter LONG farming</h2>${renderLongNav('main')}
-      <p>Legacy app: <code>LONG farming</code>, инструмент просмотра данных по провайдерам пула BIP/LONG. Static v3 сохраняет безопасную read-only часть: описание, ссылки, адрес рассылки и публичный Minter pool API без приватного backend.</p>
+    const { farmingAmount, totalExperience } = calcLongProviderRows(data, poolStats);
+    appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
+      <p>Раздел показывает параметры LONG по данным активного backend <code>/api/smartfarm</code> и публичной сети Minter. Это информационный расчёт: итоговые значения зависят от состояния блокчейна, ликвидности, правил сервиса и доступности backend.</p>
       <p><a href="https://t.me/long_project" target="_blank" rel="noopener">Новости LONG</a> · <a href="https://t.me/long_project_chat" target="_blank" rel="noopener">Обсуждение</a> · <a href="https://chainik.io/pool/BIP/LONG" target="_blank" rel="noopener">Пул BIP/LONG</a></p>
-      <article class="card"><h3>Кошелёк рассылки</h3><p>Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: ${accountLink(chains.minter, LONG_FARMING_SENDER)}</p><p class="muted">Фактические начисления и отложенные отправки проверяйте по транзакциям адреса в публичном explorer.</p></article>
-      <article class="card"><h3>Публичный пул BIP/LONG</h3>${renderLongPoolSummary(poolStats)}</article>
-      <article class="card"><h3>Что было в legacy LONG</h3><ul>
-        <li>Обзор LONG farming, расчёт опыта и будущего фарминга провайдеров.</li>
-        <li>Ставки на курс крипты и пулов в Minter.</li>
-        <li>Лотерея, paid-loto, RPS, опросы LONG, драконы, roadmap и отложенные транзакции.</li>
+      <article class="card"><h3>Кошелёк рассылки</h3><p>Кошелёк отправки фарминга и бонуса за инвест. дни, кратные 50: ${accountLink(chains.minter, LONG_FARMING_SENDER)}</p><p class="muted">Фактические начисления и отложенные отправки сверяйте по транзакциям адреса в публичном explorer.</p></article>
+      <article class="card"><h3>Основные параметры</h3><ul>
+        <li><strong>Максимальная дневная сумма по backend:</strong> ${formatLongNumber(data.max_amount)} LONG</li>
+        <li><strong>Резерв для лотереи и бонусных инвест. дней:</strong> ${formatLongNumber(toNumber(data.max_prize) * 2)} LONG</li>
+        <li><strong>Расчётная часть для распределения:</strong> ${formatLongNumber(farmingAmount)} LONG</li>
+        <li><strong>Суммарный опыт провайдеров:</strong> ${formatLongNumber(totalExperience)}</li>
+        ${poolStats ? `<li><strong>Пул BIP/LONG:</strong> ${formatLongNumber(poolStats.liquidity)} LP, ${formatLongNumber(poolStats.bip)} BIP и ${formatLongNumber(poolStats.long)} LONG</li><li><strong>Курс:</strong> 1 LONG ≈ ${formatLongNumber(poolStats.price, 8)} BIP</li>` : '<li><strong>Пул BIP/LONG:</strong> Minter API сейчас недоступен, показываю backend-данные без состава пула.</li>'}
       </ul></article>
-      ${renderLongStaticNonGoals()}
+      <article class="card"><h3>Как читать расчёты</h3><p>Инвест. дни, множитель, LP и накопленные значения берутся из backend. Таблица ниже помогает проверить рейтинг и текущую формулу; она не является обещанием результата и не заменяет проверку транзакций в сети.</p></article>
+      ${renderLongProvidersTable(data, poolStats)}
+      ${rawJsonDetails('Исходные данные LONG backend', data)}
       ${pool ? rawJsonDetails('Исходные данные Minter pool API', pool) : ''}
     </section>`;
-    setStatus('LONG открыт в static-safe режиме: приватный backend не используется.', 'ok');
+    setStatus('LONG: обзор и рейтинг загружены из /api/smartfarm.', 'ok');
   }
 
-  function renderLongBids() {
+  function renderLongProjects(projects) {
+    const entries = Object.entries(projects || {});
+    if (!entries.length) return '<p class="muted">Активные токены и пулы не найдены.</p>';
+    return `<div class="table-wrap"><table aria-label="Активные токены и пулы LONG bids"><caption>Активные токены и пулы для ставок</caption><thead><tr><th scope="col">Токен/пул</th><th scope="col">Текущее значение</th></tr></thead><tbody>${entries.map(([name, price]) => `<tr><td>${escapeHtml(name)}</td><td>${formatLongNumber(price, 8)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function renderLongAllowedCoins(data, selectedCoin) {
+    const coins = String(data.allowedCoins || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const mins = String(data.minAmountsAllowedCoins || '').split(',').map((item) => item.trim());
+    if (!coins.length) return '<p class="muted">Backend не вернул список разрешённых монет.</p>';
+    return `<ul>${coins.map((coin, index) => `<li>${coin === selectedCoin ? `<strong>${escapeHtml(coin)}</strong>` : `<a href="${escapeHtml(longPageHash('bids', { coin }))}">${escapeHtml(coin)}</a>`} — минимум ${escapeHtml(mins[index] || 'не указан')}</li>`).join('')}</ul>`;
+  }
+
+  function renderLongActiveBids(rows, coin) {
+    if (!Array.isArray(rows) || !rows.length) return `<p class="muted">Активных ставок${coin ? ` для ${escapeHtml(coin)}` : ''} сейчас нет или backend вернул пустой список.</p>`;
+    return `<div class="table-wrap"><table aria-label="Активные ставки LONG"><caption>Активные ставки${coin ? `: ${escapeHtml(coin)}` : ''}</caption><thead><tr><th scope="col">Токен</th><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Направление</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.token || row.coin || row.name || coin || '')}</td><td>${renderAccountCell(chains.minter, row.address || row.sender || row.from)}</td><td>${escapeHtml([formatLongNumber(row.amount || row.value, 8), row.send_coin || row.coin].filter(Boolean).join(' '))}</td><td>${escapeHtml(row.direction || row.predict || row.side || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  async function renderLongBids() {
+    const state = parseHash();
+    const coin = String(state.coin || '').trim();
+    appEl.innerHTML = '<section class="panel"><h2>LONG: ставки</h2><p>Загружаю LONG bids...</p></section>';
+    setStatus('Загружаю LONG bids...', 'loading');
+    const data = await fetchLongJson('/bids', coin ? { coin } : {});
+    let activeBids = [];
+    if (coin) {
+      try { activeBids = await fetchLongJson('/bids/active', { coin }); } catch (error) { activeBids = []; }
+    }
+    const address = data.address || LONG_FARMING_SENDER;
     appEl.innerHTML = `<section class="panel"><h2>LONG: ставки на токены и пулы</h2>${renderLongNav('bids')}
-      <p>Legacy bids показывал список проектов, разрешённые монеты и активные ставки из smartfarm backend, затем принимал Minter memo-транзакции.</p>
-      <article class="card"><h3>Static-safe инструкция</h3><p>Без серверного списка активных ставок v3 не публикует неподтверждённые коэффициенты и не создаёт новую отправку. Проверяйте условия в официальном LONG канале и используйте обычный Minter кошелёк только если знаете точный адрес, монету, сумму и memo.</p></article>
-      ${renderLongStaticNonGoals()}
+      <p>Сервис принимает транзакции Minter с memo. Перед отправкой проверяйте монету, сумму, адрес и memo в кошельке.</p>
+      <article class="card"><h3>Разрешённые монеты для отправки</h3>${renderLongAllowedCoins(data, coin)}</article>
+      <article class="card"><h3>Инструкция memo</h3><p>Адрес получателя: <code>${escapeHtml(address)}</code></p><p>Memo: <code>lbid BTC +</code> или <code>lbid BTC -</code>. Вместо BTC укажите токен или пул из списка активных.</p><p class="muted">Если выбранная монета поддерживается вашим Minter-кошельком, используйте раздел «Кошелёк» и сначала сделайте предпросмотр операции.</p></article>
+      <h3>Активные токены и пулы</h3>${renderLongProjects(data.projects)}
+      ${coin ? `<h3>Активные ставки: ${escapeHtml(coin)}</h3>${renderLongActiveBids(Array.isArray(activeBids) ? activeBids : (activeBids.items || activeBids.bids || []), coin)}` : '<p>Выберите монету выше, чтобы открыть список активных ставок по ней.</p>'}
+      ${data.file ? `<details><summary>Описание сервиса из backend</summary><div class="longtext">${escapeHtml(data.file)}</div></details>` : ''}
+      ${rawJsonDetails('Исходные данные LONG bids', data)}
     </section>`;
-    setStatus('LONG bids открыт как static-only non-goal: backend ставок не используется.', 'info');
+    setStatus('LONG bids загружен из /api/smartfarm.', 'ok');
   }
 
-  function renderLongDeferredTxs() {
+  async function renderLongDeferredTxs() {
+    appEl.innerHTML = '<section class="panel"><h2>LONG: отложенные транзакции</h2><p>Загружаю отложенные транзакции...</p></section>';
+    setStatus('Загружаю LONG: отложенные транзакции...', 'loading');
+    const data = await fetchLongJson('/deferred-txs');
+    const rows = Array.isArray(data) ? data : (data.items || data.txs || []);
     appEl.innerHTML = `<section class="panel"><h2>LONG: отложенные транзакции</h2>${renderLongNav('deferred-txs')}
-      <p>Legacy страница читала накопленные backend отложенные отправки и показывала адрес, сумму и memo.</p>
-      <article class="card"><h3>Static-safe проверка</h3><p>В v3 нет серверного списка отложенных транзакций. Для проверки используйте публичную историю кошелька рассылки: ${accountLink(chains.minter, LONG_FARMING_SENDER)}.</p></article>
-      ${renderLongStaticNonGoals()}
+      <p>Таблица показывает накопленные backend отложенные отправки. Перед любыми действиями сверяйте фактическую транзакцию в Minter explorer.</p>
+      ${rows.length ? `<div class="table-wrap"><table aria-label="Отложенные транзакции LONG"><caption>Отложенные транзакции LONG</caption><thead><tr><th scope="col">Адрес</th><th scope="col">Сумма</th><th scope="col">Memo</th></tr></thead><tbody>${rows.map((tx) => `<tr><td>${renderAccountCell(chains.minter, tx.to || tx.address || tx.recipient)}</td><td>${escapeHtml([formatLongNumber(tx.value || tx.amount, 8), tx.coin].filter(Boolean).join(' '))}</td><td class="longtext">${escapeHtml(tx.memo || tx.payload || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Отложенных транзакций нет или backend вернул пустой список.</p>'}
+      ${rawJsonDetails('Исходные данные deferred-txs', data)}
     </section>`;
-    setStatus('LONG deferred-txs открыт как static-only non-goal: backend-список не используется.', 'info');
+    setStatus(`LONG: отложенные транзакции загружены (${rows.length}).`, 'ok');
   }
 
   async function renderMinterLong() {

@@ -134,11 +134,12 @@ assert(appSource.includes('Multisig: отправка транзакции'), 'M
 assert(appSource.includes("chain.id === 'minter' && effectiveAppId === 'broadcast'"), 'Minter: отправка does not collapse to generic wallet route');
 assert(appSource.includes("chain.id === 'decimal' && effectiveAppId === 'broadcast'"), 'Decimal broadcast uses Decimal wallet/SDK forms instead of Graphene wallet forms');
 assert(appSource.includes('function renderMinterLong'), 'Minter LONG has a dedicated v3 renderer');
-assert(appSource.includes('function renderLongBids'), 'Minter LONG bids subpage has a dedicated static renderer');
-assert(appSource.includes('function renderLongDeferredTxs'), 'Minter LONG deferred-txs subpage has a dedicated static renderer');
-assert(appSource.includes('Backend/indexer-only non-goals'), 'Minter LONG documents private smartfarm backend as static-only non-goal');
-assert(!appSource.includes("const LONG_API_BASE = '/api/smartfarm';"), 'Minter LONG does not use a hidden same-origin smartfarm API proxy');
+assert(appSource.includes('function renderLongBids'), 'Minter LONG bids subpage has a dedicated backend-data renderer');
+assert(appSource.includes('function renderLongDeferredTxs'), 'Minter LONG deferred-txs subpage has a dedicated backend-data renderer');
+assert(appSource.includes("const LONG_API_BASE = '/api/smartfarm';"), 'Minter LONG uses active same-origin smartfarm API path');
+assert(appSource.includes('fetchLongJson'), 'Minter LONG fetches smartfarm JSON for overview/bids/deferred-txs');
 assert(!appSource.includes('http://178.20.43.121:3852/smartfarm'), 'Minter LONG v3 does not use legacy mixed-content backend URL');
+assert(!appSource.includes('https://backend.dpos.space/smartfarm'), 'Minter LONG v3 does not call old backend host directly');
 assert(!/LONG[\s\S]{0,400}(гарантированн(?:ый|ого) доход|обещаем доход|profit promise)/i.test(appSource), 'LONG copy does not contain income promise phrases');
 assert(chains.golos.apps.some((app) => app.id === 'randomblockchain'), 'Golos exposes randomblockchain route in v3');
 assert(appSource.includes('resolveRandomBlockchainSeed'), 'randomblockchain resolves numeric block inputs through public RPC');
