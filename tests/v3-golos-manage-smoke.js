@@ -35,7 +35,12 @@ assert(appSource.includes('normalizeGolosProfileTags'), 'Golos profile converts 
 assert(appSource.includes("broadcast.prepareWithPrivateKey(chain, account, 'owner', ownerWif, 'accountUpdate'"), 'Golos reset broadcasts accountUpdate with explicit owner WIF');
 assert(appSource.includes('prefillGolosManageProfile'), 'Golos manage preloads current profile metadata into the form');
 assert(appSource.includes('manage-profile-prefill-result'), 'Golos manage exposes profile preload status');
-assert(appSource.includes('manage-workers-form'), 'Golos manage exposes worker request/vote form');
+assert(appSource.includes('manage-workers-vote-form'), 'Golos manage exposes a dedicated worker vote form');
+assert(appSource.includes('manage-workers-create-form'), 'Golos manage exposes a dedicated worker create form');
+assert(appSource.includes('manage-workers-active-list'), 'Golos manage separates active worker requests for voting');
+assert(appSource.includes('manage-workers-history-list'), 'Golos manage separates historical worker requests');
+assert(appSource.includes('manage-worker-detail-page'), 'Golos manage renders a non-modal worker request detail page');
+assert(appSource.includes('getWorkerRequestVotes'), 'Golos manage loads worker request voters on the detail page');
 assert(appSource.includes("['worker_request'"), 'Golos manage can prepare worker_request operation');
 assert(appSource.includes("['worker_request_vote'"), 'Golos manage can prepare worker_request_vote operation');
 assert(appSource.includes('getWorkerRequests'), 'Golos manage can load worker requests through public RPC');
