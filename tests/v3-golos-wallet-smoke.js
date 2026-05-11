@@ -22,6 +22,11 @@ mustInclude(appSource, 'bindGrapheneWalletQuickActions(appEl)', 'Golos wallet bi
 mustInclude(appSource, "walletQuickActionButton('Перевести GOLOS', 'wallet-transfer-form'", 'Golos wallet balance actions can open transfer details');
 mustInclude(appSource, "'wallet-transfer-amount': raw.balance", 'Golos wallet balance actions prefill transfer amount');
 mustInclude(appSource, "walletQuickActionButton('Делегировать СГ', 'wallet-delegation-form'", 'Golos wallet delegation actions can open delegation details');
+mustInclude(appSource, "walletQuickActionButton('Донат GOLOS', 'wallet-golos-donate-form'", 'Golos TIP GOLOS balance opens donate form directly');
+mustInclude(appSource, "walletQuickActionButton('Получить накопления', 'wallet-golos-claim-form'", 'Golos accumulative balance opens claim form directly');
+mustInclude(appSource, "walletQuickActionButton('Перевести UIA', 'wallet-golos-uia-transfer-form'", 'Golos UIA main balances open UIA transfer form directly');
+mustInclude(appSource, "walletQuickActionButton('На TIP', 'wallet-golos-transfer-to-tip-form'", 'Golos UIA main balances open transfer_to_tip form directly');
+mustInclude(appSource, "walletQuickActionButton('Донат UIA', 'wallet-golos-token-donate-form'", 'Golos UIA TIP balances open token donate form directly');
 mustInclude(appSource, 'target.focus()', 'Golos wallet quick actions move focus to the target field');
 mustInclude(appSource, 'wallet-golos-invite-claim-form', 'Golos wallet exposes invite claim form');
 mustInclude(appSource, "'inviteClaim'", 'Golos invite claim prepares inviteClaim broadcast operation');
@@ -38,5 +43,6 @@ mustInclude(historySource, "'delegate_vesting_shares_with_interest'", 'Golos wal
 const golosWalletSource = appSource.slice(appSource.indexOf('function renderGolosWalletForms'), appSource.indexOf('function vizAsset'));
 assert(!golosWalletSource.includes('backend.dpos.space'), 'Golos wallet static implementation must not depend on backend.dpos.space');
 assert(!golosWalletSource.includes('178.20.43.121'), 'Golos wallet static implementation must not depend on legacy server IP');
+assert(!golosWalletSource.includes('gateways/templates — later'), 'Golos wallet balance notes do not expose stale later wording');
 
 console.log('v3 Golos wallet smoke passed');
