@@ -4344,3 +4344,33 @@ Validation notes:
 Remaining gaps/non-goals:
 - No backend/indexer-only wallet behavior is added; if a legacy wallet feature requires server-side data, it remains a documented non-goal.
 - This pass intentionally avoids large visual redesign and preserves existing operation ids/classes for compatibility with current smoke coverage.
+
+### UX polish: Browser wallet QA
+
+Scope: bounded browser/runtime QA block for wallet UX across VIZ, Golos, Steem, Hive, Minter, and Decimal after the source/static wallet UX passes. Static-safe only: no backend service, PHP route/runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Final send/broadcast buttons are intentionally not exercised.
+
+Runtime availability:
+- Static server started from repo root with `python3 -m http.server 8765`.
+- Camofox browser automation was unavailable in this CLI environment (`Cannot connect to Camofox at http://localhost:9377`), and local Playwright/Puppeteer/Selenium/jsdom packages were not installed.
+- Fallback QA used server-backed route fetches plus focused DOM-binding/static-runtime assertions in `/tmp/dpos-wallet-ux-qa.js`; this verifies that the SPA entrypoint and wallet scripts are served, and that click/fill/focus/open/preview bindings exist without introducing browser-only selector/function mistakes. It does not claim live visual browser execution.
+
+Matrix:
+| Chain | Route/account checked | Panel/error result | Details/quick actions/maximum/focus/preview result | Hard JS errors | Network/RPC noise and non-goals | Fixes |
+| --- | --- | --- | --- | --- | --- | --- |
+| VIZ wallet | `/#chain=viz&app=wallet&account=denis-skripnik` | Static server returned SPA entrypoint; source gate confirms VIZ wallet renderer and focused smoke is green. | Fallback QA confirms shared Graphene quick-action binding opens containing `<details>`, prefills target fields, focuses the filled/first field, maximum buttons use guarded targets, and wallet preview buttons exist before send buttons. | None found in fallback/static checks. | Live public RPC/browser CORS behavior was not exercised because browser runtime was unavailable; any RPC/CORS/429/502 remains a network limitation if UI degrades gracefully. | No code fix needed. |
+| Golos wallet | `/#chain=golos&app=wallet&account=denis-skripnik` | Static server returned SPA entrypoint; focused Golos wallet smoke is green. | Fallback QA confirms shared Graphene quick-action binding, guarded maximum buttons, focus movement, and preview form binding. | None found in fallback/static checks. | Live Golos node/API failures are not treated as backend bugs in this block. | No code fix needed. |
+| Steem wallet | `/#chain=steem&app=wallet&account=denis-skripnik` | Static server returned SPA entrypoint; focused Steem wallet smoke is green. | Fallback QA confirms shared Graphene quick-action binding, `<details>` opening, savings/transfer maximum markers, focus movement, and preview form binding. | None found in fallback/static checks. | Live Steem RPC/CORS/429/502 was not fixed as backend. | No code fix needed. |
+| Hive wallet | `/#chain=hive&app=wallet&account=denis-skripnik` | Static server returned SPA entrypoint; focused Hive wallet smoke is green. | Fallback QA confirms shared Graphene quick-action binding, `<details>` opening, savings/transfer maximum markers, focus movement, and preview form binding. | None found in fallback/static checks. | Live Hive RPC/CORS/429/502 was not fixed as backend. | No code fix needed. |
+| Minter wallet | `/#chain=minter&app=wallet&account=Mxf85ceccfe2112e88be58162c43f5ec959672ab54` | Static server returned SPA entrypoint; focused Minter wallet smoke is green. | Fallback QA confirms Minter quick actions open send/delegate/swap/liquidity `<details>`, prefill amount/coin/validator, configure row-specific maximum buttons, focus the recipient/validator/amount target, and bind prepare handlers. | None found in fallback/static checks. | Live Minter API failures are network/static-safe limitations, not a reason to add services. | No code fix needed. |
+| Decimal wallet | `/#chain=decimal&app=wallet&account=dx0000000000000000000000000000000000000000` | Static server returned SPA entrypoint; focused Decimal wallet smoke is green. | Fallback QA confirms Decimal quick actions open send/delegate/convert/NFT `<details>`, prefill amount/coin/validator/NFT fields, update convert maximum helper, focus target fields, and bind prepare handlers. | None found in fallback/static checks. | Live Decimal API failures are network/static-safe limitations, not a reason to add services. | No code fix needed. |
+
+Validation notes:
+- Route/static-server fetch check returned HTTP 200 for all six wallet hash routes.
+- Fallback QA command: `node /tmp/dpos-wallet-ux-qa.js` -> `wallet UX QA fallback checks passed`.
+- Focused wallet gate before this plan update: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-{viz,golos,steem,hive,minter,decimal}-wallet-smoke.js; do node "$f" || exit 1; done && git diff --check` -> green.
+- Full broad gate is required after this plan-only update before commit/push.
+
+Remaining gaps/non-goals:
+- True browser-level click execution could not be completed in this environment because no browser automation backend was available. The fallback checks are documented honestly and do not replace future real-browser QA when Camofox/Playwright is available.
+- No RPC/CORS/429/502 behavior is fixed as backend; graceful degradation only.
+- No final send/broadcast buttons were clicked.
