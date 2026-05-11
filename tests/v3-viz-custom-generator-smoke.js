@@ -24,6 +24,7 @@ assert(appSource.includes('function normalizeVizCustomJson'), 'v3 validates cust
 assert(appSource.includes('function renderVizCustomGenerator(chain)'), 'v3 has dedicated custom-generator renderer');
 assert(appSource.includes('viz-custom-protocol') && appSource.includes('viz-custom-json'), 'renderer exposes protocol/json controls');
 assert(appSource.includes('viz-custom-generator-preview') && appSource.includes('role="status" aria-live="polite"'), 'renderer exposes accessible preview/status region');
+assert(appSource.includes('id="viz-custom-generator-details" class="operation-details"'), 'custom_json operation form is separated in an accessible spoiler');
 assert(appSource.includes("broadcast.prepare(chain, 'regular', 'custom'") && appSource.includes('VIZ custom_json'), 'v3 prepares regular custom operation through shared confirmation flow');
 assert(appSource.includes("chain.id === 'viz' && effectiveAppId === 'custom-generator'"), 'router dispatches VIZ custom-generator renderer');
 const customStart = appSource.indexOf('function normalizeVizCustomProtocol');
@@ -32,6 +33,7 @@ const customSlice = appSource.slice(customStart, customEnd);
 assert(!/178\.20\.43\.121|backend\.dpos\.space|blockchains\/viz\/apps\/custom-generator/.test(customSlice), 'VIZ custom-generator runtime does not call private backend/legacy paths');
 assert(!/XMLHttpRequest|fetch\(|xhr\.open/.test(customSlice), 'VIZ custom-generator runtime performs local JSON parsing, not backend fetches');
 assert(planSource.includes('### Rigorous parity: VIZ / custom-generator'), 'plan contains VIZ custom-generator parity section');
+assert(planSource.includes('VIZ / custom-generator / custom_json'), 'plan records custom-generator operation form UX polish coverage');
 assert(planSource.includes('json_encode.php') && planSource.includes('static-only non-goal'), 'plan documents PHP json_encode as static-only non-goal');
 assert(planSource.includes('generated-script-to-minify.js') && planSource.includes('broadcast.prepare'), 'plan documents generated script replacement with shared v3 broadcast flow');
 

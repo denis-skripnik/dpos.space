@@ -4374,3 +4374,30 @@ Remaining gaps/non-goals:
 - True browser-level click execution could not be completed in this environment because no browser automation backend was available. The fallback checks are documented honestly and do not replace future real-browser QA when Camofox/Playwright is available.
 - No RPC/CORS/429/502 behavior is fixed as backend; graceful degradation only.
 - No final send/broadcast buttons were clicked.
+
+### UX polish: Non-wallet operation forms
+
+Scope: bounded first pass over non-wallet operation forms, prioritizing VIZ forms that prepare irreversible paid transfers or custom operations outside wallet routes. Static-safe only: no backend service, PHP runtime, private API, hidden server API, daemon, indexer, or new hosted app is added. Backend/indexer-only legacy reads stay documented non-goals.
+
+Inventory notes:
+- Inspected v3 source: `v3/js/app.js` render/bind sections for VIZ voice-import, projects, custom-generator, polls, manage, registration, awards, search, swap/editor-style renderers, Minter/Decimal operation renderers; `v3/js/chains.js` route inventory; related `tests/v3-*.js`; existing rigorous parity sections in `plan.md`.
+- Current operation-form pattern already has preview/check buttons before send through `bindOperationForm`, `data-operation-result role="status" aria-live="polite"`, sanitized prepared payloads, and explicit send confirmation.
+- This run selected a coherent VIZ custom/paid-transfer sub-block with 6 forms across 4 apps. Larger manage/registration/editor/swap/broadcast forms remain for later bounded passes because wrapping all at once would be a broad redesign.
+
+Matrix:
+| Chain/app/form | Current UX evidence | Fix/non-goal | Test |
+| --- | --- | --- | --- |
+| VIZ / projects / add project+task | `renderVizProjects` exposed paid `transfer` forms directly in content; both already had preview/send buttons and aria-live results; backend catalog/task/news lists are documented backend/indexer-only non-goals. | Wrapped both paid operation forms in `<details class="operation-details">` with summaries that identify paid transfer preview. No max button added because the safe visible source is a fixed fee (`1.000 VIZ`), not an account balance. | `tests/v3-viz-projects-smoke.js` asserts `viz-projects-add-project-details`, `viz-projects-add-task-details`, and this plan section. |
+| VIZ / custom-generator / custom_json | `renderVizCustomGenerator` exposed arbitrary custom_json send form directly; preview/send and local JSON validation already existed; PHP `json_encode.php`/drag-drop generator remains a static-only non-goal. | Wrapped operation form in `<details class="operation-details">`; preserved ids/classes and shared broadcast flow. No presets invented because arbitrary protocols do not have safe universal templates. | `tests/v3-viz-custom-generator-smoke.js` asserts `viz-custom-generator-details` and plan coverage. |
+| VIZ / voice-import / publish Voice custom | Parser is local/read-only; publish form prepares regular `custom` protocol `V`; legacy CORS proxy/Imgur upload is backend-only non-goal. | Wrapped only the publish/broadcast-like form in `<details class="operation-details">`; parser form remains visible because it does not broadcast. | `tests/v3-viz-voice-import-smoke.js` asserts `viz-voice-publish-details` and plan coverage. |
+| VIZ / polls / create+vote | Create form prepares paid transfer to `committee`; vote form prepares `custom` `viz-votes`; backend list/results/weighted aggregation are backend/indexer-only non-goals. | Wrapped create and vote operation forms in separate `<details class="operation-details">` summaries; preserved preview-before-send and explicit backend non-goal text. No max/template button because fees/answer IDs are fixed/manual legacy inputs, not reliable visible balances. | `tests/v3-viz-polls-smoke.js` asserts `viz-polls-create-details`, `viz-polls-vote-details`, and plan coverage. |
+
+Validation plan:
+- RED confirmed before implementation with `node tests/v3-viz-projects-smoke.js` failing on missing `viz-projects-add-project-details`.
+- Focused gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-viz-projects-smoke.js && node tests/v3-viz-custom-generator-smoke.js && node tests/v3-viz-voice-import-smoke.js && node tests/v3-viz-polls-smoke.js && git diff --check`.
+- Broad gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- Non-wallet manage/registration/editor/swap/broadcast operation forms still need a later focused UX pass for spoilers, safe presets/quick actions, and any table/card prefill opportunities.
+- No wallet forms were touched.
+- No backend/indexer-only legacy behavior was reintroduced; list/catalog/result aggregation that required private PHP/indexers remains documented static-only non-goal.

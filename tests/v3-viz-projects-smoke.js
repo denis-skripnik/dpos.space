@@ -25,6 +25,8 @@ assert(appSource.includes('viz-projects-catalog') && appSource.includes('Кат�
 assert(appSource.includes('viz-projects-tasks') && appSource.includes('Список задач'), 'renderer keeps tasks section');
 assert(appSource.includes('viz-projects-add-project-form') && appSource.includes('Стоимость добавления проекта: 1.000 VIZ'), 'renderer keeps add-project form and fee');
 assert(appSource.includes('viz-projects-add-task-form') && appSource.includes('Стоимость добавления задачи: 1.000 VIZ'), 'renderer keeps add-task form and fee');
+assert(appSource.includes('id="viz-projects-add-project-details" class="operation-details"'), 'add-project operation form is separated in an accessible spoiler');
+assert(appSource.includes('id="viz-projects-add-task-details" class="operation-details"'), 'add-task operation form is separated in an accessible spoiler');
 assert(appSource.includes("broadcast.prepare(chain, 'active', 'transfer'") && appSource.includes("'viz-projects'") && appSource.includes("'1.000 VIZ'"), 'v3 prepares legacy paid transfer to viz-projects');
 assert(appSource.includes("['project', data]") && appSource.includes("['task', data]"), 'v3 memo format preserves legacy [type,data] JSON');
 assert(appSource.includes("app: 'history'") && appSource.includes('query: \'viz-projects\''), 'v3 gives public history fallback for indexed lists');
@@ -34,6 +36,8 @@ const projectsEnd = appSource.indexOf('function buildVizPollCreateMemo', project
 const projectsSlice = appSource.slice(projectsStart, projectsEnd);
 assert(!/178\.20\.43\.121|backend\.dpos\.space|file_get_contents|blockchains\/viz\/apps\/projects/.test(projectsSlice), 'VIZ projects runtime does not call private legacy backend/PHP paths');
 assert(planSource.includes('### Rigorous parity: VIZ / projects'), 'plan contains VIZ projects parity section');
+assert(planSource.includes('### UX polish: Non-wallet operation forms'), 'plan contains non-wallet operation forms UX polish section');
+assert(planSource.includes('VIZ / projects / add project+task'), 'plan records projects operation form UX polish coverage');
 assert(planSource.includes('service=viz-projects&type=types') && planSource.includes('backend/indexer-only'), 'plan documents indexed project catalog backend dependency');
 assert(planSource.includes('sendTransfer(`project`') && planSource.includes('static-safe paid transfer'), 'plan documents static-safe project/task transfer');
 

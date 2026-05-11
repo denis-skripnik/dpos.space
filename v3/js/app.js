@@ -6750,14 +6750,14 @@ Memo key: ${keys.memo}`);
           <button type="submit" id="import-button">Импортировать локально</button>
           <div id="results" class="operation-result" role="status" aria-live="polite"></div>
         </fieldset></form>
-        <form id="viz-voice-publish-form" class="stacked-form"><fieldset>
+        <details id="viz-voice-publish-details" class="operation-details"><summary>Опубликовать в Voice — preview перед отправкой</summary><form id="viz-voice-publish-form" class="stacked-form"><fieldset>
           <legend>Опубликовать в Voice</legend>
           <div class="field"><label for="viz-voice-title">Заголовок</label><input id="viz-voice-title" name="title" type="text" required></div>
           <div class="field"><label for="viz-voice-content">HTML/текст публикации</label><textarea id="viz-voice-content" name="content" rows="12" required></textarea></div>
           <div class="field"><label for="viz-voice-source-url">Ссылка на источник для подписи</label><input id="viz-voice-source-url" name="source_url" type="url"></div>
           <button type="submit" name="intent" value="preview">Проверить Voice custom</button><button type="submit" name="intent" value="send">Опубликовать в Voice</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
+        </fieldset></form></details>
       </section>`;
 
     document.getElementById('viz-voice-import-parser-form').addEventListener('submit', async function (event) {
@@ -7915,7 +7915,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" id="viz-projects-add-project" aria-labelledby="viz-projects-add-project-heading">
           <h3 id="viz-projects-add-project-heading">Добавить проект</h3>
           <p><strong>Стоимость добавления проекта: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['project', data]</code>.</p>
-          <form id="viz-projects-add-project-form" class="stacked-form"><fieldset>
+          <details id="viz-projects-add-project-details" class="operation-details"><summary>Добавить проект — paid transfer preview</summary><form id="viz-projects-add-project-form" class="stacked-form"><fieldset>
             <legend>Новый проект</legend>
             <div class="field"><label for="viz-project-name">Название</label><input id="viz-project-name" name="name" type="text" required></div>
             <div class="field"><label for="viz-project-description">Описание</label><textarea id="viz-project-description" name="description" rows="3" required></textarea></div>
@@ -7928,18 +7928,18 @@ Memo key: ${keys.memo}`);
             <div class="field"><label for="viz-project-github">Github</label><input id="viz-project-github" name="github" type="url"></div>
             <button type="submit" name="intent" value="preview">Проверить проект</button><button type="submit" name="intent" value="send">Отправить проект</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset></form>
+          </fieldset></form></details>
         </section>
         <section class="subpanel" id="viz-projects-add-task" aria-labelledby="viz-projects-add-task-heading">
           <h3 id="viz-projects-add-task-heading">Добавить задачу</h3>
           <p><strong>Стоимость добавления задачи: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['task', data]</code>.</p>
-          <form id="viz-projects-add-task-form" class="stacked-form"><fieldset>
+          <details id="viz-projects-add-task-details" class="operation-details"><summary>Добавить задачу — paid transfer preview</summary><form id="viz-projects-add-task-form" class="stacked-form"><fieldset>
             <legend>Новая задача</legend>
             <div class="field"><label for="viz-task-name">Название</label><input id="viz-task-name" name="name" type="text" required></div>
             <div class="field"><label for="viz-task-description">Описание</label><textarea id="viz-task-description" name="description" rows="3" required></textarea></div>
             <button type="submit" name="intent" value="preview">Проверить задачу</button><button type="submit" name="intent" value="send">Отправить задачу</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset></form>
+          </fieldset></form></details>
         </section>
       </section>`;
     bindOperationForm(chain, 'viz-projects-add-project-form', function (form) {
@@ -8105,14 +8105,14 @@ Memo key: ${keys.memo}`);
         <h2>VIZ: JSON-генератор custom_json</h2>
         <p>Legacy <code>custom-generator</code> собирал произвольную форму, генерировал HTML/JS и отправлял <code>viz.broadcast.custom</code> после POST в <code>json_encode.php</code>.</p>
         <p class="notice"><strong>Backend yes:</strong> старый сгенерированный скрипт зависел от PHP <code>json_encode.php</code>, который преобразовывал form-urlencoded поля в JSON. Static v3 не восстанавливает PHP endpoint, jQuery UI drag/drop builder и вставляемый внешний скрипт; JSON проверяется локально в браузере.</p>
-        <form id="viz-custom-generator-form" class="stacked-form"><fieldset>
+        <details id="viz-custom-generator-details" class="operation-details"><summary>Отправить custom_json — preview перед broadcast</summary><form id="viz-custom-generator-form" class="stacked-form"><fieldset>
           <legend>Подготовить VIZ custom_json</legend>
           <div class="field"><label for="viz-custom-protocol">ID/protocol custom_json</label><input id="viz-custom-protocol" name="protocol" type="text" maxlength="32" pattern="[A-Za-z0-9_.-]" placeholder="my-protocol" required></div>
           <div class="field"><label for="viz-custom-json">JSON payload</label><textarea id="viz-custom-json" name="json" rows="10" spellcheck="false" required>{"example":true}</textarea></div>
           <p class="muted">Заменяет legacy действия «Получить JSON текущей формы» и «Открыть получившуюся форму»: вставьте уже готовый JSON, проверьте preview, затем отправляйте только после явного подтверждения.</p>
           <button type="submit" name="intent" value="preview">Проверить JSON и операцию</button><button type="submit" name="intent" value="send">Отправить custom_json в сеть</button>
           <div id="viz-custom-generator-preview" class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-        </fieldset></form>
+        </fieldset></form></details>
       </section>`;
     bindOperationForm(chain, 'viz-custom-generator-form', function (form) {
       var from = normalizeAccountInput(chain, auth.getCurrentLogin(chain), 'Отправитель custom_json');
@@ -8176,7 +8176,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" aria-labelledby="viz-polls-create-heading">
           <h3 id="viz-polls-create-heading">Создание опроса</h3>
           <p>Форма повторяет static-safe часть legacy <code>pages/create</code>: готовит memo <code>contractName: viz-votes</code>, <code>contractAction: createVote</code> и отправляет перевод на <code>committee</code>. Нужен выбранный VIZ-аккаунт с active key или Vizonator.</p>
-          <form id="viz-polls-create-form" class="stacked-form"><fieldset>
+          <details id="viz-polls-create-details" class="operation-details"><summary>Создать опрос — paid transfer preview</summary><form id="viz-polls-create-form" class="stacked-form"><fieldset>
             <legend>Создать опрос через перевод 1.000 VIZ</legend>
             <div class="field"><label for="viz-polls-question">Вопрос</label><input id="viz-polls-question" name="question" type="text" required></div>
             <div class="field"><label for="viz-polls-answers">Варианты ответа, каждый с новой строки</label><textarea id="viz-polls-answers" name="answers" rows="5" required></textarea></div>
@@ -8184,7 +8184,7 @@ Memo key: ${keys.memo}`);
             <div class="field"><label for="viz-polls-consider">Учитывать при расчёте результатов соц. капитал</label><select id="viz-polls-consider" name="consider"><option value="0">Личный</option><option value="1">Личный  прокси</option><option value="2">Как при награждении</option></select></div>
             <button type="submit" name="intent" value="preview">Проверить создание опроса</button><button type="submit" name="intent" value="send">Отправить создание опроса в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset></form>
+          </fieldset></form></details>
         </section>
         <section class="subpanel" aria-labelledby="viz-polls-list-heading">
           <h3 id="viz-polls-list-heading">Список/просмотр опросов</h3>
@@ -8193,13 +8193,13 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" aria-labelledby="viz-polls-vote-heading">
           <h3 id="viz-polls-vote-heading">Голосование</h3>
           <p>Так как ответы и активность опроса legacy получал из backend/indexer, v3 не угадывает список вариантов. Введите известный <code>votePermlink</code> и номер <code>answerId</code> из источника опроса; отправка использует существующий <code>broadcast.prepare</code> для <code>custom</code> с regular authority.</p>
-          <form id="viz-polls-vote-form" class="stacked-form"><fieldset>
+          <details id="viz-polls-vote-details" class="operation-details"><summary>Проголосовать — custom_json preview</summary><form id="viz-polls-vote-form" class="stacked-form"><fieldset>
             <legend>Проголосовать через custom_json viz-votes</legend>
             <div class="field"><label for="viz-polls-permlink">Permlink опроса</label><input id="viz-polls-permlink" name="permlink" type="text" required></div>
             <div class="field"><label for="viz-polls-answer-id">answerId (0, 1, 2... как в legacy форме)</label><input id="viz-polls-answer-id" name="answer_id" type="number" min="0" step="1" required></div>
             <button type="submit" name="intent" value="preview">Проверить голос</button><button type="submit" name="intent" value="send">Отправить голос в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
-          </fieldset></form>
+          </fieldset></form></details>
         </section>
         <section class="subpanel" aria-labelledby="viz-polls-results-heading">
           <h3 id="viz-polls-results-heading">Результаты</h3>
