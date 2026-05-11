@@ -4487,3 +4487,31 @@ Remaining gaps/non-goals:
 - Decimal validators/explorer/profiles/randomblockchain are read-only lookup/navigation/calculator routes in this scope; no operation controls are added.
 - Backend/indexer-only legacy behavior remains documented non-goal; this pass adds no service, PHP route/runtime, private IP/API, daemon, indexer, or hidden hosted app.
 - If another UX-polish block is needed, next inspect remaining read-only helper/calculator routes for copy/status/accessibility only, not operation controls.
+
+### UX polish: Read-only helper and calculator routes
+
+Scope: bounded read-only/helper/calculator accessibility pass after wallet/manage/registration/editor/swap/Minter-Decimal non-wallet operation-form UX blocks. Static-safe only: no backend service, PHP runtime, private API, hidden server API, daemon, indexer, new hosted app, or fake operation controls. Selected small coherent sub-block: calculator routes, because the calculator renderers are read-only and already have labels/results, but the panel/loading heading relationships were inconsistent.
+
+Files inspected:
+- v3 source: `v3/js/app.js` `legacyAppTarget`, `renderCalculator`, `renderGolosCalculator`, `renderSteemCalculator`, `renderHiveCalculator`, `renderVizCalculator`, shared `setOperationResult`, and read-only `renderExplorerResult`/table helpers; `v3/js/chains.js` app inventories for calculator/randomblockchain/explorer/help/analytics/top/search/profiles/validators/witnesses-rewards; `v3/js/broadcast.js` only to confirm calculators do not need broadcast helpers; `v3/js/profiles.js` public RPC helper usage for calculator contexts.
+- Focused tests inspected/used: `tests/v3-golos-calculator-smoke.js`, `tests/v3-steem-calc-smoke.js`, `tests/v3-hive-calc-smoke.js`, `tests/v3-viz-calc-smoke.js`, `tests/v3-minter-randomblockchain-smoke.js`, `tests/v3-decimal-randomblockchain-smoke.js`, and new `tests/v3-read-only-helper-ux-smoke.js`.
+
+Inventory and selected sub-block:
+| Chain/app/route | Current UX evidence | Fix/no-op/non-goal | Test |
+| --- | --- | --- | --- |
+| Golos / calculator | Labels and button text existed for upvote, daily SG reward, and GESTS conversion forms; result regions used `role="status" aria-live="polite"`. Loading markup was plain text and the final panel did not expose an `aria-labelledby` relationship. | Add live loading status and stable `golos-calculator-heading`/`aria-labelledby` on the panel. No operation controls or broadcast behavior added. | `tests/v3-read-only-helper-ux-smoke.js`, `tests/v3-golos-calculator-smoke.js` |
+| Steem / calculator | Labels, result live regions, public RPC loading/error status, and no broadcast behavior already existed. Final panel lacked a stable heading relationship. | Add `steem-calculator-heading`/`aria-labelledby`; keep public RPC/error copy honest and static-only. | `tests/v3-read-only-helper-ux-smoke.js`, `tests/v3-steem-calc-smoke.js` |
+| Hive / calculator | Labels, result live regions, public RPC loading/error status, and no broadcast behavior already existed. Final panel lacked a stable heading relationship. | Add `hive-calculator-heading`/`aria-labelledby`; keep public RPC/error copy honest and static-only. | `tests/v3-read-only-helper-ux-smoke.js`, `tests/v3-hive-calc-smoke.js` |
+| VIZ / calculator | Labels, fallback/source live notice, result live regions, and no broadcast behavior already existed. Loading/final panels lacked a stable heading relationship. | Add `viz-calculator-loading-heading` for loading and `viz-calculator-heading`/`aria-labelledby` for final panel. | `tests/v3-read-only-helper-ux-smoke.js`, `tests/v3-viz-calc-smoke.js` |
+| Minter/Decimal / calculator | Generic calculator renderer has labelled input and live result but no stable heading relationship and loading text was not a live region. This is read-only helper UI; Minter/Decimal operation forms remain out of scope. | Add generic loading live status and `generic-calculator-heading`/`aria-labelledby`; do not add fake transaction buttons, indexers, or backend services. | `tests/v3-read-only-helper-ux-smoke.js` |
+| randomblockchain / explorer / help / analytics / top / search / profiles / validators / witnesses-rewards / backup/import helpers | Existing focused smokes already cover many live regions, captions, public-RPC/status text, no private backend/PHP, and no broadcast behavior. No concrete same-size calculator-like gap selected in this bounded pass. | No-op/non-goal for this block; keep as next-pass inventory only if a concrete missing marker is found. | Existing `tests/v3-*-randomblockchain-smoke.js`, explorer/help/analytics/top/search/profiles/validators/witnesses focused smokes |
+
+Validation plan:
+- RED: add `tests/v3-read-only-helper-ux-smoke.js` first. It should fail before implementation on missing calculator `aria-labelledby` markers (at minimum Golos/generic calculator).
+- Focused gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && node tests/v3-read-only-helper-ux-smoke.js && node tests/v3-golos-calculator-smoke.js && node tests/v3-steem-calc-smoke.js && node tests/v3-hive-calc-smoke.js && node tests/v3-viz-calc-smoke.js && git diff --check`.
+- Broad gate for this block: `node --check v3/js/app.js && node --check v3/js/chains.js && node --check v3/js/broadcast.js && node --check v3/js/profiles.js && for f in tests/v3-*.js; do node "$f" || exit 1; done && git diff --check`.
+
+Remaining gaps/non-goals:
+- No operation controls are added to read-only/helper routes.
+- Backend/indexer-only legacy behavior remains an honest static-only non-goal; this pass adds no service, PHP runtime, private IP/API, hidden server API, daemon, indexer, or hosted app.
+- If UX-polish continues, the next concrete block should be a small focused read-only route family with a demonstrable missing label/status/caption marker, not broad churn across already-adequate routes.

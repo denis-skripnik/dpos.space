@@ -5164,7 +5164,7 @@
   }
 
   async function renderGolosCalculator(chain, account) {
-    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора Golos</h2><p>Читаю параметры сети...</p></section>';
+    appEl.innerHTML = '<section class="panel calculator-golos" aria-labelledby="golos-calculator-loading-heading"><h2 id="golos-calculator-loading-heading">Загрузка калькулятора Golos</h2><p role="status" aria-live="polite">Читаю параметры сети через публичную Golos RPC-ноду...</p></section>';
     const connection = await getConnection(chain);
     const context = await loadGolosCalculatorContext(connection);
     const props = context.props || {};
@@ -5173,8 +5173,8 @@
     const perMillion = totalFund && totalShares ? (1000000 * totalFund / totalShares) : 0;
 
     appEl.innerHTML = `
-      <section class="panel calculator-golos">
-        <h2>Golos: калькулятор GOLOS/GBG/СГ</h2>
+      <section class="panel calculator-golos" aria-labelledby="golos-calculator-heading">
+        <h2 id="golos-calculator-heading">Golos: калькулятор GOLOS/GBG/СГ</h2>
         <p>Статический перенос legacy-калькулятора: расчёт стоимости апвоута, примерной награды из СГ за сутки и перевод GESTS в СГ по публичной ноде.</p>
         <ul>
           <li><strong>1 000 000 GESTS ≈</strong> ${escapeHtml(perMillion.toFixed(3))} СГ</li>
@@ -5244,14 +5244,14 @@
   }
 
   async function renderSteemCalculator(chain, account) {
-    appEl.innerHTML = '<section class="panel calculator-steem"><h2>Загрузка калькулятора Steem</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Steem RPC-ноду...</p></section>';
+    appEl.innerHTML = '<section class="panel calculator-steem" aria-labelledby="steem-calculator-loading-heading"><h2 id="steem-calculator-loading-heading">Загрузка калькулятора Steem</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Steem RPC-ноду...</p></section>';
     let connection;
     let context;
     try {
       connection = await getConnection(chain);
       context = await loadSteemCalculatorContext(connection);
     } catch (error) {
-      appEl.innerHTML = `<section class="panel calculator-steem"><h2>Steem: калькулятор SP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Steem RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      appEl.innerHTML = `<section class="panel calculator-steem" aria-labelledby="steem-calculator-heading"><h2 id="steem-calculator-heading">Steem: калькулятор SP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Steem RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
       setStatus('Steem калькулятор не смог получить публичные RPC-параметры.', 'error');
       return;
     }
@@ -5261,8 +5261,8 @@
     const steemPerVests = totalShares ? 1000000 * totalFund / totalShares : 0;
 
     appEl.innerHTML = `
-      <section class="panel calculator-steem">
-        <h2>Steem: Блокчейн-калькулятор</h2>
+      <section class="panel calculator-steem" aria-labelledby="steem-calculator-heading">
+        <h2 id="steem-calculator-heading">Steem: Блокчейн-калькулятор</h2>
         <p>Статический перенос legacy-калькулятора: рассчёт стоимости апвота по SP, батарейке и весу голоса, а также перевод VESTS в SP. Все параметры читаются из публичной Steem RPC; PHP endpoint и серверные snippets не используются.</p>
         <ul>
           <li><strong>1 000 000 VESTS ≈</strong> ${escapeHtml(steemPerVests.toFixed(3))} SP</li>
@@ -5312,14 +5312,14 @@
   }
 
   async function renderHiveCalculator(chain, account) {
-    appEl.innerHTML = '<section class="panel calculator-hive"><h2>Загрузка калькулятора Hive</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Hive RPC-ноду...</p></section>';
+    appEl.innerHTML = '<section class="panel calculator-hive" aria-labelledby="hive-calculator-loading-heading"><h2 id="hive-calculator-loading-heading">Загрузка калькулятора Hive</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Hive RPC-ноду...</p></section>';
     let connection;
     let context;
     try {
       connection = await getConnection(chain);
       context = await loadHiveCalculatorContext(connection);
     } catch (error) {
-      appEl.innerHTML = `<section class="panel calculator-hive"><h2>Hive: калькулятор HP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Hive RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      appEl.innerHTML = `<section class="panel calculator-hive" aria-labelledby="hive-calculator-heading"><h2 id="hive-calculator-heading">Hive: калькулятор HP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Hive RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
       setStatus('Hive калькулятор не смог получить публичные RPC-параметры.', 'error');
       return;
     }
@@ -5329,8 +5329,8 @@
     const hivePerVests = totalShares ? 1000000 * totalFund / totalShares : 0;
 
     appEl.innerHTML = `
-      <section class="panel calculator-hive">
-        <h2>Hive: Блокчейн-калькулятор</h2>
+      <section class="panel calculator-hive" aria-labelledby="hive-calculator-heading">
+        <h2 id="hive-calculator-heading">Hive: Блокчейн-калькулятор</h2>
         <p>Статический перенос legacy-калькулятора: рассчёт стоимости апвота по HP, батарейке и весу голоса, а также перевод VESTS в HP. Все параметры читаются из публичной Hive RPC; PHP endpoint и серверные snippets не используются.</p>
         <ul>
           <li><strong>1 000 000 VESTS ≈</strong> ${escapeHtml(hivePerVests.toFixed(3))} HP</li>
@@ -5380,7 +5380,7 @@
   }
 
   async function renderVizCalculator(chain, account) {
-    appEl.innerHTML = '<section class="panel calculator-viz"><h2>Загрузка калькулятора VIZ</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties и config через публичную VIZ RPC-ноду...</p></section>';
+    appEl.innerHTML = '<section class="panel calculator-viz" aria-labelledby="viz-calculator-loading-heading"><h2 id="viz-calculator-loading-heading">Загрузка калькулятора VIZ</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties и config через публичную VIZ RPC-ноду...</p></section>';
     let connection = null;
     let context = null;
     try {
@@ -5397,8 +5397,8 @@
     }
     const props = context.props || VIZ_CALCULATOR_FALLBACK_PROPS;
     appEl.innerHTML = `
-      <section class="panel calculator-viz">
-        <h2>VIZ: калькулятор SHARES/энергии</h2>
+      <section class="panel calculator-viz" aria-labelledby="viz-calculator-heading">
+        <h2 id="viz-calculator-heading">VIZ: калькулятор SHARES/энергии</h2>
         <p>Статический перенос legacy calc без PHP/backend-runtime: стоимость награды по SHARES и charge, фонд приложения при награждении 0.1%, конвертация vesting shares → соц. капитал.</p>
         <p class="notice" role="status" aria-live="polite">Источник параметров: ${escapeHtml(context.source)}${context.error ? `. Публичная RPC-нода недоступна или вернула ошибку, используются статические fallback-значения: ${escapeHtml(context.error)}` : ''}</p>
         <ul>
@@ -5472,7 +5472,7 @@
       await renderHiveCalculator(chain, account);
       return;
     }
-    appEl.innerHTML = '<section class="panel"><h2>Загрузка калькулятора</h2><p>Читаю параметры сети...</p></section>';
+    appEl.innerHTML = '<section class="panel" aria-labelledby="generic-calculator-loading-heading"><h2 id="generic-calculator-loading-heading">Загрузка калькулятора</h2><p role="status" aria-live="polite">Читаю параметры сети через публичную RPC/API-ноду...</p></section>';
     const connection = await getConnection(chain);
     const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
     const totalFund = parseFloat(props.total_vesting_fund_steem || props.total_vesting_fund_hive || props.total_vesting_fund || '0');
@@ -5480,8 +5480,8 @@
     const perMillion = totalFund && totalShares ? (1000000 * totalFund / totalShares) : 0;
 
     appEl.innerHTML = `
-      <section class="panel">
-        <h2>${escapeHtml(chain.title)}: калькулятор ${escapeHtml(chain.powerTitle || chain.vestingSymbol)}</h2>
+      <section class="panel" aria-labelledby="generic-calculator-heading">
+        <h2 id="generic-calculator-heading">${escapeHtml(chain.title)}: калькулятор ${escapeHtml(chain.powerTitle || chain.vestingSymbol)}</h2>
         <p>Калькулятор показывает примерную конвертацию vesting в power по текущим параметрам сети.</p>
         <ul>
           <li><strong>1 000 000 ${escapeHtml(chain.vestingSymbol || 'VESTS')} ≈</strong> ${escapeHtml(perMillion.toFixed(6))} ${escapeHtml(chain.powerTitle || chain.liquidSymbol || 'POWER')}</li>
