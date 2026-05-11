@@ -1068,9 +1068,43 @@
           const select = root.querySelector(`#${button.dataset.fillSelected}`);
           const option = select && select.selectedOptions && select.selectedOptions[0];
           target.value = option && option.dataset.max ? amountFromBalance(option.dataset.max) : '';
+          target.focus();
           return;
         }
         target.value = button.dataset.fillValue || '';
+        target.focus();
+      });
+    });
+  }
+
+  function walletQuickActionButton(label, formId, fills) {
+    const attrs = Object.entries(fills || {})
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([fieldId, value]) => `data-wallet-fill-${escapeHtml(fieldId)}="${escapeHtml(value)}"`)
+      .join(' ');
+    if (!attrs) return '';
+    return `<button type="button" data-wallet-open-form="${escapeHtml(formId)}" ${attrs}>${escapeHtml(label)}</button>`;
+  }
+
+  function bindGrapheneWalletQuickActions(root) {
+    root.querySelectorAll('[data-wallet-open-form]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const form = root.querySelector(`#${button.dataset.walletOpenForm}`);
+        if (!form) return;
+        const details = form.closest('details');
+        if (details) details.open = true;
+        let target = null;
+        Object.entries(button.dataset).forEach(([key, value]) => {
+          if (!key.startsWith('walletFill')) return;
+          const id = key.slice('walletFill'.length).replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).replace(/^-/, '');
+          const field = root.querySelector(`#${id}`);
+          if (!field) return;
+          field.value = value;
+          if (!target) target = field;
+        });
+        if (!target) target = form.querySelector('input:not([type="hidden"]), textarea, select, button[type="submit"]');
+        if (target) target.focus();
+        setStatus('Форма открыта и заполнена из строки кошелька. Проверьте данные перед отправкой.', 'info');
       });
     });
   }
@@ -2157,6 +2191,7 @@
 
     bindGolosWalletForms(chain, data.profile, uiaGateways, data.delegations);
     bindMaxButtons(appEl);
+    bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
   }
@@ -2184,6 +2219,7 @@
 
     bindVizWalletForms(chain, data.profile);
     bindMaxButtons(appEl);
+    bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`VIZ-кошелёк @${account} загружен: VIZ/SHARES, делегирования, invite и transfer templates доступны через проверку и подтверждение.`, 'ok');
   }
@@ -2211,6 +2247,7 @@
 
     bindHiveWalletForms(chain, data.profile, data.delegations);
     bindMaxButtons(appEl);
+    bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`Hive-кошелёк @${account} загружен: HIVE/HBD/HP, делегирования, rewards и savings доступны через проверку и подтверждение.`, 'ok');
   }
@@ -2298,6 +2335,7 @@
 
     bindSteemWalletForms(chain, data.profile, data.delegations);
     bindMaxButtons(appEl);
+    bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`Steem-кошелёк @${account} загружен: STEEM/SBD/SP, делегирования, rewards и savings доступны через проверку и подтверждение.`, 'ok');
   }
@@ -2492,9 +2530,9 @@
       rows.push([label, value, note || '']);
     };
 
-    add('GOLOS', raw.balance);
-    add('GBG', raw.sbd_balance || raw.gbg_balance);
-    add('СГ', formatGolosPowerMax(profile, raw.vesting_shares));
+    add('GOLOS', raw.balance, walletQuickActionButton('Перевести GOLOS', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.balance }) + ' ' + walletQuickActionButton('В СГ', 'wallet-vesting-form', { 'wallet-vesting-amount': raw.balance }));
+    add('GBG', raw.sbd_balance || raw.gbg_balance, walletQuickActionButton('Перевести GBG', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.sbd_balance || raw.gbg_balance }));
+    add('СГ', formatGolosPowerMax(profile, raw.vesting_shares), walletQuickActionButton('Вывести СГ', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': formatGolosPowerMax(profile, raw.vesting_shares) }) + ' ' + walletQuickActionButton('Делегировать СГ', 'wallet-delegation-form', { 'wallet-delegation-vesting': formatGolosPowerMax(profile, raw.vesting_shares) }));
     add('Делегировано СГ', formatGolosPowerMax(profile, raw.delegated_vesting_shares));
     add('Получено делегированием СГ', formatGolosPowerMax(profile, raw.received_vesting_shares));
     add('TIP GOLOS', raw.tip_balance, 'донат и вывод из TIP доступны ниже');
@@ -2510,7 +2548,7 @@
       }
     });
 
-    return `<ul class="wallet-golos-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
+    return `<ul class="wallet-golos-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${String(note).includes('<button') ? note : escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
   }
 
   function renderTemplateSelect(kind, token, login, selectId) {
@@ -2822,8 +2860,8 @@
     const withdrawRate = Number.parseFloat(raw.vesting_withdraw_rate) || 0;
     const fullWithdraw = withdrawRate ? `${(withdrawRate * 28).toFixed(6)} SHARES` : '';
 
-    add('VIZ', raw.balance);
-    add('SHARES', raw.vesting_shares);
+    add('VIZ', raw.balance, walletQuickActionButton('Перевести VIZ', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.balance }) + ' ' + walletQuickActionButton('В SHARES', 'wallet-vesting-form', { 'wallet-vesting-amount': raw.balance }));
+    add('SHARES', raw.vesting_shares, walletQuickActionButton('Вывести SHARES', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': vizSharesMax(profile, 'vesting_shares') }) + ' ' + walletQuickActionButton('Делегировать SHARES', 'wallet-delegation-form', { 'wallet-delegation-vesting': vizSharesMax(profile, 'vesting_shares') }));
     add('Делегировано SHARES', raw.delegated_vesting_shares);
     add('Получено делегированием SHARES', raw.received_vesting_shares);
     add('Итоговые SHARES для наград', vizEffectiveShares(profile));
@@ -2832,7 +2870,7 @@
     add('Выводится по', raw.vesting_withdraw_rate, fullWithdraw ? `итого за 28 интервалов: ${fullWithdraw}` : '');
     add('Следующий вывод', raw.next_vesting_withdrawal);
 
-    const list = `<ul class="wallet-viz-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
+    const list = `<ul class="wallet-viz-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${String(note).includes('<button') ? note : escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
     const delegationError = delegations && delegations.error ? `<p class="muted">getVestingDelegations недоступен после fallback по VIZ-нодам: ${escapeHtml(delegations.error)}</p>` : '';
     const delegationNote = '<p class="muted">Управление делегированием SHARES находится ниже: форма «Делегирование SHARES» создаёт/изменяет делегирование, а сумма 0.000000 SHARES отменяет делегирование выбранному аккаунту.</p>';
     return `${list}${delegationNote}${delegationError}${renderVizDelegations('Кто делегировал вам SHARES', delegations && delegations.received, 'received', delegations && delegations.unavailable)}${renderVizDelegations('Кому вы делегировали SHARES', delegations && delegations.delegated, 'delegated', delegations && delegations.unavailable)}`;
@@ -2990,6 +3028,14 @@
     const rewardHive = raw.reward_hive_balance || '0.000 HIVE';
     const rewardHbd = raw.reward_hbd_balance || '0.000 HBD';
     const rewardVests = raw.reward_vesting_balance || '0.000000 VESTS';
+    const quickActions = [
+      walletQuickActionButton('Перевести максимум HIVE', 'wallet-transfer-form', { 'wallet-transfer-amount': liquidMax }),
+      walletQuickActionButton('Перевести максимум HBD', 'wallet-transfer-form', { 'wallet-transfer-amount': hbdMax }),
+      walletQuickActionButton('В HP', 'wallet-vesting-form', { 'wallet-vesting-amount': liquidMax }),
+      walletQuickActionButton('Вывести HP', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': withdrawMax }),
+      walletQuickActionButton('Делегировать HP', 'wallet-delegation-form', { 'wallet-delegation-vesting': delegationMax }),
+      walletQuickActionButton('В savings HIVE', 'wallet-savings-to-form', { 'wallet-savings-amount': liquidMax })
+    ].join(' ');
 
     const operations = [
       operationDetails('Перевод HIVE/HBD', `
@@ -3097,6 +3143,7 @@
     return `
       <h3>Операции Hive</h3>
       <p class="muted">Откройте нужный пункт, проверьте операцию, затем подтвердите отправку отдельной кнопкой.</p>
+      <p class="quick-actions">${quickActions}</p>
       ${operations.join('')}`;
   }
 
@@ -3291,6 +3338,14 @@
     const rewardSteem = raw.reward_steem_balance || '0.000 STEEM';
     const rewardSbd = raw.reward_sbd_balance || '0.000 SBD';
     const rewardVests = raw.reward_vesting_balance || '0.000000 VESTS';
+    const quickActions = [
+      walletQuickActionButton('Перевести максимум STEEM', 'wallet-transfer-form', { 'wallet-transfer-amount': liquidMax }),
+      walletQuickActionButton('Перевести максимум SBD', 'wallet-transfer-form', { 'wallet-transfer-amount': sbdMax }),
+      walletQuickActionButton('В SP', 'wallet-vesting-form', { 'wallet-vesting-amount': liquidMax }),
+      walletQuickActionButton('Вывести SP', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': withdrawMax }),
+      walletQuickActionButton('Делегировать SP', 'wallet-delegation-form', { 'wallet-delegation-vesting': delegationMax }),
+      walletQuickActionButton('В savings STEEM', 'wallet-savings-to-form', { 'wallet-savings-amount': liquidMax })
+    ].join(' ');
 
     const operations = [
       operationDetails('Перевод STEEM/SBD', `
@@ -3398,6 +3453,7 @@
     return `
       <h3>Операции Steem</h3>
       <p class="muted">Откройте нужный пункт, проверьте операцию, затем подтвердите отправку отдельной кнопкой.</p>
+      <p class="quick-actions">${quickActions}</p>
       ${operations.join('')}`;
   }
 
@@ -3534,9 +3590,12 @@
         const toInput = document.getElementById('wallet-delegation-to');
         const amountInput = document.getElementById('wallet-delegation-vesting');
         const interestInput = document.getElementById('wallet-golos-delegation-interest');
+        const details = amountInput && amountInput.closest('details');
+        if (details) details.open = true;
         if (toInput) toInput.value = delegatee;
         if (amountInput) amountInput.value = '0.000000 СГ';
         if (interestInput) interestInput.value = '0';
+        if (toInput) toInput.focus();
         setStatus(`Для отмены делегирования @${delegatee} проверьте и отправьте форму «Делегирование СГ» с 0.000000 СГ.`, 'info');
       });
     });
@@ -3820,8 +3879,11 @@
         const delegatee = button.dataset.vizCancelDelegation || '';
         const toInput = document.getElementById('wallet-delegation-to');
         const amountInput = document.getElementById('wallet-delegation-vesting');
+        const details = amountInput && amountInput.closest('details');
+        if (details) details.open = true;
         if (toInput) toInput.value = delegatee;
         if (amountInput) amountInput.value = '0.000000 SHARES';
+        if (toInput) toInput.focus();
         setStatus(`Для отмены делегирования @${delegatee} проверьте и отправьте форму «Делегирование SHARES» с 0.000000 SHARES.`, 'info');
       });
     });

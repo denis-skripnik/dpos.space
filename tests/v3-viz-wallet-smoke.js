@@ -61,6 +61,11 @@ assert(appSource.includes("callVizApi(api, 'getVestingDelegations', [account, ''
 assert(appSource.includes('fetchVizDelegationsWithNodeFallback'), 'VIZ delegation loader falls back across VIZ nodes');
 assert(appSource.includes('getVestingDelegations недоступен после fallback'), 'VIZ delegation errors are not rendered as empty lists');
 assert(appSource.includes('0.000000 SHARES отменяет делегирование'), 'VIZ wallet explains delegation cancellation management');
+assert(appSource.includes('bindGrapheneWalletQuickActions(appEl)'), 'VIZ wallet binds shared Graphene quick-action UX helpers');
+assert(appSource.includes("walletQuickActionButton('Перевести VIZ', 'wallet-transfer-form'"), 'VIZ wallet balance actions can open transfer details');
+assert(appSource.includes("'wallet-transfer-amount': raw.balance"), 'VIZ wallet balance actions prefill transfer amount');
+assert(appSource.includes("walletQuickActionButton('Делегировать SHARES', 'wallet-delegation-form'"), 'VIZ wallet delegation actions can open delegation details');
+assert(appSource.includes('target.focus()'), 'VIZ wallet quick actions move focus to the target field');
 assert(appSource.includes('getInviteByKey(publicKey'), 'VIZ wallet can inspect invite by public key');
 assert(appSource.includes('wifToPublic'), 'VIZ create/check invite derives public invite key from secret WIF');
 assert(appSource.includes('crypto.getRandomValues'), 'VIZ generated invite secrets use cryptographic browser randomness');
