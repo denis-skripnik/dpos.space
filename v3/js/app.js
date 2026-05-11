@@ -33,6 +33,213 @@
     statusEl.dataset.state = state || 'info';
   }
 
+  function safeMarkdownUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '#';
+    if (/^(https?:|mailto:)/i.test(raw)) return raw;
+    if (/^[./#]/.test(raw)) return raw;
+    return '#';
+  }
+
+  function renderInlineMarkdown(value) {
+    let text = escapeHtml(value);
+    text = text.replace(/!\[([^\]]*)\]\(([^\s)]+)\)/g, (match, alt, url) => `<img src="${escapeHtml(safeMarkdownUrl(url))}" alt="${escapeHtml(alt)}" loading="lazy">`);
+    text = text.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, (match, label, url) => `<a href="${escapeHtml(safeMarkdownUrl(url))}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/(^|\s)\*([^*]+)\*/g, '$1<em>$2</em>');
+    return text;
+  }
+
+  function markdownToPreviewHtml(markdown) {
+    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
+    const html = [];
+    let listType = '';
+    let inCode = false;
+    const closeList = () => {
+      if (listType) html.push(`</${listType}>`);
+      listType = '';
+    };
+    const tableCells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const trimmed = line.trim();
+      if (trimmed.startsWith('```')) {
+        closeList();
+        html.push(inCode ? '</code></pre>' : '<pre><code>');
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) {
+        html.push(`${escapeHtml(line)}\n`);
+        continue;
+      }
+      if (!trimmed) {
+        closeList();
+        continue;
+      }
+      if (/^---+$/.test(trimmed)) {
+        closeList();
+        html.push('<hr>');
+        continue;
+      }
+      if (/^\|.+\|$/.test(trimmed) && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[index + 1] || '')) {
+        closeList();
+        const headers = tableCells(trimmed);
+        const rows = [];
+        index += 2;
+        while (index < lines.length && /^\|.+\|$/.test(lines[index].trim())) {
+          rows.push(tableCells(lines[index]));
+          index += 1;
+        }
+        index -= 1;
+        html.push(`<div class="table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((unused, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        continue;
+      }
+      const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if (heading) {
+        closeList();
+        const level = heading[1].length;
+        html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+        continue;
+      }
+      const quote = trimmed.match(/^>\s?(.+)$/);
+      if (quote) {
+        closeList();
+        html.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+        continue;
+      }
+      const unordered = trimmed.match(/^[-*+]\s+(.+)$/);
+      if (unordered) {
+        if (listType !== 'ul') {
+          closeList();
+          listType = 'ul';
+          html.push('<ul>');
+        }
+        html.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
+        continue;
+      }
+      const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+      if (ordered) {
+        if (listType !== 'ol') {
+          closeList();
+          listType = 'ol';
+          html.push('<ol>');
+        }
+        html.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+        continue;
+      }
+      closeList();
+      html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+    }
+    closeList();
+    if (inCode) html.push('</code></pre>');
+    return html.join('\n') || '<p class="muted">Предпросмотр появится после ввода текста.</p>';
+  }
+
+  function renderMarkdownEditorField(value) {
+    const body = escapeHtml(value || '');
+    return `<div class="field markdown-editor" data-markdown-editor>
+      <label for="editor-body">Текст поста</label>
+      <div class="markdown-toolbar" role="toolbar" aria-label="Панель форматирования Markdown">
+        <button type="button" class="secondary" data-md-action="bold" aria-label="Жирный текст, Ctrl+B">Жирный</button>
+        <button type="button" class="secondary" data-md-action="italic" aria-label="Курсив, Ctrl+I">Курсив</button>
+        <button type="button" class="secondary" data-md-action="heading" aria-label="Заголовок">Заголовок</button>
+        <button type="button" class="secondary" data-md-action="quote" aria-label="Цитата">Цитата</button>
+        <button type="button" class="secondary" data-md-action="ul" aria-label="Маркированный список">Список</button>
+        <button type="button" class="secondary" data-md-action="ol" aria-label="Нумерованный список">1. Список</button>
+        <button type="button" class="secondary" data-md-action="link" aria-label="Вставить ссылку, Ctrl+K">Ссылка</button>
+        <button type="button" class="secondary" data-md-action="image" aria-label="Вставить изображение">Картинка</button>
+        <button type="button" class="secondary" data-md-action="code" aria-label="Код">Код</button>
+        <button type="button" class="secondary" data-md-action="table" aria-label="Таблица">Таблица</button>
+        <button type="button" class="secondary" data-md-action="hr" aria-label="Горизонтальная линия">Линия</button>
+        <button type="button" data-md-preview aria-expanded="false" aria-controls="editor-preview">Предпросмотр</button>
+      </div>
+      <textarea id="editor-body" name="body" rows="12" required aria-describedby="editor-markdown-help editor-markdown-status">${body}</textarea>
+      <p id="editor-markdown-help" class="muted">Markdown-редактор: кнопки форматируют выделенный текст, поле остаётся обычным textarea. Горячие клавиши: Ctrl+B, Ctrl+I, Ctrl+K.</p>
+      <p id="editor-markdown-status" class="muted" role="status" aria-live="polite">Редактор Markdown готов.</p>
+      <div id="editor-preview" class="markdown-preview" hidden aria-live="polite"></div>
+    </div>`;
+  }
+
+  function insertMarkdown(textarea, before, after, placeholder, mode) {
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const selected = textarea.value.slice(start, end) || placeholder || '';
+    let replacement = '';
+    if (mode === 'line-prefix') {
+      replacement = selected.split('\n').map((line) => `${before}${line || placeholder || ''}`).join('\n');
+    } else if (mode === 'block') {
+      replacement = `${before}${selected}${after}`;
+    } else {
+      replacement = `${before}${selected}${after}`;
+    }
+    textarea.setRangeText(replacement, start, end, 'end');
+    textarea.focus();
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function bindMarkdownEditor(root) {
+    root.querySelectorAll('[data-markdown-editor]').forEach((editor) => {
+      const textarea = editor.querySelector('#editor-body');
+      const preview = editor.querySelector('#editor-preview');
+      const status = editor.querySelector('#editor-markdown-status');
+      const previewButton = editor.querySelector('[data-md-preview]');
+      if (!textarea || !preview || !status) return;
+      const updatePreview = () => {
+        preview.innerHTML = markdownToPreviewHtml(textarea.value);
+      };
+      const setEditorStatus = (message) => { status.textContent = message; };
+      editor.querySelectorAll('[data-md-action]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const action = button.dataset.mdAction;
+          if (action === 'bold') insertMarkdown(textarea, '**', '**', 'жирный текст');
+          if (action === 'italic') insertMarkdown(textarea, '*', '*', 'курсив');
+          if (action === 'heading') insertMarkdown(textarea, '## ', '', 'Заголовок', 'line-prefix');
+          if (action === 'quote') insertMarkdown(textarea, '> ', '', 'цитата', 'line-prefix');
+          if (action === 'ul') insertMarkdown(textarea, '- ', '', 'пункт списка', 'line-prefix');
+          if (action === 'ol') insertMarkdown(textarea, '1. ', '', 'пункт списка', 'line-prefix');
+          if (action === 'link') insertMarkdown(textarea, '[', '](https://example.com)', 'текст ссылки');
+          if (action === 'image') insertMarkdown(textarea, '![', '](https://example.com/image.jpg)', 'описание изображения');
+          if (action === 'code') insertMarkdown(textarea, '`', '`', 'код');
+          if (action === 'table') insertMarkdown(textarea, '\n| Заголовок 1 | Заголовок 2 |\n| --- | --- |\n| Текст | Текст |\n', '', '', 'block');
+          if (action === 'hr') insertMarkdown(textarea, '\n\n---\n\n', '', '', 'block');
+          setEditorStatus(`Вставлено форматирование: ${button.textContent.trim()}.`);
+          if (!preview.hidden) updatePreview();
+        });
+      });
+      if (previewButton) {
+        previewButton.addEventListener('click', () => {
+          const willShow = preview.hidden;
+          if (willShow) updatePreview();
+          preview.hidden = !willShow;
+          previewButton.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+          previewButton.textContent = willShow ? 'Скрыть предпросмотр' : 'Предпросмотр';
+          setEditorStatus(willShow ? 'Предпросмотр обновлён.' : 'Предпросмотр скрыт.');
+        });
+      }
+      textarea.addEventListener('input', () => {
+        if (!preview.hidden) updatePreview();
+      });
+      textarea.addEventListener('keydown', (event) => {
+        if (!(event.ctrlKey || event.metaKey)) return;
+        const key = event.key.toLowerCase();
+        if (key === 'b') {
+          event.preventDefault();
+          insertMarkdown(textarea, '**', '**', 'жирный текст');
+        }
+        if (key === 'i') {
+          event.preventDefault();
+          insertMarkdown(textarea, '*', '*', 'курсив');
+        }
+        if (key === 'k') {
+          event.preventDefault();
+          insertMarkdown(textarea, '[', '](https://example.com)', 'текст ссылки');
+        }
+      });
+    });
+  }
+
   function parseHash() {
     const raw = global.location.hash.replace(/^#/, '');
     return Object.fromEntries(new URLSearchParams(raw));
@@ -4970,7 +5177,7 @@
             ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
             ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             ${isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
-            <div class="field"><label for="editor-body">Текст поста</label><textarea id="editor-body" name="body" rows="8" required>${escapeHtml(draft && draft.body ? draft.body : '')}</textarea></div>
+            ${renderMarkdownEditorField(draft && draft.body ? draft.body : '')}
             ${!isGolos ? `<div class="field"><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в ${escapeHtml(chain.debtSymbol || 'HBD')} и ${escapeHtml(chain.liquidSymbol || 'HIVE')}, 50% в ${escapeHtml(chain.powerTitle || 'HP')}</option><option value="0">100% в ${escapeHtml(chain.powerTitle || 'HP')}</option></select></div>
               <fieldset><legend>Бенефициарские</legend><p class="muted">Бенефициарские 1%: по legacy умолчанию сохраняется 1% для denis-skripnik; можно добавить ещё одного бенефициара.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
             ${isGolos ? `
@@ -4993,6 +5200,7 @@
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
     });
     bindSteemPostLegacyHelpers(chain);
+    bindMarkdownEditor(appEl);
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
   }

@@ -17,6 +17,9 @@ assert(appSource.includes('editor-beneficiary-account') && appSource.includes("e
 assert(appSource.includes('100% в ${escapeHtml(chain.powerTitle || \'HP\')}'), 'Steem/Hive editor exposes 100% power payout option');
 assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Steem/Hive editor publish form is collapsed under operation details');
 assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Steem/Hive editor details summary makes preview-before-send explicit');
+assert(appSource.includes('renderMarkdownEditorField(draft && draft.body ? draft.body : \'\')'), 'Steem/Hive editor renders the shared Markdown editor field');
+assert(appSource.includes('markdownToPreviewHtml') && appSource.includes('safeMarkdownUrl') && appSource.includes('tableCells'), 'Markdown preview is rendered client-side with URL sanitizing and table support');
+assert(appSource.includes("if (key === 'b')") && appSource.includes("if (key === 'k')"), 'Markdown editor supports keyboard shortcuts');
 assert(planSource.includes('### UX polish: Editor swap and broadcast forms'), 'plan documents editor/swap/broadcast UX pass');
 assert(planSource.includes('Steem/Hive editor/post deep pass'), 'plan documents Steem/Hive editor/post parity pass');
 
