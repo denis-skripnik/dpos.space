@@ -57,6 +57,7 @@ assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 
   'decimal-token-search-button',
   'decimal-convert-max-button',
   'decimal-token-suggestions',
+  'data-decimal-nft-action="unbond"',
   'Можно вводить DEL, тикер токена или адрес 0x',
   'Адрес валидатора',
   'stake',
@@ -75,6 +76,9 @@ assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalCreat
 assert(bindDecimalForms.includes("form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT'"), 'Decimal NFT form maps delegate/unbond operations');
 assert(!appSource.includes('<th scope="col">Адрес токена</th>'), 'Decimal stake table does not expose token address as the primary column');
 assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\')'), 'Decimal table unbond action opens stake/unbond operation spoiler');
+assert(appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\')'), 'Decimal NFT table action opens NFT stake/unbond operation spoiler');
+assert(appSource.includes('setDecimalField(\'decimal-nft-id\', button.dataset.decimalNftId)'), 'Decimal NFT table action prefills NFT id');
+assert(appSource.includes('setDecimalField(\'decimal-nft-validator\', button.dataset.decimalValidator)'), 'Decimal NFT table action prefills validator');
 assert(appSource.includes('/coins/coins?limit=${limit}&offset=${offset}'), 'Decimal token search uses public coins index API');
 assert(appSource.includes('first && Array.isArray(first.coins)'), 'Decimal token search supports legacy Result[0].coins payload shape');
 assert(appSource.includes('resolveDecimalConvertAsset(chain, form.get(\'from\')'), 'Decimal convert resolves typed token tickers before broadcast');

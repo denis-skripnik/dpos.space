@@ -8472,7 +8472,7 @@ Memo key: ${keys.memo}`);
       const type = coin.type || item.type || '';
       const rawAmount = item.amount || item.value || 0;
       const amount = formatMinterAmount(rawAmount, Number(rawAmount) < 0.001 ? 8 : 3);
-      const actions = `<button type="button" data-minter-action="send" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Перевод</button> <button type="button" data-minter-action="swap" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Обмен</button>${type === 'coin' ? ` <button type="button" data-minter-action="delegate" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Stake</button>` : ''}`;
+      const actions = `<button type="button" data-minter-action="send" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Перевод</button> <button type="button" data-minter-action="swap" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Обмен</button> <button type="button" data-minter-action="liquidity" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Pool</button>${type === 'coin' ? ` <button type="button" data-minter-action="delegate" data-minter-amount="${escapeHtml(amount)}" data-minter-coin="${escapeHtml(symbol || 'BIP')}">Stake</button>` : ''}`;
       return `<tr><td>${escapeHtml(symbol)}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(type || 'coin/token')}</td><td>${actions}</td></tr>`;
     }).join('');
 
@@ -8497,7 +8497,7 @@ Memo key: ${keys.memo}`);
     return `<details id="minter-send-details" class="operation-details"><summary>Перевод</summary><form id="minter-send-form" class="stacked-form"><fieldset>
       <legend>Minter: перевод</legend>
       <div class="field"><label for="minter-send-to">Адрес получателя</label><input id="minter-send-to" name="to" type="text" required placeholder="Mx..."></div>
-      <div class="field"><label for="minter-send-amount">Сумма</label><input id="minter-send-amount" name="amount" type="text" required placeholder="1.000"></div>
+      <div class="field"><label for="minter-send-amount">Сумма</label><input id="minter-send-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" id="minter-send-max-button" data-fill-target="minter-send-amount" data-fill-value="" hidden>Максимум</button></div>
       <div class="field"><label for="minter-send-coin">Монета</label><input id="minter-send-coin" name="coin" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-send-memo">Memo</label><input id="minter-send-memo" name="memo" type="text"></div>
       <div class="field"><label for="minter-send-gas">Монета газа</label><input id="minter-send-gas" name="gasCoin" type="text" value="BIP"></div>
@@ -8507,7 +8507,7 @@ Memo key: ${keys.memo}`);
     <details id="minter-delegate-details" class="operation-details"><summary>Stake / unbond</summary><form id="minter-delegate-form" class="stacked-form"><fieldset>
       <legend>Minter: stake</legend>
       <div class="field"><label for="minter-validator">Публичный ключ валидатора</label><input id="minter-validator" name="validator" type="text" required placeholder="Mp..."></div>
-      <div class="field"><label for="minter-delegate-amount">Сумма</label><input id="minter-delegate-amount" name="amount" type="text" required placeholder="1.000"></div>
+      <div class="field"><label for="minter-delegate-amount">Сумма</label><input id="minter-delegate-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" id="minter-delegate-max-button" data-fill-target="minter-delegate-amount" data-fill-value="" hidden>Максимум</button></div>
       <div class="field"><label for="minter-delegate-coin">Монета</label><input id="minter-delegate-coin" name="coin" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-delegate-mode">Операция</label><select id="minter-delegate-mode" name="mode"><option value="delegate">Делегировать</option><option value="unbond">Unbond</option></select></div>
       <button type="submit" name="intent" value="preview">Проверить stake</button><button type="submit" name="intent" value="send">Отправить stake в сеть</button>
@@ -8544,6 +8544,7 @@ Memo key: ${keys.memo}`);
     }
     bindMinterWalletForms(chain);
     bindMinterQuickActions(appEl);
+    bindMaxButtons(appEl);
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
   }
 
@@ -8662,7 +8663,9 @@ Memo key: ${keys.memo}`);
       const validatorAddress = stake.validatorId || validator.address || stake.address || '';
       const validatorName = validator.details || validator.name || '';
       const nftLabel = [stake.nftCollection || stake.collection, stake.nftId || stake.tokenId || stake.id].filter(Boolean).join('/');
-      return `<tr><td>${escapeHtml(nftLabel || 'NFT')}</td><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(validator.status || stake.status || '')}</td></tr>`;
+      const nftId = stake.nftId || stake.tokenId || stake.id || nftLabel || '';
+      const quickUnbond = `<button type="button" data-decimal-nft-action="unbond" data-decimal-nft-id="${escapeHtml(nftId)}" data-decimal-validator="${escapeHtml(validatorAddress)}">Анбонд NFT</button>`;
+      return `<tr><td>${escapeHtml(nftLabel || 'NFT')}</td><td><code>${escapeHtml(validatorAddress)}</code><br>${escapeHtml(validatorName)}</td><td>${escapeHtml(validator.status || stake.status || '')}</td><td>${quickUnbond}</td></tr>`;
     }).join('');
 
     const rewardRows = (data.rewards || []).map((item) => {
@@ -8677,7 +8680,7 @@ Memo key: ${keys.memo}`);
     return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.decimal, data.address)}</p><p><button type="button" id="decimal-copy-address">Копировать адрес</button></p></article>
       <article class="card"><h3>Балансы</h3>${data.errors.balances ? `<p class="muted">Балансы сейчас не загрузились: ${escapeHtml(data.errors.balances)}</p>` : ''}${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Decimal"><caption>Балансы Decimal</caption><thead><tr><th scope="col">Монета/токен</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
       <article class="card"><h3>Stake монет</h3>${data.errors.coinStakes ? `<p class="muted">Stake монет сейчас не загрузился: ${escapeHtml(data.errors.coinStakes)}</p>` : ''}${coinStakeRows.length ? `<div class="table-wrap"><table aria-label="Stake монет Decimal"><caption>Stake монет Decimal</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Stake</th><th scope="col">Тикер токена</th><th scope="col">Действие</th></tr></thead><tbody>${coinStakeRows.join('')}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
-      <article class="card"><h3>Stake NFT</h3>${data.errors.nftStakes ? `<p class="muted">Stake NFT сейчас не загрузился: ${escapeHtml(data.errors.nftStakes)}</p>` : ''}${nftStakeRows ? `<div class="table-wrap"><table aria-label="Stake NFT Decimal"><caption>Stake NFT Decimal</caption><thead><tr><th scope="col">NFT</th><th scope="col">Валидатор</th><th scope="col">Статус</th></tr></thead><tbody>${nftStakeRows}</tbody></table></div>` : '<p class="muted">Делегированных NFT нет.</p>'}</article>
+      <article class="card"><h3>NFT stake</h3>${data.errors.nftStakes ? `<p class="muted">NFT stake сейчас не загрузился: ${escapeHtml(data.errors.nftStakes)}</p>` : ''}${nftStakeRows ? `<div class="table-wrap"><table aria-label="NFT stake Decimal"><caption>NFT stake Decimal</caption><thead><tr><th scope="col">NFT</th><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Действие</th></tr></thead><tbody>${nftStakeRows}</tbody></table></div>` : '<p class="muted">NFT stake не найден.</p>'}</article>
       <article class="card"><h3>Начисления</h3>${data.errors.rewards ? `<p class="muted">Начисления сейчас не загрузились: ${escapeHtml(data.errors.rewards)}</p>` : ''}${rewardRows ? `<div class="table-wrap"><table aria-label="Начисления Decimal"><caption>Начисления Decimal</caption><thead><tr><th scope="col">Сумма</th><th scope="col">Валидатор</th><th scope="col">Дата</th></tr></thead><tbody>${rewardRows}</tbody></table></div>` : '<p class="muted">Начисления не найдены.</p>'}</article>
       <article class="card"><h3>NFT</h3>${data.errors.nfts ? `<p class="muted">NFT сейчас не загрузились: ${escapeHtml(data.errors.nfts)}</p>` : ''}${nftRows ? `<div class="table-wrap"><table aria-label="NFT Decimal"><caption>NFT Decimal</caption><thead><tr><th scope="col">Коллекция</th><th scope="col">ID</th><th scope="col">Описание</th></tr></thead><tbody>${nftRows}</tbody></table></div>` : '<p class="muted">NFT не найдены.</p>'}</article>
       <article class="card"><h3>Последние транзакции</h3>${data.errors.transactions ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.errors.transactions)}</p>` : renderTransactionsTable(data.transactions, chains.decimal, { caption: 'Последние транзакции Decimal', emptyText: 'Транзакции не найдены.' })}</article>`;
@@ -8951,6 +8954,14 @@ Memo key: ${keys.memo}`);
     if (field && value !== undefined && value !== null && String(value) !== '') field.value = String(value);
   }
 
+  function setMinterMaxButton(id, amount, coin) {
+    const button = document.getElementById(id);
+    if (!button || amount === undefined || amount === null || String(amount) === '') return;
+    button.dataset.fillValue = String(amount);
+    button.textContent = `Максимум ${amount}${coin ? ` ${coin}` : ''}`;
+    button.hidden = false;
+  }
+
   function bindMinterQuickActions(root) {
     (root || document).querySelectorAll('[data-minter-action]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -8959,6 +8970,7 @@ Memo key: ${keys.memo}`);
           openMinterOperationDetails('minter-send-details');
           setMinterField('minter-send-amount', button.dataset.minterAmount);
           setMinterField('minter-send-coin', button.dataset.minterCoin);
+          setMinterMaxButton('minter-send-max-button', button.dataset.minterAmount, button.dataset.minterCoin);
           const target = document.getElementById('minter-send-to');
           if (target) target.focus();
           return;
@@ -8969,6 +8981,7 @@ Memo key: ${keys.memo}`);
           setMinterField('minter-delegate-amount', button.dataset.minterAmount);
           setMinterField('minter-delegate-coin', button.dataset.minterCoin || 'BIP');
           setMinterField('minter-delegate-mode', action === 'unbond' ? 'unbond' : 'delegate');
+          setMinterMaxButton('minter-delegate-max-button', button.dataset.minterAmount, button.dataset.minterCoin || 'BIP');
           const focusTarget = document.getElementById(action === 'unbond' ? 'minter-delegate-amount' : 'minter-validator');
           if (focusTarget) focusTarget.focus();
           return;
@@ -8976,7 +8989,16 @@ Memo key: ${keys.memo}`);
         if (action === 'swap') {
           openMinterOperationDetails('minter-swap-details');
           setMinterField('minter-swap-from', button.dataset.minterCoin || 'BIP');
+          setMinterField('minter-swap-amount', button.dataset.minterAmount);
           const target = document.getElementById('minter-swap-to');
+          if (target) target.focus();
+          return;
+        }
+        if (action === 'liquidity') {
+          openMinterOperationDetails('minter-liquidity-details');
+          setMinterField('minter-liquidity-coin0', button.dataset.minterCoin || 'BIP');
+          setMinterField('minter-liquidity-volume0', button.dataset.minterAmount);
+          const target = document.getElementById('minter-liquidity-coin1');
           if (target) target.focus();
         }
       });
@@ -9113,6 +9135,16 @@ Memo key: ${keys.memo}`);
           const target = document.getElementById('decimal-convert-to');
           if (target) target.focus();
         }
+      });
+    });
+    (root || document).querySelectorAll('[data-decimal-nft-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        openDecimalOperationDetails('decimal-nft-details');
+        setDecimalField('decimal-nft-mode', button.dataset.decimalNftAction || 'unbond');
+        setDecimalField('decimal-nft-id', button.dataset.decimalNftId);
+        setDecimalField('decimal-nft-validator', button.dataset.decimalValidator);
+        const target = document.getElementById('decimal-nft-validator');
+        if (target) target.focus();
       });
     });
   }
