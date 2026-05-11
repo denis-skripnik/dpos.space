@@ -55,7 +55,6 @@
     { id: 'editor', title: 'Редактор', description: 'Публикация постов через posting authority.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор GOLOS/GBG/СГ.' },
     { id: 'donate', title: 'Донат', description: 'Golos donate через posting authority.' },
-    { id: 'stakebot', title: 'Stake bot', description: 'Статическая справка по golos_stake_bot: ставки, джекпот и лотерея без backend-виджетов.', accountField: false },
     { id: 'witnesses-rewards', title: 'Делегаты', description: 'Актуальный список делегатов Golos через публичный RPC без legacy reward-агрегатов.', accountField: false },
     { id: 'randomblockchain', title: 'Случайный блокчейн', description: 'Детерминированный random по двум публичным блокам Golos.' },
     { id: 'import', title: 'Импорт статьи', description: 'Каркас импорта статьи перед публикацией.' },

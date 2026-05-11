@@ -15,7 +15,7 @@ const profilesSource = fs.readFileSync(path.join(root, 'v3/js/profiles.js'), 'ut
 const historySource = fs.readFileSync(path.join(root, 'v3/js/history.js'), 'utf8');
 const plan = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 const testSource = fs.readFileSync(__filename, 'utf8');
-const runtimeSlice = appSource.slice(appSource.indexOf('function renderRandomBlockchain'), appSource.indexOf('function renderGolosStakebot'));
+const runtimeSlice = appSource.slice(appSource.indexOf('function renderRandomBlockchain'), appSource.indexOf('function buildVizSearchMemo'));
 const seedSlice = appSource.slice(appSource.indexOf('function blockRandomSeed'), appSource.indexOf('function renderInstantView'));
 
 const hive = context.DposChains.hive;

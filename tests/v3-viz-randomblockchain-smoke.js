@@ -12,7 +12,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8'), con
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const plan = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 const testSource = fs.readFileSync(__filename, 'utf8');
-const runtimeSlice = appSource.slice(appSource.indexOf('function renderRandomBlockchain'), appSource.indexOf('function renderGolosStakebot'));
+const runtimeSlice = appSource.slice(appSource.indexOf('function renderRandomBlockchain'), appSource.indexOf('function buildVizSearchMemo'));
 
 const viz = context.DposChains.viz;
 assert(viz, 'VIZ chain exists');

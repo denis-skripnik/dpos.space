@@ -10,7 +10,7 @@ const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 const decimalAppsSlice = (chainsSource.match(/const decimalApps = \[[\s\S]*?\n  \];/) || [''])[0];
 const seedSlice = (appSource.match(/function blockRandomSeed[\s\S]*?\n  function renderInstantView/) || [''])[0];
 const hashSlice = (appSource.match(/async function hashRandomBlockchainSeeds[\s\S]*?\n  function renderRandomBlockchain/) || [''])[0];
-const renderSlice = (appSource.match(/function renderRandomBlockchain\(chain\)[\s\S]*?\n  function renderGolosStakebot/) || [''])[0];
+const renderSlice = (appSource.match(/function renderRandomBlockchain\(chain\)[\s\S]*?\n  function buildVizSearchMemo/) || [''])[0];
 
 assert(decimalAppsSlice.includes("id: 'randomblockchain'"), 'Decimal randomblockchain route is registered');
 assert(decimalAppsSlice.includes('Случайный блокчейн'), 'Decimal randomblockchain has menu title');

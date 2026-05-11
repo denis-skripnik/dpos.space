@@ -7,8 +7,8 @@ const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
-const randomSeedSlice = (appSource.match(/function blockRandomSeed[\s\S]*?\n  function renderGolosStakebot/) || [''])[0];
-const randomRenderSlice = (appSource.match(/function renderRandomBlockchain\(chain\)[\s\S]*?\n  function renderGolosStakebot/) || [''])[0];
+const randomSeedSlice = (appSource.match(/function blockRandomSeed[\s\S]*?\n  function buildVizSearchMemo/) || [''])[0];
+const randomRenderSlice = (appSource.match(/function renderRandomBlockchain\(chain\)[\s\S]*?\n  function buildVizSearchMemo/) || [''])[0];
 const minterAppsSlice = (chainsSource.match(/const minterApps = \[[\s\S]*?\n  \];/) || [''])[0];
 
 assert(minterAppsSlice.includes("id: 'randomblockchain'"), 'Minter app registry includes randomblockchain');
