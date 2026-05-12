@@ -2572,6 +2572,14 @@
     });
   }
 
+  function renderOperationSelectOptions(chain, selectedOps) {
+    const selected = new Set(selectedOps || []);
+    return history.operationOptions(chain).map((option) => {
+      const isSelected = selected.has(option.value) ? ' selected' : '';
+      return `<option value="${escapeHtml(option.value)}"${isSelected}>${escapeHtml(option.label)} (${escapeHtml(option.value)})</option>`;
+    }).join('');
+  }
+
   async function getConnection(chain) {
     await loadScript(chain.libraryPath);
     return profiles.connect(chain);
@@ -10474,8 +10482,11 @@ Memo key: ${keys.memo}`);
         <h2>${escapeHtml(chain.title)}: история @${escapeHtml(account)}</h2>
         <form id="history-filter" class="route-form">
           <div class="field field-grow">
-            <label for="history-ops">Операции через запятую</label>
-            <input id="history-ops" name="ops" type="text" value="${escapeHtml(selectedOps.join(','))}" placeholder="transfer,award">
+            <label for="history-ops">Операции</label>
+            <select id="history-ops" name="ops" multiple size="8">
+              ${renderOperationSelectOptions(chain, selectedOps)}
+            </select>
+            <small class="muted">Выберите одну или несколько операций. Названия соответствуют старой версии; в скобках показан технический код.</small>
           </div>
           <div class="field field-grow">
             <label for="history-query">Поиск по данным операции</label>
@@ -10490,11 +10501,12 @@ Memo key: ${keys.memo}`);
     document.getElementById('history-filter').addEventListener('submit', (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
+      const selectedOps = Array.from(document.getElementById('history-ops').selectedOptions).map((option) => option.value);
       navigate({
         chain: chain.id,
         app: 'history',
         account,
-        ops: String(form.get('ops') || '').trim(),
+        ops: selectedOps.join(','),
         query: String(form.get('query') || '').trim()
       });
     });
