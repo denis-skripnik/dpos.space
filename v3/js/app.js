@@ -290,7 +290,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'author', 'permlink', 'parentAuthor', 'parentPermlink'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -502,6 +502,29 @@
 
   function appHash(params) {
     return `#${new URLSearchParams(params).toString()}`;
+  }
+
+  function golosPostPageUrl(author, permlink) {
+    return `${global.location.origin}${global.location.pathname}${appHash({ chain: 'golos', app: 'post', author: String(author || '').trim().replace(/^@/, ''), permlink: String(permlink || '').trim() })}`;
+  }
+
+  function hasGolosVoteFrom(content, account) {
+    const wanted = String(account || '').trim().replace(/^@/, '');
+    const votes = Array.isArray(content && content.active_votes) ? content.active_votes : (Array.isArray(content && content.activeVotes) ? content.activeVotes : []);
+    return Boolean(wanted) && votes.some((vote) => String(vote && vote.voter || vote && vote.account || '').trim().replace(/^@/, '') === wanted && Number(vote && (vote.percent ?? vote.weight ?? vote.rshares ?? 1)) !== 0);
+  }
+
+  function golosContentTitle(content, fallback) {
+    return String(content && content.title || fallback || content && content.permlink || 'без названия').trim() || 'без названия';
+  }
+
+  function golosContentDate(content) {
+    const raw = content && (content.created || content.last_update || content.cashout_time || content.updated);
+    return raw ? history.formatDate(raw) : 'дата не указана';
+  }
+
+  function golosDonateLink(to, label) {
+    return `<a href="${escapeHtml(golosDonationPageUrl({ to, token: 'GOLOS' }))}" target="_blank" rel="noopener" data-golos-post-donate>${escapeHtml(label || 'Донат')}</a>`;
   }
 
   function explorerLink(chain, kind, value, label) {
@@ -5296,6 +5319,22 @@
       return golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' });
     }
 
+    function autoUpvoterPostUrl(action) {
+      return golosPostPageUrl(action && action.author, action && action.permlink);
+    }
+
+    function autoUpvoterActionLabel(action) {
+      const author = String(action && action.author || '').trim().replace(/^@/, '');
+      const title = String(action && action.title || '').trim();
+      const permlink = String(action && action.permlink || '').trim();
+      return `${author || 'unknown'}/${title || permlink || 'post'}`;
+    }
+
+    function autoUpvoterActionHasDonate(entry) {
+      const result = entry && entry.result;
+      return Boolean(result && Array.isArray(result.donations) && result.donations.length);
+    }
+
     function autoUpvoterActionKey(action) {
       return [action && action.account, action && action.author, action && action.permlink].map((item) => String(item || '').trim().replace(/^@/, '')).join('|');
     }
@@ -5343,10 +5382,13 @@
       scannerState.feed.slice(-30).forEach((entry) => {
         const message = entry && entry.message ? entry.message : String(entry || '');
         const action = entry && entry.action;
-        const donateLink = action && action.author
-          ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
+        const postLink = action && action.author && action.permlink
+          ? ` <a href="${escapeHtml(autoUpvoterPostUrl(action))}" target="_blank" rel="noopener">${escapeHtml(autoUpvoterActionLabel(action))}</a>`
           : '';
-        rows.push(`<div>${escapeHtml(message)}${donateLink}${renderAutoUpvoterManualAction(action)}</div>`);
+        const donateLink = action && action.author && !autoUpvoterActionHasDonate(entry)
+          ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}" target="_blank" rel="noopener">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
+          : '';
+        rows.push(`<div>${escapeHtml(message)}${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}</div>`);
       });
       feed.innerHTML = rows.length > 1 ? rows.join('') : `${rows.join('')}<p>Сканер запущен, событий пока нет.</p>`;
     }
@@ -5373,6 +5415,9 @@
               throw new Error(`Golos discussion RPC methods getDiscussionsByBlog/getDiscussionsByCreated are unavailable for @${account}: ${profiles.formatError(createdError || blogError)}`);
             }
           }
+        },
+        async getContent(author, permlink) {
+          return profiles.apiCall(connection, 'getContent', [author, permlink]);
         }
       };
     }
@@ -5408,8 +5453,16 @@
       const adapter = await createAutoUpvoterAdapter();
       const tick = await helper.runScannerTick(chain, settings, adapter, scannerState, {
         feed: scannerState.feed,
-        broadcaster: (scanChain, action) => helper.broadcastPlannedAction(scanChain, action, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' })
+        broadcaster: async (scanChain, action) => {
+          const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
+          if (hasGolosVoteFrom(content || action, action.account)) {
+            scannerState.feed.push({ type: 'info', message: `SKIP @${action.account} уже голосовал за @${action.author}/${action.permlink}`, action, reason: 'already-voted' });
+            return { skipped: true, reason: 'already-voted' };
+          }
+          return helper.broadcastPlannedAction(scanChain, action, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' });
+        }
       });
+      await loadAutoUpvoterBatterySummary(settings);
       renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${scannerState.seen.size}.`);
     }
 
@@ -5420,6 +5473,15 @@
       const votePercent = Math.max(-100, Math.min(100, Math.round(Number(percent) || 0)));
       const weight = votePercent * 100;
       if (!account || !author || !permlink) throw new Error('Не хватает данных для ручного голосования.');
+      const connection = await getConnection(chain);
+      const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+      if (hasGolosVoteFrom(content, account)) {
+        manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
+        appendScannerFeed(`SKIP @${account} уже голосовал за @${author}/${permlink}.`);
+        renderScannerFeed();
+        setStatus(`@${account} уже голосовал за @${author}/${permlink}.`, 'info');
+        return;
+      }
       const confirmed = global.confirm(`Голосовать @${account} за @${author}/${permlink} с весом ${votePercent}%?`);
       if (!confirmed) {
         appendScannerFeed(`Голосование @${account} за @${author}/${permlink} на ${votePercent}% отменено пользователем.`);
@@ -5437,6 +5499,7 @@
       button.disabled = true;
       await profiles.connect(chain);
       await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+      await loadAutoUpvoterBatterySummary(collectSettings());
       manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
       appendScannerFeed(`Голос отправлен: @${account} → @${author}/${permlink}, ${votePercent}%.`);
       renderScannerFeed();
@@ -5465,6 +5528,7 @@
       button.disabled = true;
       await profiles.connect(chain);
       await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+      await loadAutoUpvoterBatterySummary(collectSettings());
       manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'needs-vote');
       appendScannerFeed(`Отмена апвота отправлена: @${account} → @${author}/${permlink}.`);
       renderScannerFeed();
@@ -5571,6 +5635,147 @@
     }
 
     setStatus('Golos автоапвоутер готов к настройке.', 'info');
+  }
+
+  async function renderGolosPostPage(chain, state = {}) {
+    const author = String(state.author || '').trim().replace(/^@/, '');
+    const permlink = String(state.permlink || '').trim();
+    if (!author || !permlink) throw new Error('Для страницы поста нужны author и permlink в hash-параметрах.');
+    appEl.innerHTML = '<section class="panel"><h2>Загрузка поста Golos</h2><p>Подключаю публичную ноду...</p></section>';
+    setStatus(`Загружаю пост @${author}/${permlink}...`, 'loading');
+    const connection = await getConnection(chain);
+    const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
+    if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
+    const replies = await loadGolosRepliesTree(connection, author, permlink, 0, 4);
+    const voted = hasGolosVoteFrom(post, auth.getCurrentLogin(chain));
+    appEl.innerHTML = `<section class="panel golos-post-page" data-golos-post-page>
+      <article class="card">
+        <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
+        <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code></p>
+        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '')}</div>
+        <p class="actions">
+          <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+          ${golosDonateLink(author, 'Донат автору')}
+          <a href="https://golos.id/@${escapeHtml(author)}/${escapeHtml(permlink)}" target="_blank" rel="noopener">Открыть на golos.id</a>
+        </p>
+      </article>
+      <section class="card" aria-labelledby="golos-post-comment-heading">
+        <h3 id="golos-post-comment-heading">Добавить комментарий</h3>
+        ${renderGolosCommentForm('golos-comment-form', author, permlink)}
+      </section>
+      <section class="card" aria-labelledby="golos-post-comments-heading">
+        <h3 id="golos-post-comments-heading">Комментарии</h3>
+        ${renderGolosCommentsList(chain, replies)}
+      </section>
+    </section>`;
+    bindGolosPostActions(chain);
+    setStatus(`Пост @${author}/${permlink} загружен.`, 'ok');
+  }
+
+  async function loadGolosRepliesTree(connection, author, permlink, depth, maxDepth) {
+    if (depth >= maxDepth) return [];
+    const rows = await profiles.apiCall(connection, 'getContentReplies', [author, permlink]).catch(() => []);
+    const replies = Array.isArray(rows) ? rows : [];
+    for (const reply of replies) {
+      reply.children = await loadGolosRepliesTree(connection, reply.author, reply.permlink, depth + 1, maxDepth);
+    }
+    return replies;
+  }
+
+  function renderGolosCommentsList(chain, comments) {
+    if (!Array.isArray(comments) || !comments.length) return '<p class="muted">Комментариев пока нет.</p>';
+    return `<ul class="comment-tree">${comments.map((comment) => renderGolosCommentNode(chain, comment)).join('')}</ul>`;
+  }
+
+  function renderGolosCommentNode(chain, comment) {
+    const author = String(comment && comment.author || '').trim().replace(/^@/, '');
+    const permlink = String(comment && comment.permlink || '').trim();
+    const title = golosContentTitle(comment, permlink);
+    const voted = hasGolosVoteFrom(comment, auth.getCurrentLogin(chain));
+    const children = Array.isArray(comment && comment.children) && comment.children.length ? renderGolosCommentsList(chain, comment.children) : '';
+    return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
+      <article>
+        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
+        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '')}</div>
+        <p class="actions">
+          <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+          ${golosDonateLink(author, 'Донат коммента')}
+          <button type="button" data-golos-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
+        </p>
+        <div class="reply-slot" hidden>${renderGolosCommentForm(`golos-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
+      </article>
+      ${children}
+    </li>`;
+  }
+
+  function renderGolosCommentForm(formId, parentAuthor, parentPermlink) {
+    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-golos-comment-form data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}">
+      <div class="field"><label for="${escapeHtml(formId)}-body">Текст Markdown</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required></textarea></div>
+      <button type="submit">Отправить комментарий с подтверждением</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </form>`;
+  }
+
+  function golosCommentPermlink(parentAuthor, parentPermlink) {
+    const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    return `re-${String(parentAuthor || '').replace(/[^a-z0-9-]/gi, '').toLowerCase()}-${String(parentPermlink || '').replace(/[^a-z0-9-]/gi, '').toLowerCase().slice(0, 32)}-${stamp}`.slice(0, 255);
+  }
+
+  function bindGolosPostActions(chain) {
+    appEl.querySelectorAll('[data-golos-comment-reply]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
+        if (slot) slot.hidden = !slot.hidden;
+      });
+    });
+    appEl.querySelectorAll('[data-golos-post-vote]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const voter = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          const connection = await getConnection(chain);
+          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+          if (hasGolosVoteFrom(content, voter)) {
+            button.disabled = true;
+            button.textContent = 'Вы уже голосовали';
+            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
+            return;
+          }
+          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: 'Golos post/comment vote', feature: 'golos-post-page' });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Голос отправлен';
+          setStatus('Голос отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+    appEl.querySelectorAll('[data-golos-comment-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const result = form.querySelector('[data-operation-result]');
+        try {
+          const author = auth.getCurrentLogin(chain);
+          const parentAuthor = String(form.dataset.parentAuthor || '').trim().replace(/^@/, '');
+          const parentPermlink = String(form.dataset.parentPermlink || '').trim();
+          const body = String(new FormData(form).get('body') || '').trim();
+          if (!body) throw new Error('Текст комментария обязателен.');
+          const permlink = golosCommentPermlink(parentAuthor, parentPermlink);
+          const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
+          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: 'Golos post page comment', feature: 'golos-post-page-comment' });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          if (result) result.textContent = 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
+          setStatus('Комментарий отправлен в сеть.', 'ok');
+        } catch (error) {
+          if (result) result.textContent = profiles.formatError(error);
+          setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
   }
 
   async function renderGolosDonate(chain, state = {}) {
@@ -10960,6 +11165,8 @@ Memo key: ${keys.memo}`);
         renderVizCustomGenerator(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'auto-upvoter') {
         await renderGolosAutoUpvoter(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'post') {
+        await renderGolosPostPage(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {

@@ -43,6 +43,7 @@ assert(appSource.includes('Отменить апвот с подтвержден
 assert(appSource.includes('data-auto-upvoter-vote') && appSource.includes('autoUpvoterPercentOptions') && appSource.includes('Голосовать с подтверждением'), 'manual unvote state is replaced by a vote control with -100..100 percent select');
 assert(appSource.includes('manualVoteState.set(autoUpvoterActionKey') && appSource.includes('manualVoteState.get(autoUpvoterActionKey'), 'feed toggles manual state between vote and unvote after successful actions');
 assert(appSource.includes('loadAutoUpvoterBatterySummary') && appSource.includes('auto-upvoter-battery') && appSource.includes('Перед списком постов'), 'auto-upvoter shows current battery before Start/Stop and before feed list');
+assert((appSource.match(/await loadAutoUpvoterBatterySummary\(settings\)/g) || []).length >= 2, 'auto-upvoter refreshes battery after scanner ticks, not only before start');
 assert(appSource.includes('setInterval') && appSource.includes('clearInterval'), 'Start/Stop wires a real local interval scanner');
 assert(appSource.includes('runScannerTick'), 'UI Start calls scanner tick helper');
 assert(appSource.includes('getAccountHistory') && appSource.includes('getDiscussionsByBlog'), 'UI scanner adapter uses Golos history/discussion RPC methods');
@@ -94,6 +95,11 @@ assert(!planned.some((action) => action.account === 'carol'), 'disabled accounts
 const deduped = helpers.dedupePlannedActions(planned.concat(planned), new Set());
 const aliceFavoriteVotes = deduped.filter((action) => action.account === 'alice' && action.author === 'favorite' && action.permlink === 'two');
 assert.strictEqual(aliceFavoriteVotes.length, 1, 'dedupe prevents repeated account/post/source action');
+const crossSourceDuplicates = helpers.dedupePlannedActions([
+  { type: 'vote', account: 'alice', source: 'favorite', author: 'same-author', permlink: 'same-post', weight: 7500 },
+  { type: 'vote', account: 'alice', source: 'curator', author: 'same-author', permlink: 'same-post', weight: 3000 }
+], new Set());
+assert.strictEqual(crossSourceDuplicates.length, 1, 'dedupe prevents repeated vote for same account/post even when sources differ');
 
 const historyEvent = helpers.historyRowToCuratorVoteEvent([42, { op: ['vote', { voter: 'curator', author: 'post-author', permlink: 'hist', weight: 4500 }], timestamp: '2026-01-01T00:00:00' }]);
 assert.deepStrictEqual({ kind: historyEvent.kind, voter: historyEvent.voter, author: historyEvent.author, permlink: historyEvent.permlink, weight: historyEvent.weight }, { kind: 'curator_vote', voter: 'curator', author: 'post-author', permlink: 'hist', weight: 4500 }, 'history row extracts curator vote event');

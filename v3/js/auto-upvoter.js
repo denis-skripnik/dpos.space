@@ -47,7 +47,7 @@
   }
 
   function actionKey(action) {
-    return [action.account, action.author, action.permlink, action.source].map((item) => String(item || '')).join('|');
+    return [action.account, action.author, action.permlink].map((item) => String(item || '')).join('|');
   }
 
   function hasEnoughAccountEnergy(account, event) {
@@ -93,9 +93,12 @@
       matchedBy: author,
       author,
       permlink: String(event.permlink || '').trim(),
+      title: String(event.title || '').trim(),
+      activeVotes: normalizeVoteRows(event.activeVotes || event.active_votes),
       weight: Math.max(0, Math.min(10000, weight)),
       eventSource: String(event.source || '')
     };
+    if (hasVoteFrom(action.activeVotes, account.account)) return null;
     if (account.autoDonate && account.autoDonateCap > 0) {
       action.donate = { enabled: true, cap: account.autoDonateCap };
     }
@@ -135,6 +138,16 @@
     };
   }
 
+  function normalizeVoteRows(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function hasVoteFrom(votes, account) {
+    const wanted = String(account || '').trim().replace(/^@/, '');
+    if (!wanted) return false;
+    return normalizeVoteRows(votes).some((vote) => String(vote && vote.voter || vote && vote.account || '').trim().replace(/^@/, '') === wanted && Number(vote && (vote.percent ?? vote.weight ?? vote.rshares ?? 1)) !== 0);
+  }
+
   function discussionRowToFavoritePostEvent(row, favorite) {
     const post = row && (row.comment || row.post || row) || {};
     const author = String(post.author || post.root_author || favorite || '').trim().replace(/^@/, '');
@@ -144,6 +157,8 @@
       kind: 'favorite_post',
       author,
       permlink,
+      title: String(post.title || '').trim(),
+      activeVotes: normalizeVoteRows(post.active_votes || post.activeVotes),
       timestamp: post.created || post.last_update || post.cashout_time || '',
       source: `favorite:${author}/${permlink}`
     };
@@ -389,7 +404,10 @@
         const result = await settings.broadcaster(chain, action, settings.broadcastOptions || {});
         const row = { ok: true, action, result };
         results.push(row);
-        if (feed) feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
+        if (feed) {
+          if (result && result.skipped) feed.push({ type: 'info', message: `SKIP @${action.account} @${action.author}/${action.permlink}: ${result.reason || 'skipped'}`, action, result });
+          else feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
+        }
       } catch (error) {
         const row = { ok: false, action, error };
         results.push(row);
@@ -427,6 +445,7 @@
     discussionRowToFavoritePostEvent,
     executePlannedActions,
     findAuthorizedUser,
+    hasVoteFrom,
     historyRowToCuratorVoteEvent,
     normalizeAccountSettings,
     planActionsForEvents,
