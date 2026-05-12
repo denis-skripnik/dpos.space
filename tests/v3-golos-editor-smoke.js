@@ -6,7 +6,8 @@ const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
-assert(appSource.includes("post: 'editor'"), 'legacy post route aliases to editor');
+assert(!appSource.includes("post: 'editor'"), 'Golos post route is no longer aliased to the editor');
+assert(appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')") && appSource.includes("return 'editor'"), 'only Hive/Steem legacy post route still aliases to editor until they have post viewers');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor remains in authorized-account routing context');
 assert(appSource.includes('function golosLegacyTransform'), 'Golos editor ports legacy transliteration helper');
 assert(appSource.includes('function normalizeGolosEditorTags'), 'Golos editor normalizes tags and appends dpos-post');

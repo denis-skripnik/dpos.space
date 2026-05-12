@@ -34,7 +34,7 @@ const hiveRuntimeSlice = [
   editorRenderer
 ].join('\n');
 
-assert(appSource.includes("post: 'editor'"), 'legacy Hive /post alias routes to editor');
+assert(appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')") && appSource.includes("return 'editor'"), 'legacy Hive /post alias routes to editor');
 assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain)'), 'router dispatches editor app to renderer');
 
 for (const marker of [
