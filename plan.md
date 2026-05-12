@@ -4658,7 +4658,7 @@ Implementation plan for first real-transaction MVP:
    - match curator vote events;
    - match favorite post events;
    - produce planned account actions;
-   - dedupe key format: `account|kind|author|permlink|source`.
+   - dedupe key format: `account|author|permlink` (same account/post is sent once even if found by curator and favorites);
 3. Add smoke/unit tests before implementation for:
    - Golos app inventory includes `auto-upvoter`;
    - page renders authorized-account checkboxes and Start/Stop affordances;
@@ -4684,7 +4684,7 @@ Implemented locally in v3:
 - Added one-runner-per-account origin lock with localStorage TTL; another tab/window cannot start the same account while the lock is active.
 - Added pure/tested helpers for curator history event extraction, favorite discussion extraction, matching, dedupe, scanner tick execution, and seen-state persistence.
 - Votes are real transaction candidates and are broadcast through the existing `DposBroadcast.broadcast` confirmation path.
-- Auto-donate remains explicitly blocked for now: UI exposes the setting/cap, but execution fails before voting if donate is enabled because exact donate parameters/fee policy must not be guessed.
+- Auto-donate now follows the old Golos Stake Bot personal-pool formula instead of a fixed amount: setting format is `<percent_of_daily_emission> <coefficient>` (example `10 1.1`), calculated as `(accumulative_emission_per_day * effective_vesting / total_vesting_shares) * percent/100 * (vote_weight/10000)^coefficient`, skipped if calculated amount is below 0.5 GOLOS or exceeds TIP balance, then split 99.8% to author and 0.2% fee to `@denis-skripnik`.
 
 Validated with:
 - `git diff --check`

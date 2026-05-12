@@ -5274,7 +5274,7 @@
         curatorCoefficient: String(row.curatorCoefficient || '100'),
         favoritesPercent: String(row.favoritesPercent || '100'),
         autoDonate: Boolean(row.autoDonate),
-        autoDonateCap: String(row.autoDonateCap || '0')
+        autoDonateCap: String(row.autoDonateCap || '0 1')
       };
     });
     global.localStorage.setItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY, JSON.stringify({ accounts }));
@@ -5350,12 +5350,12 @@
             <input id="auto-upvoter-favorites-percent-${index}" name="favoritesPercent" type="number" min="0" max="100" step="1" value="100">
           </div>
           <div class="field">
-            <label><input name="autoDonate" type="checkbox" value="1"> Автодонат GOLOS для любимых авторов</label>
+            <label><input name="autoDonate" type="checkbox" value="1"> Личный пул автодоната GOLOS</label>
           </div>
           <div class="field">
-            <label for="auto-upvoter-auto-donate-cap-${index}">Фиксированная сумма автодоната за один найденный пост, GOLOS</label>
-            <input id="auto-upvoter-auto-donate-cap-${index}" name="autoDonateCap" type="number" min="0" step="0.001" value="0">
-            <p class="muted">0 или пустое поле = донат не отправляется. Если включено и сумма ≥ 0.5 GOLOS: 99.8% идёт автору поста, 0.2% комиссия — @denis-skripnik.</p>
+            <label for="auto-upvoter-auto-donate-cap-${index}">Личный пул: % дневной эмиссии и коэффициент</label>
+            <input id="auto-upvoter-auto-donate-cap-${index}" name="autoDonateCap" type="text" inputmode="decimal" value="0 1" placeholder="10 1.1">
+            <p class="muted">Как в старом боте: например, 10 1.1 = при 100% апвоте тратить 10% дневной эмиссии, коэффициент 1.1 нелинейно уменьшает донат при меньшем проценте голоса. 0 1 или пустое поле = донат не отправляется. Минимальная отправка — 0.5 GOLOS; 99.8% автору, 0.2% комиссия — @denis-skripnik.</p>
           </div>
         </div>
       </fieldset>`;
@@ -5365,7 +5365,7 @@
       <h2 id="auto-upvoter-heading">Golos автоапвоутер</h2>
       <p>Первый MVP-фундамент: настройки нескольких аккаунтов, планирование действий и безопасный запуск scanner-loop без backend.</p>
         <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические vote/donate без подтверждения каждого действия. Сохранённые posting-ключи будут расшифрованы локально в браузере, пока сайт открыт. Не запускайте на чужом устройстве.</p>
-      <p class="muted">Автодонат использует сумму/лимит за действие: сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для включённого автодоната — 0.5 GOLOS.</p>
+      <p class="muted">Автодонат использует старую схему личного пула: % дневной эмиссии при 100% апвоте и коэффициент нелинейного уменьшения по фактическому весу голоса. Сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для отправки — 0.5 GOLOS.</p>
       ${users.length ? `<form id="auto-upvoter-form">${accountCards}
         <p id="auto-upvoter-battery-controls" class="muted">Перед запуском/остановкой: батарейка появится после выбора аккаунтов и нажатия Start.</p>
         <div class="actions">
@@ -5494,6 +5494,13 @@
         },
         async getContent(author, permlink) {
           return profiles.apiCall(connection, 'getContent', [author, permlink]);
+        },
+        async getAccount(account) {
+          const rows = await profiles.apiCall(connection, 'getAccounts', [[String(account || '').trim().replace(/^@/, '')]]);
+          return Array.isArray(rows) ? rows[0] : null;
+        },
+        async getDynamicGlobalProperties() {
+          return profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
         }
       };
     }
@@ -5535,7 +5542,14 @@
             scannerState.feed.push({ type: 'info', message: `SKIP @${action.account} уже голосовал за @${action.author}/${action.permlink}`, action, reason: 'already-voted' });
             return { skipped: true, reason: 'already-voted' };
           }
-          return helper.broadcastPlannedAction(scanChain, action, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' });
+          const donateAction = action && action.donate && action.donate.enabled
+            ? helper.enrichActionDonateFromEmission(
+              action,
+              await adapter.getAccount(action.account),
+              await adapter.getDynamicGlobalProperties()
+            )
+            : action;
+          return helper.broadcastPlannedAction(scanChain, donateAction, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' });
         }
       });
       await loadAutoUpvoterBatterySummary(settings);

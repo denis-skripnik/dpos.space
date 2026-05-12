@@ -7,7 +7,7 @@
     curatorCoefficient: 100,
     favoritesPercent: 100,
     autoDonate: false,
-    autoDonateCap: 0
+    autoDonateCap: '0 1'
   });
   const AUTO_DONATE_FEE_RECIPIENT = 'denis-skripnik';
   const AUTO_DONATE_MIN_TOTAL = 0.5;
@@ -24,6 +24,22 @@
     return Math.max(0, Math.min(100, number));
   }
 
+  function normalizeAutoDonatePool(value) {
+    if (Array.isArray(value)) value = value.join(' ');
+    const parts = String(value || '').trim().split(/[\s,;]+/).filter(Boolean);
+    const percent = Number(parts[0]);
+    const coeff = parts.length > 1 ? Number(parts[1]) : 1;
+    if (!Number.isFinite(percent) || percent <= 0) return '0 1';
+    if (!Number.isFinite(coeff) || coeff <= 0) return `${percent} 1`;
+    return `${percent} ${coeff}`;
+  }
+
+  function parseAutoDonatePool(value) {
+    const normalized = normalizeAutoDonatePool(value);
+    const parts = normalized.split(' ');
+    return { percent: Number(parts[0]) || 0, coeff: Number(parts[1]) || 1, normalized };
+  }
+
   function normalizeAccountSettings(settings) {
     const minEnergy = Number(settings && settings.minEnergy);
     return Object.assign({}, DEFAULTS, settings || {}, {
@@ -36,8 +52,14 @@
       curatorCoefficient: clampPercent(settings && settings.curatorCoefficient, DEFAULTS.curatorCoefficient),
       favoritesPercent: clampPercent(settings && settings.favoritesPercent, DEFAULTS.favoritesPercent),
       autoDonate: Boolean(settings && settings.autoDonate),
-      autoDonateCap: Math.max(0, Number(settings && settings.autoDonateCap) || 0)
+      autoDonateCap: normalizeAutoDonatePool(settings && settings.autoDonateCap)
     });
+  }
+
+  function autoDonatePoolEnabled(account) {
+    if (!account || !account.autoDonate) return false;
+    const pool = parseAutoDonatePool(account.autoDonateCap);
+    return pool.percent > 0;
   }
 
   function postKey(event) {
@@ -67,7 +89,7 @@
       ? 10000
       : Math.round(incomingWeight * (account.curatorCoefficient / 100));
     if (weight < 1) return null;
-    return {
+    const action = {
       type: 'vote',
       account: account.account,
       source: 'curator',
@@ -77,6 +99,10 @@
       weight: Math.max(0, Math.min(10000, weight)),
       eventSource: String(event.source || '')
     };
+    if (autoDonatePoolEnabled(account)) {
+      action.donate = { enabled: true, pool: account.autoDonateCap };
+    }
+    return action;
   }
 
   function planFavoriteVote(account, event) {
@@ -99,8 +125,8 @@
       eventSource: String(event.source || '')
     };
     if (hasVoteFrom(action.activeVotes, account.account)) return null;
-    if (account.autoDonate && account.autoDonateCap > 0) {
-      action.donate = { enabled: true, cap: account.autoDonateCap };
+    if (autoDonatePoolEnabled(account)) {
+      action.donate = { enabled: true, pool: account.autoDonateCap };
     }
     return action;
   }
@@ -308,6 +334,36 @@
     return `${(Math.round(Number(value) * 1000) / 1000).toFixed(3)} GOLOS`;
   }
 
+  function parseGolosAsset(value) {
+    return Number(String(value || '').split(' ')[0]) || 0;
+  }
+
+  function calculateDonateFromEmission(poolValue, account, props, weight) {
+    const pool = parseAutoDonatePool(poolValue);
+    if (!pool.percent) return 0;
+    const userBalance = parseGolosAsset(account && account.vesting_shares)
+      - parseGolosAsset(account && account.emission_delegated_vesting_shares)
+      + parseGolosAsset(account && account.emission_received_vesting_shares);
+    const totalVesting = parseGolosAsset(props && props.total_vesting_shares);
+    if (!totalVesting) return 0;
+    const emissionPerDay = (parseGolosAsset(props && props.accumulative_emission_per_day) * userBalance) / totalVesting;
+    const partFromEmission = emissionPerDay * (pool.percent / 100);
+    const normalizedPercent = Math.max(0, Math.min(1, (Number(weight) || 0) / 10000));
+    const amount = partFromEmission * Math.pow(normalizedPercent, pool.coeff);
+    return Number.isFinite(amount) ? amount : 0;
+  }
+
+  function enrichActionDonateFromEmission(action, account, props) {
+    if (!action || !action.donate || !action.donate.enabled) return action;
+    const donateAmount = calculateDonateFromEmission(action.donate.pool || action.donate.cap, account, props, action.weight);
+    const tipBalance = parseGolosAsset(account && account.tip_balance);
+    const next = Object.assign({}, action, { donate: Object.assign({}, action.donate, { calculated: donateAmount }) });
+    if (donateAmount <= tipBalance && donateAmount >= AUTO_DONATE_MIN_TOTAL) {
+      next.donate.amount = donateAmount;
+    }
+    return next;
+  }
+
   function buildDonateMemo(type, action) {
     return JSON.stringify({
       app: 'dpos.space/auto-upvoter',
@@ -319,7 +375,7 @@
 
   function buildDonateOperations(action) {
     if (!action || !action.donate || !action.donate.enabled) return [];
-    const total = Math.round((Number(action.donate.cap) || 0) * 1000) / 1000;
+    const total = Math.round((Number(action.donate.amount ?? action.donate.cap) || 0) * 1000) / 1000;
     if (!Number.isFinite(total) || total <= 0) return [];
     if (total < AUTO_DONATE_MIN_TOTAL) return [];
     const from = String(action.account || '').trim().replace(/^@/, '');
@@ -439,11 +495,13 @@
     assertBroadcastAvailable,
     buildDonateOperations,
     broadcastPlannedAction,
+    calculateDonateFromEmission,
     claimRunnerLocks,
     collectEventsFromAdapter,
     dedupePlannedActions,
     discussionRowToFavoritePostEvent,
     executePlannedActions,
+    enrichActionDonateFromEmission,
     findAuthorizedUser,
     hasVoteFrom,
     historyRowToCuratorVoteEvent,
