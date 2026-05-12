@@ -53,6 +53,7 @@
 
   const golosApps = [
     { id: 'editor', title: 'Редактор', description: 'Публикация постов через posting authority.' },
+    { id: 'auto-upvoter', title: 'Автоапвоутер', description: 'Локальный браузерный автоапвоутер Golos: пока сайт открыт, использует сохранённый posting-ключ для автоматического vote/donate без backend.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор GOLOS/GBG/СГ.' },
     { id: 'donate', title: 'Донат', description: 'Golos donate через posting authority.' },
     { id: 'witnesses-rewards', title: 'Делегаты', description: 'Актуальный список делегатов Golos через публичный RPC без legacy reward-агрегатов.', accountField: false },

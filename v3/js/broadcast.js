@@ -316,6 +316,11 @@
     return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta);
   }
 
+  function prepareForUser(chain, user, requestedAuthority, operationName, params, meta) {
+    const keys = decryptLegacyKey(chain, user, requestedAuthority);
+    return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta);
+  }
+
   function prepareWithPrivateKey(chain, from, requestedAuthority, privateKey, operationName, params, meta) {
     const signer = validateAccountName(chain, from, 'Signer account');
     const key = String(privateKey || '').trim();
@@ -520,7 +525,7 @@
       };
     }
 
-    if (!settings.confirmExecute) {
+    if (!settings.confirmExecute && !(settings.autoConsent === 'golos-auto-upvoter-start' && prepared.meta && prepared.meta.feature === 'golos-auto-upvoter')) {
       throw new Error('Реальный broadcast требует явного подтверждения в UI.');
     }
 
@@ -637,6 +642,7 @@
     isLikelyWif,
     prepare,
     prepareExternal,
+    prepareForUser,
     prepareWithPrivateKey,
     sanitizePrepared,
     sanitizeResult,

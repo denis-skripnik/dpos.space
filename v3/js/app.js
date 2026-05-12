@@ -343,7 +343,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'swap', 'my-coin'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
@@ -5207,6 +5207,369 @@
     if (state.token) params.set('token', state.token);
     if (state.amount) params.set('amount', state.amount);
     return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
+  }
+
+  function renderGolosAutoUpvoter(chain) {
+    const users = DposAuth.getUsers(chain);
+    const helper = global.DposGolosAutoUpvoter;
+    const accountCards = users.map((user, index) => {
+      const login = auth.getUserLogin(user);
+      const type = auth.getUserType(user);
+      const keyStatus = broadcast && typeof broadcast.getAvailableKeys === 'function' ? broadcast.getAvailableKeys(chain, user) : null;
+      const safeLogin = escapeHtml(login);
+      const checkboxId = `auto-upvoter-enabled-${index}`;
+      return `<fieldset class="card auto-upvoter-account" data-auto-upvoter-account="${safeLogin}">
+        <legend>@${safeLogin}${type && type !== 'standard' ? ` (${escapeHtml(type)})` : ''}</legend>
+        <label><input id="${checkboxId}" type="checkbox" name="enabled" value="1"> Включить этот аккаунт</label>
+        <p class="muted">Posting-ключ: ${keyStatus && keyStatus.regularOrPosting ? 'сохранён' : 'не найден или недоступен'}.</p>
+        <div class="field">
+          <label for="auto-upvoter-curators-${index}">Кураторы для повтора голосов</label>
+          <textarea id="auto-upvoter-curators-${index}" name="curators" rows="2" placeholder="curator1, curator2"></textarea>
+        </div>
+        <div class="field">
+          <label for="auto-upvoter-favorites-${index}">Любимые авторы для автоголоса за новые посты</label>
+          <textarea id="auto-upvoter-favorites-${index}" name="favorites" rows="2" placeholder="author1, author2"></textarea>
+        </div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="auto-upvoter-min-energy-${index}">Минимальная энергия голоса (0–10000)</label>
+            <input id="auto-upvoter-min-energy-${index}" name="minEnergy" type="number" min="0" max="10000" step="100" value="2500">
+          </div>
+          <div class="field">
+            <label for="auto-upvoter-curator-mode-${index}">Режим куратора</label>
+            <select id="auto-upvoter-curator-mode-${index}" name="curatorMode">
+              <option value="repeat">Повторить процент куратора</option>
+              <option value="full">Полный голос</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="auto-upvoter-curator-coefficient-${index}">Коэффициент куратора, %</label>
+            <input id="auto-upvoter-curator-coefficient-${index}" name="curatorCoefficient" type="number" min="0" max="100" step="1" value="100">
+          </div>
+          <div class="field">
+            <label for="auto-upvoter-favorites-percent-${index}">Голос за любимых, %</label>
+            <input id="auto-upvoter-favorites-percent-${index}" name="favoritesPercent" type="number" min="0" max="100" step="1" value="100">
+          </div>
+          <div class="field">
+            <label><input name="autoDonate" type="checkbox" value="1"> Автодонат GOLOS после совпадения</label>
+          </div>
+          <div class="field">
+            <label for="auto-upvoter-auto-donate-cap-${index}">Сумма/лимит автодоната за действие, GOLOS</label>
+            <input id="auto-upvoter-auto-donate-cap-${index}" name="autoDonateCap" type="number" min="0" step="0.001" value="0">
+            <p class="muted">Если включено и сумма ≥ 0.5 GOLOS: 99.8% идёт автору поста, 0.2% комиссия — @denis-skripnik.</p>
+          </div>
+        </div>
+      </fieldset>`;
+    }).join('');
+
+    appEl.innerHTML = `<section class="panel auto-upvoter" aria-labelledby="auto-upvoter-heading">
+      <h2 id="auto-upvoter-heading">Golos автоапвоутер</h2>
+      <p>Первый MVP-фундамент: настройки нескольких аккаунтов, планирование действий и безопасный запуск scanner-loop без backend.</p>
+        <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические vote/donate без подтверждения каждого действия. Сохранённые posting-ключи будут расшифрованы локально в браузере, пока сайт открыт. Не запускайте на чужом устройстве.</p>
+      <p class="muted">Автодонат использует сумму/лимит за действие: сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для включённого автодоната — 0.5 GOLOS.</p>
+      ${users.length ? `<form id="auto-upvoter-form">${accountCards}
+        <p id="auto-upvoter-battery-controls" class="muted">Перед запуском/остановкой: батарейка появится после выбора аккаунтов и нажатия Start.</p>
+        <div class="actions">
+          <button type="button" id="auto-upvoter-start">Запустить Start</button>
+          <button type="button" id="auto-upvoter-stop" class="secondary" disabled>Остановить Stop</button>
+        </div>
+      </form>` : '<p class="muted">Нет сохранённых Golos-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>'}
+      <section class="card" aria-labelledby="auto-upvoter-status-heading">
+        <h3 id="auto-upvoter-status-heading">Статус и лента</h3>
+        <div id="auto-upvoter-feed" role="status" aria-live="polite">Остановлен. Реальных отправок без кнопки Start нет.</div>
+      </section>
+    </section>`;
+
+    const form = document.getElementById('auto-upvoter-form');
+    const startButton = document.getElementById('auto-upvoter-start');
+    const stopButton = document.getElementById('auto-upvoter-stop');
+    const feed = document.getElementById('auto-upvoter-feed');
+    let runners = {};
+    let scannerInterval = null;
+    let runnerLock = null;
+    let batterySummary = '';
+    const scannerState = { seen: new Set(), feed: [] };
+    const manualVoteState = new Map();
+
+    function autoUpvoterManualDonateUrl(action) {
+      return golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' });
+    }
+
+    function autoUpvoterActionKey(action) {
+      return [action && action.account, action && action.author, action && action.permlink].map((item) => String(item || '').trim().replace(/^@/, '')).join('|');
+    }
+
+    function autoUpvoterPercentOptions(selected) {
+      const current = Number.isFinite(Number(selected)) ? Number(selected) : 100;
+      const options = [];
+      for (let percent = -100; percent <= 100; percent += 10) {
+        options.push(`<option value="${percent}" ${percent === current ? 'selected' : ''}>${percent}%</option>`);
+      }
+      if (!options.some((option) => option.includes(`value="${current}"`))) {
+        options.push(`<option value="${current}" selected>${current}%</option>`);
+      }
+      return options.join('');
+    }
+
+    function renderAutoUpvoterBatterySummary(prefix) {
+      const label = prefix || 'Перед списком постов';
+      return `<p id="auto-upvoter-battery" class="muted">${escapeHtml(label)}: ${escapeHtml(batterySummary || 'батарейка ещё не загружена.')}</p>`;
+    }
+
+    function updateAutoUpvoterBatteryControls() {
+      const block = document.getElementById('auto-upvoter-battery-controls');
+      if (block) block.textContent = `Перед запуском/остановкой: ${batterySummary || 'батарейка ещё не загружена.'}`;
+    }
+
+    function renderAutoUpvoterManualAction(action) {
+      if (!action || !action.account || !action.author || !action.permlink) return '';
+      const key = autoUpvoterActionKey(action);
+      const state = manualVoteState.get(autoUpvoterActionKey(action));
+      const safeAccount = escapeHtml(action.account);
+      const safeAuthor = escapeHtml(action.author);
+      const safePermlink = escapeHtml(action.permlink);
+      if (state === 'needs-vote') {
+        const selectId = `auto-upvoter-vote-percent-${escapeHtml(key).replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+        return ` <label for="${selectId}">Процент голоса</label> <select id="${selectId}" data-auto-upvoter-percent="1">${autoUpvoterPercentOptions(100)}</select> <button type="button" data-auto-upvoter-vote="1" data-account="${safeAccount}" data-author="${safeAuthor}" data-permlink="${safePermlink}">Голосовать с подтверждением</button>`;
+      }
+      return ` <button type="button" class="secondary" data-auto-upvoter-unvote="1" data-account="${safeAccount}" data-author="${safeAuthor}" data-permlink="${safePermlink}">Отменить апвот с подтверждением</button>`;
+    }
+
+    function renderScannerFeed(prefix) {
+      const rows = [];
+      if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
+      rows.push(renderAutoUpvoterBatterySummary('Перед списком постов'));
+      scannerState.feed.slice(-30).forEach((entry) => {
+        const message = entry && entry.message ? entry.message : String(entry || '');
+        const action = entry && entry.action;
+        const donateLink = action && action.author
+          ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
+          : '';
+        rows.push(`<div>${escapeHtml(message)}${donateLink}${renderAutoUpvoterManualAction(action)}</div>`);
+      });
+      feed.innerHTML = rows.length > 1 ? rows.join('') : `${rows.join('')}<p>Сканер запущен, событий пока нет.</p>`;
+    }
+
+    function appendScannerFeed(message) {
+      scannerState.feed.push({ type: 'info', message: `${new Date().toLocaleTimeString()}: ${message}` });
+      renderScannerFeed();
+    }
+
+    async function createAutoUpvoterAdapter() {
+      const connection = await getConnection(chain);
+      return {
+        async getAccountHistory(account, limit) {
+          return profiles.apiCall(connection, 'getAccountHistory', [account, -1, limit || 30]);
+        },
+        async getFavoritePosts(account, limit) {
+          const query = { tag: account, limit: limit || 20 };
+          try {
+            return await profiles.apiCall(connection, 'getDiscussionsByBlog', [query]);
+          } catch (blogError) {
+            try {
+              return await profiles.apiCall(connection, 'getDiscussionsByCreated', [query]);
+            } catch (createdError) {
+              throw new Error(`Golos discussion RPC methods getDiscussionsByBlog/getDiscussionsByCreated are unavailable for @${account}: ${profiles.formatError(createdError || blogError)}`);
+            }
+          }
+        }
+      };
+    }
+
+    function formatAutoUpvoterBattery(account) {
+      const raw = account && (account.voting_power ?? account.votingPower ?? account.energy ?? account.charge);
+      const value = Number(raw);
+      if (!Number.isFinite(value)) return 'н/д';
+      const percent = value > 100 ? value / 100 : value;
+      return `${Math.max(0, Math.min(100, percent)).toFixed(2)}%`;
+    }
+
+    async function loadAutoUpvoterBatterySummary(settings) {
+      const enabledAccounts = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row && row.enabled && row.account).map((row) => String(row.account).trim().replace(/^@/, ''));
+      if (!enabledAccounts.length) {
+        batterySummary = 'выберите аккаунты, чтобы показать батарейку.';
+        updateAutoUpvoterBatteryControls();
+        return batterySummary;
+      }
+      try {
+        const connection = await getConnection(chain);
+        const accounts = await profiles.apiCall(connection, 'getAccounts', [enabledAccounts]);
+        const byName = new Map((Array.isArray(accounts) ? accounts : []).map((account) => [String(account && account.name || account && account.account || '').trim().replace(/^@/, ''), account]));
+        batterySummary = enabledAccounts.map((name) => `@${name}: ${formatAutoUpvoterBattery(byName.get(name))}`).join('; ');
+      } catch (error) {
+        batterySummary = `не удалось загрузить: ${profiles.formatError(error)}`;
+      }
+      updateAutoUpvoterBatteryControls();
+      return batterySummary;
+    }
+
+    async function runAutoUpvoterScan(settings) {
+      const adapter = await createAutoUpvoterAdapter();
+      const tick = await helper.runScannerTick(chain, settings, adapter, scannerState, {
+        feed: scannerState.feed,
+        broadcaster: (scanChain, action) => helper.broadcastPlannedAction(scanChain, action, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' })
+      });
+      renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${scannerState.seen.size}.`);
+    }
+
+    async function sendManualVoteFromFeed(button, percent) {
+      const account = String(button.dataset.account || '').trim().replace(/^@/, '');
+      const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+      const permlink = String(button.dataset.permlink || '').trim();
+      const votePercent = Math.max(-100, Math.min(100, Math.round(Number(percent) || 0)));
+      const weight = votePercent * 100;
+      if (!account || !author || !permlink) throw new Error('Не хватает данных для ручного голосования.');
+      const confirmed = global.confirm(`Голосовать @${account} за @${author}/${permlink} с весом ${votePercent}%?`);
+      if (!confirmed) {
+        appendScannerFeed(`Голосование @${account} за @${author}/${permlink} на ${votePercent}% отменено пользователем.`);
+        return;
+      }
+      await loadScript(chain.libraryPath);
+      await loadScript(chain.cryptoPath);
+      const user = helper.findAuthorizedUser(chain, account);
+      if (!user) throw new Error(`Аккаунт @${account} не найден в локальном хранилище авторизации.`);
+      const prepared = broadcast.prepareForUser(chain, user, 'posting', 'vote', [account, author, permlink, weight], {
+        title: 'Golos manual vote from auto-upvoter feed',
+        feature: 'golos-auto-upvoter-manual-vote',
+        source: 'manual-feed'
+      });
+      button.disabled = true;
+      await profiles.connect(chain);
+      await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+      manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
+      appendScannerFeed(`Голос отправлен: @${account} → @${author}/${permlink}, ${votePercent}%.`);
+      renderScannerFeed();
+      setStatus('Ручной голос отправлен в сеть.', 'ok');
+    }
+
+    async function sendManualUnvoteFromFeed(button) {
+      const account = String(button.dataset.account || '').trim().replace(/^@/, '');
+      const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+      const permlink = String(button.dataset.permlink || '').trim();
+      if (!account || !author || !permlink) throw new Error('Не хватает данных для отмены апвота.');
+      const confirmed = global.confirm(`Отменить апвот @${account} за @${author}/${permlink}?\nБудет отправлен vote с weight=0.`);
+      if (!confirmed) {
+        appendScannerFeed(`Отмена апвота @${account} за @${author}/${permlink} отменена пользователем.`);
+        return;
+      }
+      await loadScript(chain.libraryPath);
+      await loadScript(chain.cryptoPath);
+      const user = helper.findAuthorizedUser(chain, account);
+      if (!user) throw new Error(`Аккаунт @${account} не найден в локальном хранилище авторизации.`);
+      const prepared = broadcast.prepareForUser(chain, user, 'posting', 'vote', [account, author, permlink, 0], {
+        title: 'Golos unvote from auto-upvoter feed',
+        feature: 'golos-auto-upvoter-manual-unvote',
+        source: 'manual-feed'
+      });
+      button.disabled = true;
+      await profiles.connect(chain);
+      await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+      manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'needs-vote');
+      appendScannerFeed(`Отмена апвота отправлена: @${account} → @${author}/${permlink}.`);
+      renderScannerFeed();
+      setStatus('Отмена апвота отправлена в сеть.', 'ok');
+    }
+
+    if (feed) {
+      feed.addEventListener('click', (event) => {
+        const unvoteButton = event.target && event.target.closest ? event.target.closest('[data-auto-upvoter-unvote]') : null;
+        const voteButton = event.target && event.target.closest ? event.target.closest('[data-auto-upvoter-vote]') : null;
+        if (unvoteButton) {
+          sendManualUnvoteFromFeed(unvoteButton).catch((error) => {
+            unvoteButton.disabled = false;
+            appendScannerFeed(`Ошибка отмены апвота: ${profiles.formatError(error)}`);
+            setStatus(`Ошибка отмены апвота: ${profiles.formatError(error)}`, 'error');
+          });
+          return;
+        }
+        if (voteButton) {
+          const wrapper = voteButton.parentElement;
+          const select = wrapper && wrapper.querySelector ? wrapper.querySelector('[data-auto-upvoter-percent]') : null;
+          sendManualVoteFromFeed(voteButton, select && select.value).catch((error) => {
+            voteButton.disabled = false;
+            appendScannerFeed(`Ошибка ручного голоса: ${profiles.formatError(error)}`);
+            setStatus(`Ошибка ручного голоса: ${profiles.formatError(error)}`, 'error');
+          });
+        }
+      });
+    }
+
+    function stopAutoUpvoter(message) {
+      if (scannerInterval) {
+        clearInterval(scannerInterval);
+        scannerInterval = null;
+      }
+      if (runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
+        helper.releaseRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
+        runnerLock = null;
+      }
+      runners = {};
+      startButton.disabled = false;
+      stopButton.disabled = true;
+      renderScannerFeed(message || 'Остановлен. Активных runner-состояний нет.');
+      setStatus('Golos автоапвоутер остановлен.', 'info');
+    }
+
+
+    function collectSettings() {
+      return Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => ({
+        account: card.dataset.autoUpvoterAccount,
+        enabled: Boolean(card.querySelector('[name="enabled"]').checked),
+        curators: card.querySelector('[name="curators"]').value,
+        favorites: card.querySelector('[name="favorites"]').value,
+        minEnergy: card.querySelector('[name="minEnergy"]').value,
+        curatorMode: card.querySelector('[name="curatorMode"]').value,
+        curatorCoefficient: card.querySelector('[name="curatorCoefficient"]').value,
+        favoritesPercent: card.querySelector('[name="favoritesPercent"]').value,
+        autoDonate: Boolean(card.querySelector('[name="autoDonate"]').checked),
+        autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
+      }));
+    }
+
+    if (startButton && form && helper) {
+      startButton.addEventListener('click', async () => {
+        try {
+          await loadScript(chain.libraryPath);
+          await loadScript(chain.cryptoPath);
+          const availability = helper.assertBroadcastAvailable(chain);
+          const settings = collectSettings();
+          await loadAutoUpvoterBatterySummary(settings);
+          renderScannerFeed('Перед запуском: текущая батарейка загружена.');
+          runners = helper.upsertRunnerState(runners, settings);
+          const accounts = Object.keys(runners);
+          if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
+          runnerLock = helper.claimRunnerLocks(chain, accounts, runnerLock && runnerLock.owner);
+          if (scannerInterval) clearInterval(scannerInterval);
+          startButton.disabled = true;
+          stopButton.disabled = false;
+          appendScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
+          await runAutoUpvoterScan(settings);
+          scannerInterval = setInterval(() => {
+            if (runnerLock) runnerLock = helper.claimRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
+            runAutoUpvoterScan(settings).catch((error) => {
+              appendScannerFeed(`Ошибка scan: ${profiles.formatError(error)}`);
+              setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+            });
+          }, 60000);
+          setStatus('Golos автоапвоутер запущен локально во вкладке.', 'ok');
+        } catch (error) {
+          if (runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
+            helper.releaseRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
+            runnerLock = null;
+          }
+          feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
+          setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+      stopButton.addEventListener('click', async () => {
+        await loadAutoUpvoterBatterySummary(collectSettings());
+        stopAutoUpvoter('Перед остановкой: текущая батарейка загружена. Остановлен. Local active-tab scanner очищен; новых отправок не будет.');
+      });
+    } else if (feed) {
+      feed.textContent = 'Ошибка: модуль DposGolosAutoUpvoter не загружен.';
+    }
+
+    setStatus('Golos автоапвоутер готов к настройке.', 'info');
   }
 
   async function renderGolosDonate(chain, state = {}) {
@@ -10594,6 +10957,8 @@ Memo key: ${keys.memo}`);
         renderVizProjects(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'custom-generator') {
         renderVizCustomGenerator(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'auto-upvoter') {
+        renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {
