@@ -5649,12 +5649,36 @@
     setStatus('Golos автоапвоутер готов к настройке.', 'info');
   }
 
+  const GOLOS_FEEDS_SETTINGS_KEY = 'dpos_golos_feeds_settings';
   const GOLOS_FEED_KINDS = [
     ['new', 'Новые посты'],
     ['popular', 'Популярное'],
     ['donates', 'Донаты'],
     ['subscriptions', 'Лента подписок']
   ];
+
+  function readGolosFeedsSettings() {
+    if (!global.localStorage) return {};
+    try {
+      const parsed = JSON.parse(global.localStorage.getItem(GOLOS_FEEDS_SETTINGS_KEY) || '{}');
+      if (!parsed || typeof parsed !== 'object') return {};
+      return {
+        feed: normalizeGolosFeedKind(parsed.feed),
+        account: String(parsed.account || '').trim().replace(/^@/, '')
+      };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeGolosFeedsSettings(settings) {
+    if (!global.localStorage) return;
+    const next = {
+      feed: normalizeGolosFeedKind(settings && settings.feed),
+      account: String(settings && settings.account || '').trim().replace(/^@/, '')
+    };
+    global.localStorage.setItem(GOLOS_FEEDS_SETTINGS_KEY, JSON.stringify(next));
+  }
 
   function normalizeGolosFeedKind(value) {
     const raw = String(value || '').trim();
@@ -5741,8 +5765,12 @@
   }
 
   async function renderGolosFeedsPage(chain, state = {}) {
-    const feedKind = normalizeGolosFeedKind(state.feed);
-    const account = String(state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '').trim().replace(/^@/, '');
+    const storedSettings = readGolosFeedsSettings();
+    const hasFeedParam = Object.prototype.hasOwnProperty.call(state, 'feed') && state.feed;
+    const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
+    const feedKind = normalizeGolosFeedKind(hasFeedParam ? state.feed : storedSettings.feed);
+    const account = String(hasAccountParam ? state.account : (storedSettings.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
+    writeGolosFeedsSettings({ feed: feedKind, account });
     appEl.innerHTML = `<section class="panel golos-feeds-page" data-golos-feeds-page>
       <h2>Golos: Ленты</h2>
       <p class="muted">Новые посты, популярное, донаты и лента подписок пользователя через публичный RPC. Действия выполняются только после подтверждения.</p>
@@ -5757,9 +5785,18 @@
     </section>`;
     const form = document.getElementById('golos-feeds-form');
     if (form) {
+      const persistFormSettings = () => {
+        const data = new FormData(form);
+        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
+      };
+      const feedSelect = form.querySelector('[name="feed"]');
+      const accountInput = form.querySelector('[name="account"]');
+      if (feedSelect) feedSelect.addEventListener('change', persistFormSettings);
+      if (accountInput) accountInput.addEventListener('input', persistFormSettings);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const data = new FormData(form);
+        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
         navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
       });
     }

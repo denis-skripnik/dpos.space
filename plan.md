@@ -4818,3 +4818,17 @@ Definition of done:
 - Users can open Golos → Ленты and switch between new/popular/donates/subscriptions feeds.
 - Each row has a readable announcement/teaser, title link to the Dpos Space post page, and explicit like/repost/donate actions.
 - Subscription feed works from the selected/account hash value without adding any service.
+
+### Follow-up: Golos feeds settings persistence
+
+Observed:
+- Feed type/account fields reset to defaults after page refresh when the hash does not carry the latest form edits.
+
+Fix:
+- Persist Golos feeds settings in browser `localStorage` under a dedicated key.
+- Restore feed type and account into form fields on render before loading the feed.
+- Save edits on select/input changes and again on submit, while keeping hash parameters authoritative when present.
+
+Validation:
+- `node tests/v3-golos-feeds-smoke.js`
+- Focused Golos post/auto-upvoter route tests plus broad v3 smoke loop.

@@ -15,6 +15,9 @@ assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'feeds'") 
   'function loadGolosFeedRows',
   'function renderGolosFeedCard',
   'function bindGolosFeedActions',
+  'const GOLOS_FEEDS_SETTINGS_KEY',
+  'function readGolosFeedsSettings',
+  'function writeGolosFeedsSettings',
   'data-golos-feed-kind',
   'data-golos-feed-vote',
   'data-golos-feed-repost',
@@ -35,6 +38,7 @@ assert(appSource.includes('markdownToTextPreview') && appSource.includes('golosF
 assert(appSource.includes('golosDonationPageUrl({ to: row.author') && appSource.includes('target="_blank"'), 'feed cards link donate to confirmed donate flow in a new tab');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'vote'") && appSource.includes("broadcast.prepare(chain, 'posting', 'sendOperations'"), 'feed actions use confirmed posting vote/repost broadcasts');
 assert(appSource.includes('hasGolosVoteFrom(content, voter)'), 'feed vote checks active_votes before broadcast');
+assert(appSource.includes('const storedSettings = readGolosFeedsSettings()') && appSource.includes("writeGolosFeedsSettings({ feed: data.get('feed'), account:") && appSource.includes("form.querySelector('[name=\"feed\"]')"), 'feeds form persists feed/account settings to localStorage and restores them');
 assert(planSource.includes('Scoped plan: Golos feeds page'), 'plan.md records the scoped feeds work');
 
 console.log('v3 Golos feeds smoke: OK');
