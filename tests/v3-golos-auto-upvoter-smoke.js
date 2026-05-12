@@ -29,6 +29,7 @@ assert(indexSource.includes('v3/js/auto-upvoter.js'), 'Auto-upvoter helper is lo
 assert(appSource.includes("effectiveAppId === 'auto-upvoter'"), 'App router has dedicated auto-upvoter route');
 assert(appSource.includes('renderGolosAutoUpvoter'), 'App has Golos auto-upvoter renderer');
 assert(appSource.includes('DposAuth.getUsers(chain)'), 'UI reads all authorized Golos accounts');
+assert(appSource.includes('async function renderGolosAutoUpvoter') && appSource.includes('await loadScript(chain.cryptoPath);') && appSource.includes('await renderGolosAutoUpvoter(chain)'), 'auto-upvoter loads SJCL before checking saved posting-key availability');
 assert(appSource.includes('type="checkbox"'), 'UI renders account checkboxes, not only the top account selector');
 assert(appSource.includes('Start') || appSource.includes('Запустить'), 'UI includes start affordance');
 assert(appSource.includes('Stop') || appSource.includes('Остановить'), 'UI includes stop affordance');

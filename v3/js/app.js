@@ -5209,7 +5209,8 @@
     return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
   }
 
-  function renderGolosAutoUpvoter(chain) {
+  async function renderGolosAutoUpvoter(chain) {
+    await loadScript(chain.cryptoPath);
     const users = DposAuth.getUsers(chain);
     const helper = global.DposGolosAutoUpvoter;
     const accountCards = users.map((user, index) => {
@@ -10958,7 +10959,7 @@ Memo key: ${keys.memo}`);
       } else if (chain.id === 'viz' && effectiveAppId === 'custom-generator') {
         renderVizCustomGenerator(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'auto-upvoter') {
-        renderGolosAutoUpvoter(chain);
+        await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {

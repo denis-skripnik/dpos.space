@@ -4729,3 +4729,11 @@ User clarified the feed action should toggle rather than remain a one-way cancel
 - After a successful manual vote, the row switches back to the confirmed cancel-upvote action.
 - Manual feed vote/unvote actions remain outside the Start auto-consent boundary: both use the normal explicit confirmation path.
 - The auto-upvoter page now shows current Golos voting battery for enabled accounts before the Start/Stop controls and again before the feed/list of posts; Start and Stop refresh that battery summary.
+
+#### Hotfix checkpoint: auto-upvoter posting-key status
+
+Reported on live page: auto-upvoter account card showed `Posting-ключ: не найден или недоступен` for `@denis-skripnik`, while the Accounts page correctly showed saved posting and active keys.
+
+Root cause: the auto-upvoter renderer called `DposBroadcast.getAvailableKeys()` before loading the chain SJCL crypto script. `getAvailableKeys()` delegates to `DposAuth.getKeyStatus()`, which verifies saved key availability by decrypting with SJCL; without SJCL loaded it returned false even though encrypted key fields existed.
+
+Fix: make `renderGolosAutoUpvoter` async, load `chain.cryptoPath` before reading key status, and await the renderer from the route dispatcher. Focused smoke now asserts this ordering.
