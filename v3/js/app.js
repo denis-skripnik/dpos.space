@@ -5258,6 +5258,18 @@
     }
   }
 
+  function splitAutoDonatePoolSettings(value, fallbackPercent, fallbackCoefficient) {
+    const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+    return {
+      percent: String(fallbackPercent || parts[0] || '0'),
+      coefficient: String(fallbackCoefficient || parts[1] || '1')
+    };
+  }
+
+  function joinAutoDonatePoolSettings(percent, coefficient) {
+    return `${String(percent || '0').trim() || '0'} ${String(coefficient || '1').trim() || '1'}`;
+  }
+
   function writeGolosAutoUpvoterSettings(settings) {
     if (!global.localStorage) return;
     const rows = Array.isArray(settings) ? settings : [];
@@ -5265,6 +5277,7 @@
     rows.forEach((row) => {
       const account = String(row && row.account || '').trim().replace(/^@/, '');
       if (!account) return;
+      const pool = splitAutoDonatePoolSettings(row && row.autoDonateCap, row && row.autoDonatePoolPercent, row && row.autoDonatePoolCoefficient);
       accounts[account] = {
         enabled: Boolean(row.enabled),
         curators: String(row.curators || ''),
@@ -5274,7 +5287,9 @@
         curatorCoefficient: String(row.curatorCoefficient || '100'),
         favoritesPercent: String(row.favoritesPercent || '100'),
         autoDonate: Boolean(row.autoDonate),
-        autoDonateCap: String(row.autoDonateCap || '0 1')
+        autoDonatePoolPercent: pool.percent,
+        autoDonatePoolCoefficient: pool.coefficient,
+        autoDonateCap: joinAutoDonatePoolSettings(pool.percent, pool.coefficient)
       };
     });
     global.localStorage.setItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY, JSON.stringify({ accounts }));
@@ -5302,7 +5317,11 @@
       setValue('curatorCoefficient', settings.curatorCoefficient);
       setValue('favoritesPercent', settings.favoritesPercent);
       setChecked('autoDonate', settings.autoDonate);
-      setValue('autoDonateCap', settings.autoDonateCap);
+      const pool = splitAutoDonatePoolSettings(settings.autoDonateCap, settings.autoDonatePoolPercent, settings.autoDonatePoolCoefficient);
+      setValue('autoDonatePoolPercent', pool.percent);
+      setValue('autoDonatePoolCoefficient', pool.coefficient);
+      const legacyNode = card.querySelector('[name="autoDonateCap"]');
+      if (legacyNode) legacyNode.value = joinAutoDonatePoolSettings(pool.percent, pool.coefficient);
     });
   }
 
@@ -5352,10 +5371,17 @@
           <div class="field">
             <label><input name="autoDonate" type="checkbox" value="1"> Личный пул автодоната GOLOS</label>
           </div>
-          <div class="field">
-            <label for="auto-upvoter-auto-donate-cap-${index}">Личный пул: % дневной эмиссии и коэффициент</label>
-            <input id="auto-upvoter-auto-donate-cap-${index}" name="autoDonateCap" type="text" inputmode="decimal" value="0 1" placeholder="10 1.1">
-            <p class="muted">Как в старом боте: например, 10 1.1 = при 100% апвоте тратить 10% дневной эмиссии, коэффициент 1.1 нелинейно уменьшает донат при меньшем проценте голоса. 0 1 или пустое поле = донат не отправляется. Минимальная отправка — 0.5 GOLOS; 99.8% автору, 0.2% комиссия — @denis-skripnik.</p>
+          <div class="field-grid" data-auto-donate-settings hidden>
+            <div class="field">
+              <label for="auto-upvoter-auto-donate-percent-${index}">Личный пул, % дневной эмиссии</label>
+              <input id="auto-upvoter-auto-donate-percent-${index}" name="autoDonatePoolPercent" type="number" min="0" step="0.1" value="0" placeholder="10">
+            </div>
+            <div class="field">
+              <label for="auto-upvoter-auto-donate-coefficient-${index}">Коэффициент уменьшения доната</label>
+              <input id="auto-upvoter-auto-donate-coefficient-${index}" name="autoDonatePoolCoefficient" type="number" min="0" step="0.1" value="1" placeholder="1.1">
+            </div>
+            <input name="autoDonateCap" type="hidden" value="0 1">
+            <p class="muted">Как в старом боте, но разделено на два поля: при 100% апвоте тратится заданный процент дневной эмиссии, коэффициент нелинейно уменьшает донат при меньшем проценте голоса. 0% или пустой процент = донат не отправляется. Минимальная отправка — 0.5 GOLOS; 99.8% автору, 0.2% комиссия — @denis-skripnik.</p>
           </div>
         </div>
       </fieldset>`;
@@ -5380,7 +5406,10 @@
     </section>`;
 
     const form = document.getElementById('auto-upvoter-form');
-    if (form) applyAutoUpvoterStoredSettings(storedSettings);
+    if (form) {
+      applyAutoUpvoterStoredSettings(storedSettings);
+      syncAutoDonatePoolVisibility(form);
+    }
     const startButton = document.getElementById('auto-upvoter-start');
     const stopButton = document.getElementById('auto-upvoter-stop');
     const feed = document.getElementById('auto-upvoter-feed');
@@ -5665,20 +5694,44 @@
       setStatus('Golos автоапвоутер остановлен.', 'info');
     }
 
+    function syncAutoDonatePoolVisibility(card) {
+      const scope = card || form;
+      if (!scope || !scope.querySelectorAll) return;
+      const cards = scope.matches && scope.matches('[data-auto-upvoter-account]') ? [scope] : Array.from(scope.querySelectorAll('[data-auto-upvoter-account]'));
+      cards.forEach((accountCard) => {
+        const checkbox = accountCard.querySelector('[name="autoDonate"]');
+        const settingsBlock = accountCard.querySelector('[data-auto-donate-settings]');
+        if (settingsBlock) settingsBlock.hidden = !(checkbox && checkbox.checked);
+      });
+    }
+
+    function syncAutoDonatePoolValue(card) {
+      if (!card) return;
+      const percent = card.querySelector('[name="autoDonatePoolPercent"]');
+      const coefficient = card.querySelector('[name="autoDonatePoolCoefficient"]');
+      const legacy = card.querySelector('[name="autoDonateCap"]');
+      if (legacy) legacy.value = joinAutoDonatePoolSettings(percent && percent.value, coefficient && coefficient.value);
+    }
+
 
     function collectSettings() {
-      const settings = Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => ({
-        account: card.dataset.autoUpvoterAccount,
-        enabled: Boolean(card.querySelector('[name="enabled"]').checked),
-        curators: card.querySelector('[name="curators"]').value,
-        favorites: card.querySelector('[name="favorites"]').value,
-        minEnergy: card.querySelector('[name="minEnergy"]').value,
-        curatorMode: card.querySelector('[name="curatorMode"]').value,
-        curatorCoefficient: card.querySelector('[name="curatorCoefficient"]').value,
-        favoritesPercent: card.querySelector('[name="favoritesPercent"]').value,
-        autoDonate: Boolean(card.querySelector('[name="autoDonate"]').checked),
-        autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
-      }));
+      const settings = Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => {
+        syncAutoDonatePoolValue(card);
+        return {
+          account: card.dataset.autoUpvoterAccount,
+          enabled: Boolean(card.querySelector('[name="enabled"]').checked),
+          curators: card.querySelector('[name="curators"]').value,
+          favorites: card.querySelector('[name="favorites"]').value,
+          minEnergy: card.querySelector('[name="minEnergy"]').value,
+          curatorMode: card.querySelector('[name="curatorMode"]').value,
+          curatorCoefficient: card.querySelector('[name="curatorCoefficient"]').value,
+          favoritesPercent: card.querySelector('[name="favoritesPercent"]').value,
+          autoDonate: Boolean(card.querySelector('[name="autoDonate"]').checked),
+          autoDonatePoolPercent: card.querySelector('[name="autoDonatePoolPercent"]').value,
+          autoDonatePoolCoefficient: card.querySelector('[name="autoDonatePoolCoefficient"]').value,
+          autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
+        };
+      });
       writeGolosAutoUpvoterSettings(settings);
       return settings;
     }
@@ -5689,7 +5742,12 @@
 
     if (form) {
       form.addEventListener('input', persistAutoUpvoterSettings);
-      form.addEventListener('change', persistAutoUpvoterSettings);
+      form.addEventListener('change', (event) => {
+        if (event && event.target && event.target.name === 'autoDonate') {
+          syncAutoDonatePoolVisibility(event.target.closest('[data-auto-upvoter-account]'));
+        }
+        persistAutoUpvoterSettings();
+      });
     }
 
     if (startButton && form && helper) {

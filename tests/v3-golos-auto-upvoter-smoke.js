@@ -31,7 +31,7 @@ assert(appSource.includes('renderGolosAutoUpvoter'), 'App has Golos auto-upvoter
 assert(appSource.includes('DposAuth.getUsers(chain)'), 'UI reads all authorized Golos accounts');
 assert(appSource.includes('const GOLOS_AUTO_UPVOTER_SETTINGS_KEY') && appSource.includes('function readGolosAutoUpvoterSettings') && appSource.includes('function writeGolosAutoUpvoterSettings'), 'auto-upvoter persists settings in localStorage');
 assert(appSource.includes('const storedSettings = readGolosAutoUpvoterSettings()') && appSource.includes('applyAutoUpvoterStoredSettings(storedSettings)') && appSource.includes('writeGolosAutoUpvoterSettings(settings)'), 'auto-upvoter restores settings into fields and saves collected settings');
-assert(appSource.includes('form.addEventListener(\'input\', persistAutoUpvoterSettings)') && appSource.includes('form.addEventListener(\'change\', persistAutoUpvoterSettings)'), 'auto-upvoter saves form edits before page refresh');
+assert(appSource.includes('form.addEventListener(\'input\', persistAutoUpvoterSettings)') && appSource.includes("form.addEventListener('change', (event)"), 'auto-upvoter saves form edits before page refresh');
 assert(appSource.includes('async function renderGolosAutoUpvoter') && appSource.includes('await loadScript(chain.cryptoPath);') && appSource.includes('await renderGolosAutoUpvoter(chain)'), 'auto-upvoter loads SJCL before checking saved posting-key availability');
 assert(appSource.includes('type="checkbox"'), 'UI renders account checkboxes, not only the top account selector');
 assert(appSource.includes('Start') || appSource.includes('Запустить'), 'UI includes start affordance');
@@ -52,7 +52,10 @@ assert(appSource.includes('runScannerTick'), 'UI Start calls scanner tick helper
 assert(appSource.includes('getAccountHistory') && appSource.includes('getDiscussionsByBlog'), 'UI scanner adapter uses Golos history/discussion RPC methods');
 assert(appSource.includes('denis-skripnik') && /0\.2%|0,2%/.test(appSource), 'UI clearly shows auto-donate fee recipient and split');
 assert(appSource.includes('Личный пул автодоната GOLOS'), 'UI names old personal-pool auto-donate model');
-assert(appSource.includes('10 1.1') && appSource.includes('% дневной эмиссии') && appSource.includes('коэффициент'), 'UI explains old personal-pool percent/coefficient format');
+assert(appSource.includes('name="autoDonatePoolPercent"') && appSource.includes('name="autoDonatePoolCoefficient"'), 'UI splits old bot personal-pool value into separate percent and coefficient fields');
+assert(appSource.includes('data-auto-donate-settings') && appSource.includes('syncAutoDonatePoolVisibility'), 'UI hides personal-pool fields until auto-donate checkbox is enabled');
+assert(appSource.includes('joinAutoDonatePoolSettings') && appSource.includes('splitAutoDonatePoolSettings'), 'UI keeps backward-compatible legacy pool string while exposing split fields');
+assert(appSource.includes('% дневной эмиссии') && appSource.includes('коэффициент'), 'UI explains old personal-pool percent/coefficient meaning without requiring bot-style combined input');
 assert(helperSource.includes('broadcast.vote') || helperSource.includes("operationName: 'vote'"), 'Runner skeleton plans real Golos vote broadcast');
 assert(/broadcast\.donate|operationName: 'donate'/.test(helperSource), 'Runner skeleton explicitly handles Golos donate broadcast availability');
 assert(!appSource.includes('broadcastPlannedAction(scanChain, action, { confirmExecute: true })'), 'auto runner does not force per-action DposBroadcast confirmation after Start');
