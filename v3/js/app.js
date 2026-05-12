@@ -5350,12 +5350,12 @@
             <input id="auto-upvoter-favorites-percent-${index}" name="favoritesPercent" type="number" min="0" max="100" step="1" value="100">
           </div>
           <div class="field">
-            <label><input name="autoDonate" type="checkbox" value="1"> Автодонат GOLOS после совпадения</label>
+            <label><input name="autoDonate" type="checkbox" value="1"> Автодонат GOLOS для любимых авторов</label>
           </div>
           <div class="field">
-            <label for="auto-upvoter-auto-donate-cap-${index}">Сумма/лимит автодоната за действие, GOLOS</label>
+            <label for="auto-upvoter-auto-donate-cap-${index}">Фиксированная сумма автодоната за один найденный пост, GOLOS</label>
             <input id="auto-upvoter-auto-donate-cap-${index}" name="autoDonateCap" type="number" min="0" step="0.001" value="0">
-            <p class="muted">Если включено и сумма ≥ 0.5 GOLOS: 99.8% идёт автору поста, 0.2% комиссия — @denis-skripnik.</p>
+            <p class="muted">0 или пустое поле = донат не отправляется. Если включено и сумма ≥ 0.5 GOLOS: 99.8% идёт автору поста, 0.2% комиссия — @denis-skripnik.</p>
           </div>
         </div>
       </fieldset>`;

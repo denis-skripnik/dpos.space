@@ -51,6 +51,8 @@ assert(appSource.includes('setInterval') && appSource.includes('clearInterval'),
 assert(appSource.includes('runScannerTick'), 'UI Start calls scanner tick helper');
 assert(appSource.includes('getAccountHistory') && appSource.includes('getDiscussionsByBlog'), 'UI scanner adapter uses Golos history/discussion RPC methods');
 assert(appSource.includes('denis-skripnik') && /0\.2%|0,2%/.test(appSource), 'UI clearly shows auto-donate fee recipient and split');
+assert(appSource.includes('Автодонат GOLOS для любимых авторов'), 'UI makes auto-donate scope clear');
+assert(appSource.includes('0 или пустое поле = донат не отправляется'), 'UI explains zero/empty auto-donate amount disables donate');
 assert(helperSource.includes('broadcast.vote') || helperSource.includes("operationName: 'vote'"), 'Runner skeleton plans real Golos vote broadcast');
 assert(/broadcast\.donate|operationName: 'donate'/.test(helperSource), 'Runner skeleton explicitly handles Golos donate broadcast availability');
 assert(!appSource.includes('broadcastPlannedAction(scanChain, action, { confirmExecute: true })'), 'auto runner does not force per-action DposBroadcast confirmation after Start');
