@@ -4846,3 +4846,75 @@ Fix:
 Validation:
 - `node tests/v3-golos-auto-upvoter-smoke.js`
 - Focused Golos feeds/post route tests plus broad v3 smoke loop.
+
+### Scoped plan: Hive/Steem post viewers and feeds
+
+Scope:
+- Add static/browser-only `post` viewers for Hive and Steem instead of the temporary `post -> editor` alias (Hive / post viewer, Steem / post viewer).
+- Add static/browser-only `feeds` pages for Hive and Steem using public condenser discussion RPC (Hive / feeds, Steem / feeds).
+- Keep the editor route separate: `editor` remains for publishing, `post` is for reading a concrete post/comment thread.
+- Feed types: `Новые посты` via `getDiscussionsByCreated`, `Популярное` via `getDiscussionsByHot` with `getDiscussionsByTrending` fallback, `Блог аккаунта` via `getDiscussionsByBlog`, and `Лента подписок` via `getDiscussionsByFeed`.
+- Actions stay explicit: vote and reblog/repost go through existing confirmed posting broadcast. No automatic votes, no donate button for Hive/Steem because those chains do not expose the Golos `donate` operation.
+
+API shape evidence:
+- Hive API probe (`https://api.hive.blog`, `condenser_api.*`): discussion/content rows include `author`, `permlink`, `title`, `body`, `json_metadata`, `created`, `children`, `active_votes`, `pending_payout_value`, `total_payout_value`, `curator_payout_value`, `url`, `category`, `parent_author`, `parent_permlink`; Hive editor/broadcast fields include `percent_hbd`.
+- Steem API probe (`https://api.steemit.com`, `condenser_api.*`): discussion/content rows include the same core fields, plus Steem payout assets as `pending_payout_value` / `total_payout_value`, `promoted`, and editor/broadcast uses `percent_steem_dollars`.
+- `get_content_replies` returns flat direct replies; v3 loads it recursively to a bounded depth and renders a nested accessible list.
+- `json_metadata` is string JSON on both chains; tags are read defensively and missing/invalid metadata is non-fatal.
+
+Implementation tasks:
+1. Remove the Hive/Steem `post -> editor` legacy alias while preserving `editor` navigation.
+2. Register `post` and `feeds` in the shared Hive/Steem social app list.
+3. Implement shared Hive/Steem social post renderer: `getContent`, Markdown preview, payout/vote/comment stats, recursive replies, vote button, comment/reply forms, and external hive.blog/steemit.com links.
+4. Implement shared Hive/Steem feeds renderer with persisted per-chain feed/account settings in localStorage.
+5. Add/update focused smoke coverage in `tests/v3-hive-post-smoke.js`, `tests/v3-steem-post-smoke.js`, and `tests/v3-social-post-feeds-runtime-smoke.js`.
+
+Validation:
+- `node --check v3/js/app.js`
+- `node --check v3/js/chains.js`
+- `node tests/v3-hive-post-smoke.js`
+- `node tests/v3-steem-post-smoke.js`
+- `node tests/v3-social-post-feeds-runtime-smoke.js`
+- Broad `for f in tests/v3-*.js; do node "$f" || exit 1; done`
+
+Definition of done:
+- `#chain=hive&app=post&author=...&permlink=...` and `#chain=steem&app=post&author=...&permlink=...` open post viewers, not the editor.
+- Hive/Steem `feeds` pages show readable cards with title, author/date, teaser, counters, tags, and explicit vote/repost controls.
+- The implementation handles Hive/Steem payout/metadata field differences without copying Golos donate-specific UI.
+- No backend/indexer/PHP runtime is introduced.
+
+### Scoped plan: Hive/Steem auto-upvoter without donations
+
+Scope:
+- Add Hive and Steem to the local browser-only `auto-upvoter` app.
+- Reuse the existing active-tab scanner model: it runs only while the page is open, after explicit Start consent, and uses locally saved posting keys.
+- Supported automatic actions: vote for favorite authors' new posts and repeat selected curator votes.
+- Hard non-goal: no donations for Hive/Steem. These chains do not have the Golos `donate` operation, so the UI must not show auto-donate controls or manual donate links for Hive/Steem.
+- Preserve Golos behavior, including its existing auto-donate option.
+
+API/runtime notes:
+- Hive/Steem can use the same public condenser methods already verified for post/feeds: `getDiscussionsByBlog`, `getDiscussionsByCreated`, `getAccountHistory`, `getContent`, and `getAccounts`.
+- Duplicate-vote checks use `active_votes`/`activeVotes` from `getContent`; if the account already voted, skip before broadcast.
+- Voting power is read from account fields such as `voting_power` / `votingPower`; missing values are displayed as `н/д` rather than blocking scanner setup.
+- Runner locks and settings must be per-chain: `dpos_hive_auto_upvoter_settings`, `dpos_steem_auto_upvoter_settings`, while existing Golos settings remain under `dpos_golos_auto_upvoter_settings`.
+
+Implementation tasks:
+1. Register `auto-upvoter` in the shared Hive/Steem social app list.
+2. Generalize the Golos auto-upvoter renderer enough to accept Hive/Steem chains while keeping Golos donation UI conditional.
+3. For Hive/Steem, render explicit “donations are not available” copy and hidden disabled donate defaults so helper planning never creates donate actions.
+4. Route Hive/Steem `app=auto-upvoter` to the shared renderer.
+5. Add smoke coverage that checks registration, route dispatch, per-chain settings keys, absence of donate UI/links, and preservation of Golos auto-donate UI.
+
+Validation:
+- `node --check v3/js/app.js`
+- `node --check v3/js/chains.js`
+- `node tests/v3-hive-auto-upvoter-smoke.js`
+- `node tests/v3-steem-auto-upvoter-smoke.js`
+- Existing Golos auto-upvoter smoke
+- Broad `for f in tests/v3-*.js; do node "$f" || exit 1; done`
+
+Definition of done:
+- Hive/Steem app selector exposes `Автоапвоутер`.
+- Hive/Steem auto-upvoter can configure accounts, curators, favorite authors, minimum voting power, and vote percentages.
+- Hive/Steem UI and scanner create only vote actions; there are no donate controls or links.
+- Existing Golos auto-upvoter behavior and tests remain green.

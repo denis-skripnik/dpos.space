@@ -8,8 +8,11 @@ const profilesSource = fs.readFileSync('v3/js/profiles.js', 'utf8');
 const historySource = fs.readFileSync('v3/js/history.js', 'utf8');
 const planSource = fs.readFileSync('plan.md', 'utf8');
 
-assert(appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')") && appSource.includes("return 'editor'"), 'Steem legacy post route aliases to editor');
-assert(chainsSource.includes("steem: {") && chainsSource.includes("const steemApps = socialApps.concat") && chainsSource.includes("apps: apps(steemApps)"), 'Steem uses social editor app set plus Steem-specific additions');
+assert(!appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')"), 'Steem /post no longer aliases to editor');
+assert(chainsSource.includes("steem: {") && chainsSource.includes("const steemApps = socialApps.concat") && chainsSource.includes("apps: apps(steemApps)"), 'Steem uses social app set plus Steem-specific additions');
+assert(chainsSource.includes("id: 'post'") && chainsSource.includes("id: 'feeds'"), 'Steem social app set exposes post viewer and feeds');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Steem post route to social post viewer');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Steem feeds route');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor route keeps authorized-account context');
 assert(appSource.includes('function buildGenericEditorOperations'), 'Steem editor has shared operation builder');
 assert(appSource.includes('function bindSteemPostLegacyHelpers'), 'Steem post ports legacy static-safe helper binding');
@@ -40,8 +43,29 @@ assert(!editorSlice.includes('api.imgur.com/3/image.json'), 'legacy Imgur upload
 assert(!editorSlice.includes('new SimpleMDE'), 'legacy SimpleMDE editor constructor is not copied into Steem editor runtime');
 
 assert(planSource.includes('### Rigorous parity: Steem / post'), 'plan contains Steem / post rigorous parity section');
-assert(planSource.includes('Steem / post -> editor'), 'plan documents post to editor route mapping');
+assert(planSource.includes('Steem / post viewer') && planSource.includes('Steem / feeds'), 'plan documents Steem post viewer and feeds scope');
 assert(planSource.includes('tests/v3-steem-post-smoke.js'), 'plan names focused Steem post smoke coverage');
 assert(planSource.includes('backend-only non-goal') && planSource.includes('Imgur'), 'plan documents server/third-party upload non-goal');
+
+for (const marker of [
+  'function renderSocialPostPage',
+  'function loadSocialRepliesTree',
+  'function renderSocialFeedsPage',
+  'function loadSocialFeedRows',
+  'getDiscussionsByCreated',
+  'getDiscussionsByBlog',
+  'getDiscussionsByFeed',
+  'getDiscussionsByHot',
+  'getDiscussionsByTrending',
+  'pending_payout_value',
+  'total_payout_value',
+  'percent_steem_dollars',
+  'https://steemit.com',
+  "broadcast.prepare(chain, 'posting', 'vote'",
+  "id: 'follow'"
+]) {
+  assert(appSource.includes(marker), `Steem social post/feeds marker missing: ${marker}`);
+}
+assert(planSource.includes('Steem API probe') && planSource.includes('promoted') && planSource.includes('percent_steem_dollars'), 'plan.md records Steem API shape evidence');
 
 console.log('v3 Steem post smoke passed');

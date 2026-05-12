@@ -368,9 +368,6 @@
     if (chain.id === 'viz' && (appId === 'calc' || appId === 'awards')) {
       return aliases[appId];
     }
-    if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post') {
-      return 'editor';
-    }
     if ((chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') && aliases[appId]) {
       return aliases[appId];
     }
@@ -5248,10 +5245,14 @@
 
   const GOLOS_AUTO_UPVOTER_SETTINGS_KEY = 'dpos_golos_auto_upvoter_settings';
 
-  function readGolosAutoUpvoterSettings() {
+  function autoUpvoterSettingsKey(chain) {
+    return chain && chain.id === 'golos' ? GOLOS_AUTO_UPVOTER_SETTINGS_KEY : `dpos_${chain && chain.id || 'social'}_auto_upvoter_settings`;
+  }
+
+  function readGolosAutoUpvoterSettings(chain) {
     if (!global.localStorage) return {};
     try {
-      const parsed = JSON.parse(global.localStorage.getItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY) || '{}');
+      const parsed = JSON.parse(global.localStorage.getItem(autoUpvoterSettingsKey(chain)) || '{}');
       if (!parsed || typeof parsed !== 'object') return {};
       const accounts = parsed.accounts && typeof parsed.accounts === 'object' ? parsed.accounts : {};
       return { accounts };
@@ -5272,7 +5273,7 @@
     return `${String(percent || '0').trim() || '0'} ${String(coefficient || '1').trim() || '1'}`;
   }
 
-  function writeGolosAutoUpvoterSettings(settings) {
+  function writeGolosAutoUpvoterSettings(chain, settings) {
     if (!global.localStorage) return;
     const rows = Array.isArray(settings) ? settings : [];
     const accounts = {};
@@ -5294,7 +5295,7 @@
         autoDonateCap: joinAutoDonatePoolSettings(pool.percent, pool.coefficient)
       };
     });
-    global.localStorage.setItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY, JSON.stringify({ accounts }));
+    global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({ accounts }));
   }
 
   function applyAutoUpvoterStoredSettings(storedSettings) {
@@ -5329,9 +5330,10 @@
 
   async function renderGolosAutoUpvoter(chain) {
     await loadScript(chain.cryptoPath);
+    const isGolos = chain.id === 'golos';
     const users = DposAuth.getUsers(chain);
     const helper = global.DposGolosAutoUpvoter;
-    const storedSettings = readGolosAutoUpvoterSettings();
+    const storedSettings = readGolosAutoUpvoterSettings(chain);
     const accountCards = users.map((user, index) => {
       const login = auth.getUserLogin(user);
       const type = auth.getUserType(user);
@@ -5370,7 +5372,7 @@
             <label for="auto-upvoter-favorites-percent-${index}">Голос за любимых, %</label>
             <input id="auto-upvoter-favorites-percent-${index}" name="favoritesPercent" type="number" min="0" max="100" step="1" value="100">
           </div>
-          <div class="field">
+          ${isGolos ? `<div class="field">
             <label><input name="autoDonate" type="checkbox" value="1"> Личный пул автодоната GOLOS</label>
           </div>
           <div class="field-grid" data-auto-donate-settings hidden>
@@ -5384,23 +5386,23 @@
             </div>
             <input name="autoDonateCap" type="hidden" value="0 1">
             <p class="muted">Как в старом боте, но разделено на два поля: при 100% апвоте тратится заданный процент дневной эмиссии, коэффициент нелинейно уменьшает донат при меньшем проценте голоса. 0% или пустой процент = донат не отправляется. Минимальная отправка — 0.5 GOLOS; 99.8% автору, 0.2% комиссия — @denis-skripnik.</p>
-          </div>
+          </div>` : `<input name="autoDonate" type="hidden" value=""><input name="autoDonatePoolPercent" type="hidden" value="0"><input name="autoDonatePoolCoefficient" type="hidden" value="1"><input name="autoDonateCap" type="hidden" value="0 1"><p class="muted">В ${escapeHtml(chain.title)} донатов нет: автоапвоутер отправляет только vote-операции.</p>`}
         </div>
       </fieldset>`;
     }).join('');
 
     appEl.innerHTML = `<section class="panel auto-upvoter" aria-labelledby="auto-upvoter-heading">
-      <h2 id="auto-upvoter-heading">Golos автоапвоутер</h2>
-      <p>Первый MVP-фундамент: настройки нескольких аккаунтов, планирование действий и безопасный запуск scanner-loop без backend.</p>
-        <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические vote/donate без подтверждения каждого действия. Сохранённые posting-ключи будут расшифрованы локально в браузере, пока сайт открыт. Не запускайте на чужом устройстве.</p>
-      <p class="muted">Автодонат использует старую схему личного пула: % дневной эмиссии при 100% апвоте и коэффициент нелинейного уменьшения по фактическому весу голоса. Сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для отправки — 0.5 GOLOS.</p>
+      <h2 id="auto-upvoter-heading">${escapeHtml(chain.title)} автоапвоутер</h2>
+      <p>Настройки нескольких аккаунтов, планирование действий и безопасный запуск scanner-loop без backend.</p>
+        <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические vote${isGolos ? '/donate' : ''} без подтверждения каждого действия. Сохранённые posting-ключи будут расшифрованы локально в браузере, пока сайт открыт. Не запускайте на чужом устройстве.</p>
+      ${isGolos ? '<p class="muted">Автодонат использует старую схему личного пула: % дневной эмиссии при 100% апвоте и коэффициент нелинейного уменьшения по фактическому весу голоса. Сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для отправки — 0.5 GOLOS.</p>' : `<p class="muted">В ${escapeHtml(chain.title)} донатов нет: Start отправляет только автоматические vote-операции за любимых авторов и повтор голосов кураторов.</p>`}
       ${users.length ? `<form id="auto-upvoter-form">${accountCards}
         <p id="auto-upvoter-battery-controls" class="muted">Перед запуском/остановкой: батарейка появится после выбора аккаунтов и нажатия Start.</p>
         <div class="actions">
           <button type="button" id="auto-upvoter-start">Запустить Start</button>
           <button type="button" id="auto-upvoter-stop" class="secondary" disabled>Остановить Stop</button>
         </div>
-      </form>` : '<p class="muted">Нет сохранённых Golos-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>'}
+      </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}
       <section class="card" aria-labelledby="auto-upvoter-status-heading">
         <h3 id="auto-upvoter-status-heading">Статус и лента</h3>
         <div id="auto-upvoter-feed" role="status" aria-live="polite">Остановлен. Реальных отправок без кнопки Start нет.</div>
@@ -5423,11 +5425,11 @@
     const manualVoteState = new Map();
 
     function autoUpvoterManualDonateUrl(action) {
-      return golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' });
+      return isGolos ? golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' }) : '';
     }
 
     function autoUpvoterPostUrl(action) {
-      return golosPostPageUrl(action && action.author, action && action.permlink);
+      return isGolos ? golosPostPageUrl(action && action.author, action && action.permlink) : socialPostPageUrl(chain, action && action.author, action && action.permlink);
     }
 
     function autoUpvoterActionLabel(action) {
@@ -5492,7 +5494,7 @@
         const postLink = action && action.author && action.permlink
           ? ` <a href="${escapeHtml(autoUpvoterPostUrl(action))}" target="_blank" rel="noopener">${escapeHtml(autoUpvoterActionLabel(action))}</a>`
           : '';
-        const donateLink = action && action.author && !autoUpvoterActionHasDonate(entry)
+        const donateLink = isGolos && action && action.author && !autoUpvoterActionHasDonate(entry)
           ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}" target="_blank" rel="noopener">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
           : '';
         rows.push(`<div>${escapeHtml(message)}${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}</div>`);
@@ -5519,7 +5521,7 @@
             try {
               return await profiles.apiCall(connection, 'getDiscussionsByCreated', [query]);
             } catch (createdError) {
-              throw new Error(`Golos discussion RPC methods getDiscussionsByBlog/getDiscussionsByCreated are unavailable for @${account}: ${profiles.formatError(createdError || blogError)}`);
+              throw new Error(`${chain.title} discussion RPC methods getDiscussionsByBlog/getDiscussionsByCreated are unavailable for @${account}: ${profiles.formatError(createdError || blogError)}`);
             }
           }
         },
@@ -5572,7 +5574,7 @@
           if (hasGolosVoteFrom(content || action, action.account)) {
             return { skipped: true, reason: 'already-voted' };
           }
-          const donateAction = action && action.donate && action.donate.enabled
+          const donateAction = isGolos && action && action.donate && action.donate.enabled
             ? helper.enrichActionDonateFromEmission(
               action,
               await adapter.getAccount(action.account),
@@ -5612,8 +5614,8 @@
       const user = helper.findAuthorizedUser(chain, account);
       if (!user) throw new Error(`Аккаунт @${account} не найден в локальном хранилище авторизации.`);
       const prepared = broadcast.prepareForUser(chain, user, 'posting', 'vote', [account, author, permlink, weight], {
-        title: 'Golos manual vote from auto-upvoter feed',
-        feature: 'golos-auto-upvoter-manual-vote',
+        title: `${chain.title} manual vote from auto-upvoter feed`,
+        feature: `${chain.id}-auto-upvoter-manual-vote`,
         source: 'manual-feed'
       });
       button.disabled = true;
@@ -5641,8 +5643,8 @@
       const user = helper.findAuthorizedUser(chain, account);
       if (!user) throw new Error(`Аккаунт @${account} не найден в локальном хранилище авторизации.`);
       const prepared = broadcast.prepareForUser(chain, user, 'posting', 'vote', [account, author, permlink, 0], {
-        title: 'Golos unvote from auto-upvoter feed',
-        feature: 'golos-auto-upvoter-manual-unvote',
+        title: `${chain.title} unvote from auto-upvoter feed`,
+        feature: `${chain.id}-auto-upvoter-manual-unvote`,
         source: 'manual-feed'
       });
       button.disabled = true;
@@ -5692,7 +5694,7 @@
       startButton.disabled = false;
       stopButton.disabled = true;
       renderScannerFeed(message || 'Остановлен. Активных runner-состояний нет.');
-      setStatus('Golos автоапвоутер остановлен.', 'info');
+      setStatus(`${chain.title} автоапвоутер остановлен.`, 'info');
     }
 
     function syncAutoDonatePoolVisibility(card) {
@@ -5727,13 +5729,13 @@
           curatorMode: card.querySelector('[name="curatorMode"]').value,
           curatorCoefficient: card.querySelector('[name="curatorCoefficient"]').value,
           favoritesPercent: card.querySelector('[name="favoritesPercent"]').value,
-          autoDonate: Boolean(card.querySelector('[name="autoDonate"]').checked),
+          autoDonate: isGolos && Boolean(card.querySelector('[name="autoDonate"]').checked),
           autoDonatePoolPercent: card.querySelector('[name="autoDonatePoolPercent"]').value,
           autoDonatePoolCoefficient: card.querySelector('[name="autoDonatePoolCoefficient"]').value,
           autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
         };
       });
-      writeGolosAutoUpvoterSettings(settings);
+      writeGolosAutoUpvoterSettings(chain, settings);
       return settings;
     }
 
@@ -5776,7 +5778,7 @@
               setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
             });
           }, 60000);
-          setStatus('Golos автоапвоутер запущен локально во вкладке.', 'ok');
+          setStatus(`${chain.title} автоапвоутер запущен локально во вкладке.`, 'ok');
         } catch (error) {
           if (runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
             helper.releaseRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
@@ -5794,7 +5796,7 @@
       feed.textContent = 'Ошибка: модуль DposGolosAutoUpvoter не загружен.';
     }
 
-    setStatus('Golos автоапвоутер готов к настройке.', 'info');
+    setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
   }
 
   const GOLOS_FEEDS_SETTINGS_KEY = 'dpos_golos_feeds_settings';
@@ -6147,6 +6149,368 @@
           const permlink = golosCommentPermlink(parentAuthor, parentPermlink);
           const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
           const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: 'Golos post page comment', feature: 'golos-post-page-comment' });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          if (result) result.textContent = 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
+          setStatus('Комментарий отправлен в сеть.', 'ok');
+        } catch (error) {
+          if (result) result.textContent = profiles.formatError(error);
+          setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+  }
+
+  const SOCIAL_FEED_KINDS = [
+    ['new', 'Новые посты'],
+    ['popular', 'Популярное'],
+    ['blog', 'Блог аккаунта'],
+    ['subscriptions', 'Лента подписок']
+  ];
+
+  function isHiveOrSteem(chain) {
+    return chain && (chain.id === 'hive' || chain.id === 'steem');
+  }
+
+  function socialFeedsSettingsKey(chain) {
+    return `dpos_${chain.id}_feeds_settings`;
+  }
+
+  function normalizeSocialFeedKind(value) {
+    const raw = String(value || '').trim();
+    return SOCIAL_FEED_KINDS.some(([id]) => id === raw) ? raw : 'new';
+  }
+
+  function readSocialFeedsSettings(chain) {
+    if (!global.localStorage) return {};
+    try {
+      const parsed = JSON.parse(global.localStorage.getItem(socialFeedsSettingsKey(chain)) || '{}');
+      if (!parsed || typeof parsed !== 'object') return {};
+      return {
+        feed: normalizeSocialFeedKind(parsed.feed),
+        account: String(parsed.account || '').trim().replace(/^@/, '')
+      };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeSocialFeedsSettings(chain, settings) {
+    if (!global.localStorage) return;
+    global.localStorage.setItem(socialFeedsSettingsKey(chain), JSON.stringify({
+      feed: normalizeSocialFeedKind(settings && settings.feed),
+      account: String(settings && settings.account || '').trim().replace(/^@/, '')
+    }));
+  }
+
+  function socialPostPageUrl(chain, author, permlink) {
+    return `${global.location.origin}${global.location.pathname}${appHash({ chain: chain.id, app: 'post', author: String(author || '').trim().replace(/^@/, ''), permlink: String(permlink || '').trim() })}`;
+  }
+
+  function socialExternalPostUrl(chain, author, permlink) {
+    const host = chain.id === 'hive' ? 'https://hive.blog' : 'https://steemit.com';
+    return `${host}/@${encodeURIComponent(String(author || '').trim().replace(/^@/, ''))}/${encodeURIComponent(String(permlink || '').trim())}`;
+  }
+
+  function socialFeedRowTags(row) {
+    return golosFeedRowTags(row);
+  }
+
+  function socialFeedActionStats(row) {
+    const votes = Array.isArray(row && row.active_votes) ? row.active_votes : (Array.isArray(row && row.activeVotes) ? row.activeVotes : []);
+    const netVotes = Number(row && (row.net_votes ?? row.netVotes));
+    const replies = Number(row && (row.children ?? row.replies));
+    const payout = row && (row.pending_payout_value || row.total_payout_value || row.author_payout_value || row.curator_payout_value || row.promoted);
+    return [
+      `лайков: ${Number.isFinite(netVotes) ? netVotes : votes.length}`,
+      Number.isFinite(replies) ? `комментариев: ${replies}` : '',
+      payout ? `выплаты: ${history.formatValue(payout)}` : ''
+    ].filter(Boolean).join(' · ');
+  }
+
+  function renderSocialFeedKindOptions(selected) {
+    return SOCIAL_FEED_KINDS.map(([id, label]) => `<option value="${escapeHtml(id)}" ${id === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
+
+  async function loadSocialFeedRows(chain, state, connection) {
+    const kind = normalizeSocialFeedKind(state.feed);
+    const account = String(state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '').trim().replace(/^@/, '');
+    const limit = 20;
+    if (kind === 'new') {
+      return profiles.apiCall(connection, 'getDiscussionsByCreated', [{ tag: '', limit }]);
+    }
+    if (kind === 'popular') {
+      try {
+        return await profiles.apiCall(connection, 'getDiscussionsByHot', [{ tag: '', limit }]);
+      } catch (error) {
+        return profiles.apiCall(connection, 'getDiscussionsByTrending', [{ tag: '', limit }]);
+      }
+    }
+    if (kind === 'subscriptions') {
+      if (!account) throw new Error('Для ленты подписок нужен аккаунт.');
+      return profiles.apiCall(connection, 'getDiscussionsByFeed', [{ tag: account, limit }]);
+    }
+    if (!account) throw new Error('Для блога нужен аккаунт.');
+    return profiles.apiCall(connection, 'getDiscussionsByBlog', [{ tag: account, limit }]);
+  }
+
+  function renderSocialFeedCard(chain, row) {
+    const author = String(row && row.author || '').trim().replace(/^@/, '');
+    const permlink = String(row && row.permlink || '').trim();
+    if (!author || !permlink) return '';
+    const title = golosContentTitle(row, permlink);
+    const tags = socialFeedRowTags(row);
+    const teaser = markdownToTextPreview(row && row.body, 320);
+    const voted = hasGolosVoteFrom(row, auth.getCurrentLogin(chain));
+    return `<article class="card social-feed-card" data-social-feed-card data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
+      <h3><a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}">${escapeHtml(title)}</a></h3>
+      <p class="muted">${accountLink(chain, author)} · ${escapeHtml(golosContentDate(row))} · ${escapeHtml(socialFeedActionStats(row))}</p>
+      <p>${escapeHtml(teaser)}</p>
+      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(', ')}</p>` : ''}
+      <p class="actions">
+        <button type="button" data-social-feed-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже лайкали' : 'Лайк 100%'}</button>
+        <button type="button" class="secondary" data-social-feed-repost data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Репост с подтверждением</button>
+        <a href="${escapeHtml(socialExternalPostUrl(chain, author, permlink))}" target="_blank" rel="noopener">Открыть снаружи</a>
+      </p>
+    </article>`;
+  }
+
+  async function renderSocialFeedsPage(chain, state = {}) {
+    const storedSettings = readSocialFeedsSettings(chain);
+    const hasFeedParam = Object.prototype.hasOwnProperty.call(state, 'feed') && state.feed;
+    const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
+    const feedKind = normalizeSocialFeedKind(hasFeedParam ? state.feed : storedSettings.feed);
+    const account = String(hasAccountParam ? state.account : (storedSettings.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
+    writeSocialFeedsSettings(chain, { feed: feedKind, account });
+    const chainTitle = chain.title || chain.id;
+    appEl.innerHTML = `<section class="panel social-feeds-page" data-social-feeds-page>
+      <h2>${escapeHtml(chainTitle)}: Ленты</h2>
+      <p class="muted">Новые посты, популярное, блог аккаунта и лента подписок через публичный ${escapeHtml(chainTitle)} RPC. Действия выполняются только после подтверждения.</p>
+      <form id="social-feeds-form" class="stacked-form">
+        <div class="field-grid">
+          <div class="field"><label for="social-feeds-kind">Тип ленты</label><select id="social-feeds-kind" name="feed" data-social-feed-kind>${renderSocialFeedKindOptions(feedKind)}</select></div>
+          <div class="field"><label for="social-feeds-account">Аккаунт для блога/подписок</label><input id="social-feeds-account" name="account" type="text" value="${escapeHtml(account)}" autocomplete="off"></div>
+        </div>
+        <button type="submit">Показать ленту</button>
+      </form>
+      <div id="social-feeds-result" role="status" aria-live="polite"><p>Загружаю ленту...</p></div>
+    </section>`;
+    const form = document.getElementById('social-feeds-form');
+    if (form) {
+      const persistFormSettings = () => {
+        const data = new FormData(form);
+        writeSocialFeedsSettings(chain, { feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
+      };
+      const feedSelect = form.querySelector('[name="feed"]');
+      const accountInput = form.querySelector('[name="account"]');
+      if (feedSelect) feedSelect.addEventListener('change', persistFormSettings);
+      if (accountInput) accountInput.addEventListener('input', persistFormSettings);
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+        const selectedAccount = String(data.get('account') || '').trim().replace(/^@/, '');
+        writeSocialFeedsSettings(chain, { feed: data.get('feed'), account: selectedAccount });
+        navigate({ chain: chain.id, app: 'feeds', feed: data.get('feed'), account: selectedAccount });
+      });
+    }
+    const result = document.getElementById('social-feeds-result');
+    try {
+      setStatus(`Загружаю ${chainTitle} ленту...`, 'loading');
+      const connection = await getConnection(chain);
+      const rows = await loadSocialFeedRows(chain, { ...state, feed: feedKind, account }, connection);
+      const cards = (Array.isArray(rows) ? rows : []).map((row) => renderSocialFeedCard(chain, row)).filter(Boolean);
+      const selectedLabel = (SOCIAL_FEED_KINDS.find(([id]) => id === feedKind) || SOCIAL_FEED_KINDS[0])[1];
+      result.innerHTML = cards.length ? `<h3>${escapeHtml(selectedLabel)}</h3>${cards.join('')}` : `<p class="muted">В этой ленте сейчас нет постов.</p>`;
+      bindSocialFeedActions(chain);
+      setStatus(`${chainTitle} лента «${selectedLabel}» загружена.`, 'ok');
+    } catch (error) {
+      if (result) result.innerHTML = `<p class="warning">${escapeHtml(profiles.formatError(error))}</p>`;
+      setStatus(`Ошибка загрузки ленты ${chainTitle}: ${profiles.formatError(error)}`, 'error');
+    }
+  }
+
+  function bindSocialFeedActions(chain) {
+    appEl.querySelectorAll('[data-social-feed-vote]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const voter = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          const connection = await getConnection(chain);
+          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+          if (hasGolosVoteFrom(content, voter)) {
+            button.disabled = true;
+            button.textContent = 'Вы уже лайкали';
+            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
+            return;
+          }
+          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: `${chain.id} feed vote`, feature: `${chain.id}-feeds` });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Лайк отправлен';
+          setStatus('Лайк отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка лайка: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+    appEl.querySelectorAll('[data-social-feed-repost]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const account = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          if (!account) throw new Error(`Для репоста нужен выбранный сохранённый ${chain.title || chain.id}-аккаунт.`);
+          const payload = ['reblog', { account, author, permlink }];
+          const prepared = broadcast.prepare(chain, 'posting', 'sendOperations', [[
+            ['custom_json', {
+              required_auths: [],
+              required_posting_auths: [account],
+              id: 'follow',
+              json: JSON.stringify(payload)
+            }]
+          ]], { title: `${chain.id} feed repost`, to: author, feature: `${chain.id}-feeds-repost` });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Репост отправлен';
+          setStatus('Репост отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка репоста: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+  }
+
+  async function renderSocialPostPage(chain, state = {}) {
+    const author = String(state.author || '').trim().replace(/^@/, '');
+    const permlink = String(state.permlink || '').trim();
+    if (!author || !permlink) throw new Error('Для страницы поста нужны author и permlink в hash-параметрах.');
+    const chainTitle = chain.title || chain.id;
+    appEl.innerHTML = `<section class="panel"><h2>Загрузка поста ${escapeHtml(chainTitle)}</h2><p>Подключаю публичную ноду...</p></section>`;
+    setStatus(`Загружаю пост @${author}/${permlink}...`, 'loading');
+    const connection = await getConnection(chain);
+    const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
+    if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
+    const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
+    const voted = hasGolosVoteFrom(post, auth.getCurrentLogin(chain));
+    appEl.innerHTML = `<section class="panel social-post-page" data-social-post-page>
+      <article class="card">
+        <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
+        <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code> · ${escapeHtml(socialFeedActionStats(post))}</p>
+        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '')}</div>
+        <p class="actions">
+          <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+          <a href="${escapeHtml(socialExternalPostUrl(chain, author, permlink))}" target="_blank" rel="noopener">Открыть снаружи</a>
+        </p>
+      </article>
+      <section class="card" aria-labelledby="social-post-comment-heading">
+        <h3 id="social-post-comment-heading">Добавить комментарий</h3>
+        ${renderSocialCommentForm('social-comment-form', author, permlink)}
+      </section>
+      <section class="card" aria-labelledby="social-post-comments-heading">
+        <h3 id="social-post-comments-heading">Комментарии</h3>
+        ${renderSocialCommentsList(chain, replies)}
+      </section>
+    </section>`;
+    bindSocialPostActions(chain);
+    setStatus(`Пост @${author}/${permlink} загружен.`, 'ok');
+  }
+
+  async function loadSocialRepliesTree(connection, author, permlink, depth, maxDepth) {
+    if (depth >= maxDepth) return [];
+    const rows = await profiles.apiCall(connection, 'getContentReplies', [author, permlink]).catch(() => []);
+    const replies = Array.isArray(rows) ? rows : [];
+    for (const reply of replies) {
+      reply.children = await loadSocialRepliesTree(connection, reply.author, reply.permlink, depth + 1, maxDepth);
+    }
+    return replies;
+  }
+
+  function renderSocialCommentsList(chain, comments) {
+    if (!Array.isArray(comments) || !comments.length) return '<p class="muted">Комментариев пока нет.</p>';
+    return `<ul class="comment-tree">${comments.map((comment) => renderSocialCommentNode(chain, comment)).join('')}</ul>`;
+  }
+
+  function renderSocialCommentNode(chain, comment) {
+    const author = String(comment && comment.author || '').trim().replace(/^@/, '');
+    const permlink = String(comment && comment.permlink || '').trim();
+    const title = golosContentTitle(comment, permlink);
+    const voted = hasGolosVoteFrom(comment, auth.getCurrentLogin(chain));
+    const children = Array.isArray(comment && comment.children) && comment.children.length ? renderSocialCommentsList(chain, comment.children) : '';
+    return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
+      <article>
+        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
+        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '')}</div>
+        <p class="actions">
+          <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+          <button type="button" data-social-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
+        </p>
+        <div class="reply-slot" hidden>${renderSocialCommentForm(`social-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
+      </article>
+      ${children}
+    </li>`;
+  }
+
+  function renderSocialCommentForm(formId, parentAuthor, parentPermlink) {
+    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-social-comment-form data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}">
+      <div class="field"><label for="${escapeHtml(formId)}-body">Текст Markdown</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required></textarea></div>
+      <button type="submit">Отправить комментарий с подтверждением</button>
+      <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+    </form>`;
+  }
+
+  function socialCommentPermlink(parentAuthor, parentPermlink) {
+    const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    return `re-${String(parentAuthor || '').replace(/[^a-z0-9-]/gi, '').toLowerCase()}-${String(parentPermlink || '').replace(/[^a-z0-9-]/gi, '').toLowerCase().slice(0, 32)}-${stamp}`.slice(0, 255);
+  }
+
+  function bindSocialPostActions(chain) {
+    appEl.querySelectorAll('[data-social-comment-reply]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
+        if (slot) slot.hidden = !slot.hidden;
+      });
+    });
+    appEl.querySelectorAll('[data-social-post-vote]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const voter = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          const connection = await getConnection(chain);
+          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+          if (hasGolosVoteFrom(content, voter)) {
+            button.disabled = true;
+            button.textContent = 'Вы уже голосовали';
+            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
+            return;
+          }
+          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: `${chain.id} post/comment vote`, feature: `${chain.id}-post-page` });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Голос отправлен';
+          setStatus('Голос отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+    appEl.querySelectorAll('[data-social-comment-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const result = form.querySelector('[data-operation-result]');
+        try {
+          const author = auth.getCurrentLogin(chain);
+          const parentAuthor = String(form.dataset.parentAuthor || '').trim().replace(/^@/, '');
+          const parentPermlink = String(form.dataset.parentPermlink || '').trim();
+          const body = String(new FormData(form).get('body') || '').trim();
+          if (!body) throw new Error('Текст комментария обязателен.');
+          const permlink = socialCommentPermlink(parentAuthor, parentPermlink);
+          const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
+          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: `${chain.id} post page comment`, feature: `${chain.id}-post-page-comment` });
           await profiles.connect(chain);
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
           if (result) result.textContent = 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
@@ -11544,12 +11908,16 @@ Memo key: ${keys.memo}`);
         renderVizProjects(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'custom-generator') {
         renderVizCustomGenerator(chain);
-      } else if (chain.id === 'golos' && effectiveAppId === 'auto-upvoter') {
+      } else if ((chain.id === 'golos' || isHiveOrSteem(chain)) && effectiveAppId === 'auto-upvoter') {
         await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);
+      } else if (isHiveOrSteem(chain) && effectiveAppId === 'feeds') {
+        await renderSocialFeedsPage(chain, state);
+      } else if (isHiveOrSteem(chain) && effectiveAppId === 'post') {
+        await renderSocialPostPage(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {
