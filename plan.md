@@ -4737,3 +4737,52 @@ Reported on live page: auto-upvoter account card showed `Posting-ключ: не 
 Root cause: the auto-upvoter renderer called `DposBroadcast.getAvailableKeys()` before loading the chain SJCL crypto script. `getAvailableKeys()` delegates to `DposAuth.getKeyStatus()`, which verifies saved key availability by decrypting with SJCL; without SJCL loaded it returned false even though encrypted key fields existed.
 
 Fix: make `renderGolosAutoUpvoter` async, load `chain.cryptoPath` before reading key status, and await the renderer from the route dispatcher. Focused smoke now asserts this ordering.
+
+### Scoped plan: Golos auto-upvoter post links and in-app post page
+
+Scope:
+- Keep the existing static browser-only architecture: no backend, no indexer, no stored secrets.
+- Improve Golos auto-upvoter feed rows so detected posts are shown as `author/title` when a title is available, falling back to `author/permlink`.
+- Add a simple Golos `post` route opened through hash links, with a post title, date, Markdown-rendered HTML body, and a threaded comments list.
+- Support adding a top-level comment and replying to comments through the existing posting-key signing flow.
+- Support vote/unvote and donate links for posts and comments.
+- Open post and donate links from the auto-upvoter feed in a new tab with `target="_blank"`.
+- Hide manual donate links in the auto-upvoter feed when the current scan/action already produced an auto-donate result for that account/post.
+- Before automatic or manual feed voting, check existing `active_votes` so duplicate votes do not surface as avoidable “already voted” errors.
+
+Non-goals:
+- No full Golos frontend clone, pagination/indexer, notification daemon, private backend, or long-term comment cache.
+- No support for non-Golos post pages in this pass.
+- No silent auto-commenting; comment/reply send buttons keep explicit browser confirmation.
+
+Implementation tasks:
+1. Extend `v3/js/auto-upvoter.js` events/actions with `title` and existing-vote awareness from discussion rows and RPC content rows.
+2. Extend the auto-upvoter adapter in `v3/js/app.js` with `getContent` and use it to skip already-voted account/post pairs before planning/sending.
+3. Render feed rows with in-app post links and donate links using `target="_blank"`; suppress donate links when an auto-donate result already exists.
+4. Register Golos `post` app in `v3/js/chains.js` and route `#chain=golos&app=post&author=...&permlink=...` to a new renderer.
+5. Build the Golos post renderer with `getContent`, `getContentReplies`, Markdown-to-HTML preview renderer, nested `<ul>` comments, and action controls for vote, donate, comment, and reply.
+6. Add smoke coverage for route registration, title rendering, threaded comments, target blank links, donate suppression, and duplicate-vote skip.
+
+Validation:
+- `node tests/v3-golos-auto-upvoter-smoke.js`
+- New `node tests/v3-golos-post-page-smoke.js`
+- Existing related smoke tests for history/select and Golos editor if touched.
+
+Definition of done:
+- Auto-upvoter feed can link to a Dpos Space post page instead of only external author/permlink text.
+- Post page can show Markdown content and nested comments as lists.
+- Comment/reply/vote/donate actions are available without bypassing confirmation.
+- Duplicate already-voted actions are skipped before broadcast where content data exposes votes.
+
+### Follow-up: Golos auto-upvoter battery and duplicate vote loop
+
+Observed from live scanner feed:
+- Battery summary stayed at the pre-run value after multiple votes.
+- The same account/post could be attempted more than once when the same post was discovered through different scanner sources or stale RPC rows.
+- A skipped fresh `active_votes` pre-check could still be displayed as an OK feed row.
+
+Fix tasks:
+- Refresh the battery summary after every scanner tick and after manual vote/unvote actions.
+- Dedupe planned vote actions by account/author/permlink, not by source, so favorite and curator sources cannot create duplicate votes for the same target.
+- Display fresh duplicate-vote pre-check results as `SKIP` rather than `OK voted`.
+- Add focused smoke coverage for post-level cross-source dedupe and post-scan battery refresh.
