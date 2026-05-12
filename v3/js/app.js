@@ -53,6 +53,18 @@
     return text;
   }
 
+  function markdownToTextPreview(markdown, limit = 280) {
+    const text = String(markdown || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[#>*_`|~-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return 'Текст анонса отсутствует.';
+    return text.length > limit ? `${text.slice(0, limit).trim()}…` : text;
+  }
+
   function markdownToPreviewHtml(markdown) {
     const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
     const html = [];
@@ -290,7 +302,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'author', 'permlink', 'parentAuthor', 'parentPermlink'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -343,7 +355,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
@@ -5635,6 +5647,190 @@
     }
 
     setStatus('Golos автоапвоутер готов к настройке.', 'info');
+  }
+
+  const GOLOS_FEED_KINDS = [
+    ['new', 'Новые посты'],
+    ['popular', 'Популярное'],
+    ['donates', 'Донаты'],
+    ['subscriptions', 'Лента подписок']
+  ];
+
+  function normalizeGolosFeedKind(value) {
+    const raw = String(value || '').trim();
+    return GOLOS_FEED_KINDS.some(([id]) => id === raw) ? raw : 'new';
+  }
+
+  function golosFeedPostUrl(row) {
+    return golosPostPageUrl(row && row.author, row && row.permlink);
+  }
+
+  function golosFeedRowTags(row) {
+    const raw = row && (row.json_metadata || row.jsonMetadata || row.metadata);
+    if (!raw) return [];
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return Array.isArray(parsed && parsed.tags) ? parsed.tags.slice(0, 6).filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function golosFeedActionStats(row) {
+    const votes = Array.isArray(row && row.active_votes) ? row.active_votes : (Array.isArray(row && row.activeVotes) ? row.activeVotes : []);
+    const netVotes = Number(row && (row.net_votes ?? row.netVotes));
+    const replies = Number(row && (row.children ?? row.replies));
+    const donates = row && (row.donates || row.donates_uia || row.total_payout_value || row.author_payout_value || row.promoted);
+    return [
+      `лайков: ${Number.isFinite(netVotes) ? netVotes : votes.length}`,
+      Number.isFinite(replies) ? `комментариев: ${replies}` : '',
+      donates ? `донаты/выплаты: ${history.formatValue(donates)}` : ''
+    ].filter(Boolean).join(' · ');
+  }
+
+  function renderGolosFeedKindOptions(selected) {
+    return GOLOS_FEED_KINDS.map(([id, label]) => `<option value="${escapeHtml(id)}" ${id === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
+
+  async function loadGolosFeedRows(chain, state, connection) {
+    const kind = normalizeGolosFeedKind(state.feed);
+    const account = String(state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '').trim().replace(/^@/, '');
+    const limit = 20;
+    const baseQuery = { tag: '', limit };
+    if (kind === 'new') {
+      return profiles.apiCall(connection, 'getDiscussionsByCreated', [baseQuery]);
+    }
+    if (kind === 'popular') {
+      try {
+        return await profiles.apiCall(connection, 'getDiscussionsByHot', [baseQuery]);
+      } catch (error) {
+        return profiles.apiCall(connection, 'getDiscussionsByTrending', [baseQuery]);
+      }
+    }
+    if (kind === 'subscriptions') {
+      if (!account) throw new Error('Для ленты подписок нужен аккаунт.');
+      return profiles.apiCall(connection, 'getDiscussionsByFeed', [{ tag: account, limit }]);
+    }
+    if (!account) throw new Error('Для ленты донатов нужен аккаунт.');
+    const rows = await profiles.apiCall(connection, 'getDiscussionsByBlog', [{ tag: account, limit }]);
+    return (Array.isArray(rows) ? rows : []).slice().sort((a, b) => {
+      const score = (row) => Number(row && (row.donates || row.author_payout_in_golos || row.author_payout_value || row.total_payout_value || row.promoted) || 0);
+      return score(b) - score(a);
+    });
+  }
+
+  function renderGolosFeedCard(chain, row) {
+    const author = String(row && row.author || '').trim().replace(/^@/, '');
+    const permlink = String(row && row.permlink || '').trim();
+    if (!author || !permlink) return '';
+    const title = golosContentTitle(row, permlink);
+    const tags = golosFeedRowTags(row);
+    const teaser = markdownToTextPreview(row && row.body, 320);
+    const voted = hasGolosVoteFrom(row, auth.getCurrentLogin(chain));
+    return `<article class="card golos-feed-card" data-golos-feed-card data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
+      <h3><a href="${escapeHtml(golosFeedPostUrl(row))}">${escapeHtml(title)}</a></h3>
+      <p class="muted">${accountLink(chain, author)} · ${escapeHtml(golosContentDate(row))} · ${escapeHtml(golosFeedActionStats(row))}</p>
+      <p>${escapeHtml(teaser)}</p>
+      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<a href="https://golos.id/created/${encodeURIComponent(tag)}" target="_blank" rel="noopener">${escapeHtml(tag)}</a>`).join(', ')}</p>` : ''}
+      <p class="actions">
+        <button type="button" data-golos-feed-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже лайкали' : 'Лайк 100%'}</button>
+        <button type="button" class="secondary" data-golos-feed-repost data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Репост с подтверждением</button>
+        <a href="${escapeHtml(golosDonationPageUrl({ to: row.author, token: 'GOLOS' }))}" target="_blank" rel="noopener" data-golos-feed-donate>Донат автору</a>
+      </p>
+    </article>`;
+  }
+
+  async function renderGolosFeedsPage(chain, state = {}) {
+    const feedKind = normalizeGolosFeedKind(state.feed);
+    const account = String(state.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '').trim().replace(/^@/, '');
+    appEl.innerHTML = `<section class="panel golos-feeds-page" data-golos-feeds-page>
+      <h2>Golos: Ленты</h2>
+      <p class="muted">Новые посты, популярное, донаты и лента подписок пользователя через публичный RPC. Действия выполняются только после подтверждения.</p>
+      <form id="golos-feeds-form" class="stacked-form">
+        <div class="field-grid">
+          <div class="field"><label for="golos-feeds-kind">Тип ленты</label><select id="golos-feeds-kind" name="feed" data-golos-feed-kind>${renderGolosFeedKindOptions(feedKind)}</select></div>
+          <div class="field"><label for="golos-feeds-account">Аккаунт для донатов/подписок</label><input id="golos-feeds-account" name="account" type="text" value="${escapeHtml(account)}" autocomplete="off"></div>
+        </div>
+        <button type="submit">Показать ленту</button>
+      </form>
+      <div id="golos-feeds-result" role="status" aria-live="polite"><p>Загружаю ленту...</p></div>
+    </section>`;
+    const form = document.getElementById('golos-feeds-form');
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+        navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
+      });
+    }
+    const result = document.getElementById('golos-feeds-result');
+    try {
+      setStatus('Загружаю Golos ленту...', 'loading');
+      const connection = await getConnection(chain);
+      const rows = await loadGolosFeedRows(chain, { ...state, feed: feedKind, account }, connection);
+      const cards = (Array.isArray(rows) ? rows : []).map((row) => renderGolosFeedCard(chain, row)).filter(Boolean);
+      const selectedLabel = (GOLOS_FEED_KINDS.find(([id]) => id === feedKind) || GOLOS_FEED_KINDS[0])[1];
+      result.innerHTML = cards.length ? `<h3>${escapeHtml(selectedLabel)}</h3>${cards.join('')}` : `<p class="muted">В этой ленте сейчас нет постов.</p>`;
+      bindGolosFeedActions(chain);
+      setStatus(`Golos лента «${selectedLabel}» загружена.`, 'ok');
+    } catch (error) {
+      if (result) result.innerHTML = `<p class="warning">${escapeHtml(profiles.formatError(error))}</p>`;
+      setStatus(`Ошибка загрузки ленты Golos: ${profiles.formatError(error)}`, 'error');
+    }
+  }
+
+  function bindGolosFeedActions(chain) {
+    appEl.querySelectorAll('[data-golos-feed-vote]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const voter = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          const connection = await getConnection(chain);
+          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+          if (hasGolosVoteFrom(content, voter)) {
+            button.disabled = true;
+            button.textContent = 'Вы уже лайкали';
+            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
+            return;
+          }
+          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: 'Golos feed vote', feature: 'golos-feeds' });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Лайк отправлен';
+          setStatus('Лайк отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка лайка: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
+    appEl.querySelectorAll('[data-golos-feed-repost]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          const account = auth.getCurrentLogin(chain);
+          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
+          const permlink = String(button.dataset.permlink || '').trim();
+          if (!account) throw new Error('Для репоста нужен выбранный сохранённый Golos-аккаунт.');
+          const payload = ['reblog', { account, author, permlink }];
+          const prepared = broadcast.prepare(chain, 'posting', 'sendOperations', [[
+            ['custom_json', {
+              required_auths: [],
+              required_posting_auths: [account],
+              id: 'follow',
+              json: JSON.stringify(payload)
+            }]
+          ]], { title: 'Golos feed repost', to: author, feature: 'golos-feeds-repost' });
+          await profiles.connect(chain);
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+          button.disabled = true;
+          button.textContent = 'Репост отправлен';
+          setStatus('Репост отправлен в сеть.', 'ok');
+        } catch (error) {
+          setStatus(`Ошибка репоста: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+    });
   }
 
   async function renderGolosPostPage(chain, state = {}) {
@@ -11165,6 +11361,8 @@ Memo key: ${keys.memo}`);
         renderVizCustomGenerator(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'auto-upvoter') {
         await renderGolosAutoUpvoter(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
+        await renderGolosFeedsPage(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
