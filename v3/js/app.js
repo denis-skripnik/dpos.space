@@ -5244,10 +5244,73 @@
     return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
   }
 
+  const GOLOS_AUTO_UPVOTER_SETTINGS_KEY = 'dpos_golos_auto_upvoter_settings';
+
+  function readGolosAutoUpvoterSettings() {
+    if (!global.localStorage) return {};
+    try {
+      const parsed = JSON.parse(global.localStorage.getItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY) || '{}');
+      if (!parsed || typeof parsed !== 'object') return {};
+      const accounts = parsed.accounts && typeof parsed.accounts === 'object' ? parsed.accounts : {};
+      return { accounts };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeGolosAutoUpvoterSettings(settings) {
+    if (!global.localStorage) return;
+    const rows = Array.isArray(settings) ? settings : [];
+    const accounts = {};
+    rows.forEach((row) => {
+      const account = String(row && row.account || '').trim().replace(/^@/, '');
+      if (!account) return;
+      accounts[account] = {
+        enabled: Boolean(row.enabled),
+        curators: String(row.curators || ''),
+        favorites: String(row.favorites || ''),
+        minEnergy: String(row.minEnergy || '2500'),
+        curatorMode: String(row.curatorMode || 'repeat'),
+        curatorCoefficient: String(row.curatorCoefficient || '100'),
+        favoritesPercent: String(row.favoritesPercent || '100'),
+        autoDonate: Boolean(row.autoDonate),
+        autoDonateCap: String(row.autoDonateCap || '0')
+      };
+    });
+    global.localStorage.setItem(GOLOS_AUTO_UPVOTER_SETTINGS_KEY, JSON.stringify({ accounts }));
+  }
+
+  function applyAutoUpvoterStoredSettings(storedSettings) {
+    const accounts = storedSettings && storedSettings.accounts && typeof storedSettings.accounts === 'object' ? storedSettings.accounts : {};
+    Object.entries(accounts).forEach(([account, settings]) => {
+      const safeAccount = String(account || '').trim().replace(/^@/, '');
+      const card = appEl.querySelector(`[data-auto-upvoter-account="${safeAccount.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`);
+      if (!card || !settings) return;
+      const setChecked = (name, value) => {
+        const node = card.querySelector(`[name="${name}"]`);
+        if (node) node.checked = Boolean(value);
+      };
+      const setValue = (name, value) => {
+        const node = card.querySelector(`[name="${name}"]`);
+        if (node && value !== undefined && value !== null) node.value = String(value);
+      };
+      setChecked('enabled', settings.enabled);
+      setValue('curators', settings.curators);
+      setValue('favorites', settings.favorites);
+      setValue('minEnergy', settings.minEnergy);
+      setValue('curatorMode', settings.curatorMode);
+      setValue('curatorCoefficient', settings.curatorCoefficient);
+      setValue('favoritesPercent', settings.favoritesPercent);
+      setChecked('autoDonate', settings.autoDonate);
+      setValue('autoDonateCap', settings.autoDonateCap);
+    });
+  }
+
   async function renderGolosAutoUpvoter(chain) {
     await loadScript(chain.cryptoPath);
     const users = DposAuth.getUsers(chain);
     const helper = global.DposGolosAutoUpvoter;
+    const storedSettings = readGolosAutoUpvoterSettings();
     const accountCards = users.map((user, index) => {
       const login = auth.getUserLogin(user);
       const type = auth.getUserType(user);
@@ -5317,6 +5380,7 @@
     </section>`;
 
     const form = document.getElementById('auto-upvoter-form');
+    if (form) applyAutoUpvoterStoredSettings(storedSettings);
     const startButton = document.getElementById('auto-upvoter-start');
     const stopButton = document.getElementById('auto-upvoter-stop');
     const feed = document.getElementById('auto-upvoter-feed');
@@ -5589,7 +5653,7 @@
 
 
     function collectSettings() {
-      return Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => ({
+      const settings = Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => ({
         account: card.dataset.autoUpvoterAccount,
         enabled: Boolean(card.querySelector('[name="enabled"]').checked),
         curators: card.querySelector('[name="curators"]').value,
@@ -5601,6 +5665,17 @@
         autoDonate: Boolean(card.querySelector('[name="autoDonate"]').checked),
         autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
       }));
+      writeGolosAutoUpvoterSettings(settings);
+      return settings;
+    }
+
+    function persistAutoUpvoterSettings() {
+      if (form) collectSettings();
+    }
+
+    if (form) {
+      form.addEventListener('input', persistAutoUpvoterSettings);
+      form.addEventListener('change', persistAutoUpvoterSettings);
     }
 
     if (startButton && form && helper) {
