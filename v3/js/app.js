@@ -5484,7 +5484,7 @@
       const rows = [];
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
       rows.push(renderAutoUpvoterBatterySummary('Перед списком постов'));
-      scannerState.feed.slice(-30).forEach((entry) => {
+      scannerState.feed.slice(-30).reverse().forEach((entry) => {
         const message = entry && entry.message ? entry.message : String(entry || '');
         const action = entry && entry.action;
         const postLink = action && action.author && action.permlink
@@ -5568,7 +5568,6 @@
         broadcaster: async (scanChain, action) => {
           const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
           if (hasGolosVoteFrom(content || action, action.account)) {
-            scannerState.feed.push({ type: 'info', message: `SKIP @${action.account} уже голосовал за @${action.author}/${action.permlink}`, action, reason: 'already-voted' });
             return { skipped: true, reason: 'already-voted' };
           }
           const donateAction = action && action.donate && action.donate.enabled

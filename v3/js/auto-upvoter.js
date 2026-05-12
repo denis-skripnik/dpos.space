@@ -461,8 +461,8 @@
         const row = { ok: true, action, result };
         results.push(row);
         if (feed) {
-          if (result && result.skipped) feed.push({ type: 'info', message: `SKIP @${action.account} @${action.author}/${action.permlink}: ${result.reason || 'skipped'}`, action, result });
-          else feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
+          if (result && result.skipped) continue;
+          feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
         }
       } catch (error) {
         const row = { ok: false, action, error };
