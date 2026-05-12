@@ -51,8 +51,8 @@ assert(appSource.includes('setInterval') && appSource.includes('clearInterval'),
 assert(appSource.includes('runScannerTick'), 'UI Start calls scanner tick helper');
 assert(appSource.includes('getAccountHistory') && appSource.includes('getDiscussionsByBlog'), 'UI scanner adapter uses Golos history/discussion RPC methods');
 assert(appSource.includes('denis-skripnik') && /0\.2%|0,2%/.test(appSource), 'UI clearly shows auto-donate fee recipient and split');
-assert(appSource.includes('Автодонат GOLOS для любимых авторов'), 'UI makes auto-donate scope clear');
-assert(appSource.includes('0 или пустое поле = донат не отправляется'), 'UI explains zero/empty auto-donate amount disables donate');
+assert(appSource.includes('Личный пул автодоната GOLOS'), 'UI names old personal-pool auto-donate model');
+assert(appSource.includes('10 1.1') && appSource.includes('% дневной эмиссии') && appSource.includes('коэффициент'), 'UI explains old personal-pool percent/coefficient format');
 assert(helperSource.includes('broadcast.vote') || helperSource.includes("operationName: 'vote'"), 'Runner skeleton plans real Golos vote broadcast');
 assert(/broadcast\.donate|operationName: 'donate'/.test(helperSource), 'Runner skeleton explicitly handles Golos donate broadcast availability');
 assert(!appSource.includes('broadcastPlannedAction(scanChain, action, { confirmExecute: true })'), 'auto runner does not force per-action DposBroadcast confirmation after Start');
@@ -78,9 +78,28 @@ assert.strictEqual(JSON.stringify(donateOps.map((op) => op.params.slice(0, 4))),
 ]), 'auto-donate split, recipient, amount, and memo follow stakebot-like rules');
 assert.strictEqual(JSON.stringify(donateOps.map((op) => op.params[4])), JSON.stringify([[], []]), 'Golos donate params include empty extensions array');
 assert.strictEqual(helpers.buildDonateOperations({ account: 'alice', author: 'favorite', permlink: 'two', donate: { enabled: true, cap: 0.49 } }).length, 0, 'auto-donate below old 0.5 GOLOS minimum is skipped without blocking the vote');
+const oldPoolAmount = helpers.calculateDonateFromEmission('10 1.1', {
+  vesting_shares: '1000.000000 GESTS',
+  emission_delegated_vesting_shares: '100.000000 GESTS',
+  emission_received_vesting_shares: '50.000000 GESTS'
+}, {
+  accumulative_emission_per_day: '200.000 GOLOS',
+  total_vesting_shares: '10000.000000 GESTS'
+}, 5000);
+assert(Math.abs(oldPoolAmount - 0.886381341959967) < 0.000000001, 'personal pool matches old stakebot emission-percent/coefficient formula');
+const enrichedDonate = helpers.enrichActionDonateFromEmission({ account: 'alice', author: 'favorite', permlink: 'pool', weight: 10000, donate: { enabled: true, pool: '10 1' } }, {
+  vesting_shares: '1000.000000 GESTS',
+  emission_delegated_vesting_shares: '0.000000 GESTS',
+  emission_received_vesting_shares: '0.000000 GESTS',
+  tip_balance: '100.000 GOLOS'
+}, {
+  accumulative_emission_per_day: '100.000 GOLOS',
+  total_vesting_shares: '10000.000000 GESTS'
+});
+assert.strictEqual(enrichedDonate.donate.amount, 1, 'personal pool converts to calculated donate amount before broadcasting');
 
 const settings = [
-  { account: 'alice', enabled: true, curators: ['curator'], favorites: ['favorite'], minEnergy: 2500, curatorMode: 'repeat', curatorCoefficient: 50, favoritesPercent: 75, autoDonate: true, autoDonateCap: 1.5 },
+  { account: 'alice', enabled: true, curators: ['curator'], favorites: ['favorite'], minEnergy: 2500, curatorMode: 'repeat', curatorCoefficient: 50, favoritesPercent: 75, autoDonate: true, autoDonateCap: '10 1.1' },
   { account: 'bob', enabled: true, curators: ['curator'], favorites: ['favorite'], minEnergy: 5000, curatorMode: 'full', curatorCoefficient: 100, favoritesPercent: 80, autoDonate: false },
   { account: 'carol', enabled: false, curators: ['curator'], favorites: ['favorite'] }
 ];
