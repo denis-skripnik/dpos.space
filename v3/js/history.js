@@ -1,6 +1,28 @@
 (function exposeHistory(global) {
   'use strict';
 
+  const operationLists = {
+    // Keep every chain explicit. Some lists match today (Steem/Hive), but each chain can diverge independently.
+    golos: ['vote', 'comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'break_free_referral', 'delegate_vesting_shares_with_interest', 'reject_vesting_shares_delegation', 'transit_to_cyberway', 'worker_request', 'worker_request_delete', 'worker_request_vote', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'comment_payout_update', 'comment_benefactor_reward', 'return_vesting_delegation', 'producer_reward', 'delegation_reward', 'auction_window_reward'],
+    viz: ['transfer', 'transfer_to_vesting', 'withdraw_vesting', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'set_withdraw_vesting_route', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'delegate_vesting_shares', 'account_create', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'fill_vesting_withdraw', 'shutdown_witness', 'return_vesting_delegation', 'committee_worker_create_request', 'committee_worker_cancel_request', 'committee_vote_request', 'committee_cancel_request', 'committee_approve_request', 'committee_payout_request', 'committee_pay_request', 'witness_reward', 'create_invite', 'claim_invite_balance', 'invite_registration', 'versioned_chain_properties_update', 'award', 'fixed_award', 'receive_award', 'benefactor_award', 'set_paid_subscription', 'paid_subscribe', 'paid_subscription_action', 'cancel_paid_subscription', 'set_account_price', 'set_subaccount_price', 'buy_account', 'account_sale', 'use_invite_balance', 'expire_escrow_ratification', 'target_account_sale', 'bid', 'outbid'],
+    steem: ['vote', 'comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'producer_reward'],
+    minter: ['send', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token'],
+    decimal: ['send', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft'],
+    hive: ['vote', 'comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'producer_reward']
+  };
+
+  const operationLabels = {
+    golos: {
+      vote: 'Голосование по контенту', comment: 'Публикация контента', transfer: 'Перевод средств', transfer_to_vesting: 'Перевод в СГ', withdraw_vesting: 'Вывод из СГ', limit_order_create: 'Создание лимитного ордера', limit_order_cancel: 'Отмена лимитного ордера', feed_publish: 'Публикация фидов', convert: 'Конвертация GOLOS в GBG или обратно', account_create: 'Создание аккаунта', account_update: 'Обновление акккаунта', witness_update: 'Обновление делегата', account_witness_vote: 'Голосование за делегата', account_witness_proxy: 'Прокси голосования за делегатов', custom: 'Custom транзакция', delete_comment: 'Удаление контента', custom_json: 'Транзакция с JSON данными', comment_options: 'Опции контента', set_withdraw_vesting_route: 'Направление вывода в СГ', limit_order_create2: 'Создание лимитного ордера 2', request_account_recovery: 'запрос восстановления аккаунта', recover_account: 'Восстановление аккаунта', change_recovery_account: 'Смена аккаунта восстановления', escrow_transfer: 'Сделка через посредника', escrow_dispute: 'Спорная ситуация в escrow', escrow_release: 'отпустить токены из escrow сделки', escrow_approve: 'Подтверждение escrow сделки', transfer_to_savings: 'Перевод в сейф', transfer_from_savings: 'Перевод из сейфа', cancel_transfer_from_savings: 'Отмена перевода из сейфа', custom_binary: 'custom транзакция с бинарными данными', decline_voting_rights: 'Отказ от прав на голосование', reset_account: 'Восстановление аккаунта', set_reset_account: 'Учетная запись имеет право выполнить операцию reset_account по истечении 60 дней', delegate_vesting_shares: 'Делегирование СГ', account_create_with_delegation: 'Создание аккаунта с делегированием СГ', account_metadata: 'Обновление мета данных аккаунта', proposal_create: 'Создание пропозала на подпись', proposal_update: 'Обновление пропозала на подпись', proposal_delete: 'Удаление пропозала на подпись', chain_properties_update: 'Обновление параметров сети', break_free_referral: 'Отмена реферальских комиссии', delegate_vesting_shares_with_interest: 'Делегирование СГ с возвратом кураторских', reject_vesting_shares_delegation: 'Отклонение делегирования СГ', transit_to_cyberway: 'Переход на Cyberway', worker_request: 'Создание заявки воркера', worker_request_delete: 'Удаление заявки воркера', worker_request_vote: 'Голосование за заявку воркера', fill_convert_request: 'Завершение заявки на конвертацию', author_reward: 'Авторская награда', curation_reward: 'Кураторская награда', comment_reward: 'Общая награда за контент', interest: 'Выплата процента прибыли по GBG', fill_vesting_withdraw: 'Завершение вывода из СГ', fill_order: 'Исполнение ордера', shutdown_witness: 'Отключение делегата', fill_transfer_from_savings: 'Завершение вывода из сейфа', hardfork: 'Хардфорк', comment_payout_update: 'Вычисленные окончательные выплаты по контенту', comment_benefactor_reward: 'Бенефициарская награда', return_vesting_delegation: 'Возврат делегированной доли', producer_reward: 'Награда делегата', delegation_reward: 'Награда с делегирования', auction_window_reward: 'Возврат токенов в пул вознаграждений'
+    },
+    steem: {
+      vote: 'Голосование по контенту', comment: 'Публикация контента', transfer: 'Перевод средств', transfer_to_vesting: 'Перевод в SP', withdraw_vesting: 'Вывод из SP', limit_order_create: 'Создание лимитного ордера', limit_order_cancel: 'Отмена лимитного ордера', feed_publish: 'Публикация фидов', convert: 'Конвертация STEEM в SBD или обратно', account_create: 'Создание аккаунта', account_update: 'Обновление акккаунта', witness_update: 'Обновление делегата', account_witness_vote: 'Голосование за делегата', account_witness_proxy: 'Прокси голосования за делегатов', custom: 'Custom транзакция', delete_comment: 'Удаление контента', custom_json: 'Транзакция с JSON данными', comment_options: 'Опции контента', set_withdraw_vesting_route: 'Направление вывода в SP', limit_order_create2: 'Создание лимитного ордера 2', request_account_recovery: 'запрос восстановления аккаунта', recover_account: 'Восстановление аккаунта', change_recovery_account: 'Смена аккаунта восстановления', escrow_transfer: 'Сделка через посредника', escrow_dispute: 'Спорная ситуация в escrow', escrow_release: 'отпустить токены из escrow сделки', escrow_approve: 'Подтверждение escrow сделки', transfer_to_savings: 'Перевод в сейф', transfer_from_savings: 'Перевод из сейфа', cancel_transfer_from_savings: 'Отмена перевода из сейфа', custom_binary: 'custom транзакция с бинарными данными', decline_voting_rights: 'Отказ от прав на голосование', reset_account: 'Восстановление аккаунта', set_reset_account: 'Учетная запись имеет право выполнить операцию reset_account по истечении 60 дней', delegate_vesting_shares: 'Делегирование SP', account_create_with_delegation: 'Создание аккаунта с делегированием SP', account_metadata: 'Обновление мета данных аккаунта', proposal_create: 'Создание пропозала на подпись', proposal_update: 'Обновление пропозала на подпись', proposal_delete: 'Удаление пропозала на подпись', chain_properties_update: 'Обновление параметров сети', fill_convert_request: 'Завершение заявки на конвертацию', author_reward: 'Авторская награда', curation_reward: 'Кураторская награда', comment_reward: 'Общая награда за контент', interest: 'Выплата процента прибыли по SBD', fill_vesting_withdraw: 'Завершение вывода из SP', fill_order: 'Исполнение ордера', shutdown_witness: 'Отключение делегата', fill_transfer_from_savings: 'Завершение вывода из сейфа', hardfork: 'Хардфорк', producer_reward: 'Награда делегата'
+    },
+    hive: {
+      vote: 'Голосование по контенту', comment: 'Публикация контента', transfer: 'Перевод средств', transfer_to_vesting: 'Перевод в HP', withdraw_vesting: 'Вывод из HP', limit_order_create: 'Создание лимитного ордера', limit_order_cancel: 'Отмена лимитного ордера', feed_publish: 'Публикация фидов', convert: 'Конвертация HIVE в HBD', account_create: 'Создание аккаунта', account_update: 'Обновление акккаунта', witness_update: 'Обновление делегата', account_witness_vote: 'Голосование за делегата', account_witness_proxy: 'Прокси голосования за делегатов', custom: 'Custom транзакция', delete_comment: 'Удаление контента', custom_json: 'Транзакция с JSON данными', comment_options: 'Опции контента', set_withdraw_vesting_route: 'Направление вывода в HP', limit_order_create2: 'Создание лимитного ордера 2', request_account_recovery: 'запрос восстановления аккаунта', recover_account: 'Восстановление аккаунта', change_recovery_account: 'Смена аккаунта восстановления', escrow_transfer: 'Сделка через посредника', escrow_dispute: 'Спорная ситуация в escrow', escrow_release: 'отпустить токены из escrow сделки', escrow_approve: 'Подтверждение escrow сделки', transfer_to_savings: 'Перевод в сейф', transfer_from_savings: 'Перевод из сейфа', cancel_transfer_from_savings: 'Отмена перевода из сейфа', custom_binary: 'custom транзакция с бинарными данными', decline_voting_rights: 'Отказ от прав на голосование', reset_account: 'Восстановление аккаунта', set_reset_account: 'Учетная запись имеет право выполнить операцию reset_account по истечении 60 дней', delegate_vesting_shares: 'Делегирование HP', account_create_with_delegation: 'Создание аккаунта с делегированием HP', account_metadata: 'Обновление мета данных аккаунта', proposal_create: 'Создание пропозала на подпись', proposal_update: 'Обновление пропозала на подпись', proposal_delete: 'Удаление пропозала на подпись', chain_properties_update: 'Обновление параметров сети', fill_convert_request: 'Завершение заявки на конвертацию', author_reward: 'Авторская награда', curation_reward: 'Кураторская награда', comment_reward: 'Общая награда за контент', interest: 'Выплата процента прибыли по HBD', fill_vesting_withdraw: 'Завершение вывода из HP', fill_order: 'Исполнение ордера', shutdown_witness: 'Отключение делегата', fill_transfer_from_savings: 'Завершение вывода из сейфа', hardfork: 'Хардфорк', producer_reward: 'Награда делегата'
+    }
+  };
+
   const walletOps = {
     golos: new Set([
       'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'transfer_from_tip', 'transfer_to_tip', 'donate', 'claim',
@@ -93,6 +115,47 @@
     COIN_UPDATE: 'Обновление монеты',
     withdraw_vesting: 'Вывод соцкапитала',
     witness_reward: 'Награда делегата',
+    witness_update: 'Обновление делегата',
+    custom: 'Кастомный JSON',
+    set_withdraw_vesting_route: 'Установка направления вывода',
+    request_account_recovery: 'Запрос восстановления',
+    recover_account: 'Восстановление аккаунта',
+    change_recovery_account: 'Смена доверенного аккаунта',
+    escrow_transfer: 'Сделка через посредника',
+    escrow_dispute: 'Спорная ситуация в escrow',
+    escrow_release: 'Отпустить токены из escrow сделки',
+    escrow_approve: 'Подтверждение escrow сделки',
+    proposal_create: 'Создание предложения на подпись',
+    proposal_update: 'Обновление предложения на подпись',
+    proposal_delete: 'Удаление предложения на подпись',
+    fill_vesting_withdraw: 'Конвертация в VIZ (Shares)',
+    shutdown_witness: 'Отключение делегата',
+    return_vesting_delegation: 'Возврат делегированной доли',
+    committee_worker_create_request: 'Создание заявки комитета',
+    committee_worker_cancel_request: 'Отмена заявки в комитете',
+    committee_vote_request: 'Голосование за заявку',
+    committee_cancel_request: 'Заявка отклонена комитетом',
+    committee_approve_request: 'Одобрение заявки',
+    committee_payout_request: 'Заявка полностью получила выплату из комитета',
+    committee_pay_request: 'Заявка получила выплату из комитета',
+    create_invite: 'Создание инвайт-кода',
+    claim_invite_balance: 'Погашение инвайт-кода',
+    invite_registration: 'Регистрация по инвайту',
+    versioned_chain_properties_update: 'Установка делегатом голосуемых параметров сети',
+    fixed_award: 'Фиксированная награда',
+    set_paid_subscription: 'Установка подписки',
+    paid_subscribe: 'Подписка',
+    paid_subscription_action: 'Оплата периодических платежей',
+    cancel_paid_subscription: 'Отмена подписки',
+    set_account_price: 'Установка цены аккаунта',
+    set_subaccount_price: 'Установка цены сабаккаунта',
+    buy_account: 'Покупка аккаунта',
+    account_sale: 'Продажа аккаунта',
+    use_invite_balance: 'Использование инвайта на баланс',
+    expire_escrow_ratification: 'Истечение срока ратификации escrow',
+    target_account_sale: 'Установка покупателя аккаунта',
+    bid: 'Ставка на покупку аккаунта',
+    outbid: 'Ставка на покупку аккаунта перебита',
     '/decimal.coin.v1.MsgBuyCoin': 'Конвертация',
     '/decimal.coin.v1.MsgMultiSendCoin': 'Мультисенд (мульти-отправка)',
     '/decimal.coin.v1.MsgSellAllCoin': 'Конвертация',
@@ -300,6 +363,13 @@
     return String(type);
   }
 
+  function operationOptions(chain) {
+    const chainId = chain && (chain.id || (chain.config && chain.config.id));
+    const list = operationLists[chainId] || [];
+    const labels = operationLabels[chainId] || {};
+    return list.map((value) => ({ value, label: labels[value] || operationTitle(value) }));
+  }
+
   function formatDate(timestamp) {
     if (!timestamp) return '';
     const date = new Date(`${timestamp}.000Z`);
@@ -348,6 +418,7 @@
     formatValue,
     normalizeRestHistory,
     getWalletOperations,
+    operationOptions,
     operationTitle
   });
 })(window);
