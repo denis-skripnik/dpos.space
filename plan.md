@@ -4786,3 +4786,35 @@ Fix tasks:
 - Dedupe planned vote actions by account/author/permlink, not by source, so favorite and curator sources cannot create duplicate votes for the same target.
 - Display fresh duplicate-vote pre-check results as `SKIP` rather than `OK voted`.
 - Add focused smoke coverage for post-level cross-source dedupe and post-scan battery refresh.
+
+### Scoped plan: Golos feeds page
+
+Scope:
+- Add a static/browser-only Golos `feeds` app for reading public discussion feeds through existing public RPC nodes.
+- Feed types: `Новые посты` via `getDiscussionsByCreated`, `Популярное` via `getDiscussionsByHot` with `getDiscussionsByTrending` fallback, `Донаты` as an account blog/payment-oriented list using public discussion rows, and `Лента подписок` via `getDiscussionsByFeed` for the selected account.
+- Each feed card shows title, author/date, short text teaser, basic counters, and actions.
+- Post titles open the in-app Dpos Space post route `#chain=golos&app=post&author=...&permlink=...`.
+- Actions stay explicit and static-safe: vote and repost use confirmed posting broadcasts; donate is a link to the existing confirmed Golos donate app.
+
+Non-goals:
+- No backend/indexer, private API, PHP runtime, infinite scrolling, or unattended automation.
+- No attempt to reconstruct legacy server-side donate leaderboards; public RPC rows expose only available post/payment fields.
+- No silent actions: vote/repost require existing confirmation flow and posting authority.
+
+Implementation tasks:
+1. Register Golos `feeds` in `v3/js/chains.js` and preserve a `feed` hash parameter in routing.
+2. Add a focused smoke test for registration, feed kinds, post links, teaser cards, and confirmed vote/repost/donate action markers.
+3. Implement `renderGolosFeedsPage`, feed RPC loading, card renderer, and action bindings in `v3/js/app.js`.
+4. Reuse `hasGolosVoteFrom`, `golosPostPageUrl`, `golosDonationPageUrl`, Markdown preview helpers, and shared broadcast helpers.
+5. Validate with focused Golos feed/post/auto-upvoter tests and the broad v3 smoke loop.
+
+Validation:
+- `node tests/v3-golos-feeds-smoke.js`
+- `node tests/v3-golos-post-page-smoke.js`
+- `node tests/v3-golos-auto-upvoter-smoke.js`
+- Broad `for f in tests/v3-*.js; do node "$f" || exit 1; done`
+
+Definition of done:
+- Users can open Golos → Ленты and switch between new/popular/donates/subscriptions feeds.
+- Each row has a readable announcement/teaser, title link to the Dpos Space post page, and explicit like/repost/donate actions.
+- Subscription feed works from the selected/account hash value without adding any service.

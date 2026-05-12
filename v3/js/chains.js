@@ -53,6 +53,7 @@
 
   const golosApps = [
     { id: 'editor', title: 'Редактор', description: 'Публикация постов через posting authority.' },
+    { id: 'feeds', title: 'Ленты', description: 'Golos ленты: новое, популярное, донаты и подписки пользователя через публичный RPC; лайк/репост/донат с подтверждением.', accountField: true },
     { id: 'auto-upvoter', title: 'Автоапвоутер', description: 'Локальный браузерный автоапвоутер Golos: пока сайт открыт, использует сохранённый posting-ключ для автоматического vote/donate без backend.' },
     { id: 'post', title: 'Пост', description: 'Просмотр поста Golos, Markdown, комментарии, ответы, голосование и донаты через posting authority.', accountField: false },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор GOLOS/GBG/СГ.' },
