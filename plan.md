@@ -4832,3 +4832,17 @@ Fix:
 Validation:
 - `node tests/v3-golos-feeds-smoke.js`
 - Focused Golos post/auto-upvoter route tests plus broad v3 smoke loop.
+
+### Follow-up: Golos auto-upvoter settings persistence
+
+Observed:
+- The previous localStorage fix covered only the Golos `feeds` app, while the reported inconvenience was primarily in Golos auto-upvoter settings.
+
+Fix:
+- Persist auto-upvoter per-account settings in browser `localStorage` under a dedicated key.
+- Restore enabled state, curators, favorites, energy, vote percentages, curator mode, auto-donate flag, and auto-donate cap into fields when the app renders.
+- Save edits on input/change events and whenever settings are collected for Start/Stop/battery flows.
+
+Validation:
+- `node tests/v3-golos-auto-upvoter-smoke.js`
+- Focused Golos feeds/post route tests plus broad v3 smoke loop.
