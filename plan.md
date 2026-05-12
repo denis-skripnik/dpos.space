@@ -4570,3 +4570,162 @@ Remaining gaps/non-goals:
 - No operation controls are added to read-only/helper routes.
 - Backend/indexer-only legacy behavior remains an honest static-only non-goal; this pass adds no service, PHP runtime, private IP/API, hidden server API, daemon, indexer, or hosted app.
 - If UX-polish continues, the next concrete block should be a small focused read-only route family with a demonstrable missing label/status/caption marker, not broad churn across already-adequate routes.
+
+### Feasibility research: Golos auto-upvoter / stake_bot local port
+
+Scope: inspect `/root/ai-projects/golos-apps/js_modules/stake_bot` and decide whether the Golos Stake Bot auto-curation behavior can be ported into static/local Dpos Space 3.0 as a `golos` app such as `auto-upvoter`.
+
+User-requested target behavior:
+- UI page stores settings for favorites, curators, min energy, curator mode/coefficient, favorite vote percent, auto-donate/personal pool, exclusions and possibly keyword/tag discovery.
+- After explicit `Запуск`, a local process keeps working while Dpos Space remains open: it scans new Golos blocks/posts/votes, sends vote/donate operations when settings match, and keeps a local feed of processed posts with manual actions such as unvote/vote/donate.
+- User may move to another Dpos route or another tab without closing the site; the worker should continue as far as browser runtime allows.
+
+Investigation plan:
+- Read `golos-apps/js_modules/stake_bot/index.js`, `bot/interface.js`, `bot/bot.js`, language files, `golos.js` loop integration, `js_modules/methods.js`, and `databases/golos_stakebot/*`.
+- Compare with static v3 files: `v3/js/app.js`, `v3/js/broadcast.js`, `v3/js/chains.js`, `v3/js/auth.js`.
+- Distinguish three cases: (1) direct port of existing Node/Telegram/Mongo daemon; (2) browser-local approximation while at least one Dpos tab/page is alive; (3) true unattended background bot after the browser/site is closed.
+
+Acceptance criteria for the research report:
+- No invented backend, daemon, push worker, or always-on capability.
+- Explain exact blockers for static browser execution.
+- If a local/browser version is possible, identify realistic scope, storage model, runtime model, security constraints, and validation gates.
+- Explicitly call out that automated real vote/donate transactions require previously saved/decryptable posting key and explicit user opt-in.
+
+Initial findings to verify in implementation/research pass:
+- Existing stake_bot is a Node service integrated into `golos.js` block scanner. It uses Mongo-backed account/user/post/bid/stat DB modules, Telegram bot UI/notifications, cron jobs, and server-side encrypted posting keys.
+- Direct copy into static v3 is not possible without rewriting runtime/storage/UI.
+- A limited local browser worker may be possible while the site remains open, but cannot be reliable after all Dpos tabs are closed or the browser/mobile OS suspends the page.
+
+#### Feasibility conclusion after code inspection
+
+Evidence inspected:
+- `/root/ai-projects/golos-apps/golos.js` runs a permanent Node loop: `getEventsInBlock(bn)` → inspect every operation → call `stakebot.commentOperation` for new posts and `stakebot.voteOperation` for curator votes. It persists the last scanned block in `blocksdb` and restarts itself if the block number stops changing.
+- `js_modules/stake_bot/index.js` contains the actual automation:
+  - curator replay: when a configured curator votes, it repeats the vote for each configured account if battery/energy is high enough;
+  - favorites: when a configured favorite publishes a top-level post, it votes with default or per-favorite percent;
+  - auto-donate: for both paths it may add `donate` operations to the same transaction, including a fee donation to the bot account;
+  - post/action feed: it records processed posts in `postsdb` and sends Telegram notifications with unvote/post action buttons;
+  - separate bid/jackpot/stat cron tasks exist but are not the requested local auto-upvoter scope.
+- `bot/interface.js` is Telegram UI/state machine, not browser UI. The relevant settings are account login/posting key, min energy, curators, favorites, curator repeat mode, curator coefficient, favorites percent, auto-donate, tags, keywords, excluded authors, and manual vote/donate/unvote actions.
+- `databases/golos_stakebot/accountsdb.js`/`usersdb.js` use MongoDB collections. Account rows store encrypted posting keys plus settings; user rows store tags/keywords/excluded authors.
+- `/root/ai-projects/dpos.space-v3` is a static browser app. Current auth stores encrypted local keys in `localStorage`; broadcasts require explicit UI confirmation in `v3/js/broadcast.js`. There is no existing worker/service-worker daemon for chain scanning.
+
+Direct port verdict:
+- A direct port of `js_modules/stake_bot` into Dpos Space 3.0 static is **not possible** as-is. The old code depends on Node modules, MongoDB, Telegram bot UI, cron, process lifecycle/restart, server-side block cursor storage, and server-owned service account settings.
+
+Local/browser port verdict:
+- A browser-local implementation is **possible only as a rewritten, limited auto-upvoter that runs while at least one Dpos Space page/tab for this origin is alive and not suspended by the browser/OS**.
+- It can keep working when the user navigates to another in-app route because hash-route navigation does not unload the app if a singleton controller/worker is kept outside page renderers.
+- It can keep working from another tab while the original Dpos tab remains open, especially if implemented as a `SharedWorker` or single-owner `BroadcastChannel` + `localStorage`/IndexedDB lock. If only a normal page timer is used, duplicate runners across tabs must be prevented.
+- It cannot honestly promise reliable unattended work after all Dpos tabs are closed, after the browser is closed, or when mobile/background power management suspends JavaScript. Service workers cannot run an arbitrary infinite blockchain scanner; they wake for events/fetch/push/sync and are terminated by the browser.
+
+Practical MVP scope if implemented:
+- Add `golos` app `auto-upvoter` with accessible settings forms.
+- Store settings and processed-post feed locally (prefer IndexedDB; localStorage is acceptable only for small MVP settings).
+- Reuse existing Golos vendor library for RPC and broadcast. Add wrappers for `getDynamicGlobalProperties`, `getEventsInBlock`, `getContent`, `getAccounts`, `vote`, `donate`/`sendOperations` if the browser bundle exposes them; otherwise add a static-safe RPC JSON-RPC wrapper.
+- Runtime: one local runner polls last irreversible/head block every few seconds, scans only new blocks since a saved cursor, handles `comment` and `vote`, writes results to local feed, and broadcasts `vote`/`donate` operations with the user's decrypted posting key.
+- Security rule: real automatic vote/donate requires a separate explicit opt-in warning that the saved encrypted posting key will be decrypted in the active browser session for repeated broadcasts. No active key is needed for vote/donate, but posting WIF must be available. Auto-donate spends GOLOS/TIP-like balance and needs a conservative amount cap.
+- UI should expose Start/Stop, current block/cursor, running state, last error, processed post feed, and manual actions (unvote, vote percent, donate amount) using the same broadcast helpers.
+
+Non-goals / impossible claims:
+- No true 24/7 bot in a pure static site.
+- No reliable run after closing the site/browser without adding a backend/desktop app/browser extension/PWA periodic background sync support with severe limitations.
+- No copying Telegram/Mongo state machine directly into `app.js`.
+- No server-wide shared curation pool/bids/jackpot/stat posts unless a backend service is introduced.
+
+Recommended implementation plan if user approves:
+1. Build a read-only/dry-run `auto-upvoter` page first: settings, Start/Stop, block cursor, scanned-post feed, no broadcast. Validate block scanning and matching logic.
+2. Add controlled local signing for votes only, behind explicit enable + confirmation and per-run status.
+3. Add auto-donate only after vote path is stable, with per-post/per-day caps and clear fee/memo behavior.
+4. Add multi-tab single-runner coordination and recovery of cursor/feed.
+5. Run browser smoke tests plus manual live dry-run on Golos RPC before enabling real broadcasts.
+
+#### Accepted implementation direction: multi-account local auto-upvoter
+
+User accepted implementation with real transactions, not dry-run-only. Updated scope:
+- Use already authorized Golos accounts with encrypted posting keys from Dpos Space auth storage.
+- UI should not depend on the single global account selector like wallet routes. It should show checkboxes for all authorized Golos accounts and allow enabling the process per account.
+- Each selected account has its own settings and execution state; for one account there must be at most one active local process/runner.
+- Multiple accounts may be active in parallel from the user's perspective: when a matching post/vote is found, the app should vote/donate from each selected authorized account according to that account's settings, then continue scanning.
+- Matching sources: curator replay and favorites first. Tags/keywords discovery may follow only if it fits the same local runtime safely.
+- Real broadcasts are allowed immediately, but must still be explicit and honest: user chooses accounts and presses Start; the UI must state that saved posting keys will be decrypted locally in the active browser session for automatic vote/donate operations.
+- Safety requirements: prevent duplicate sends per account/post/action; persist processed action keys; expose feed/log; stop button per account/all; never use active key for vote/donate; auto-donate must have visible settings/caps before enabled.
+
+Implementation plan for first real-transaction MVP:
+1. Add `auto-upvoter` to Golos app list and route it to a dedicated renderer.
+2. Add `v3/js/auto-upvoter.js` or similarly scoped module with pure matching helpers first:
+   - normalize settings;
+   - match curator vote events;
+   - match favorite post events;
+   - produce planned account actions;
+   - dedupe key format: `account|kind|author|permlink|source`.
+3. Add smoke/unit tests before implementation for:
+   - Golos app inventory includes `auto-upvoter`;
+   - page renders authorized-account checkboxes and Start/Stop affordances;
+   - pure matching selects multiple enabled accounts;
+   - one account cannot have duplicate active runner state;
+   - dedupe prevents repeated vote/donate for the same account/post/source.
+4. Implement UI and local storage state without broad refactors.
+5. Implement runner skeleton and broadcast adapter behind explicit Start. If browser/RPC methods are missing, stop with a clear blocker instead of faking success.
+6. Validation gate: `node --check v3/js/*.js && node --check tests/*.js && focused auto-upvoter tests && existing relevant Golos/auth/broadcast smokes && git diff --check`.
+
+Non-goals for first MVP:
+- No 24/7 after site/browser closes.
+- No backend daemon, MongoDB, Telegram, bids, jackpot, stat posting.
+- No global service account fee behavior unless auto-donate explicitly models it and user enables it.
+
+#### Implementation checkpoint: Golos auto-upvoter MVP foundation
+
+Implemented locally in v3:
+- Added Golos `auto-upvoter` app route and script loading.
+- Added multi-account UI: every authorized Golos account is shown with an enable checkbox and per-account settings.
+- Added local active-tab scanner loop: Start runs an immediate scan and then interval scans; Stop clears the interval.
+- Added per-account signing support through `DposBroadcast.prepareForUser`, so actions can be signed for the selected action account without relying on the top wallet selector.
+- Added one-runner-per-account origin lock with localStorage TTL; another tab/window cannot start the same account while the lock is active.
+- Added pure/tested helpers for curator history event extraction, favorite discussion extraction, matching, dedupe, scanner tick execution, and seen-state persistence.
+- Votes are real transaction candidates and are broadcast through the existing `DposBroadcast.broadcast` confirmation path.
+- Auto-donate remains explicitly blocked for now: UI exposes the setting/cap, but execution fails before voting if donate is enabled because exact donate parameters/fee policy must not be guessed.
+
+Validated with:
+- `git diff --check`
+- `node --check v3/js/app.js v3/js/chains.js v3/js/broadcast.js v3/js/auto-upvoter.js`
+- `node --check tests/*.js`
+- `node tests/v3-golos-auto-upvoter-smoke.js`
+- `node tests/v3-auth-broadcast-smoke.js`
+- `node tests/v3-accounts-auth-smoke.js`
+- `node tests/v3-golos-manage-smoke.js`
+- `node tests/v3-golos-wallet-smoke.js`
+- `node tests/v3-golos-editor-smoke.js`
+- `node tests/v3-golos-profiles-parity-smoke.js`
+
+Remaining live-risk:
+- Golos RPC method shape for `getAccountHistory`, `getDiscussionsByBlog`, and `getDiscussionsByCreated` still needs a browser/live-node check; if unavailable the feed shows a clear error instead of fake success.
+- Auto-donate implementation requires a separate confirmed mapping of amount, recipient, memo, and fee/non-fee policy.
+
+#### Correction checkpoint: automatic vote/donate without per-action confirmation
+
+User clarified that auto-upvoter must not ask for per-action confirmation after Start.
+Implemented correction:
+- Start button is the consent boundary for the local runner.
+- Auto-upvoter broadcasts use `confirmExecute: false` plus scoped `autoConsent: 'golos-auto-upvoter-start'`.
+- `DposBroadcast.broadcast` still rejects confirmation-less real broadcasts for ordinary UI operations; the bypass is restricted to prepared operations with `meta.feature === 'golos-auto-upvoter'` and the auto-upvoter consent marker.
+- Auto-donate is implemented for enabled actions using the old stakebot-style split:
+  - total donation amount is the configured per-action GOLOS amount/limit;
+  - minimum total is 0.5 GOLOS;
+  - 99.8% goes to the post author;
+  - 0.2% fee goes to `denis-skripnik`;
+  - fee memo uses target type `fee_donate` and includes the target post author/permlink.
+- Vote is sent first, then author donate, then fee donate, all through `prepareForUser` with posting authority.
+- If donation cannot be sent after the vote (for example insufficient GOLOS/TIP balance or missing donate broadcast support), the donation attempt is recorded as skipped and the runner continues instead of treating the whole vote action as failed.
+- The auto-upvoter feed includes a manual donate link for matched/voted posts; it opens the normal Golos donate form, so sending that manual donation still uses the regular preview/send confirmation flow.
+- The same feed includes a manual "cancel upvote" button for matched/voted posts; it asks for confirmation and sends `vote` with `weight=0` through the selected action account's posting key.
+- Tests cover no per-action confirmation, donate params, fee recipient, split, insufficient-donate skip behavior, manual confirmed-donate feed link, manual confirmed-unvote feed action, and per-account signing.
+
+#### Correction checkpoint: manual feed vote toggle and battery visibility
+
+User clarified the feed action should toggle rather than remain a one-way cancel button:
+- After a successful manual cancel-upvote from the feed, the same row switches to a confirmed `vote` action.
+- The vote action uses a percent selector from -100% to 100% and converts the chosen percent to Golos `weight` by `percent * 100`.
+- After a successful manual vote, the row switches back to the confirmed cancel-upvote action.
+- Manual feed vote/unvote actions remain outside the Start auto-consent boundary: both use the normal explicit confirmation path.
+- The auto-upvoter page now shows current Golos voting battery for enabled accounts before the Start/Stop controls and again before the feed/list of posts; Start and Stop refresh that battery summary.
