@@ -71,6 +71,9 @@
 
   const socialApps = [
     { id: 'editor', title: 'Редактор', description: 'Публикация постов через posting authority.' },
+    { id: 'feeds', title: 'Ленты', description: 'Новые, популярные, блог аккаунта и лента подписок через публичный Hive/Steem RPC; лайк/репост с подтверждением.', accountField: true },
+    { id: 'post', title: 'Пост', description: 'Просмотр поста, Markdown, комментарии, ответы и голосование через posting authority.', accountField: false },
+    { id: 'auto-upvoter', title: 'Автоапвоутер', description: 'Локальный браузерный автоапвоутер Hive/Steem: пока сайт открыт, использует сохранённый posting-ключ для автоматического vote без backend и без донатов.' },
     { id: 'calculator', title: 'Калькулятор', description: 'HP/SP и vesting estimation.' },
     { id: 'manage', title: 'Управление', description: 'Сервисы управления: proxy, witness vote, настройки профиля/witness.' },
     { id: 'register', title: 'Регистрация', description: 'Каркас account creation.' },

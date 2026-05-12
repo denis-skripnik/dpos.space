@@ -34,8 +34,12 @@ const hiveRuntimeSlice = [
   editorRenderer
 ].join('\n');
 
-assert(appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')") && appSource.includes("return 'editor'"), 'legacy Hive /post alias routes to editor');
-assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain)'), 'router dispatches editor app to renderer');
+assert(!appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')"), 'Hive /post no longer aliases to editor');
+assert(hive.apps.some((app) => app.id === 'post' && /пост/i.test(app.title)), 'Hive post viewer route is registered');
+assert(hive.apps.some((app) => app.id === 'feeds' && /лент/i.test(app.title)), 'Hive feeds route is registered');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Hive post route to social post viewer');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Hive feeds route');
+assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain)'), 'router still dispatches editor app to renderer');
 
 for (const marker of [
   'Публикация поста',
@@ -93,5 +97,29 @@ for (const evidence of [
 ]) {
   assert(planSource.includes(evidence), `plan.md records Hive post evidence: ${evidence}`);
 }
+
+for (const marker of [
+  'function renderSocialPostPage',
+  'function loadSocialRepliesTree',
+  'function renderSocialCommentsList',
+  'function renderSocialFeedsPage',
+  'function loadSocialFeedRows',
+  'getDiscussionsByCreated',
+  'getDiscussionsByBlog',
+  'getDiscussionsByFeed',
+  'getDiscussionsByHot',
+  'getDiscussionsByTrending',
+  'pending_payout_value',
+  'total_payout_value',
+  'percent_hbd',
+  'https://hive.blog',
+  "broadcast.prepare(chain, 'posting', 'vote'",
+  "id: 'follow'"
+]) {
+  assert(appSource.includes(marker), `Hive social post/feeds marker missing: ${marker}`);
+}
+
+assert(planSource.includes('Scoped plan: Hive/Steem post viewers and feeds'), 'plan.md records Hive/Steem post+feeds scope');
+assert(planSource.includes('Hive API probe') && planSource.includes('pending_payout_value') && planSource.includes('percent_hbd'), 'plan.md records Hive API shape evidence');
 
 console.log('v3 Hive post smoke passed');
