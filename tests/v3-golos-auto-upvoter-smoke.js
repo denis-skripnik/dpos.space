@@ -45,6 +45,9 @@ assert(appSource.includes('Ручной донат автору') && appSource.i
 assert(appSource.includes('Отменить апвот с подтверждением') && appSource.includes("'vote', [account, author, permlink, 0]") && appSource.includes('global.confirm(`Отменить апвот'), 'auto-upvoter feed exposes manual unvote with confirmation and weight=0');
 assert(appSource.includes('data-auto-upvoter-vote') && appSource.includes('autoUpvoterPercentOptions') && appSource.includes('Голосовать с подтверждением'), 'manual unvote state is replaced by a vote control with -100..100 percent select');
 assert(appSource.includes('manualVoteState.set(autoUpvoterActionKey') && appSource.includes('manualVoteState.get(autoUpvoterActionKey'), 'feed toggles manual state between vote and unvote after successful actions');
+assert(appSource.includes('scannerState.feed.slice(-30).reverse().forEach'), 'auto-upvoter renders newest feed entries first');
+assert(!appSource.includes('message: `SKIP @${action.account} уже голосовал'), 'auto-upvoter suppresses noisy automatic already-voted skip rows');
+assert(helperSource.includes('if (result && result.skipped) continue;'), 'auto-upvoter execution does not add skip rows to feed');
 assert(appSource.includes('loadAutoUpvoterBatterySummary') && appSource.includes('auto-upvoter-battery') && appSource.includes('Перед списком постов'), 'auto-upvoter shows current battery before Start/Stop and before feed list');
 assert((appSource.match(/await loadAutoUpvoterBatterySummary\(settings\)/g) || []).length >= 2, 'auto-upvoter refreshes battery after scanner ticks, not only before start');
 assert(appSource.includes('setInterval') && appSource.includes('clearInterval'), 'Start/Stop wires a real local interval scanner');
