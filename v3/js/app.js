@@ -361,13 +361,15 @@
   function legacyAppTarget(chain, appId) {
     const aliases = {
       calc: 'calculator',
-      post: 'editor',
       backup: 'backup',
       awards: 'award',
       registration: 'register'
     };
     if (chain.id === 'viz' && (appId === 'calc' || appId === 'awards')) {
       return aliases[appId];
+    }
+    if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post') {
+      return 'editor';
     }
     if ((chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') && aliases[appId]) {
       return aliases[appId];

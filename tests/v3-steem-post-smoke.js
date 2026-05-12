@@ -8,7 +8,7 @@ const profilesSource = fs.readFileSync('v3/js/profiles.js', 'utf8');
 const historySource = fs.readFileSync('v3/js/history.js', 'utf8');
 const planSource = fs.readFileSync('plan.md', 'utf8');
 
-assert(appSource.includes("post: 'editor'"), 'legacy post route aliases to editor');
+assert(appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')") && appSource.includes("return 'editor'"), 'Steem legacy post route aliases to editor');
 assert(chainsSource.includes("steem: {") && chainsSource.includes("const steemApps = socialApps.concat") && chainsSource.includes("apps: apps(steemApps)"), 'Steem uses social editor app set plus Steem-specific additions');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor route keeps authorized-account context');
 assert(appSource.includes('function buildGenericEditorOperations'), 'Steem editor has shared operation builder');

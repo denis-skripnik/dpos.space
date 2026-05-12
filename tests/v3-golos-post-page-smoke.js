@@ -16,6 +16,7 @@ const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
+assert(!appSource.includes("post: 'editor'"), 'Golos post route is not shadowed by the editor alias');
 assert(chains.golos.apps.some((app) => app.id === 'post' && /пост/i.test(app.title)), 'Golos post page route is registered');
 assert(chainsSource.includes("id: 'post'") && chainsSource.includes('Просмотр поста'), 'chains registry exposes readable Golos post app');
 assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'post'") && appSource.includes('renderGolosPostPage(chain, state)'), 'router dispatches Golos post route');
