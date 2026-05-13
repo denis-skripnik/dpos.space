@@ -45,9 +45,14 @@ assert(appSource.includes('data-md-action="bold"') && appSource.includes('data-m
 assert(appSource.includes('data-md-upload-image') && appSource.includes('Загрузить фото'), 'Markdown editor exposes legacy-style image upload button');
 assert(appSource.includes("fetch('https://api.imgur.com/3/image.json'") && appSource.includes('IMGUR_CLIENT_ID'), 'Markdown editor uploads images to Imgur through the legacy anonymous endpoint');
 assert(appSource.includes('insertMarkdown(textarea, `![](${link})`'), 'Uploaded image is inserted as Markdown at the textarea cursor');
+assert(appSource.includes("textarea.addEventListener('paste'"), 'Markdown editor handles pasted clipboard images in the textarea');
+assert(appSource.includes('clipboardData.items') && appSource.includes('getAsFile()'), 'Clipboard image paste reads image files from clipboardData items');
+assert(appSource.includes('Загружаю изображение из буфера обмена в Imgur'), 'Clipboard image paste exposes an accessible upload status');
+assert(appSource.includes('Изображение из буфера обмена загружено и вставлено'), 'Clipboard image paste confirms insertion after upload');
 assert(appSource.includes('data-md-preview aria-expanded="false" aria-controls="editor-preview"'), 'Markdown editor exposes an accessible preview toggle');
 assert(appSource.includes('function bindMarkdownEditor'), 'Markdown editor binds formatting and preview behavior');
 assert(appSource.includes('Ctrl+B, Ctrl+I, Ctrl+K'), 'Markdown editor documents keyboard shortcuts');
+assert(appSource.includes('Изображение из буфера обмена можно вставить через Ctrl+V'), 'Markdown editor documents clipboard image paste upload');
 assert(planSource.includes('Golos/Steem/Hive / editor/post / `editor-form`'), 'UX plan records editor form matrix row');
 
 console.log('v3 Golos editor smoke passed');

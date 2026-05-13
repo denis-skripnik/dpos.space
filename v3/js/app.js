@@ -223,7 +223,7 @@
       </div>
       <input id="editor-image-upload" class="visually-hidden" type="file" accept="image/*" data-md-image-input>
       <textarea id="editor-body" name="body" rows="12" required aria-describedby="editor-markdown-help editor-markdown-status">${body}</textarea>
-      <p id="editor-markdown-help" class="muted">Markdown-редактор: кнопки форматируют выделенный текст, поле остаётся обычным textarea. Горячие клавиши: Ctrl+B, Ctrl+I, Ctrl+K.</p>
+      <p id="editor-markdown-help" class="muted">Markdown-редактор: кнопки форматируют выделенный текст, поле остаётся обычным textarea. Горячие клавиши: Ctrl+B, Ctrl+I, Ctrl+K. Изображение из буфера обмена можно вставить через Ctrl+V — оно загрузится в Imgur и добавится в место курсора.</p>
       <p id="editor-markdown-status" class="muted" role="status" aria-live="polite">Редактор Markdown готов.</p>
       <div id="editor-preview" class="markdown-preview" hidden aria-live="polite"></div>
     </div>`;
@@ -276,6 +276,25 @@
         preview.innerHTML = markdownToPreviewHtml(textarea.value);
       };
       const setEditorStatus = (message) => { status.textContent = message; };
+      const insertUploadedImage = async (file, source) => {
+        if (!file) return;
+        const fromClipboard = source === 'clipboard';
+        if (uploadButton) uploadButton.disabled = true;
+        setEditorStatus(fromClipboard ? 'Загружаю изображение из буфера обмена в Imgur...' : 'Загружаю фото в Imgur...');
+        try {
+          const link = await uploadEditorImageToImgur(file);
+          insertMarkdown(textarea, `![](${link})`, '', '', 'block');
+          const previewImageInput = document.getElementById('editor-image');
+          if (previewImageInput && !String(previewImageInput.value || '').trim()) previewImageInput.value = link;
+          setEditorStatus(fromClipboard ? `Изображение из буфера обмена загружено и вставлено в текст поста: ${link}` : `Фото загружено и вставлено в текст поста: ${link}`);
+          if (!preview.hidden) updatePreview();
+        } catch (error) {
+          setEditorStatus(`${fromClipboard ? 'Не удалось загрузить изображение из буфера обмена' : 'Не удалось загрузить фото'}: ${profiles.formatError(error)}`);
+        } finally {
+          if (uploadButton) uploadButton.disabled = false;
+          if (imageInput) imageInput.value = '';
+        }
+      };
       editor.querySelectorAll('[data-md-action]').forEach((button) => {
         button.addEventListener('click', () => {
           const action = button.dataset.mdAction;
@@ -308,24 +327,19 @@
         uploadButton.addEventListener('click', () => imageInput.click());
         imageInput.addEventListener('change', async () => {
           const file = imageInput.files && imageInput.files[0];
-          if (!file) return;
-          uploadButton.disabled = true;
-          setEditorStatus('Загружаю фото в Imgur...');
-          try {
-            const link = await uploadEditorImageToImgur(file);
-            insertMarkdown(textarea, `![](${link})`, '', '', 'block');
-            const previewImageInput = document.getElementById('editor-image');
-            if (previewImageInput && !String(previewImageInput.value || '').trim()) previewImageInput.value = link;
-            setEditorStatus(`Фото загружено и вставлено в текст поста: ${link}`);
-            if (!preview.hidden) updatePreview();
-          } catch (error) {
-            setEditorStatus(`Не удалось загрузить фото: ${profiles.formatError(error)}`);
-          } finally {
-            uploadButton.disabled = false;
-            imageInput.value = '';
-          }
+          await insertUploadedImage(file, 'file');
         });
       }
+      textarea.addEventListener('paste', (event) => {
+        const clipboardItems = event.clipboardData && event.clipboardData.items;
+        const items = clipboardItems ? Array.from(clipboardItems) : [];
+        const imageItem = items.find((item) => item && /^image\//.test(item.type || '') && typeof item.getAsFile === 'function');
+        if (!imageItem) return;
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        insertUploadedImage(file, 'clipboard');
+      });
       textarea.addEventListener('input', () => {
         if (!preview.hidden) updatePreview();
       });
