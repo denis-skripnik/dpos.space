@@ -46,12 +46,26 @@
     return '#';
   }
 
+  function normalizeAutolinkUrl(value) {
+    let normalized = String(value || '');
+    for (let index = 0; index < 3; index += 1) {
+      const next = normalized
+        .replace(/&amp;/gi, '&')
+        .replace(/&#0*38;/gi, '&')
+        .replace(/&#x0*26;/gi, '&');
+      if (next === normalized) break;
+      normalized = next;
+    }
+    return normalized;
+  }
+
   function autolinkPlainText(value, chain) {
     const text = String(value || '');
     const linkedUrls = text.replace(/https:\/\/[^\s<]+/gi, (rawUrl) => {
       const suffixMatch = rawUrl.match(/[.,!?;:)\]]+$/);
       const suffix = suffixMatch ? suffixMatch[0] : '';
-      const url = suffix ? rawUrl.slice(0, -suffix.length) : rawUrl;
+      const rawUrlWithoutSuffix = suffix ? rawUrl.slice(0, -suffix.length) : rawUrl;
+      const url = normalizeAutolinkUrl(rawUrlWithoutSuffix);
       if (!url) return rawUrl;
       const safeUrl = escapeHtml(safeMarkdownUrl(url));
       return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>${escapeHtml(suffix)}`;
