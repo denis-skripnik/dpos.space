@@ -3358,6 +3358,12 @@ Remaining gaps/non-goals:
 - The legacy SimpleMDE/Garlic/jQuery editor widgets are not vendored into v3; native textarea/details/buttons preserve the required posting flow without adding dependencies.
 - If public Steem RPC is unavailable or CORS-blocked, v3 reports the error in the live region instead of falling back to a private service.
 
+Follow-up: Steem/Hive own post-page edit links
+- Steem/Hive own post pages should expose the existing editor route link with `author`/`permlink` hash parameters for the selected authorized author, matching the Golos post-page affordance without adding backend services.
+- editor autoloads author/permlink hash for Steem/Hive via the existing public-RPC edit loader (`editorInitialEditUrl` + `editorAutoLoadEdit`), so direct links like `#chain=steem&app=editor&author=user&permlink=post` and `#chain=hive&app=editor&author=user&permlink=post` prefill the form.
+- edit sends comment only/no comment_options: after loading an existing Steem/Hive post for editing, submit should reuse the existing edit-mode dataset names and return only the `comment` operation, avoiding repeated `comment_options`.
+- Focused coverage: `tests/v3-steem-post-smoke.js`, `tests/v3-hive-post-smoke.js`, and `tests/v3-social-editor-smoke.js` assert non-Golos-only post edit links, direct editor autoload, retained `bindSteemPostLegacyHelpers`, and comment-only edit operations.
+
 ### Rigorous parity: Steem / profiles
 
 Scope and result:
@@ -3685,6 +3691,12 @@ Remaining gaps/non-goals:
 - Legacy Imgur upload is not recreated; users paste image URLs manually to avoid adding third-party upload dependency/token-like Client-ID behavior.
 - Legacy curation min/max range from `getChainProperties` is not exposed because the exact rendered Hive form did not include a curation input; this can be a future static public-RPC enhancement if explicitly requested.
 - If public Hive RPC is unavailable or CORS-blocked, v3 reports the error in the live region instead of falling back to a private service.
+
+Follow-up: Steem/Hive own post-page edit links
+- Hive/Steem own post pages should expose the existing editor route link with `author`/`permlink` hash parameters for the selected authorized author, matching the Golos post-page affordance without adding backend services.
+- editor autoloads author/permlink hash for Steem/Hive via the existing public-RPC edit loader (`editorInitialEditUrl` + `editorAutoLoadEdit`), so direct links like `#chain=hive&app=editor&author=user&permlink=post` and `#chain=steem&app=editor&author=user&permlink=post` prefill the form.
+- edit sends comment only/no comment_options: after loading an existing Hive/Steem post for editing, submit should reuse the existing edit-mode dataset names and return only the `comment` operation, avoiding repeated `comment_options`.
+- Focused coverage: `tests/v3-hive-post-smoke.js`, `tests/v3-steem-post-smoke.js`, and `tests/v3-social-editor-smoke.js` assert non-Golos-only post edit links, direct editor autoload, retained `bindSteemPostLegacyHelpers`, and comment-only edit operations.
 
 ### Rigorous parity: Hive / profiles
 
