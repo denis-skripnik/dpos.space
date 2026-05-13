@@ -39,7 +39,7 @@ const post = {
   author: 'alice',
   permlink: 'hello-hive',
   title: 'Hello <Hive>',
-  body: 'Body **markdown**<br>second line with <script>bad()</script>',
+  body: 'Body **markdown**<br>second line with <script>bad()</script> https://example.com/path?x=1 and @carol',
   json_metadata: JSON.stringify({ tags: ['test', 'hive'] }),
   created: '2026-05-12T16:31:42',
   children: 1,
@@ -54,7 +54,7 @@ const reply = {
   author: 'carol',
   permlink: 're-hello-hive',
   title: '',
-  body: 'Reply body',
+  body: 'Reply body with https://reply.example/path and @alice',
   json_metadata: '{}',
   created: '2026-05-12T16:40:00',
   children: 0,
@@ -153,6 +153,10 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(!html.includes('&lt;br&gt;'), 'post viewer does not show literal <br> text');
   assert(html.includes('&lt;script&gt;bad()&lt;/script&gt;'), 'post viewer keeps unsafe HTML escaped');
   assert(html.includes('Reply body'), 'post viewer renders replies');
+  assert(html.includes('<a href="https://example.com/path?x=1" target="_blank" rel="noopener noreferrer">https://example.com/path?x=1</a>'), 'post viewer autolinks plain https URLs');
+  assert(html.includes('#chain=hive&amp;app=profiles&amp;account=carol') && html.includes('>@carol</a>'), 'post viewer links @mentions to in-app profiles');
+  assert(html.includes('<a href="https://reply.example/path" target="_blank" rel="noopener noreferrer">https://reply.example/path</a>'), 'comment viewer autolinks plain https URLs');
+  assert(html.includes('#chain=hive&amp;app=profiles&amp;account=alice') && html.includes('>@alice</a>'), 'comment viewer links @mentions to in-app profiles');
   assert(html.includes('1.234 HBD'), 'post viewer renders Hive payout field');
   assert(html.includes('https://hive.blog/@alice/hello-hive'), 'Hive post viewer links to hive.blog');
   assert(!html.includes('Донат'), 'Hive post viewer does not copy Golos donate UI');

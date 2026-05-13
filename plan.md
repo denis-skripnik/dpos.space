@@ -2180,6 +2180,19 @@ Implementation:
 - Golos post vote and comment submit handlers now call this helper immediately before `broadcast.prepare()`.
 - `tests/v3-golos-post-page-smoke.js` now asserts the post action slice includes the dependency gate, so the regression is covered.
 
+### Feature: autolink URLs and account mentions in post text
+
+User requested readable links in post/comment bodies: plain `https://...` URLs should become external links, and `@login` mentions should open the account profile.
+
+Implementation:
+
+- `markdownToPreviewHtml(markdown, chain)` now accepts an optional chain context for profile links.
+- Plain `https://...` text outside generated HTML tags is converted to `<a target="_blank" rel="noopener noreferrer">`.
+- `@login` mentions outside generated links/code are converted to in-app profile links with `#chain=<chain>&app=profiles&account=<login>`.
+- Existing Markdown links/images/code stay protected from double-linking, and unsafe raw HTML still remains escaped.
+- Golos/Hive/Steem post bodies and comment bodies pass their chain context into the preview renderer.
+- Regression coverage in `tests/v3-social-post-feeds-runtime-smoke.js` verifies autolinked URLs and profile mentions in both post body and comment body.
+
 ### Feature: edit own Golos post comments
 
 User requested editing own comments on Golos post pages with an author check against the authorized account.
