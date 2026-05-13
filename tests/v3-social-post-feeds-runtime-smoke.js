@@ -160,6 +160,8 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(html.includes('<a href="https://reply.example/path" target="_blank" rel="noopener noreferrer">https://reply.example/path</a>'), 'comment viewer autolinks plain https URLs');
   assert(html.includes('#chain=hive&amp;app=profiles&amp;account=alice') && html.includes('>@alice</a>'), 'comment viewer links @mentions to in-app profiles');
   assert(html.includes('1.234 HBD'), 'post viewer renders Hive payout field');
+  assert(html.includes('data-social-post-vote-form') && html.includes('data-vote-percent') && html.includes('type="range"'), 'post/comment vote UI uses expandable percent slider form');
+  assert(html.includes('min="-100"') && html.includes('max="100"') && html.includes('Голосовать'), 'vote slider supports -100..100 percent and explicit submit');
   assert(html.includes('https://hive.blog/@alice/hello-hive'), 'Hive post viewer links to hive.blog');
   assert(!html.includes('Донат'), 'Hive post viewer does not copy Golos donate UI');
 
