@@ -6969,7 +6969,7 @@
     set('permlink', draft.permlink);
     set('body', draft.body);
     if (draft.category) set('category', draft.category);
-    if (draft.payouts) set('payouts', draft.payouts);
+    if (Object.prototype.hasOwnProperty.call(draft, 'payouts')) set('payouts', draft.payouts);
   }
 
   function bindSteemPostLegacyHelpers(chain) {
