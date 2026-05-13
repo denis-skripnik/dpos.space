@@ -45,6 +45,10 @@ assert(appSource.includes('autoUpvoterActionHasDonate') && appSource.includes('d
 assert(appSource.includes('hasGolosVoteFrom') && appSource.includes('active_votes'), 'UI has reusable active_votes duplicate-vote check');
 assert(appSource.includes('getContent(author, permlink') || appSource.includes("getContent', [author, permlink]"), 'auto-upvoter adapter can fetch content before voting');
 assert(appSource.includes('already-voted') || appSource.includes('уже голосовал'), 'duplicate vote is reported as skipped, not attempted');
+const postActionsStart = appSource.indexOf('function bindGolosPostActions');
+const postActionsEnd = appSource.indexOf('const SOCIAL_FEED_KINDS', postActionsStart);
+const postActions = appSource.slice(postActionsStart, postActionsEnd);
+assert(postActions.includes('await ensureBroadcastDependencies(chain);'), 'Golos post vote/comment actions load crypto and broadcast libraries before decrypting keys');
 
 const discussionEvent = helpers.discussionRowToFavoritePostEvent({
   author: 'favorite',
