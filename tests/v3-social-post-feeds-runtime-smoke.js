@@ -51,14 +51,16 @@ const post = {
   parent_permlink: 'test'
 };
 const reply = {
-  author: 'carol',
+  author: 'bob',
   permlink: 're-hello-hive',
   title: '',
   body: 'Reply body with https://reply.example/path and @alice',
   json_metadata: '{}',
   created: '2026-05-12T16:40:00',
   children: 0,
-  active_votes: []
+  active_votes: [],
+  parent_author: 'alice',
+  parent_permlink: 'hello-hive'
 };
 const feedRow = {
   author: 'feedauthor',
@@ -156,12 +158,16 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(html.includes('<a href="https://example.com/path?x=1" target="_blank" rel="noopener noreferrer">https://example.com/path?x=1</a>'), 'post viewer autolinks plain https URLs');
   assert(html.includes('<a href="https://dpos.blinddev.xyz/#chain=golos&amp;app=editor" target="_blank" rel="noopener noreferrer">https://dpos.blinddev.xyz/#chain=golos&amp;app=editor</a>'), 'post viewer normalizes escaped ampersands inside autolinked URLs');
   assert(!html.includes('https://dpos.blinddev.xyz/#chain=golos&amp;amp;app=editor'), 'post viewer does not double-escape ampersands inside autolinked URLs');
-  assert(html.includes('#chain=hive&amp;app=profiles&amp;account=carol') && html.includes('>@carol</a>'), 'post viewer links @mentions to in-app profiles');
+  assert(html.includes('#chain=hive&amp;app=profiles&amp;account=bob') && html.includes('>@bob</a>'), 'post viewer links comment authors to in-app profiles');
   assert(html.includes('<a href="https://reply.example/path" target="_blank" rel="noopener noreferrer">https://reply.example/path</a>'), 'comment viewer autolinks plain https URLs');
   assert(html.includes('#chain=hive&amp;app=profiles&amp;account=alice') && html.includes('>@alice</a>'), 'comment viewer links @mentions to in-app profiles');
   assert(html.includes('1.234 HBD'), 'post viewer renders Hive payout field');
   assert(html.includes('data-social-post-vote-form') && html.includes('data-vote-percent') && html.includes('type="range"'), 'post/comment vote UI uses expandable percent slider form');
   assert(html.includes('min="-100"') && html.includes('max="100"') && html.includes('Голосовать'), 'vote slider supports -100..100 percent and explicit submit');
+  assert(html.includes('data-social-comment-edit') && html.includes('Редактировать комментарий'), 'own Hive comment exposes edit button');
+  assert(html.includes('data-social-comment-edit-form') && html.includes('data-comment-mode="edit"'), 'own Hive comment renders hidden edit form');
+  assert(html.includes('data-comment-author="bob"') && html.includes('data-comment-permlink="re-hello-hive"'), 'own Hive comment edit form keeps existing author/permlink');
+  assert(html.includes('Сохранить правку комментария с подтверждением') && html.includes('Reply body with'), 'own Hive comment edit form is prefilled and labelled');
   assert(html.includes('https://hive.blog/@alice/hello-hive'), 'Hive post viewer links to hive.blog');
   assert(!html.includes('Донат'), 'Hive post viewer does not copy Golos donate UI');
 

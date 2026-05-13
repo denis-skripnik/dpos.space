@@ -6614,9 +6614,15 @@
   function renderSocialCommentNode(chain, comment) {
     const author = String(comment && comment.author || '').trim().replace(/^@/, '');
     const permlink = String(comment && comment.permlink || '').trim();
+    const parentAuthor = String(comment && comment.parent_author || '').trim().replace(/^@/, '');
+    const parentPermlink = String(comment && comment.parent_permlink || '').trim();
     const title = golosContentTitle(comment, permlink);
-    const voted = hasGolosVoteFrom(comment, auth.getCurrentLogin(chain));
+    const currentLogin = auth.getCurrentLogin(chain);
+    const canEdit = Boolean(author && permlink && String(author).toLowerCase() === String(currentLogin || '').toLowerCase());
+    const voted = hasGolosVoteFrom(comment, currentLogin);
     const children = Array.isArray(comment && comment.children) && comment.children.length ? renderSocialCommentsList(chain, comment.children) : '';
+    const editButton = canEdit ? `<button type="button" data-social-comment-edit data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Редактировать комментарий</button>` : '';
+    const editForm = canEdit ? `<div class="reply-slot" hidden data-social-comment-edit-slot>${renderSocialCommentForm(`social-edit-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), parentAuthor, parentPermlink, { mode: 'edit', author, permlink, body: comment.body || '' })}</div>` : '';
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
@@ -6624,17 +6630,22 @@
         <div class="actions">
           ${renderPostVoteForm('social-post', author, permlink, voted)}
           <button type="button" data-social-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
+          ${editButton}
         </div>
         <div class="reply-slot" hidden>${renderSocialCommentForm(`social-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
+        ${editForm}
       </article>
       ${children}
     </li>`;
   }
 
-  function renderSocialCommentForm(formId, parentAuthor, parentPermlink) {
-    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-social-comment-form data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}">
-      <div class="field"><label for="${escapeHtml(formId)}-body">Текст Markdown</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required></textarea></div>
-      <button type="submit">Отправить комментарий с подтверждением</button>
+  function renderSocialCommentForm(formId, parentAuthor, parentPermlink, options = {}) {
+    const mode = options.mode === 'edit' ? 'edit' : 'create';
+    const buttonText = mode === 'edit' ? 'Сохранить правку комментария с подтверждением' : 'Отправить комментарий с подтверждением';
+    const labelText = mode === 'edit' ? 'Текст Markdown для правки' : 'Текст Markdown';
+    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-social-comment-form ${mode === 'edit' ? 'data-social-comment-edit-form' : ''} data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}" data-comment-mode="${escapeHtml(mode)}" data-comment-author="${escapeHtml(options.author || '')}" data-comment-permlink="${escapeHtml(options.permlink || '')}">
+      <div class="field"><label for="${escapeHtml(formId)}-body">${escapeHtml(labelText)}</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required>${escapeHtml(options.body || '')}</textarea></div>
+      <button type="submit">${escapeHtml(buttonText)}</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </form>`;
   }
@@ -6649,6 +6660,12 @@
     appEl.querySelectorAll('[data-social-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
+        if (slot) slot.hidden = !slot.hidden;
+      });
+    });
+    appEl.querySelectorAll('[data-social-comment-edit]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = button.closest('article') && button.closest('article').querySelector('[data-social-comment-edit-slot]');
         if (slot) slot.hidden = !slot.hidden;
       });
     });
@@ -6668,17 +6685,22 @@
         const result = form.querySelector('[data-operation-result]');
         try {
           const author = auth.getCurrentLogin(chain);
+          const mode = form.dataset.commentMode === 'edit' ? 'edit' : 'create';
           const parentAuthor = String(form.dataset.parentAuthor || '').trim().replace(/^@/, '');
           const parentPermlink = String(form.dataset.parentPermlink || '').trim();
           const body = String(new FormData(form).get('body') || '').trim();
-          if (!body) throw new Error('Текст комментария обязателен.');
-          const permlink = socialCommentPermlink(parentAuthor, parentPermlink);
+          if (!body) throw new Error(mode === 'edit' ? 'Текст правки обязателен.' : 'Текст комментария обязателен.');
+          const commentAuthor = String(form.dataset.commentAuthor || '').trim().replace(/^@/, '');
+          const commentPermlink = String(form.dataset.commentPermlink || '').trim();
+          if (mode === 'edit' && String(commentAuthor).toLowerCase() !== String(author || '').toLowerCase()) throw new Error('Редактировать можно только комментарии авторизованного аккаунта.');
+          const permlink = mode === 'edit' ? commentPermlink : socialCommentPermlink(parentAuthor, parentPermlink);
+          if (!permlink) throw new Error('Не удалось определить permlink комментария.');
           const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
-          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: `${chain.id} post page comment`, feature: `${chain.id}-post-page-comment` });
+          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: mode === 'edit' ? `${chain.id} post page comment edit` : `${chain.id} post page comment`, feature: mode === 'edit' ? `${chain.id}-post-page-comment-edit` : `${chain.id}-post-page-comment` });
           await profiles.connect(chain);
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-          if (result) result.textContent = 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
-          setStatus('Комментарий отправлен в сеть.', 'ok');
+          if (result) result.textContent = mode === 'edit' ? 'Правка комментария отправлена. Обновите страницу поста после индексации RPC.' : 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
+          setStatus(mode === 'edit' ? 'Правка комментария отправлена в сеть.' : 'Комментарий отправлен в сеть.', 'ok');
         } catch (error) {
           if (result) result.textContent = profiles.formatError(error);
           setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
