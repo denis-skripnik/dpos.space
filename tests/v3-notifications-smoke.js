@@ -25,6 +25,8 @@ assert(notificationsSource.includes('direction: \'incoming\''), 'notifications a
 assert(!notificationsSource.includes('Ваш комментарий') && !notificationsSource.includes('Ваш репост') && !notificationsSource.includes('Исходящий перевод'), 'outgoing activity is not shown as notifications');
 assert(!notificationsSource.includes('data-notifications-direction') && !notificationsSource.includes('Исходящие'), 'top panel has no outgoing/all direction filter');
 assert(notificationsSource.includes('MAX_PANEL_ITEMS = 10'), 'top panel is capped to ten recent notifications');
+assert(notificationsSource.includes('errors.push({ chainId: chain.id, account, error })'), 'notification background scan isolates per-account failures');
+assert(!notificationsSource.includes('setStatus(`Не удалось проверить уведомления'), 'notification failures do not overwrite the active page status');
 assert(appSource.includes("effectiveAppId === 'notifications'") && appSource.includes('renderNotificationsPage'), 'app routes notifications show-all page');
 assert(cssSource.includes('.notifications-panel') && cssSource.includes('.notifications-popover'), 'notifications panel styles exist');
 assert(planSource.includes('верхняя панель уведомлений'), 'plan documents notifications scope');
@@ -127,7 +129,11 @@ assert.strictEqual(api.countUnread({ direction: 'incoming' }), 1, 'unread count 
 api.markAllRead();
 assert.strictEqual(api.countUnread({ direction: 'incoming' }), 0, 'mark all read clears unread count');
 
-api.scanAccount(context.DposChains.golos, 'denis-skripnik', { limit: 5, collectInitial: true }).then(() => {
+api.scanAll({ golos: { id: 'golos', title: 'Golos', libraryGlobal: 'golos', libraryPath: 'missing-golos.js' } }, { collectInitial: true }).then((items) => {
+  assert(Array.isArray(items), 'scanAll returns an array even when a notification account fails');
+  assert(items.errors && items.errors.length === 1, 'scanAll reports isolated notification scan failures without throwing');
+  return api.scanAccount(context.DposChains.golos, 'denis-skripnik', { limit: 5, collectInitial: true });
+}).then(() => {
   console.log('v3-notifications-smoke passed');
 }).catch((error) => {
   console.error(error);

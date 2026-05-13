@@ -320,14 +320,20 @@
 
   async function scanAll(chains, options = {}) {
     const found = [];
+    const errors = [];
     for (const chain of Object.values(chains || {})) {
       if (!supportsChain(chain)) continue;
       const accounts = getTrackedAccounts(chain);
       for (const account of accounts) {
-        const items = await scanAccount(chain, account, options);
-        found.push(...items);
+        try {
+          const items = await scanAccount(chain, account, options);
+          found.push(...items);
+        } catch (error) {
+          errors.push({ chainId: chain.id, account, error });
+        }
       }
     }
+    if (errors.length) found.errors = errors;
     return found;
   }
 
@@ -394,11 +400,15 @@
       rerender('Проверяю новые события…');
       try {
         const found = await scanAll(chains);
+        const failed = Array.isArray(found.errors) ? found.errors.length : 0;
+        if (failed) {
+          rerender(found.length ? `Найдено новых: ${found.length}. Часть аккаунтов проверить не удалось.` : 'Часть аккаунтов проверить не удалось. Текущая страница продолжает работать.');
+          return;
+        }
         rerender(found.length ? `Найдено новых: ${found.length}.` : 'Новых событий нет.');
         setStatus(found.length ? `Найдено новых уведомлений: ${found.length}.` : 'Уведомления проверены.', found.length ? 'ok' : 'info');
       } catch (error) {
         rerender(`Не удалось проверить уведомления: ${error.message || error}`);
-        setStatus(`Не удалось проверить уведомления: ${error.message || error}`, 'error');
       } finally {
         running = false;
       }
