@@ -325,18 +325,35 @@
   }
 
   function loadScript(src) {
-    if (!src || loadedScripts.has(src)) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
+    if (!src) return Promise.resolve();
+    const sharedScripts = global.__dposScriptLoads || (global.__dposScriptLoads = new Map());
+    if (sharedScripts.has(src)) return sharedScripts.get(src);
+    if (loadedScripts.has(src)) return Promise.resolve();
+    const existing = document.querySelector && document.querySelector(`script[src="${src}"]`);
+    if (existing && existing.dataset && existing.dataset.dposLoaded === 'true') {
+      loadedScripts.add(src);
+      const resolved = Promise.resolve();
+      sharedScripts.set(src, resolved);
+      return resolved;
+    }
+    const promise = new Promise((resolve, reject) => {
+      const script = existing || document.createElement('script');
       script.src = src;
       script.async = false;
       script.onload = () => {
         loadedScripts.add(src);
+        if (script.dataset) script.dataset.dposLoaded = 'true';
+        sharedScripts.set(src, Promise.resolve());
         resolve();
       };
-      script.onerror = () => reject(new Error(`Не удалось загрузить библиотеку: ${src}`));
-      document.head.appendChild(script);
+      script.onerror = () => {
+        sharedScripts.delete(src);
+        reject(new Error(`Не удалось загрузить библиотеку: ${src}`));
+      };
+      if (!existing) document.head.appendChild(script);
     });
+    sharedScripts.set(src, promise);
+    return promise;
   }
 
   function fillChainSelect(selectedChainId) {
@@ -6432,7 +6449,10 @@
     const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
-    const voted = hasGolosVoteFrom(post, auth.getCurrentLogin(chain));
+    const currentLogin = auth.getCurrentLogin(chain);
+    const voted = hasGolosVoteFrom(post, currentLogin);
+    const canEditPost = chain.id === 'golos' && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
+    const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
     appEl.innerHTML = `<section class="panel social-post-page" data-social-post-page>
       <article class="card">
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
@@ -6440,6 +6460,7 @@
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '')}</div>
         <p class="actions">
           <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+          ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
           <a href="${escapeHtml(socialExternalPostUrl(chain, author, permlink))}" target="_blank" rel="noopener">Открыть снаружи</a>
         </p>
       </article>
@@ -6768,6 +6789,20 @@
     return { author: match[1].replace(/^@/, ''), permlink: match[2].replace(/\/$/, '') };
   }
 
+  function editorInitialEditUrl(chain, state = {}) {
+    if (chain.id !== 'golos') return '';
+    const explicit = String(state.edit || state.url || '').trim();
+    if (explicit) return explicit;
+    const author = String(state.author || '').trim().replace(/^@/, '');
+    const permlink = String(state.permlink || '').trim();
+    return author && permlink ? `https://golos.id/@${author}/${permlink}` : '';
+  }
+
+  function editorAutoLoadEdit(input, button) {
+    if (!input || !button || !input.value) return;
+    setTimeout(() => button.click(), 0);
+  }
+
   function parseSteemPostUrl(value) {
     return parseSocialPostUrl(value);
   }
@@ -6891,10 +6926,11 @@
     });
   }
 
-  function renderEditor(chain) {
+  function renderEditor(chain, state) {
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
     const isGolos = chain.id === 'golos';
+    const initialEditUrl = editorInitialEditUrl(chain, state || {});
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
@@ -6906,7 +6942,7 @@
             ${isGolos ? `<div class="field"><label for="editor-category">Категория</label><select id="editor-category" name="category">${golosEditorCategoryOptions(draft && draft.category)}</select></div>` : ''}
             <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
             ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
-            ${isGolos ? `<details class="subpanel"><summary>Редактировать существующий Golos пост</summary><div class="field"><label for="editor-edit-url">Ссылка на пост</label><input id="editor-edit-url" type="url" placeholder="https://golos.id/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Загрузится только пост текущего выбранного аккаунта. При отправке редактирования будет создана только операция comment, без повторного comment_options.</p></details>` : ''}
+            ${isGolos ? `<details class="subpanel" ${initialEditUrl ? 'open' : ''}><summary>Редактировать существующий Golos пост</summary><div class="field"><label for="editor-edit-url">Ссылка на пост</label><input id="editor-edit-url" type="url" placeholder="https://golos.id/tag/@user/permlink" value="${escapeHtml(initialEditUrl)}"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite">${initialEditUrl ? 'Загружаю пост из URL редактора...' : ''}</p><p class="muted">Можно открыть редактор напрямую: #chain=golos&amp;app=editor&amp;author=user&amp;permlink=post. Загрузится только пост текущего выбранного аккаунта. При отправке редактирования будет создана только операция comment, без повторного comment_options.</p></details>` : ''}
             ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic не копируются; фото можно загрузить кнопкой «Загрузить фото» в Markdown-панели.</p></details>` : ''}
             <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space" value="${escapeHtml(draft && draft.tags ? draft.tags : '')}"></div>
             ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
@@ -6936,6 +6972,7 @@
     });
     bindSteemPostLegacyHelpers(chain);
     bindGolosPostLegacyHelpers(chain);
+    if (isGolos && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
     bindMarkdownEditor(appEl);
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
@@ -12533,7 +12570,7 @@ Memo key: ${keys.memo}`);
       } else if (chain.id === 'hive' && effectiveAppId === 'backup') {
         await renderHiveBackup(chain, account);
       } else if (effectiveAppId === 'editor') {
-        renderEditor(chain);
+        renderEditor(chain, state);
       } else if (effectiveAppId === 'calculator') {
         await renderCalculator(chain, account);
       } else if (effectiveAppId === 'manage') {

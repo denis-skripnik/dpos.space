@@ -22,7 +22,7 @@ assert.strictEqual(hive.libraryGlobal, 'hive', 'Hive post/editor uses browser Hi
 assert.strictEqual(hive.libraryPath, 'v3/vendor/hive/hive.min.js', 'Hive post/editor uses vendored browser library');
 assert.strictEqual(hive.cryptoPath, 'v3/vendor/hive/sjcl.min.js', 'Hive post/editor keeps legacy SJCL posting key compatibility');
 
-const editorRenderer = (appSource.match(/function renderEditor\(chain\)[\s\S]*?\n  function parseAssetAmount/) || [''])[0];
+const editorRenderer = (appSource.match(/function renderEditor\(chain, state\)[\s\S]*?\n  function parseAssetAmount/) || [''])[0];
 const editorBuilder = (appSource.match(/function buildGenericEditorOperations[\s\S]*?\n  function parseSteemPostUrl/) || [''])[0];
 const editorHelpers = (appSource.match(/function parseSteemPostUrl[\s\S]*?\n  function renderEditor/) || [''])[0];
 const editorMarkdown = (appSource.match(/function safeMarkdownUrl[\s\S]*?\n  function parseHash/) || [''])[0];
@@ -39,7 +39,7 @@ assert(hive.apps.some((app) => app.id === 'post' && /пост/i.test(app.title))
 assert(hive.apps.some((app) => app.id === 'feeds' && /лент/i.test(app.title)), 'Hive feeds route is registered');
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Hive post route to social post viewer');
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Hive feeds route');
-assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain)'), 'router still dispatches editor app to renderer');
+assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain, state)'), 'router still dispatches editor app to renderer');
 
 for (const marker of [
   'Публикация поста',

@@ -1367,9 +1367,13 @@ Legacy evidence inspected read-only from `master:blockchains/golos/apps/post/con
 v3 mapping implemented:
 
 - `renderEditor` exposes `Редактировать существующий Golos пост` only for Golos.
+- `renderEditor(chain, state)` accepts direct hash params (`author` + `permlink`, or `edit`/`url`) so `#chain=golos&app=editor&author=user&permlink=post` opens the edit loader directly.
+- `renderSocialPostPage` shows an internal `Редактировать` link only when the selected Golos account is the loaded post author.
 - `bindGolosPostLegacyHelpers` parses the URL, requires the loaded author to match the current selected authorized Golos account, fetches the post via public RPC `getContent`, and prefills the accessible v3 editor form.
 - `buildGolosEditorOperations` detects `data-golos-edit-mode` and returns only the `comment` operation for edits, avoiding a duplicate `comment_options` broadcast.
-- Coverage: `tests/v3-golos-editor-smoke.js` asserts the edit UI, RPC load path, selected-account guard, edit state markers, and comment-only edit operation.
+- `DposNotifications.ensureChainLibraryLoaded` loads `chain.libraryPath` before history scans and shares `window.__dposScriptLoads` with the main app loader to avoid duplicate library tags/promises.
+- `DposBroadcast.broadcast` retries a Graphene broadcast once across configured nodes when the current node returns `Node is stopped` / `cannot broadcast`.
+- Coverage: `tests/v3-golos-editor-smoke.js` asserts the edit UI, RPC load path, direct edit URL, post-page edit link, selected-account guard, edit state markers, and comment-only edit operation. `tests/v3-notifications-smoke.js` covers notification library preloading. `tests/v3-auth-broadcast-smoke.js` covers stopped-node broadcast retry.
 
 ### Rigorous parity: Golos / wallet
 

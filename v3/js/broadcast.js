@@ -512,6 +512,53 @@
     return toCallbackPromise(method, bridge, [mapped[1]]);
   }
 
+  function configureGrapheneNode(chain, client, nodeUrl) {
+    if (!nodeUrl || !client) return false;
+    if (client.api && typeof client.api.stop === 'function') {
+      try { client.api.stop(); } catch (error) { /* optional */ }
+    }
+    if (client.config && typeof client.config.set === 'function') {
+      client.config.set('websocket', nodeUrl);
+      if (global.localStorage && chain && chain.id) global.localStorage.setItem(`${chain.id}_node`, nodeUrl);
+      return true;
+    }
+    if (client.api && typeof client.api.setOptions === 'function') {
+      client.api.setOptions({ url: nodeUrl });
+      if (global.localStorage && chain && chain.id) global.localStorage.setItem(`${chain.id}_node`, nodeUrl);
+      return true;
+    }
+    return false;
+  }
+
+  function isStoppedNodeBroadcastError(error) {
+    const message = String(error && (error.message || error) || '');
+    return /node is stopped|cannot broadcast/i.test(message);
+  }
+
+  function alternateGrapheneNodes(chain) {
+    const nodes = Array.isArray(chain && chain.nodes) ? chain.nodes.filter(Boolean) : [];
+    if (!nodes.length) return [];
+    const stored = global.localStorage && chain && chain.id ? global.localStorage.getItem(`${chain.id}_node`) : '';
+    const current = String((stored || '')).replace(/\/$/, '');
+    const normalized = nodes.map((nodeUrl) => String(nodeUrl).replace(/\/$/, ''));
+    const index = normalized.indexOf(current);
+    if (index >= 0) return nodes.slice(index + 1).concat(nodes.slice(0, index));
+    return nodes;
+  }
+
+  async function retryStoppedNodeBroadcast(chain, client, operationFn, originalError) {
+    if (!isStoppedNodeBroadcastError(originalError)) throw originalError;
+    for (const nodeUrl of alternateGrapheneNodes(chain)) {
+      try {
+        if (!configureGrapheneNode(chain, client, nodeUrl)) continue;
+        return await operationFn();
+      } catch (error) {
+        if (!isStoppedNodeBroadcastError(error)) throw error;
+      }
+    }
+    throw originalError;
+  }
+
   async function broadcast(chain, prepared, options) {
     const settings = Object.assign({ dryRun: false, confirmExecute: false }, options);
 
@@ -562,26 +609,41 @@
     const key = prepared.getPrivateKey();
 
     if (prepared.operationName === 'sendOperations') {
-      if (typeof client.broadcast.sendOperationsAsync === 'function') {
-        return client.broadcast.sendOperationsAsync(prepared.params[0], key);
+      const operationFn = () => {
+        if (typeof client.broadcast.sendOperationsAsync === 'function') {
+          return client.broadcast.sendOperationsAsync(prepared.params[0], key);
+        }
+
+        if (typeof client.broadcast.send === 'function') {
+          return toCallbackPromise(client.broadcast.send, client.broadcast, [{ extensions: [], operations: prepared.params[0] }, [key]]);
+        }
+        throw new Error(`Метод broadcast.${prepared.operationName} недоступен в ${chain.libraryGlobal}.`);
+      };
+      try {
+        return await operationFn();
+      } catch (error) {
+        return retryStoppedNodeBroadcast(chain, client, operationFn, error);
+      }
+    }
+
+    const operationFn = () => {
+      const method = client.broadcast[`${prepared.operationName}Async`];
+
+      if (typeof method === 'function') {
+        return method.call(client.broadcast, key, ...prepared.params);
       }
 
-      if (typeof client.broadcast.send === 'function') {
-        return toCallbackPromise(client.broadcast.send, client.broadcast, [{ extensions: [], operations: prepared.params[0] }, [key]]);
+      if (typeof client.broadcast[prepared.operationName] === 'function') {
+        return toCallbackPromise(client.broadcast[prepared.operationName], client.broadcast, [key, ...prepared.params]);
       }
+      throw new Error(`Метод broadcast.${prepared.operationName} недоступен в ${chain.libraryGlobal}.`);
+    };
+
+    try {
+      return await operationFn();
+    } catch (error) {
+      return retryStoppedNodeBroadcast(chain, client, operationFn, error);
     }
-
-    const method = client.broadcast[`${prepared.operationName}Async`];
-
-    if (typeof method === 'function') {
-      return method.call(client.broadcast, key, ...prepared.params);
-    }
-
-    if (typeof client.broadcast[prepared.operationName] === 'function') {
-      return toCallbackPromise(client.broadcast[prepared.operationName], client.broadcast, [key, ...prepared.params]);
-    }
-
-    throw new Error(`Метод broadcast.${prepared.operationName} недоступен в ${chain.libraryGlobal}.`);
   }
 
   function sanitizeValue(value) {
