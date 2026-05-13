@@ -40,6 +40,10 @@ assert(hive.apps.some((app) => app.id === 'feeds' && /лент/i.test(app.title)
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Hive post route to social post viewer');
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Hive feeds route');
 assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain, state)'), 'router still dispatches editor app to renderer');
+assert(appSource.includes("const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain))") && !appSource.includes("const canEditPost = chain.id === 'golos'"), 'Hive own post page edit links are not Golos-only');
+assert(appSource.includes("appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink })"), 'Hive own post edit link opens the editor with author/permlink hash params');
+assert(appSource.includes("if (chain.id !== 'golos' && !isHiveOrSteem(chain)) return '';"), 'Hive editor initial edit URL accepts author/permlink hash params');
+assert(appSource.includes("if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit"), 'Hive editor auto-loads initial edit URL for Hive/Steem as well as Golos');
 
 for (const marker of [
   'Публикация поста',
@@ -70,7 +74,8 @@ for (const marker of [
   "['comment'",
   "['comment_options'",
   "getContent",
-  "app: chain.id === 'steem' ? 'dpos.space/post' : 'dpos.space/v3'"
+  "app: chain.id === 'steem' ? 'dpos.space/post' : 'dpos.space/v3'",
+  "if (isEdit) return [commentOperation];"
 ]) {
   assert(hiveRuntimeSlice.includes(marker), `Hive post/editor keeps static-safe behavior: ${marker}`);
 }
@@ -150,5 +155,6 @@ for (const marker of [
 }
 assert(!/Донат|golosDonateLink|data-golos-donate/.test(socialCommentSlice), 'Hive/Steem social post/comment runtime slice must not include Golos donate UI');
 assert(planSource.includes('### UX parity: Steem/Hive post comments after Golos vote/edit changes'), 'plan documents Steem/Hive post comment UX parity section');
+assert(planSource.includes('Steem/Hive own post-page edit links') && planSource.includes('editor autoloads author/permlink hash for Steem/Hive') && planSource.includes('edit sends comment only/no comment_options'), 'plan documents Steem/Hive post edit link/autoload/comment-only follow-up');
 
 console.log('v3 Hive post smoke passed');

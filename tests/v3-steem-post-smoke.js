@@ -18,9 +18,14 @@ assert(appSource.includes('function buildGenericEditorOperations'), 'Steem edito
 assert(appSource.includes('function bindSteemPostLegacyHelpers'), 'Steem post ports legacy static-safe helper binding');
 assert(appSource.includes('editor-md-file') && appSource.includes('Первая строка - заголовок'), 'Steem editor preserves legacy .md file import affordance and format help');
 assert(appSource.includes('editor-edit-url') && appSource.includes('Загрузить в редактор'), 'Steem editor preserves legacy edit-by-url control');
+assert(appSource.includes("const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain))") && !appSource.includes("const canEditPost = chain.id === 'golos'"), 'Steem own post page edit links are not Golos-only');
+assert(appSource.includes("appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink })"), 'Steem own post edit link opens the editor with author/permlink hash params');
+assert(appSource.includes("if (chain.id !== 'golos' && !isHiveOrSteem(chain)) return '';"), 'Steem editor initial edit URL accepts author/permlink hash params');
+assert(appSource.includes("if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit"), 'Steem editor auto-loads initial edit URL for Hive/Steem as well as Golos');
 assert(appSource.includes('liga-avtorov') && appSource.includes('vp-liganovi4kov') && appSource.includes('dpos-post'), 'Steem editor exposes legacy popular tags and dpos-post tag');
 assert(appSource.includes("app: 'dpos.space/post'") && appSource.includes("format: 'markdown'"), 'Steem post metadata keeps legacy app/markdown marker');
 assert(appSource.includes("max_accepted_payout: `1000000.000 ${debt}`") && appSource.includes("percent_steem_dollars: chain.id === 'steem' ? payoutPercent : undefined"), 'Steem post keeps payout/comment_options operation');
+assert(appSource.includes("if (isEdit) return [commentOperation];"), 'Steem post edit operation sends only comment without comment_options');
 assert(appSource.includes("extensions: [[0, { beneficiaries }]]"), 'Steem post sends beneficiaries extension through shared broadcast flow');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'sendOperations'"), 'Steem post uses existing public browser broadcast prepare flow');
 assert(appSource.includes("getContentAsync") || appSource.includes("getContent,"), 'Steem post edit loader uses public RPC getContent when available');
@@ -96,5 +101,6 @@ for (const marker of [
 }
 assert(!/Донат|golosDonateLink|data-golos-donate/.test(socialCommentSlice), 'Steem/Hive social post/comment runtime slice must not include Golos donate UI');
 assert(planSource.includes('### UX parity: Steem/Hive post comments after Golos vote/edit changes'), 'plan documents Steem/Hive post comment UX parity section');
+assert(planSource.includes('Steem/Hive own post-page edit links') && planSource.includes('editor autoloads author/permlink hash for Steem/Hive') && planSource.includes('edit sends comment only/no comment_options'), 'plan documents Steem/Hive post edit link/autoload/comment-only follow-up');
 
 console.log('v3 Steem post smoke passed');

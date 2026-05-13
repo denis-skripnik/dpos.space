@@ -6570,7 +6570,7 @@
     const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
     const voted = hasGolosVoteFrom(post, currentLogin);
-    const canEditPost = chain.id === 'golos' && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
+    const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain)) && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
     const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
     appEl.innerHTML = `<section class="panel social-post-page" data-social-post-page>
       <article class="card">
@@ -6885,16 +6885,23 @@
     const payoutPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('payouts') || 10000))));
     const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
     const metadata = { tags, app: chain.id === 'steem' ? 'dpos.space/post' : 'dpos.space/v3', format: 'markdown', image: images };
+    const isEdit = form && form.dataset && form.dataset.golosEditMode === 'true';
+    const editAuthor = String(form && form.dataset && form.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
+    if (isEdit && editAuthor && editAuthor !== author) {
+      throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
+    }
+    const commentOperation = ['comment', {
+      parent_author: '',
+      parent_permlink: category,
+      author,
+      permlink,
+      title,
+      body: String(form.get('body') || ''),
+      json_metadata: JSON.stringify(metadata)
+    }];
+    if (isEdit) return [commentOperation];
     const operations = [
-      ['comment', {
-        parent_author: '',
-        parent_permlink: category,
-        author,
-        permlink,
-        title,
-        body: String(form.get('body') || ''),
-        json_metadata: JSON.stringify(metadata)
-      }],
+      commentOperation,
       ['comment_options', {
         author,
         permlink,
@@ -6917,12 +6924,13 @@
   }
 
   function editorInitialEditUrl(chain, state = {}) {
-    if (chain.id !== 'golos') return '';
+    if (chain.id !== 'golos' && !isHiveOrSteem(chain)) return '';
     const explicit = String(state.edit || state.url || '').trim();
     if (explicit) return explicit;
     const author = String(state.author || '').trim().replace(/^@/, '');
     const permlink = String(state.permlink || '').trim();
-    return author && permlink ? `https://golos.id/@${author}/${permlink}` : '';
+    const host = chain.id === 'hive' ? 'hive.blog' : chain.id === 'steem' ? 'steemit.com' : 'golos.id';
+    return author && permlink ? `https://${host}/@${author}/${permlink}` : '';
   }
 
   function editorAutoLoadEdit(input, button) {
@@ -6958,6 +6966,14 @@
     const status = document.getElementById('editor-helper-status');
     const report = (message) => { if (status) status.textContent = message; };
 
+    if (form) {
+      form.addEventListener('reset', () => {
+        form.dataset.golosEditMode = 'false';
+        form.dataset.golosEditAuthor = '';
+        report('Форма очищена, режим редактирования выключен.');
+      });
+    }
+
     if (fileInput && form) {
       fileInput.addEventListener('change', () => {
         const file = fileInput.files && fileInput.files[0];
@@ -6981,6 +6997,8 @@
       loadButton.addEventListener('click', async () => {
         try {
           const target = parseSocialPostUrl(editUrl.value);
+          const current = auth.getCurrentLogin(chain);
+          if (target.author !== current) throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
           const connection = await getConnection(chain);
           const api = connection.client && connection.client.api;
           let post;
@@ -7003,7 +7021,9 @@
             category: metadata.tags && metadata.tags[0] || post.parent_permlink,
             payouts: chain.id === 'hive' ? post.percent_hbd : post.percent_steem_dollars
           });
-          report(`Пост @${target.author}/${target.permlink} загружен через публичный RPC.`);
+          form.dataset.golosEditMode = 'true';
+          form.dataset.golosEditAuthor = target.author;
+          report(`Пост @${target.author}/${target.permlink} загружен через публичный RPC. При отправке будет broadcast comment без comment_options.`);
         } catch (error) {
           report(profiles.formatError(error));
         }
@@ -7070,7 +7090,7 @@
             <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
             ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
             ${isGolos ? `<details class="subpanel" ${initialEditUrl ? 'open' : ''}><summary>Редактировать существующий Golos пост</summary><div class="field"><label for="editor-edit-url">Ссылка на пост</label><input id="editor-edit-url" type="url" placeholder="https://golos.id/tag/@user/permlink" value="${escapeHtml(initialEditUrl)}"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite">${initialEditUrl ? 'Загружаю пост из URL редактора...' : ''}</p><p class="muted">Можно открыть редактор напрямую: #chain=golos&amp;app=editor&amp;author=user&amp;permlink=post. Загрузится только пост текущего выбранного аккаунта. При отправке редактирования будет создана только операция comment, без повторного comment_options.</p></details>` : ''}
-            ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic не копируются; фото можно загрузить кнопкой «Загрузить фото» в Markdown-панели.</p></details>` : ''}
+            ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel" ${initialEditUrl ? 'open' : ''}><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink" value="${escapeHtml(initialEditUrl)}"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite">${initialEditUrl ? 'Загружаю пост из URL редактора...' : ''}</p><p class="muted">Static-safe: legacy SimpleMDE/Garlic не копируются; фото можно загрузить кнопкой «Загрузить фото» в Markdown-панели. При отправке редактирования будет создана только операция comment, без повторного comment_options.</p></details>` : ''}
             <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space" value="${escapeHtml(draft && draft.tags ? draft.tags : '')}"></div>
             ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
             ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
@@ -7099,7 +7119,7 @@
     });
     bindSteemPostLegacyHelpers(chain);
     bindGolosPostLegacyHelpers(chain);
-    if (isGolos && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
+    if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
     bindMarkdownEditor(appEl);
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
