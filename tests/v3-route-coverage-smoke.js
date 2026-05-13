@@ -41,6 +41,8 @@ assert(appSource.includes('function hasExplicitRouteState'), 'router detects whe
 assert(appSource.includes('function renderHome'), 'router has a dedicated home renderer for empty hash');
 assert(appSource.includes('if (!hasExplicitRouteState(state))'), 'empty hash renders home instead of loading a default VIZ profile');
 assert(appSource.includes("Главная страница DPOS.space готова"), 'home route exposes a user-visible ready status');
+assert(appSource.includes('Аккаунты по блокчейнам'), 'home route links account services by blockchain');
+assert(appSource.includes("appHash({ chain: chain.id, app: 'accounts' })"), 'home account service links are generated for every chain');
 
 const sourceBundle = [
   'index.html',
