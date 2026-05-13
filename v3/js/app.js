@@ -12526,6 +12526,27 @@ Memo key: ${keys.memo}`);
     setStatus(`${chain.title} калькулятор готов.`, 'ok');
   }
 
+  function hasExplicitRouteState(state) {
+    return Object.keys(state || {}).some((key) => String(state[key] || '').trim() !== '');
+  }
+
+  function renderHome() {
+    const featured = [
+      ['Golos: история операций', appHash({ chain: 'golos', app: 'history' })],
+      ['Golos: ленты и посты', appHash({ chain: 'golos', app: 'feeds' })],
+      ['Golos: автоапвоутер', appHash({ chain: 'golos', app: 'auto-upvoter' })],
+      ['VIZ: профиль', appHash({ chain: 'viz', app: 'profiles' })],
+      ['Minter: кошелёк', appHash({ chain: 'minter', app: 'wallet' })],
+      ['Decimal: кошелёк', appHash({ chain: 'decimal', app: 'wallet' })]
+    ];
+    appEl.innerHTML = `<section class="panel">
+      <h2>Главная</h2>
+      <p>Выберите блокчейн и раздел выше или откройте один из быстрых переходов. Без параметров в адресе DPOS.space показывает эту стартовую страницу, а не профиль аккаунта по умолчанию.</p>
+      <ul>${featured.map(([label, href]) => `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`).join('')}</ul>
+    </section>`;
+    setStatus('Главная страница DPOS.space готова. Выберите блокчейн и раздел.', 'info');
+  }
+
   async function renderHistory(chain, account) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка истории</h2><p>Читаю последние операции аккаунта...</p></section>';
     setStatus(`Загружаю историю ${chain.title}: @${account}...`, 'loading');
@@ -12629,6 +12650,17 @@ Memo key: ${keys.memo}`);
 
   async function renderRoute() {
     const state = parseHash();
+    if (!hasExplicitRouteState(state)) {
+      const chain = chains.golos || Object.values(chains)[0];
+      const app = chain.apps[0];
+      fillChainSelect(chain.id);
+      fillAppSelect(chain, app.id);
+      updateAccountField(app, chain);
+      accountInput.value = '';
+      renderHome();
+      return;
+    }
+
     const chain = chains[state.chain] || chains.viz;
     const requestedAppId = legacyAppTarget(chain, state.app);
     const app = chain.apps.find((item) => item.id === requestedAppId) || chain.apps[0];

@@ -37,6 +37,11 @@ for (const chain of Object.values(chains)) {
   }
 }
 
+assert(appSource.includes('function hasExplicitRouteState'), 'router detects whether hash parameters were provided');
+assert(appSource.includes('function renderHome'), 'router has a dedicated home renderer for empty hash');
+assert(appSource.includes('if (!hasExplicitRouteState(state))'), 'empty hash renders home instead of loading a default VIZ profile');
+assert(appSource.includes("Главная страница DPOS.space готова"), 'home route exposes a user-visible ready status');
+
 const sourceBundle = [
   'index.html',
   'v3/js/chains.js',
