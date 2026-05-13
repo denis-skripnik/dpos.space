@@ -6152,6 +6152,123 @@
     </details>`;
   }
 
+  function postPromotionDebtSymbol(chain) {
+    return chain.debtSymbol || (chain.id === 'hive' ? 'HBD' : (chain.id === 'steem' ? 'SBD' : 'GBG'));
+  }
+
+  function postPromotionAssetNumber(value, symbol) {
+    const text = String(value || '').trim();
+    if (symbol && !new RegExp(`\\b${symbol}\\b`, 'i').test(text)) return 0;
+    return numericAssetValue(text);
+  }
+
+  function formatPostPromotionAsset(value, symbol) {
+    const amount = Number(value) || 0;
+    return `${amount.toFixed(3)} ${symbol}`;
+  }
+
+  async function callPostPromotionRpc(connection, payload) {
+    if (!connection.node || typeof global.fetch !== 'function') throw new Error('Нет прямого JSON-RPC доступа к ноде.');
+    const response = await global.fetch(connection.node, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(Object.assign({ jsonrpc: '2.0', id: 1 }, payload))
+    });
+    if (!response.ok) throw new Error(`promoted RPC HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data.result;
+  }
+
+  function normalizePromotedDiscussionsResult(result) {
+    if (Array.isArray(result)) return result;
+    if (result && Array.isArray(result.discussions)) return result.discussions;
+    if (result && Array.isArray(result.posts)) return result.posts;
+    return [];
+  }
+
+  async function fetchPromotedDiscussions(connection, query) {
+    try {
+      return normalizePromotedDiscussionsResult(await profiles.apiCall(connection, 'getDiscussionsByPromoted', [query]));
+    } catch (error) {
+      const attempts = [
+        { method: 'call', params: ['tags', 'get_discussions_by_promoted', [query]] },
+        { method: 'condenser_api.get_discussions_by_promoted', params: [query] },
+        { method: 'call', params: ['condenser_api', 'get_discussions_by_promoted', [query]] }
+      ];
+      let lastError = error;
+      for (const payload of attempts) {
+        try {
+          return normalizePromotedDiscussionsResult(await callPostPromotionRpc(connection, payload));
+        } catch (rpcError) {
+          lastError = rpcError;
+        }
+      }
+      throw lastError;
+    }
+  }
+
+  function currentTopPromotionBid(promotedRows, symbol) {
+    const amounts = (promotedRows || []).map((row) => postPromotionAssetNumber(row && row.promoted, symbol));
+    return amounts.length ? Math.max(0, ...amounts) : 0;
+  }
+
+  function currentPostPromotionKeyStatus(chain) {
+    return auth && typeof auth.getKeyStatus === 'function'
+      ? auth.getKeyStatus(chain, auth.getCurrentUser(chain))
+      : { hasActive: false };
+  }
+
+  async function fetchPostPromotionInfo(chain, connection, login) {
+    const symbol = postPromotionDebtSymbol(chain);
+    const info = { symbol, currentTop: '', maxAmount: '', maxNumber: 0, error: '' };
+    const keyStatus = currentPostPromotionKeyStatus(chain);
+    if (!login || !keyStatus.hasActive) return info;
+    try {
+      const [promotedRows, accounts] = await Promise.all([
+        fetchPromotedDiscussions(connection, { tag: '', limit: 20 }).catch((error) => {
+          info.error = `Не удалось загрузить текущую промо-очередь: ${profiles.formatError(error)}`;
+          return [];
+        }),
+        profiles.apiCall(connection, 'getAccounts', [[login]]).catch(() => [])
+      ]);
+      const topBid = currentTopPromotionBid(promotedRows, symbol);
+      const account = accounts && accounts[0];
+      const balance = account ? pickBalance(account, symbol) : '';
+      info.currentTop = formatPostPromotionAsset(topBid, symbol);
+      info.maxAmount = balance || formatPostPromotionAsset(0, symbol);
+      info.maxNumber = postPromotionAssetNumber(info.maxAmount, symbol);
+    } catch (error) {
+      info.error = profiles.formatError(error);
+    }
+    return info;
+  }
+
+  function renderPostPromotionForm(chain, author, permlink, info = {}) {
+    const keyStatus = currentPostPromotionKeyStatus(chain);
+    if (!keyStatus.hasActive) return '';
+    const symbol = info.symbol || postPromotionDebtSymbol(chain);
+    const safeAuthor = String(author || '').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const safePermlink = String(permlink || '').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const inputId = `post-promotion-amount-${safeAuthor}-${safePermlink}`.slice(0, 120);
+    const maxText = info.maxAmount || `0.000 ${symbol}`;
+    const maxNumber = Number(info.maxNumber) > 0 ? Number(info.maxNumber).toFixed(3) : '';
+    const currentTop = info.currentTop || `0.000 ${symbol}`;
+    const memo = `@${author}/${permlink}`;
+    return `<details class="promotion-details" data-post-promotion-details>
+      <summary>Продвигать</summary>
+      <form class="stacked-form" data-post-promotion-form data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" data-symbol="${escapeHtml(symbol)}">
+        <p class="muted">Перевод ${escapeHtml(symbol)} на <code>null</code> с memo <code>${escapeHtml(memo)}</code> сжигает средства и поднимает пост в промо-очереди.</p>
+        <p>Текущая максимальная ставка: <strong data-post-promotion-current-top>${escapeHtml(currentTop)}</strong></p>
+        <p>Максимум выбранного аккаунта: <strong>${escapeHtml(maxText)}</strong>${maxNumber ? ` <button type="button" data-post-promotion-max value="${escapeHtml(maxNumber)}">Вставить максимум</button>` : ''}</p>
+        <div class="field"><label for="${escapeHtml(inputId)}">Сумма ${escapeHtml(symbol)}</label><input id="${escapeHtml(inputId)}" name="amount" type="text" inputmode="decimal" autocomplete="off" required placeholder="1.000"></div>
+        ${info.error ? `<p class="muted">${escapeHtml(info.error)}</p>` : ''}
+        <button type="submit">Продвинуть вверх</button>
+        <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+      </form>
+    </details>`;
+  }
+
   async function renderGolosPostPage(chain, state = {}) {
     const author = String(state.author || '').trim().replace(/^@/, '');
     const permlink = String(state.permlink || '').trim();
@@ -6163,6 +6280,7 @@
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadGolosRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
+    const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
     const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
@@ -6173,6 +6291,7 @@
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('golos-post', author, permlink, voted)}
+          ${renderPostPromotionForm(chain, author, permlink, promotionInfo)}
           ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
           ${golosDonateLink(author, 'Донат автору')}
           <a href="https://golos.id/@${escapeHtml(author)}/${escapeHtml(permlink)}" target="_blank" rel="noopener">Открыть на golos.id</a>
@@ -6295,8 +6414,61 @@
     setStatus(`Голос ${percent}% отправлен в сеть.`, 'ok');
   }
 
+  async function submitPostPromotion(chain, form) {
+    const from = auth.getCurrentLogin(chain);
+    const author = String(form.dataset.author || '').trim().replace(/^@/, '');
+    const permlink = String(form.dataset.permlink || '').trim();
+    const symbol = String(form.dataset.symbol || postPromotionDebtSymbol(chain)).trim().toUpperCase();
+    const amount = String(new FormData(form).get('amount') || '').trim();
+    if (!from) throw new Error('Для продвижения нужен выбранный сохранённый аккаунт.');
+    if (!author || !permlink) throw new Error('Не удалось определить пост для продвижения.');
+    await ensureBroadcastDependencies(chain);
+    const amountValue = await normalizeGolosTokenAmount(chain, amount, symbol, `Сумма ${symbol}`);
+    const memo = `@${author}/${permlink}`;
+    const prepared = broadcast.prepare(chain, 'active', 'transfer', [from, 'null', amountValue, memo], { title: `${chain.id} post promotion`, feature: `${chain.id}-post-promotion`, to: 'null' });
+    const confirmed = global.confirm(`Продвинуть пост ${memo}?\nБудет отправлено ${amountValue} на @null. Средства будут сожжены.`);
+    if (!confirmed) {
+      setOperationResult(form, 'Продвижение отменено пользователем.', 'info', prepared);
+      return;
+    }
+    setOperationResult(form, 'Отправляю перевод для продвижения...', 'loading', prepared);
+    await profiles.connect(chain);
+    const result = await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+    setOperationResult(form, 'Перевод для продвижения отправлен. Обновите пост после индексации RPC.', 'ok', prepared, result);
+    setStatus(`Продвижение ${memo} на ${amountValue} отправлено в сеть.`, 'ok');
+  }
+
+  function bindPostPromotionActions(chain) {
+    appEl.querySelectorAll('[data-post-promotion-max]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const form = button.closest('[data-post-promotion-form]');
+        const input = form && form.querySelector('input[name="amount"]');
+        if (input) {
+          input.value = button.value || '';
+          input.focus();
+        }
+      });
+    });
+    appEl.querySelectorAll('[data-post-promotion-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submit = event.submitter || form.querySelector('button[type="submit"]');
+        try {
+          if (submit) submit.disabled = true;
+          await submitPostPromotion(chain, form);
+        } catch (error) {
+          setOperationResult(form, profiles.formatError(error), 'error');
+          setStatus(`Ошибка продвижения: ${profiles.formatError(error)}`, 'error');
+        } finally {
+          if (submit) submit.disabled = false;
+        }
+      });
+    });
+  }
+
   function bindGolosPostActions(chain) {
     bindVotePercentOutputs(appEl);
+    bindPostPromotionActions(chain);
     appEl.querySelectorAll('[data-golos-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
@@ -6584,6 +6756,7 @@
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
+    const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain)) && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
     const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
@@ -6594,6 +6767,7 @@
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('social-post', author, permlink, voted)}
+          ${renderPostPromotionForm(chain, author, permlink, promotionInfo)}
           ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
           <a href="${escapeHtml(socialExternalPostUrl(chain, author, permlink))}" target="_blank" rel="noopener">Открыть снаружи</a>
         </div>
@@ -6672,6 +6846,7 @@
 
   function bindSocialPostActions(chain) {
     bindVotePercentOutputs(appEl);
+    bindPostPromotionActions(chain);
     appEl.querySelectorAll('[data-social-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
