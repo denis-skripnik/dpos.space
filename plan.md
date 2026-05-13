@@ -4979,3 +4979,38 @@ Definition of done:
 - Hive/Steem auto-upvoter can configure accounts, curators, favorite authors, minimum voting power, and vote percentages.
 - Hive/Steem UI and scanner create only vote actions; there are no donate controls or links.
 - Existing Golos auto-upvoter behavior and tests remain green.
+
+
+### Scoped plan: Golos верхняя панель уведомлений
+
+Scope:
+- Add a browser-only notification panel above the main status area, not a click-to-load primary page.
+- Use saved Golos accounts from the existing legacy `golos_users` localStorage schema.
+- Fetch new rows through `getAccountHistory` with operation filters where available.
+- Store local cursors and unread items in `localStorage`; no backend, indexer, push service, cron, or server persistence.
+- Top panel shows the 10 latest unread notifications. A secondary `Показать все` route lists all locally unread items.
+
+Notification events:
+- Included: `content_mentions` / `comment_mention`, incoming comments to the tracked author, Golos reblogs encoded as `custom_json` follow/reblog by another account, incoming transfers and incoming donate rows.
+- Excluded for now: rewards (`author_reward`, `curation_reward`, `comment_benefactor_reward`) to avoid noisy unread counters; own outgoing activity is not a notification.
+- No direction filter: notifications are only incoming new events.
+
+Implementation tasks:
+1. Add `v3/js/notifications.js` as the local scanner/store/UI module.
+2. Add the top `notifications-panel` mount and load the module before `app.js`.
+3. Register a Golos `notifications` app for the secondary “show all” link and route it from `app.js`.
+4. Add operation labels/list entries for mention operations used by the notification scanner.
+5. Add focused smoke coverage for storage, classification, top-panel limit, incoming-only notifications, and route wiring.
+
+Validation:
+- `node --check v3/js/notifications.js`
+- `node --check v3/js/app.js`
+- `node --check v3/js/chains.js`
+- `node tests/v3-notifications-smoke.js`
+- Broad `for f in tests/v3-*.js; do node "$f" || exit 1; done`
+
+Definition of done:
+- If there are no saved accounts on chains with notification support, the panel is hidden.
+- With saved Golos accounts, the panel checks notifications on entry and periodically while the page is open.
+- First run baselines the current top history index instead of marking historical rows as unread.
+- Users can refresh, open notification targets, and mark all read.

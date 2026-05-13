@@ -6,6 +6,7 @@
   const broadcast = global.DposBroadcast;
   const profiles = global.DposProfiles;
   const history = global.DposHistory;
+  const notifications = global.DposNotifications;
   const chainSelect = document.getElementById('chain-select');
   const appSelect = document.getElementById('app-select');
   const routeForm = document.getElementById('route-form');
@@ -15,6 +16,8 @@
   const accountSelect = document.getElementById('account-select');
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
+  const notificationsPanel = document.getElementById('notifications-panel');
+  let notificationsController = null;
   const loadedScripts = new Set();
   const LONG_API_BASE = '/api/smartfarm';
   const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
@@ -357,7 +360,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'notifications', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
@@ -12339,6 +12342,29 @@ Memo key: ${keys.memo}`);
     setStatus(`Профиль ${chain.title}: ${accountLabel} загружен.`, 'ok');
   }
 
+  function renderNotificationsPage(chain, account) {
+    if (!notifications || !notifications.supportsChain(chain)) {
+      appEl.innerHTML = `<section class="panel"><h2>Уведомления недоступны</h2><p>Для ${escapeHtml(chain.title)} нет браузерного сервиса уведомлений без backend.</p></section>`;
+      setStatus(`Уведомления ${chain.title}: сервис недоступен.`, 'info');
+      return;
+    }
+    const items = notifications.filteredNotifications({ direction: 'all' });
+    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
+    appEl.innerHTML = `<section class="panel">
+      <h2>Все непрочитанные уведомления</h2>
+      <p>Показываются локально сохранённые уведомления для аккаунтов Golos из браузера. Награды не включены, чтобы не создавать шум.</p>
+      <p><button type="button" data-notifications-page-read>Отметить всё прочитанным</button></p>
+      ${rows}
+    </section>`;
+    const readButton = appEl.querySelector('[data-notifications-page-read]');
+    if (readButton) readButton.addEventListener('click', () => {
+      notifications.markAllRead();
+      renderNotificationsPage(chain, account);
+      setStatus('Все уведомления отмечены прочитанными.', 'ok');
+    });
+    setStatus(`Уведомления ${chain.title}: показано ${items.length}.`, 'ok');
+  }
+
   async function renderRoute() {
     const state = parseHash();
     const chain = chains[state.chain] || chains.viz;
@@ -12397,6 +12423,8 @@ Memo key: ${keys.memo}`);
         await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
+      } else if (chain.id === 'golos' && effectiveAppId === 'notifications') {
+        renderNotificationsPage(chain, account);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);
       } else if (isHiveOrSteem(chain) && effectiveAppId === 'feeds') {
@@ -12500,7 +12528,14 @@ Memo key: ${keys.memo}`);
     });
   });
 
-  global.addEventListener('hashchange', renderRoute);
+  global.addEventListener('hashchange', () => {
+    renderRoute();
+    if (notificationsController && typeof notificationsController.refresh === 'function') notificationsController.refresh();
+    else if (notifications && notificationsPanel) notifications.renderPanel(notificationsPanel, chains, '');
+  });
+  if (notifications && notificationsPanel) {
+    notificationsController = notifications.init(notificationsPanel, chains, { setStatus });
+  }
   global.DposV3 = Object.freeze({
     navigate,
     renderRoute,
