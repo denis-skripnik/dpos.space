@@ -5,10 +5,13 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
+const authorizedAccountSlice = (appSource.match(/function appUsesAuthorizedAccount[\s\S]*?\n  }/) || [''])[0];
+const golosPostPageSlice = (appSource.match(/async function renderGolosPostPage[\s\S]*?\n  async function loadGolosRepliesTree/) || [''])[0];
 
 assert(!appSource.includes("post: 'editor'"), 'Golos post route is no longer aliased to the editor');
 assert(!appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')"), 'Hive/Steem post routes now have their own viewers instead of legacy editor alias');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor remains in authorized-account routing context');
+assert(authorizedAccountSlice.includes("'post'"), 'post page shows the authorized-account selector so own-post actions use the selected login');
 assert(appSource.includes('function golosLegacyTransform'), 'Golos editor ports legacy transliteration helper');
 assert(appSource.includes('function normalizeGolosEditorTags'), 'Golos editor normalizes tags and appends dpos-post');
 assert(appSource.includes('function buildGolosEditorOperations'), 'Golos editor isolates legacy payload construction');
@@ -18,7 +21,9 @@ assert(appSource.includes('data-golos-edit-mode') && appSource.includes('data-go
 assert(appSource.includes('Редактировать существующий Golos пост'), 'Golos editor exposes a visible edit-post helper');
 assert(appSource.includes("renderEditor(chain, state)"), 'Golos editor receives hash state for direct edit URLs');
 assert(appSource.includes('editorInitialEditUrl') && appSource.includes('editorAutoLoadEdit'), 'Golos editor can preload an edit URL from author/permlink hash params');
-assert(appSource.includes('Редактировать') && appSource.includes("app: 'editor'"), 'Golos post page can link an own post to the editor');
+assert(golosPostPageSlice.includes('const currentLogin = auth.getCurrentLogin(chain);'), 'Golos post page reads the selected authorized account before rendering own-post actions');
+assert(golosPostPageSlice.includes("appHash({ chain: chain.id, app: 'editor'"), 'Golos post page builds an editor route for the loaded post');
+assert(golosPostPageSlice.includes('editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>`'), 'Golos post page renders a visible edit link for own posts only');
 assert(appSource.includes('getContent') && appSource.includes('Пост загружен для редактирования'), 'Golos editor loads post content through public RPC');
 assert(appSource.includes('throw new Error(\'Редактировать можно только пост текущего авторизованного аккаунта.\')'), 'Golos edit mode blocks editing someone else under the selected account');
 assert(appSource.includes('if (isEdit) return [commentOperation];'), 'Golos edit operation sends only comment without comment_options');

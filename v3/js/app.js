@@ -437,7 +437,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'notifications', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'post', 'notifications', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
@@ -6162,7 +6162,10 @@
     const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadGolosRepliesTree(connection, author, permlink, 0, 4);
-    const voted = hasGolosVoteFrom(post, auth.getCurrentLogin(chain));
+    const currentLogin = auth.getCurrentLogin(chain);
+    const voted = hasGolosVoteFrom(post, currentLogin);
+    const canEditPost = currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
+    const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
     appEl.innerHTML = `<section class="panel golos-post-page" data-golos-post-page>
       <article class="card">
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
@@ -6170,6 +6173,7 @@
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('golos-post', author, permlink, voted)}
+          ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
           ${golosDonateLink(author, 'Донат автору')}
           <a href="https://golos.id/@${escapeHtml(author)}/${escapeHtml(permlink)}" target="_blank" rel="noopener">Открыть на golos.id</a>
         </div>
