@@ -6126,9 +6126,15 @@
   function renderGolosCommentNode(chain, comment) {
     const author = String(comment && comment.author || '').trim().replace(/^@/, '');
     const permlink = String(comment && comment.permlink || '').trim();
+    const parentAuthor = String(comment && comment.parent_author || '').trim().replace(/^@/, '');
+    const parentPermlink = String(comment && comment.parent_permlink || '').trim();
     const title = golosContentTitle(comment, permlink);
-    const voted = hasGolosVoteFrom(comment, auth.getCurrentLogin(chain));
+    const currentLogin = auth.getCurrentLogin(chain);
+    const canEdit = Boolean(author && permlink && author === currentLogin);
+    const voted = hasGolosVoteFrom(comment, currentLogin);
     const children = Array.isArray(comment && comment.children) && comment.children.length ? renderGolosCommentsList(chain, comment.children) : '';
+    const editButton = canEdit ? `<button type="button" data-golos-comment-edit data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Редактировать комментарий</button>` : '';
+    const editForm = canEdit ? `<div class="reply-slot" hidden data-golos-comment-edit-slot>${renderGolosCommentForm(`golos-edit-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), parentAuthor, parentPermlink, { mode: 'edit', author, permlink, body: comment.body || '' })}</div>` : '';
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
@@ -6137,17 +6143,22 @@
           <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
           ${golosDonateLink(author, 'Донат коммента')}
           <button type="button" data-golos-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
+          ${editButton}
         </p>
         <div class="reply-slot" hidden>${renderGolosCommentForm(`golos-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
+        ${editForm}
       </article>
       ${children}
     </li>`;
   }
 
-  function renderGolosCommentForm(formId, parentAuthor, parentPermlink) {
-    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-golos-comment-form data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}">
-      <div class="field"><label for="${escapeHtml(formId)}-body">Текст Markdown</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required></textarea></div>
-      <button type="submit">Отправить комментарий с подтверждением</button>
+  function renderGolosCommentForm(formId, parentAuthor, parentPermlink, options = {}) {
+    const mode = options.mode === 'edit' ? 'edit' : 'create';
+    const buttonText = mode === 'edit' ? 'Сохранить правку комментария с подтверждением' : 'Отправить комментарий с подтверждением';
+    const labelText = mode === 'edit' ? 'Текст Markdown для правки' : 'Текст Markdown';
+    return `<form id="${escapeHtml(formId)}" class="stacked-form" data-golos-comment-form ${mode === 'edit' ? 'data-golos-comment-edit-form' : ''} data-parent-author="${escapeHtml(parentAuthor)}" data-parent-permlink="${escapeHtml(parentPermlink)}" data-comment-mode="${escapeHtml(mode)}" data-comment-author="${escapeHtml(options.author || '')}" data-comment-permlink="${escapeHtml(options.permlink || '')}">
+      <div class="field"><label for="${escapeHtml(formId)}-body">${escapeHtml(labelText)}</label><textarea id="${escapeHtml(formId)}-body" name="body" rows="5" required>${escapeHtml(options.body || '')}</textarea></div>
+      <button type="submit">${escapeHtml(buttonText)}</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </form>`;
   }
@@ -6161,6 +6172,12 @@
     appEl.querySelectorAll('[data-golos-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
+        if (slot) slot.hidden = !slot.hidden;
+      });
+    });
+    appEl.querySelectorAll('[data-golos-comment-edit]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = button.closest('article') && button.closest('article').querySelector('[data-golos-comment-edit-slot]');
         if (slot) slot.hidden = !slot.hidden;
       });
     });
@@ -6196,18 +6213,23 @@
         const result = form.querySelector('[data-operation-result]');
         try {
           const author = auth.getCurrentLogin(chain);
+          const mode = form.dataset.commentMode === 'edit' ? 'edit' : 'create';
           const parentAuthor = String(form.dataset.parentAuthor || '').trim().replace(/^@/, '');
           const parentPermlink = String(form.dataset.parentPermlink || '').trim();
           const body = String(new FormData(form).get('body') || '').trim();
-          if (!body) throw new Error('Текст комментария обязателен.');
-          const permlink = golosCommentPermlink(parentAuthor, parentPermlink);
+          if (!body) throw new Error(mode === 'edit' ? 'Текст правки обязателен.' : 'Текст комментария обязателен.');
+          const commentAuthor = String(form.dataset.commentAuthor || '').trim().replace(/^@/, '');
+          const commentPermlink = String(form.dataset.commentPermlink || '').trim();
+          if (mode === 'edit' && commentAuthor !== author) throw new Error('Редактировать можно только комментарии авторизованного аккаунта.');
+          const permlink = mode === 'edit' ? commentPermlink : golosCommentPermlink(parentAuthor, parentPermlink);
+          if (!permlink) throw new Error('Не удалось определить permlink комментария.');
           const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
           await ensureBroadcastDependencies(chain);
-          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: 'Golos post page comment', feature: 'golos-post-page-comment' });
+          const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: mode === 'edit' ? 'Golos post page comment edit' : 'Golos post page comment', feature: mode === 'edit' ? 'golos-post-page-comment-edit' : 'golos-post-page-comment' });
           await profiles.connect(chain);
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-          if (result) result.textContent = 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
-          setStatus('Комментарий отправлен в сеть.', 'ok');
+          if (result) result.textContent = mode === 'edit' ? 'Правка комментария отправлена. Обновите страницу поста после индексации RPC.' : 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
+          setStatus(mode === 'edit' ? 'Правка комментария отправлена в сеть.' : 'Комментарий отправлен в сеть.', 'ok');
         } catch (error) {
           if (result) result.textContent = profiles.formatError(error);
           setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
