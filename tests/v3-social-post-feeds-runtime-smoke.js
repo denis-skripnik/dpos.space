@@ -39,7 +39,7 @@ const post = {
   author: 'alice',
   permlink: 'hello-hive',
   title: 'Hello <Hive>',
-  body: 'Body **markdown** with <script>bad()</script>',
+  body: 'Body **markdown**<br>second line with <script>bad()</script>',
   json_metadata: JSON.stringify({ tags: ['test', 'hive'] }),
   created: '2026-05-12T16:31:42',
   children: 1,
@@ -149,6 +149,9 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(calls.some(([method]) => method === 'getContent'), 'post viewer calls getContent');
   assert(calls.some(([method]) => method === 'getContentReplies'), 'post viewer calls getContentReplies');
   assert(html.includes('Hello &lt;Hive&gt;'), 'post viewer escapes and renders title');
+  assert(html.includes('<strong>markdown</strong><br>second line'), 'post viewer renders literal br tags as line breaks');
+  assert(!html.includes('&lt;br&gt;'), 'post viewer does not show literal <br> text');
+  assert(html.includes('&lt;script&gt;bad()&lt;/script&gt;'), 'post viewer keeps unsafe HTML escaped');
   assert(html.includes('Reply body'), 'post viewer renders replies');
   assert(html.includes('1.234 HBD'), 'post viewer renders Hive payout field');
   assert(html.includes('https://hive.blog/@alice/hello-hive'), 'Hive post viewer links to hive.blog');
