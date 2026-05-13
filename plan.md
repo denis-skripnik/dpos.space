@@ -2180,6 +2180,20 @@ Implementation:
 - Golos post vote and comment submit handlers now call this helper immediately before `broadcast.prepare()`.
 - `tests/v3-golos-post-page-smoke.js` now asserts the post action slice includes the dependency gate, so the regression is covered.
 
+### Feature: configurable post/comment vote weight
+
+User requested replacing fixed “Лайк 100%” actions with an expandable mini-form so post and comment votes can choose weight from -100% to 100%.
+
+Implementation:
+
+- Post and comment vote controls now render as `<details>` spoilers with a `summary` “Голос”.
+- Inside the spoiler is a compact vote form with `input type="range" min="-100" max="100" step="1" value="100"`, live output text, and a “Голосовать” submit button.
+- Submit handlers convert the selected percentage to blockchain vote weight (`percent * 100`) instead of hardcoding `10000`.
+- After successful vote submission, the vote spoiler is closed and the submit button is disabled/text-updated.
+- Duplicate-vote checks still run before broadcast, and Golos post-page votes still load signing dependencies before preparing the operation.
+- Applies to the post body and comment tree for Golos plus the shared Hive/Steem social post/comment pages.
+- Regression coverage checks the details/form marker, range input, `-100..100` bounds, and “Голосовать” copy.
+
 ### Feature: autolink URLs and account mentions in post text
 
 User requested readable links in post/comment bodies: plain `https://...` URLs should become external links, and `@login` mentions should open the account profile.

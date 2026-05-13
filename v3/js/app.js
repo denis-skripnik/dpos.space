@@ -6119,6 +6119,28 @@
     });
   }
 
+  function clampVotePercent(value) {
+    const parsed = Number.parseInt(String(value || '0'), 10);
+    if (Number.isNaN(parsed)) return 0;
+    return Math.max(-100, Math.min(100, parsed));
+  }
+
+  function renderPostVoteForm(prefix, author, permlink, voted) {
+    if (voted) return '<span class="muted">Вы уже голосовали</span>';
+    const safePrefix = String(prefix || 'post').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const safeAuthor = String(author || '').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const safePermlink = String(permlink || '').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const inputId = `${safePrefix}-vote-percent-${safeAuthor}-${safePermlink}`.slice(0, 120);
+    return `<details class="vote-details" data-vote-details>
+      <summary>Голос</summary>
+      <form class="inline-form vote-form" data-${escapeHtml(safePrefix)}-vote-form data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
+        <label for="${escapeHtml(inputId)}">Вес голоса: <output data-vote-output for="${escapeHtml(inputId)}">100%</output></label>
+        <input id="${escapeHtml(inputId)}" name="percent" data-vote-percent type="range" min="-100" max="100" step="1" value="100">
+        <button type="submit">Голосовать</button>
+      </form>
+    </details>`;
+  }
+
   async function renderGolosPostPage(chain, state = {}) {
     const author = String(state.author || '').trim().replace(/^@/, '');
     const permlink = String(state.permlink || '').trim();
@@ -6135,11 +6157,11 @@
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code></p>
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
-        <p class="actions">
-          <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+        <div class="actions">
+          ${renderPostVoteForm('golos-post', author, permlink, voted)}
           ${golosDonateLink(author, 'Донат автору')}
           <a href="https://golos.id/@${escapeHtml(author)}/${escapeHtml(permlink)}" target="_blank" rel="noopener">Открыть на golos.id</a>
-        </p>
+        </div>
       </article>
       <section class="card" aria-labelledby="golos-post-comment-heading">
         <h3 id="golos-post-comment-heading">Добавить комментарий</h3>
@@ -6185,12 +6207,12 @@
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
         <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
-        <p class="actions">
-          <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+        <div class="actions">
+          ${renderPostVoteForm('golos-post', author, permlink, voted)}
           ${golosDonateLink(author, 'Донат коммента')}
           <button type="button" data-golos-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
           ${editButton}
-        </p>
+        </div>
         <div class="reply-slot" hidden>${renderGolosCommentForm(`golos-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
         ${editForm}
       </article>
@@ -6214,7 +6236,52 @@
     return `re-${String(parentAuthor || '').replace(/[^a-z0-9-]/gi, '').toLowerCase()}-${String(parentPermlink || '').replace(/[^a-z0-9-]/gi, '').toLowerCase().slice(0, 32)}-${stamp}`.slice(0, 255);
   }
 
+  function bindVotePercentOutputs(root) {
+    root.querySelectorAll('[data-vote-percent]').forEach((input) => {
+      const form = input.closest('form');
+      const output = form && form.querySelector('[data-vote-output]');
+      const update = () => { if (output) output.textContent = `${clampVotePercent(input.value)}%`; };
+      input.addEventListener('input', update);
+      update();
+    });
+  }
+
+  function closeVoteDetails(form) {
+    const details = form && form.closest('[data-vote-details]');
+    if (details) details.open = false;
+  }
+
+  async function submitPostVote(chain, form, options = {}) {
+    const voter = auth.getCurrentLogin(chain);
+    const author = String(form.dataset.author || '').trim().replace(/^@/, '');
+    const permlink = String(form.dataset.permlink || '').trim();
+    const percent = clampVotePercent(new FormData(form).get('percent'));
+    const connection = await getConnection(chain);
+    const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
+    const submit = form.querySelector('button[type="submit"]');
+    if (hasGolosVoteFrom(content, voter)) {
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = 'Вы уже голосовали';
+      }
+      closeVoteDetails(form);
+      setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
+      return;
+    }
+    if (options.ensureDependencies) await ensureBroadcastDependencies(chain);
+    const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, percent * 100], { title: options.title || `${chain.id} post/comment vote`, feature: options.feature || `${chain.id}-post-page` });
+    await profiles.connect(chain);
+    await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = 'Голос отправлен';
+    }
+    closeVoteDetails(form);
+    setStatus(`Голос ${percent}% отправлен в сеть.`, 'ok');
+  }
+
   function bindGolosPostActions(chain) {
+    bindVotePercentOutputs(appEl);
     appEl.querySelectorAll('[data-golos-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
@@ -6227,27 +6294,11 @@
         if (slot) slot.hidden = !slot.hidden;
       });
     });
-    appEl.querySelectorAll('[data-golos-post-vote]').forEach((button) => {
-      button.addEventListener('click', async () => {
+    appEl.querySelectorAll('[data-golos-post-vote-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
         try {
-          const voter = auth.getCurrentLogin(chain);
-          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
-          const permlink = String(button.dataset.permlink || '').trim();
-          const connection = await getConnection(chain);
-          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
-          if (hasGolosVoteFrom(content, voter)) {
-            button.disabled = true;
-            button.textContent = 'Вы уже голосовали';
-            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
-            return;
-          }
-          await ensureBroadcastDependencies(chain);
-          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: 'Golos post/comment vote', feature: 'golos-post-page' });
-          await profiles.connect(chain);
-          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-          button.disabled = true;
-          button.textContent = 'Голос отправлен';
-          setStatus('Голос отправлен в сеть.', 'ok');
+          await submitPostVote(chain, form, { ensureDependencies: true, title: 'Golos post/comment vote', feature: 'golos-post-page' });
         } catch (error) {
           setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
         }
@@ -6526,11 +6577,11 @@
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code> · ${escapeHtml(socialFeedActionStats(post))}</p>
         <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
-        <p class="actions">
-          <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+        <div class="actions">
+          ${renderPostVoteForm('social-post', author, permlink, voted)}
           ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
           <a href="${escapeHtml(socialExternalPostUrl(chain, author, permlink))}" target="_blank" rel="noopener">Открыть снаружи</a>
-        </p>
+        </div>
       </article>
       <section class="card" aria-labelledby="social-post-comment-heading">
         <h3 id="social-post-comment-heading">Добавить комментарий</h3>
@@ -6570,10 +6621,10 @@
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
         <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
-        <p class="actions">
-          <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
+        <div class="actions">
+          ${renderPostVoteForm('social-post', author, permlink, voted)}
           <button type="button" data-social-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
-        </p>
+        </div>
         <div class="reply-slot" hidden>${renderSocialCommentForm(`social-reply-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), author, permlink)}</div>
       </article>
       ${children}
@@ -6594,32 +6645,18 @@
   }
 
   function bindSocialPostActions(chain) {
+    bindVotePercentOutputs(appEl);
     appEl.querySelectorAll('[data-social-comment-reply]').forEach((button) => {
       button.addEventListener('click', () => {
         const slot = button.closest('article') && button.closest('article').querySelector('.reply-slot');
         if (slot) slot.hidden = !slot.hidden;
       });
     });
-    appEl.querySelectorAll('[data-social-post-vote]').forEach((button) => {
-      button.addEventListener('click', async () => {
+    appEl.querySelectorAll('[data-social-post-vote-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
         try {
-          const voter = auth.getCurrentLogin(chain);
-          const author = String(button.dataset.author || '').trim().replace(/^@/, '');
-          const permlink = String(button.dataset.permlink || '').trim();
-          const connection = await getConnection(chain);
-          const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
-          if (hasGolosVoteFrom(content, voter)) {
-            button.disabled = true;
-            button.textContent = 'Вы уже голосовали';
-            setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
-            return;
-          }
-          const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: `${chain.id} post/comment vote`, feature: `${chain.id}-post-page` });
-          await profiles.connect(chain);
-          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-          button.disabled = true;
-          button.textContent = 'Голос отправлен';
-          setStatus('Голос отправлен в сеть.', 'ok');
+          await submitPostVote(chain, form, { title: `${chain.id} post/comment vote`, feature: `${chain.id}-post-page` });
         } catch (error) {
           setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
         }
