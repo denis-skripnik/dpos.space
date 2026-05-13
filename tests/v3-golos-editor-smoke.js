@@ -12,6 +12,13 @@ assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedA
 assert(appSource.includes('function golosLegacyTransform'), 'Golos editor ports legacy transliteration helper');
 assert(appSource.includes('function normalizeGolosEditorTags'), 'Golos editor normalizes tags and appends dpos-post');
 assert(appSource.includes('function buildGolosEditorOperations'), 'Golos editor isolates legacy payload construction');
+assert(appSource.includes('function bindGolosPostLegacyHelpers'), 'Golos editor can load an existing Golos post for editing');
+assert(appSource.includes('parseSocialPostUrl'), 'Golos editor parses @author/permlink edit URLs');
+assert(appSource.includes('data-golos-edit-mode') && appSource.includes('data-golos-edit-author'), 'Golos editor records loaded edit state on the form');
+assert(appSource.includes('Редактировать существующий Golos пост'), 'Golos editor exposes a visible edit-post helper');
+assert(appSource.includes('getContent') && appSource.includes('Пост загружен для редактирования'), 'Golos editor loads post content through public RPC');
+assert(appSource.includes('throw new Error(\'Редактировать можно только пост текущего авторизованного аккаунта.\')'), 'Golos edit mode blocks editing someone else under the selected account');
+assert(appSource.includes('if (isEdit) return [commentOperation];'), 'Golos edit operation sends only comment without comment_options');
 assert(appSource.includes('editor-category'), 'Golos editor has a category selector');
 assert(appSource.includes('ru--blokcheijn') && appSource.includes('ru--golos') && appSource.includes('nsfw'), 'Golos editor includes legacy category options');
 assert(appSource.includes('editor-image'), 'Golos editor has preview image metadata field');

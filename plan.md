@@ -128,7 +128,7 @@ Verification notes:
 
 - Routes added: `editor`, `calculator`, `donate`, `import`, `escrow`, `instant-view`, `manage`, `swap`, `register`, `explorer`.
 - Working increments:
-  - `editor` preview/send post publishing operations (`comment` + `comment_options`);
+  - `editor` preview/send post publishing operations (`comment` + `comment_options`) and legacy-style edit loader for existing Golos posts (`getContent` → prefill → edit `comment` only);
   - `donate` preview/send operation through posting key;
   - `manage` proxy/witness vote preview/send forms through active key;
   - `calculator` vesting estimation and `explorer` account/block lookup.
@@ -1355,6 +1355,21 @@ Remaining backend/static exclusions after the supported-chain pass:
 - No PHP routes, `backend.dpos.space`, server-local IPs, cron/bot/indexer dependencies, or hidden old `blockchains/*` runtime imports are added to v3.
 - EVM and cyber remain out of scope.
 - Legacy apps that are analytics/indexer/search/import/upload widgets without a current static-safe v3 route are documented non-goals, not added as placeholders.
+
+### Golos editor/post edit-loader follow-up
+
+Legacy evidence inspected read-only from `master:blockchains/golos/apps/post/content.php` and `master:blockchains/golos/apps/post/js/_interface.js`:
+
+- Old UI had `Редактировать пост (введите ссылку)` with URL like `https://golos.id/tag/@user/permlink`.
+- `load4edit` parsed `@author/permlink`, called `golos.api.getContent`, filled title/category/tags/image/permlink/body/payouts, hid permlink/edit widgets, and then edit send used only a `comment` operation.
+- Existing v3 already had publication operations; missing gap was the Golos edit loader and edit-only operation path.
+
+v3 mapping implemented:
+
+- `renderEditor` exposes `Редактировать существующий Golos пост` only for Golos.
+- `bindGolosPostLegacyHelpers` parses the URL, requires the loaded author to match the current selected authorized Golos account, fetches the post via public RPC `getContent`, and prefills the accessible v3 editor form.
+- `buildGolosEditorOperations` detects `data-golos-edit-mode` and returns only the `comment` operation for edits, avoiding a duplicate `comment_options` broadcast.
+- Coverage: `tests/v3-golos-editor-smoke.js` asserts the edit UI, RPC load path, selected-account guard, edit state markers, and comment-only edit operation.
 
 ### Rigorous parity: Golos / wallet
 
