@@ -794,8 +794,8 @@
       const author = row.author || '';
       const permlink = row.permlink || '';
       const titleText = row.title || permlink || 'без названия';
-      const href = author && permlink ? `https://golos.id/@${author}/${permlink}` : '';
-      return `<li>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(titleText)}</a>` : escapeHtml(titleText)} ${author ? `— ${renderAccountCell(chains.golos, author)}` : ''}</li>`;
+      const href = author && permlink ? appHash({ chain: 'golos', app: 'post', author, permlink }) : '';
+      return `<li>${href ? `<a href="${escapeHtml(href)}">${escapeHtml(titleText)}</a>` : escapeHtml(titleText)} ${author ? `— ${renderAccountCell(chains.golos, author)}` : ''}</li>`;
     }).join('')}</ul></details>`;
   }
 
@@ -5813,6 +5813,7 @@
   const GOLOS_FEED_KINDS = [
     ['new', 'Новые посты'],
     ['popular', 'Популярное'],
+    ['tag', 'По тегу'],
     ['donates', 'Донаты'],
     ['subscriptions', 'Лента подписок']
   ];
@@ -5824,7 +5825,8 @@
       if (!parsed || typeof parsed !== 'object') return {};
       return {
         feed: normalizeGolosFeedKind(parsed.feed),
-        account: String(parsed.account || '').trim().replace(/^@/, '')
+        account: String(parsed.account || '').trim().replace(/^@/, ''),
+        tag: normalizeGolosFeedTag(parsed.tag)
       };
     } catch (error) {
       return {};
@@ -5835,7 +5837,8 @@
     if (!global.localStorage) return;
     const next = {
       feed: normalizeGolosFeedKind(settings && settings.feed),
-      account: String(settings && settings.account || '').trim().replace(/^@/, '')
+      account: String(settings && settings.account || '').trim().replace(/^@/, ''),
+      tag: normalizeGolosFeedTag(settings && settings.tag)
     };
     global.localStorage.setItem(GOLOS_FEEDS_SETTINGS_KEY, JSON.stringify(next));
   }
@@ -5843,6 +5846,24 @@
   function normalizeGolosFeedKind(value) {
     const raw = String(value || '').trim();
     return GOLOS_FEED_KINDS.some(([id]) => id === raw) ? raw : 'new';
+  }
+
+  function normalizeGolosFeedTag(value) {
+    return String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '-').toLowerCase();
+  }
+
+  function golosFeedTagUrl(tag) {
+    return appHash({ chain: 'golos', app: 'feeds', feed: 'tag', tag: normalizeGolosFeedTag(tag) });
+  }
+
+  function golosFeedTagLabel(tag) {
+    const normalized = normalizeGolosFeedTag(tag);
+    const extraLabels = { 'ru--foto': 'фото' };
+    if (extraLabels[normalized]) return extraLabels[normalized];
+    const category = typeof GOLOS_EDITOR_CATEGORIES !== 'undefined' && GOLOS_EDITOR_CATEGORIES.find(([value]) => value === normalized);
+    if (category) return category[1];
+    if (normalized.startsWith('ru--')) return normalized.slice(4).replace(/-/g, ' ');
+    return normalized;
   }
 
   function golosFeedPostUrl(row) {
@@ -5891,6 +5912,11 @@
         return profiles.apiCall(connection, 'getDiscussionsByTrending', [baseQuery]);
       }
     }
+    if (kind === 'tag') {
+      const tag = normalizeGolosFeedTag(state.tag);
+      if (!tag) throw new Error('Для ленты по тегу нужен тег.');
+      return profiles.apiCall(connection, 'getDiscussionsByCreated', [{ tag, limit }]);
+    }
     if (kind === 'subscriptions') {
       if (!account) throw new Error('Для ленты подписок нужен аккаунт.');
       return profiles.apiCall(connection, 'getDiscussionsByFeed', [{ tag: account, limit }]);
@@ -5915,7 +5941,7 @@
       <h3><a href="${escapeHtml(golosFeedPostUrl(row))}">${escapeHtml(title)}</a></h3>
       <p class="muted">${accountLink(chain, author)} · ${escapeHtml(golosContentDate(row))} · ${escapeHtml(golosFeedActionStats(row))}</p>
       <p>${escapeHtml(teaser)}</p>
-      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<a href="https://golos.id/created/${encodeURIComponent(tag)}" target="_blank" rel="noopener">${escapeHtml(tag)}</a>`).join(', ')}</p>` : ''}
+      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<a href="${escapeHtml(golosFeedTagUrl(tag))}">${escapeHtml(golosFeedTagLabel(tag))}</a>`).join(', ')}</p>` : ''}
       <p class="actions">
         <button type="button" data-golos-feed-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже лайкали' : 'Лайк 100%'}</button>
         <button type="button" class="secondary" data-golos-feed-repost data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Репост с подтверждением</button>
@@ -5928,15 +5954,18 @@
     const storedSettings = readGolosFeedsSettings();
     const hasFeedParam = Object.prototype.hasOwnProperty.call(state, 'feed') && state.feed;
     const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
+    const hasTagParam = Object.prototype.hasOwnProperty.call(state, 'tag') && state.tag;
     const feedKind = normalizeGolosFeedKind(hasFeedParam ? state.feed : storedSettings.feed);
     const account = String(hasAccountParam ? state.account : (storedSettings.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
-    writeGolosFeedsSettings({ feed: feedKind, account });
+    const tag = normalizeGolosFeedTag(hasTagParam ? state.tag : (storedSettings.tag || 'ru--golos'));
+    writeGolosFeedsSettings({ feed: feedKind, account, tag });
     appEl.innerHTML = `<section class="panel golos-feeds-page" data-golos-feeds-page>
       <h2>Golos: Ленты</h2>
-      <p class="muted">Новые посты, популярное, донаты и лента подписок пользователя через публичный RPC. Действия выполняются только после подтверждения.</p>
+      <p class="muted">Новые посты, популярное, ленты по тегам, донаты и лента подписок пользователя через публичный RPC. Действия выполняются только после подтверждения.</p>
       <form id="golos-feeds-form" class="stacked-form">
         <div class="field-grid">
           <div class="field"><label for="golos-feeds-kind">Тип ленты</label><select id="golos-feeds-kind" name="feed" data-golos-feed-kind>${renderGolosFeedKindOptions(feedKind)}</select></div>
+          <div class="field"><label for="golos-feeds-tag">Тег для ленты</label><input id="golos-feeds-tag" name="tag" type="text" value="${escapeHtml(tag)}" list="golos-feed-tag-suggestions" autocomplete="off"><datalist id="golos-feed-tag-suggestions">${GOLOS_EDITOR_CATEGORIES.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('')}</datalist></div>
           <div class="field"><label for="golos-feeds-account">Аккаунт для донатов/подписок</label><input id="golos-feeds-account" name="account" type="text" value="${escapeHtml(account)}" autocomplete="off"></div>
         </div>
         <button type="submit">Показать ленту</button>
@@ -5947,26 +5976,29 @@
     if (form) {
       const persistFormSettings = () => {
         const data = new FormData(form);
-        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
+        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: data.get('tag') });
       };
       const feedSelect = form.querySelector('[name="feed"]');
       const accountInput = form.querySelector('[name="account"]');
+      const tagInput = form.querySelector('[name="tag"]');
       if (feedSelect) feedSelect.addEventListener('change', persistFormSettings);
       if (accountInput) accountInput.addEventListener('input', persistFormSettings);
+      if (tagInput) tagInput.addEventListener('input', persistFormSettings);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const data = new FormData(form);
-        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
-        navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, '') });
+        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: data.get('tag') });
+        navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: normalizeGolosFeedTag(data.get('tag')) });
       });
     }
     const result = document.getElementById('golos-feeds-result');
     try {
       setStatus('Загружаю Golos ленту...', 'loading');
       const connection = await getConnection(chain);
-      const rows = await loadGolosFeedRows(chain, { ...state, feed: feedKind, account }, connection);
+      const rows = await loadGolosFeedRows(chain, { ...state, feed: feedKind, account, tag }, connection);
       const cards = (Array.isArray(rows) ? rows : []).map((row) => renderGolosFeedCard(chain, row)).filter(Boolean);
-      const selectedLabel = (GOLOS_FEED_KINDS.find(([id]) => id === feedKind) || GOLOS_FEED_KINDS[0])[1];
+      const selectedBaseLabel = (GOLOS_FEED_KINDS.find(([id]) => id === feedKind) || GOLOS_FEED_KINDS[0])[1];
+      const selectedLabel = feedKind === 'tag' ? `${selectedBaseLabel}: ${golosFeedTagLabel(tag)}` : selectedBaseLabel;
       result.innerHTML = cards.length ? `<h3>${escapeHtml(selectedLabel)}</h3>${cards.join('')}` : `<p class="muted">В этой ленте сейчас нет постов.</p>`;
       bindGolosFeedActions(chain);
       setStatus(`Golos лента «${selectedLabel}» загружена.`, 'ok');

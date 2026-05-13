@@ -55,6 +55,9 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/history.js'), 'utf8'), co
   assert(appSource.includes("getWitnessByAccount', [account]"), 'witness.php maps to getWitnessByAccount');
   assert(appSource.includes("getDiscussionsByBlog', [{ limit: 10, select_authors: [account] }]"), 'blog-posts.php maps to getDiscussionsByBlog');
   assert(appSource.includes("getDiscussionsByComments', [{ limit: 10, start_author: account }]"), 'comments.php maps to getDiscussionsByComments');
+  const golosContentListSlice = (appSource.match(/function renderGolosContentList[\s\S]*?\n  function renderGolosLegacyDirectSections/) || [''])[0];
+  assert(golosContentListSlice.includes("appHash({ chain: 'golos', app: 'post', author, permlink })"), 'Golos profile blog/comment rows link to the internal dpos.space post viewer');
+  assert(!golosContentListSlice.includes('https://golos.id'), 'Golos profile content rows do not send users to external golos.id by default');
   assert(appSource.includes('comment_mention'), 'comment_mention.php is exposed through history filter links');
   assert(appSource.includes('worker_request_vote,account_witness_vote,account_witness_proxy,worker_request,worker_request_delete,worker_state'), 'dao.php is exposed through history filter links');
   assert(appSource.includes('account_create,account_create_with_invite,account_update,account_metadata'), 'accounts.php is exposed through history filter links');
