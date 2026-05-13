@@ -2187,7 +2187,7 @@ User requested readable links in post/comment bodies: plain `https://...` URLs s
 Implementation:
 
 - `markdownToPreviewHtml(markdown, chain)` now accepts an optional chain context for profile links.
-- Plain `https://...` text outside generated HTML tags is converted to `<a target="_blank" rel="noopener noreferrer">`.
+- Plain `https://...` text outside generated HTML tags is converted to `<a target="_blank" rel="noopener noreferrer">`; escaped URL separators like `&amp;` are normalized back to `&` before building the link.
 - `@login` mentions outside generated links/code are converted to in-app profile links with `#chain=<chain>&app=profiles&account=<login>`.
 - Existing Markdown links/images/code stay protected from double-linking, and unsafe raw HTML still remains escaped.
 - Golos/Hive/Steem post bodies and comment bodies pass their chain context into the preview renderer.

@@ -39,7 +39,7 @@ const post = {
   author: 'alice',
   permlink: 'hello-hive',
   title: 'Hello <Hive>',
-  body: 'Body **markdown**<br>second line with <script>bad()</script> https://example.com/path?x=1 and @carol',
+  body: 'Body **markdown**<br>second line with <script>bad()</script> https://example.com/path?x=1 and https://dpos.blinddev.xyz/#chain=golos&amp;app=editor @carol',
   json_metadata: JSON.stringify({ tags: ['test', 'hive'] }),
   created: '2026-05-12T16:31:42',
   children: 1,
@@ -154,6 +154,8 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(html.includes('&lt;script&gt;bad()&lt;/script&gt;'), 'post viewer keeps unsafe HTML escaped');
   assert(html.includes('Reply body'), 'post viewer renders replies');
   assert(html.includes('<a href="https://example.com/path?x=1" target="_blank" rel="noopener noreferrer">https://example.com/path?x=1</a>'), 'post viewer autolinks plain https URLs');
+  assert(html.includes('<a href="https://dpos.blinddev.xyz/#chain=golos&amp;app=editor" target="_blank" rel="noopener noreferrer">https://dpos.blinddev.xyz/#chain=golos&amp;app=editor</a>'), 'post viewer normalizes escaped ampersands inside autolinked URLs');
+  assert(!html.includes('https://dpos.blinddev.xyz/#chain=golos&amp;amp;app=editor'), 'post viewer does not double-escape ampersands inside autolinked URLs');
   assert(html.includes('#chain=hive&amp;app=profiles&amp;account=carol') && html.includes('>@carol</a>'), 'post viewer links @mentions to in-app profiles');
   assert(html.includes('<a href="https://reply.example/path" target="_blank" rel="noopener noreferrer">https://reply.example/path</a>'), 'comment viewer autolinks plain https URLs');
   assert(html.includes('#chain=hive&amp;app=profiles&amp;account=alice') && html.includes('>@alice</a>'), 'comment viewer links @mentions to in-app profiles');
