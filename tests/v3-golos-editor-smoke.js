@@ -29,6 +29,10 @@ assert(appSource.includes('throw new Error(\'Редактировать можн
 assert(appSource.includes('if (isEdit) return [commentOperation];'), 'Golos edit operation sends only comment without comment_options');
 assert(appSource.includes('const permlink = manualPermlink ? manualPermlink : golosLegacyTransform(title, \'-\');'), 'Golos editor preserves an existing/manual permlink exactly instead of re-transliterating ru-- into ru-');
 assert(appSource.includes("if (Object.prototype.hasOwnProperty.call(draft, 'payouts')) set('payouts', draft.payouts);"), 'Golos editor preserves loaded 0 payout mode instead of falling back to default 50/50');
+assert(appSource.includes('buildGolosEditorOperations(chain, form, context && context.form)'), 'Golos editor passes the real form element so edit mode is visible during operation building');
+assert(appSource.includes('const editStateForm = formElement || (form && form.dataset ? form : null);'), 'Golos editor reads edit mode from the form element, not FormData');
+assert(appSource.includes('data-editor-edit-hidden'), 'Golos editor marks beneficiaries/new-post-only settings to hide during edit mode');
+assert(appSource.includes('setEditorEditOnlyVisibility(form, true)'), 'Golos editor hides beneficiary/new-post-only controls after loading a post for editing');
 assert(appSource.includes('editor-category'), 'Golos editor has a category selector');
 assert(appSource.includes('ru--blokcheijn') && appSource.includes('ru--golos') && appSource.includes('nsfw'), 'Golos editor includes legacy category options');
 assert(appSource.includes('editor-image'), 'Golos editor has preview image metadata field');
