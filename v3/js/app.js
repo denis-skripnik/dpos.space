@@ -2621,6 +2621,11 @@
     return profiles.connect(chain);
   }
 
+  async function ensureBroadcastDependencies(chain) {
+    await loadScript(chain.cryptoPath);
+    await loadScript(chain.libraryPath);
+  }
+
   async function loadGrapheneWalletData(chain, account, options) {
     await loadScript(chain.cryptoPath);
     const current = auth.getCurrentUser(chain);
@@ -6127,6 +6132,7 @@
             setStatus(`@${voter} уже голосовал за @${author}/${permlink}.`, 'info');
             return;
           }
+          await ensureBroadcastDependencies(chain);
           const prepared = broadcast.prepare(chain, 'posting', 'vote', [voter, author, permlink, 10000], { title: 'Golos post/comment vote', feature: 'golos-post-page' });
           await profiles.connect(chain);
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
@@ -6150,6 +6156,7 @@
           if (!body) throw new Error('Текст комментария обязателен.');
           const permlink = golosCommentPermlink(parentAuthor, parentPermlink);
           const metadata = JSON.stringify({ app: 'dpos.space/v3', format: 'markdown' });
+          await ensureBroadcastDependencies(chain);
           const prepared = broadcast.prepare(chain, 'posting', 'comment', [parentAuthor, parentPermlink, author, permlink, '', body, metadata], { title: 'Golos post page comment', feature: 'golos-post-page-comment' });
           await profiles.connect(chain);
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });

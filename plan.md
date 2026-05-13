@@ -2151,6 +2151,16 @@ Implementation:
 - `markdownToTextPreview()` strips bare `<br>` tags to spaces for feed snippets.
 - Regression coverage in `tests/v3-social-post-feeds-runtime-smoke.js` verifies `<br>` renders as a line break, `&lt;br&gt;` is not visible, and unsafe `<script>` stays escaped.
 
+### Fix: Golos post comments load signing dependencies
+
+User reported sending a comment from a Golos post page failed with: `Ошибка комментария: Не удалось загрузить модуль расшифровки ключа.` Root cause: `bindGolosPostActions()` prepared vote/comment broadcasts directly from the read-only post page, but that route only loaded the Golos RPC library for viewing content; it did not load the SJCL crypto module before `broadcast.prepare()` tried to decrypt the locally saved posting key.
+
+Implementation:
+
+- Added `ensureBroadcastDependencies(chain)` to load `chain.cryptoPath` and `chain.libraryPath` before post-page broadcast actions.
+- Golos post vote and comment submit handlers now call this helper immediately before `broadcast.prepare()`.
+- `tests/v3-golos-post-page-smoke.js` now asserts the post action slice includes the dependency gate, so the regression is covered.
+
 ### Decommission: Golos / stakebot
 
 User decision after parity: Golos Stake bot should not remain as a static app because the useful participant/jackpot/loto data came from the old private backend/bot state. Keeping a documentation-only route would add clutter while still not delivering live bot data. The app is removed rather than only hidden.
