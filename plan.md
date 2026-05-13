@@ -2180,6 +2180,18 @@ Implementation:
 - Golos post vote and comment submit handlers now call this helper immediately before `broadcast.prepare()`.
 - `tests/v3-golos-post-page-smoke.js` now asserts the post action slice includes the dependency gate, so the regression is covered.
 
+### Feature: edit own Golos post comments
+
+User requested editing own comments on Golos post pages with an author check against the authorized account.
+
+Implementation:
+
+- `renderGolosCommentNode()` now shows “Редактировать комментарий” only when the normalized comment author matches `auth.getCurrentLogin(chain)`.
+- The edit form is prefilled with the current comment Markdown and keeps the original `parent_author`, `parent_permlink`, `author`, and `permlink`.
+- Submitting an edit uses the normal Golos `comment` operation with the existing comment permlink, so it updates the comment instead of creating a reply.
+- Submit-time validation rejects edit attempts where the form's comment author does not match the currently authorized account.
+- Regression coverage in `tests/v3-golos-post-page-smoke.js` checks the edit button/form markers, authorized-author gate, and dedicated edit broadcast feature marker.
+
 ### Decommission: Golos / stakebot
 
 User decision after parity: Golos Stake bot should not remain as a static app because the useful participant/jackpot/loto data came from the old private backend/bot state. Keeping a documentation-only route would add clutter while still not delivering live bot data. The app is removed rather than only hidden.
