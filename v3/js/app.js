@@ -5912,7 +5912,6 @@
     }
     if (kind === 'tag') {
       const tag = normalizeGolosFeedTag(state.tag);
-      if (!tag) throw new Error('Для ленты по тегу нужен тег.');
       return profiles.apiCall(connection, 'getDiscussionsByCreated', [{ tag, limit }]);
     }
     if (kind === 'subscriptions') {
@@ -5955,7 +5954,7 @@
     const hasTagParam = Object.prototype.hasOwnProperty.call(state, 'tag') && state.tag;
     const feedKind = normalizeGolosFeedKind(hasFeedParam ? state.feed : storedSettings.feed);
     const account = String(hasAccountParam ? state.account : (auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
-    const tag = normalizeGolosFeedTag(hasTagParam ? state.tag : (storedSettings.tag || 'ru--golos'));
+    const tag = normalizeGolosFeedTag(hasTagParam ? state.tag : (storedSettings.tag || ''));
     writeGolosFeedsSettings({ feed: feedKind, tag });
     appEl.innerHTML = `<section class="panel golos-feeds-page" data-golos-feeds-page>
       <h2>Golos: Ленты</h2>
@@ -5963,7 +5962,7 @@
       <form id="golos-feeds-form" class="stacked-form">
         <div class="field-grid">
           <div class="field"><label for="golos-feeds-kind">Тип ленты</label><select id="golos-feeds-kind" name="feed" data-golos-feed-kind>${renderGolosFeedKindOptions(feedKind)}</select></div>
-          <div class="field"><label for="golos-feeds-tag">Тег для ленты</label><input id="golos-feeds-tag" name="tag" type="text" value="${escapeHtml(tag)}" list="golos-feed-tag-suggestions" autocomplete="off"><datalist id="golos-feed-tag-suggestions">${GOLOS_EDITOR_CATEGORIES.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('')}</datalist></div>
+          <div class="field"><label for="golos-feeds-tag">Тег для ленты</label><input id="golos-feeds-tag" name="tag" type="text" value="${escapeHtml(tag)}" placeholder="Оставьте пустым для общей ленты" list="golos-feed-tag-suggestions" autocomplete="off"><datalist id="golos-feed-tag-suggestions">${GOLOS_EDITOR_CATEGORIES.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('')}</datalist></div>
         </div>
         <button type="submit">Показать ленту</button>
       </form>
@@ -5993,7 +5992,7 @@
       const rows = await loadGolosFeedRows(chain, { ...state, feed: feedKind, account, tag }, connection);
       const cards = (Array.isArray(rows) ? rows : []).map((row) => renderGolosFeedCard(chain, row)).filter(Boolean);
       const selectedBaseLabel = (GOLOS_FEED_KINDS.find(([id]) => id === feedKind) || GOLOS_FEED_KINDS[0])[1];
-      const selectedLabel = feedKind === 'tag' ? `${selectedBaseLabel}: ${golosFeedTagLabel(tag)}` : selectedBaseLabel;
+      const selectedLabel = feedKind === 'tag' ? `${selectedBaseLabel}: ${tag ? golosFeedTagLabel(tag) : 'без тега (все посты)'}` : selectedBaseLabel;
       result.innerHTML = cards.length ? `<h3>${escapeHtml(selectedLabel)}</h3>${cards.join('')}` : `<p class="muted">В этой ленте сейчас нет постов.</p>`;
       bindGolosFeedActions(chain);
       setStatus(`Golos лента «${selectedLabel}» загружена.`, 'ok');

@@ -36,6 +36,8 @@ assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'feeds'") 
 assert(appSource.includes('Новые посты') && appSource.includes('Популярное') && appSource.includes('По тегу') && appSource.includes('Донаты') && appSource.includes('Лента подписок'), 'feeds UI exposes new/popular/tag/donates/subscriptions tabs');
 assert(appSource.includes('markdownToTextPreview') && appSource.includes('golosFeedActionStats'), 'feed cards render teaser and action stats');
 assert(appSource.includes('function golosFeedTagUrl') && appSource.includes("app: 'feeds', feed: 'tag'") && appSource.includes('function golosFeedTagLabel') && appSource.includes("'ru--foto': 'фото'"), 'feed tags link to internal tag feeds with readable labels');
+assert(!appSource.includes("storedSettings.tag || 'ru--golos'") && appSource.includes("storedSettings.tag || ''") && appSource.includes('placeholder="Оставьте пустым для общей ленты"'), 'tag input is empty by default and allows a no-tag feed');
+assert(!appSource.includes("Для ленты по тегу нужен тег") && appSource.includes("tag ? golosFeedTagLabel(tag) : 'без тега (все посты)'"), 'tag feed can be loaded without a tag');
 assert(!appSource.includes('https://golos.id/created/${encodeURIComponent(tag)}'), 'feed tag links stay inside dpos.space instead of opening golos.id');
 assert(appSource.includes('golosDonationPageUrl({ to: row.author') && appSource.includes('target="_blank"'), 'feed cards link donate to confirmed donate flow in a new tab');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'vote'") && appSource.includes("broadcast.prepare(chain, 'posting', 'sendOperations'"), 'feed actions use confirmed posting vote/repost broadcasts');
