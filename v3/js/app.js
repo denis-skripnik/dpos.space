@@ -6845,7 +6845,7 @@
     return beneficiaries.sort((a, b) => a.account.localeCompare(b.account));
   }
 
-  function buildGolosEditorOperations(chain, form) {
+  function buildGolosEditorOperations(chain, form, formElement) {
     const title = String(form.get('title') || '').trim();
     const tags = normalizeGolosEditorTags(form.get('tags'));
     const manualPermlink = String(form.get('permlink') || '').trim();
@@ -6857,8 +6857,9 @@
     const curationPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('curation_percent') || 50) * 100)));
     const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
     const author = auth.getCurrentLogin(chain);
-    const isEdit = form && form.dataset && form.dataset.golosEditMode === 'true';
-    const editAuthor = String(form && form.dataset && form.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
+    const editStateForm = formElement || (form && form.dataset ? form : null);
+    const isEdit = editStateForm && editStateForm.dataset && editStateForm.dataset.golosEditMode === 'true';
+    const editAuthor = String(editStateForm && editStateForm.dataset && editStateForm.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
     if (isEdit && editAuthor && editAuthor !== author) {
       throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
     }
@@ -6886,7 +6887,7 @@
     ];
   }
 
-  function buildGenericEditorOperations(chain, form) {
+  function buildGenericEditorOperations(chain, form, formElement) {
     const debt = chain.debtSymbol || 'HBD';
     const author = auth.getCurrentLogin(chain);
     const tags = String(form.get('tags') || '').split(/\s+/).filter(Boolean);
@@ -6900,8 +6901,9 @@
     const payoutPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('payouts') || 10000))));
     const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
     const metadata = { tags, app: chain.id === 'steem' ? 'dpos.space/post' : 'dpos.space/v3', format: 'markdown', image: images };
-    const isEdit = form && form.dataset && form.dataset.golosEditMode === 'true';
-    const editAuthor = String(form && form.dataset && form.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
+    const editStateForm = formElement || (form && form.dataset ? form : null);
+    const isEdit = editStateForm && editStateForm.dataset && editStateForm.dataset.golosEditMode === 'true';
+    const editAuthor = String(editStateForm && editStateForm.dataset && editStateForm.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
     if (isEdit && editAuthor && editAuthor !== author) {
       throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
     }
@@ -6972,6 +6974,17 @@
     if (Object.prototype.hasOwnProperty.call(draft, 'payouts')) set('payouts', draft.payouts);
   }
 
+  function setEditorEditOnlyVisibility(form, isEdit) {
+    if (!form) return;
+    form.querySelectorAll('[data-editor-edit-hidden]').forEach((element) => {
+      element.hidden = Boolean(isEdit);
+      element.setAttribute('aria-hidden', isEdit ? 'true' : 'false');
+      element.querySelectorAll('input, select, textarea, button').forEach((control) => {
+        control.disabled = Boolean(isEdit);
+      });
+    });
+  }
+
   function bindSteemPostLegacyHelpers(chain) {
     if (chain.id !== 'steem' && chain.id !== 'hive') return;
     const form = document.getElementById('editor-form');
@@ -6985,6 +6998,7 @@
       form.addEventListener('reset', () => {
         form.dataset.golosEditMode = 'false';
         form.dataset.golosEditAuthor = '';
+        setEditorEditOnlyVisibility(form, false);
         report('Форма очищена, режим редактирования выключен.');
       });
     }
@@ -7038,6 +7052,7 @@
           });
           form.dataset.golosEditMode = 'true';
           form.dataset.golosEditAuthor = target.author;
+          setEditorEditOnlyVisibility(form, true);
           report(`Пост @${target.author}/${target.permlink} загружен через публичный RPC. При отправке будет broadcast comment без comment_options.`);
         } catch (error) {
           report(profiles.formatError(error));
@@ -7057,6 +7072,7 @@
     form.addEventListener('reset', () => {
       delete form.dataset.golosEditMode;
       delete form.dataset.golosEditAuthor;
+      setEditorEditOnlyVisibility(form, false);
       report('Форма очищена, режим редактирования выключен.');
     });
     if (!loadButton || !editUrl) return;
@@ -7081,6 +7097,7 @@
         });
         form.dataset.golosEditMode = 'true';
         form.dataset.golosEditAuthor = target.author;
+        setEditorEditOnlyVisibility(form, true);
         report(`Пост загружен для редактирования: @${target.author}/${target.permlink}. При отправке будет broadcast comment без comment_options.`);
       } catch (error) {
         report(profiles.formatError(error));
@@ -7111,12 +7128,12 @@
             ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             ${isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             ${renderMarkdownEditorField(draft && draft.body ? draft.body : '')}
-            ${!isGolos ? `<div class="field"><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в ${escapeHtml(chain.debtSymbol || 'HBD')} и ${escapeHtml(chain.liquidSymbol || 'HIVE')}, 50% в ${escapeHtml(chain.powerTitle || 'HP')}</option><option value="0">100% в ${escapeHtml(chain.powerTitle || 'HP')}</option></select></div>
-              <fieldset><legend>Бенефициарские</legend><p class="muted">Бенефициарские 1%: по legacy умолчанию сохраняется 1% для denis-skripnik; можно добавить ещё одного бенефициара.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
+            ${!isGolos ? `<div class="field" data-editor-edit-hidden><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в ${escapeHtml(chain.debtSymbol || 'HBD')} и ${escapeHtml(chain.liquidSymbol || 'HIVE')}, 50% в ${escapeHtml(chain.powerTitle || 'HP')}</option><option value="0">100% в ${escapeHtml(chain.powerTitle || 'HP')}</option></select></div>
+              <fieldset data-editor-edit-hidden><legend>Бенефициарские</legend><p class="muted">Бенефициарские 1%: по legacy умолчанию сохраняется 1% для denis-skripnik; можно добавить ещё одного бенефициара.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
             ${isGolos ? `
-              <div class="field"><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в GBG/GOLOS, 50% в СГ</option><option value="0">100% в СГ</option></select></div>
-              <div class="field"><label for="editor-curation-percent">Процент кураторам</label><input id="editor-curation-percent" name="curation_percent" type="number" min="0" max="100" step="1" value="50"></div>
-              <fieldset><legend>Бенефициарские</legend><p class="muted">По legacy умолчанию сохраняется 1% для denis-skripnik.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
+              <div class="field" data-editor-edit-hidden><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в GBG/GOLOS, 50% в СГ</option><option value="0">100% в СГ</option></select></div>
+              <div class="field" data-editor-edit-hidden><label for="editor-curation-percent">Процент кураторам</label><input id="editor-curation-percent" name="curation_percent" type="number" min="0" max="100" step="1" value="50"></div>
+              <fieldset data-editor-edit-hidden><legend>Бенефициарские</legend><p class="muted">По legacy умолчанию сохраняется 1% для denis-skripnik.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
             <button type="submit" name="intent" value="preview">Проверить публикацию</button>
             <button type="submit" name="intent" value="send">Опубликовать в сеть</button>
             <button type="reset">Очистка форм поста</button>
@@ -7126,10 +7143,10 @@
         ${draft ? `<p class="notice">Загружен черновик из импорта: ${escapeHtml(draft.sourceUrl || draft.importedAt || '')}</p>` : ''}
         <p class="muted">${isGolos ? 'Golos payload сохраняет legacy category, payout, beneficiaries и curator rewards; preview/JSON перед отправкой обязателен.' : 'Параметры выплат выставлены по умолчанию. Перед отправкой проверьте итоговые данные операции.'}</p>
       </section>`;
-    bindOperationForm(chain, 'editor-form', (form) => {
+    bindOperationForm(chain, 'editor-form', (form, context) => {
       const operations = chain.id === 'golos'
-        ? buildGolosEditorOperations(chain, form)
-        : buildGenericEditorOperations(chain, form);
+        ? buildGolosEditorOperations(chain, form, context && context.form)
+        : buildGenericEditorOperations(chain, form, context && context.form);
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
     });
     bindSteemPostLegacyHelpers(chain);
