@@ -4861,6 +4861,15 @@ User clarified the feed action should toggle rather than remain a one-way cancel
 - Manual feed vote/unvote actions remain outside the Start auto-consent boundary: both use the normal explicit confirmation path.
 - The auto-upvoter page now shows current Golos voting battery for enabled accounts before the Start/Stop controls and again before the feed/list of posts; Start and Stop refresh that battery summary.
 
+#### Correction checkpoint: real-time minimum battery gate
+
+User noticed that the displayed `@account: NN.NN%` battery could look stale because the raw `voting_power` field only changes after a vote. The runner now uses the same live-regeneration idea as profiles:
+- `currentAccountEnergy()` calculates current battery from `voting_power` + `last_vote_time`, capped to `10000`.
+- The auto-upvoter battery summary formats that regenerated current value, not only the raw RPC value.
+- Each scanner tick fetches the enabled voting accounts with `getAccount()` before planning actions and applies the per-account `minEnergy` gate to the regenerated current battery.
+- If `getAccount()` is unavailable or fails, the runner keeps the previous compatibility behavior instead of blocking all scans; normal Golos adapter provides `getAccount()`.
+- Focused smoke test covers regeneration from `last_vote_time` and verifies that low live battery prevents broadcast planning.
+
 #### Hotfix checkpoint: auto-upvoter posting-key status
 
 Reported on live page: auto-upvoter account card showed `Posting-ключ: не найден или недоступен` for `@denis-skripnik`, while the Accounts page correctly showed saved posting and active keys.
