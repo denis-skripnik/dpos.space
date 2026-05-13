@@ -5612,11 +5612,8 @@
     }
 
     function formatAutoUpvoterBattery(account) {
-      const raw = account && (account.voting_power ?? account.votingPower ?? account.energy ?? account.charge);
-      const value = Number(raw);
-      if (!Number.isFinite(value)) return 'н/д';
-      const percent = value > 100 ? value / 100 : value;
-      return `${Math.max(0, Math.min(100, percent)).toFixed(2)}%`;
+      const energy = helper && typeof helper.currentAccountEnergy === 'function' ? helper.currentAccountEnergy(account) : null;
+      return Number.isFinite(energy) ? `${(energy / 100).toFixed(2)}%` : 'н/д';
     }
 
     async function loadAutoUpvoterBatterySummary(settings) {

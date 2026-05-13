@@ -74,7 +74,12 @@ assert.strictEqual(typeof helpers.upsertRunnerState, 'function', 'upsertRunnerSt
 assert.strictEqual(typeof helpers.claimRunnerLocks, 'function', 'claimRunnerLocks helper exported for one runner per account/origin');
 assert.strictEqual(typeof helpers.releaseRunnerLocks, 'function', 'releaseRunnerLocks helper exported');
 assert.strictEqual(typeof helpers.buildDonateOperations, 'function', 'buildDonateOperations helper exported');
+assert.strictEqual(typeof helpers.currentAccountEnergy, 'function', 'currentAccountEnergy helper exported for live minimum-battery checks');
 assert.strictEqual(typeof context.DposBroadcast.prepareForUser, 'function', 'prepareForUser helper supports per-account signing without global account switch');
+
+const fixedNow = Date.parse('2026-01-01T00:36:00Z');
+const liveEnergy = helpers.currentAccountEnergy({ voting_power: 7700, last_vote_time: '2026-01-01T00:00:00Z' }, { now: fixedNow });
+assert.strictEqual(liveEnergy, 7750, 'currentAccountEnergy regenerates voting power from last_vote_time instead of using stale raw voting_power only');
 
 const donateOps = helpers.buildDonateOperations({ account: 'alice', author: 'favorite', permlink: 'two', donate: { enabled: true, cap: 1.5 } });
 assert.strictEqual(donateOps.length, 2, 'auto-donate creates author and fee donate operations');
@@ -174,6 +179,19 @@ assert.strictEqual(helpers.discussionRowToFavoritePostEvent({ author: '', permli
   assert(firstTick.actions.length >= 2, 'runner plans actions for multiple enabled accounts');
   assert.strictEqual(secondTick.actions.length, 0, 'seen keys prevent repeats across ticks');
   assert(executed.includes('alice:target/once') && executed.includes('bob:target/once'), 'runner executes per account');
+
+  const lowLiveEnergyTick = await helpers.runScannerTick({ id: 'golos' }, settings, {
+    async getAccountHistory() { return [[10, { op: ['vote', { voter: 'curator', author: 'target', permlink: 'live-low-energy', weight: 10000 }] }]]; },
+    async getFavoritePosts() { return []; },
+    async getAccount(account) {
+      if (account === 'alice') return { name: 'alice', voting_power: 1000, last_vote_time: new Date().toISOString() };
+      if (account === 'bob') return { name: 'bob', voting_power: 1000, last_vote_time: new Date().toISOString() };
+      return null;
+    }
+  }, { seen: new Set() }, {
+    async broadcaster() { throw new Error('low live battery should not broadcast'); }
+  });
+  assert.strictEqual(lowLiveEnergyTick.actions.length, 0, 'scanner tick checks current account battery from getAccount before planning actions');
 
   const voteCalls = [];
   const donateCalls = [];

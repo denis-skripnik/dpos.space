@@ -24,6 +24,44 @@
     return Math.max(0, Math.min(100, number));
   }
 
+  function currentAccountEnergy(account, options) {
+    const raw = account && (account.voting_power ?? account.votingPower ?? account.energy ?? account.charge);
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return null;
+    const base = value > 100 ? value : value * 100;
+    const lastVoteTime = Date.parse(account && (account.last_vote_time || account.last_vote || account.last_vote_time_string || ''));
+    if (!Number.isFinite(lastVoteTime)) return Math.max(0, Math.min(10000, Math.round(base)));
+    const opts = options || {};
+    const now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
+    const regenSeconds = Number(opts.regenSeconds) || 432000;
+    const regenerated = base + Math.max(0, (now - lastVoteTime) / 1000) * (10000 / regenSeconds);
+    return Math.max(0, Math.min(10000, Math.round(regenerated)));
+  }
+
+  function withCurrentAccountEnergy(settings, accountRecord) {
+    const currentEnergy = currentAccountEnergy(accountRecord);
+    if (!Number.isFinite(currentEnergy)) return settings;
+    return Object.assign({}, settings, { currentEnergy });
+  }
+
+  async function enrichSettingsWithCurrentEnergy(accountSettings, adapter) {
+    const normalized = (Array.isArray(accountSettings) ? accountSettings : []).map(normalizeAccountSettings);
+    if (!adapter || typeof adapter.getAccount !== 'function') return normalized;
+    const enriched = [];
+    for (const account of normalized) {
+      if (!account.enabled || !account.account) {
+        enriched.push(account);
+        continue;
+      }
+      try {
+        enriched.push(withCurrentAccountEnergy(account, await adapter.getAccount(account.account)));
+      } catch (error) {
+        enriched.push(account);
+      }
+    }
+    return enriched;
+  }
+
   function normalizeAutoDonatePool(value) {
     if (Array.isArray(value)) value = value.join(' ');
     const parts = String(value || '').trim().split(/[\s,;]+/).filter(Boolean);
@@ -73,7 +111,9 @@
   }
 
   function hasEnoughAccountEnergy(account, event) {
-    const energy = event && (event.accountEnergy ?? event.votingPower ?? event.charge);
+    const energy = account && Number.isFinite(Number(account.currentEnergy))
+      ? account.currentEnergy
+      : event && (event.accountEnergy ?? event.votingPower ?? event.charge);
     const normalized = Number(energy);
     if (!Number.isFinite(normalized)) return true;
     return normalized >= account.minEnergy;
@@ -484,7 +524,8 @@
     const tickState = state && typeof state === 'object' ? state : {};
     if (!(tickState.seen instanceof Set)) tickState.seen = new Set(tickState.seen || []);
     const events = await collectEventsFromAdapter(adapter, accountSettings, options);
-    const actions = planActionsForEvents(accountSettings, events, tickState);
+    const settingsWithEnergy = await enrichSettingsWithCurrentEnergy(accountSettings, adapter);
+    const actions = planActionsForEvents(settingsWithEnergy, events, tickState);
     markActionsSeen(tickState, actions);
     const results = await executePlannedActions(chain, actions, tickState, options);
     tickState.lastScanAt = new Date().toISOString();
@@ -498,6 +539,7 @@
     calculateDonateFromEmission,
     claimRunnerLocks,
     collectEventsFromAdapter,
+    currentAccountEnergy,
     dedupePlannedActions,
     discussionRowToFavoritePostEvent,
     executePlannedActions,
