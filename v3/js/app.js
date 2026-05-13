@@ -6849,7 +6849,7 @@
     const title = String(form.get('title') || '').trim();
     const tags = normalizeGolosEditorTags(form.get('tags'));
     const manualPermlink = String(form.get('permlink') || '').trim();
-    const permlink = manualPermlink ? golosLegacyTransform(manualPermlink, '-') : golosLegacyTransform(title, '-');
+    const permlink = manualPermlink ? manualPermlink : golosLegacyTransform(title, '-');
     const category = String(form.get('category') || 'ru--golos').trim() || 'ru--golos';
     const image = String(form.get('image') || '').trim();
     const images = image ? [image] : [];

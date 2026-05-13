@@ -27,6 +27,7 @@ assert(golosPostPageSlice.includes('editPostLink ? `<a href="${escapeHtml(editPo
 assert(appSource.includes('getContent') && appSource.includes('Пост загружен для редактирования'), 'Golos editor loads post content through public RPC');
 assert(appSource.includes('throw new Error(\'Редактировать можно только пост текущего авторизованного аккаунта.\')'), 'Golos edit mode blocks editing someone else under the selected account');
 assert(appSource.includes('if (isEdit) return [commentOperation];'), 'Golos edit operation sends only comment without comment_options');
+assert(appSource.includes('const permlink = manualPermlink ? manualPermlink : golosLegacyTransform(title, \'-\');'), 'Golos editor preserves an existing/manual permlink exactly instead of re-transliterating ru-- into ru-');
 assert(appSource.includes('editor-category'), 'Golos editor has a category selector');
 assert(appSource.includes('ru--blokcheijn') && appSource.includes('ru--golos') && appSource.includes('nsfw'), 'Golos editor includes legacy category options');
 assert(appSource.includes('editor-image'), 'Golos editor has preview image metadata field');
