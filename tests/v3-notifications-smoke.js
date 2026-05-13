@@ -18,6 +18,8 @@ assert(chainsSource.includes("id: 'notifications'") && chainsSource.includes("ti
 assert(historySource.includes('content_mentions') && historySource.includes('comment_mention'), 'history operation labels include supported mention ops');
 assert(notificationsSource.includes("content_mentions") && notificationsSource.includes("comment_mention"), 'notification scanner selects mention operations');
 assert(notificationsSource.includes('dpos_notifications_v1'), 'notifications persist local unread/cursors');
+assert(notificationsSource.includes('function ensureChainLibraryLoaded') && notificationsSource.includes('chain.libraryPath'), 'notifications load the chain browser library before DposProfiles.connect');
+assert(notificationsSource.includes('Библиотека ${chain.libraryGlobal} не загружена'), 'notifications preserve a clear load failure message if script loading fails');
 assert(notificationsSource.includes('markAllRead') && notificationsSource.includes('Показать все'), 'panel supports mark-all-read and show-all link');
 assert(notificationsSource.includes('direction: \'incoming\''), 'notifications are classified as incoming events');
 assert(!notificationsSource.includes('Ваш комментарий') && !notificationsSource.includes('Ваш репост') && !notificationsSource.includes('Исходящий перевод'), 'outgoing activity is not shown as notifications');

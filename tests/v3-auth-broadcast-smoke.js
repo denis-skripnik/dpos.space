@@ -78,6 +78,9 @@ async function run() {
   };
 
   for (const [chainId, chain] of Object.entries(chains)) {
+    if (chainId === 'golos') {
+      chain.nodes = [`https://${chainId}.example`, 'https://healthy.golos.example'];
+    }
     const login = `${chainId}-user`;
     seedLegacy(context, chainId, login);
 
@@ -95,7 +98,14 @@ async function run() {
     assert(!preview.includes(expectedSigningKey), `${chainId}: preview has no private key value`);
 
     const calls = [];
+    const configuredNodes = [];
+    let failNextGolosBroadcast = chainId === 'golos';
     context[chain.libraryGlobal] = {
+      config: {
+        set(key, value) {
+          configuredNodes.push([key, value]);
+        }
+      },
       auth: {
         wifToPublic: publicFromWif
       },
@@ -118,6 +128,10 @@ async function run() {
       broadcast: {
         transferAsync(key, ...args) {
           calls.push(['transferAsync', key, ...args]);
+          if (failNextGolosBroadcast) {
+            failNextGolosBroadcast = false;
+            return Promise.reject(new Error('invalid value exception (4020000) Node is stopped, so cannot broadcast.'));
+          }
           return Promise.resolve({ id: `${chainId}-tx`, privateKey: key, nested: { wif: key } });
         },
         inviteRegistrationAsync(key, ...args) {
@@ -136,14 +150,19 @@ async function run() {
     };
 
     const result = await context.DposBroadcast.broadcast(chain, prepared, { confirmExecute: true });
+    if (chainId === 'golos') {
+      assert.strictEqual(calls.filter((call) => call[0] === 'transferAsync').length, 2, 'golos: retries broadcast once after stopped node error');
+      assert(configuredNodes.some((entry) => entry[0] === 'websocket' && entry[1] === 'https://healthy.golos.example'), 'golos: retries on the next configured node');
+    }
     assert.strictEqual(calls[0][0], 'transferAsync', `${chainId}: calls async broadcast method`);
     assert.strictEqual(calls[0][1], expectedSigningKey, `${chainId}: signs with decrypted key`);
     const sanitizedResult = JSON.stringify(context.DposBroadcast.sanitizeResult(result));
     assert(!sanitizedResult.includes(expectedSigningKey), `${chainId}: result sanitizer redacts key echoes`);
 
     await context.DposBroadcast.broadcast(chain, context.DposBroadcast.prepare(chain, 'active', 'sendOperations', [[['vote', { voter: login }]]]), { confirmExecute: true });
-    assert.strictEqual(calls[1][0], 'sendOperationsAsync', `${chainId}: sendOperations uses library helper`);
-    assert.strictEqual(calls[1][2], ACTIVE_WIF, `${chainId}: sendOperations uses active key when requested`);
+    const sendOperationsCall = calls.find((call) => call[0] === 'sendOperationsAsync');
+    assert(sendOperationsCall, `${chainId}: sendOperations uses library helper`);
+    assert.strictEqual(sendOperationsCall[2], ACTIVE_WIF, `${chainId}: sendOperations uses active key when requested`);
 
     assert.strictEqual(context.DposBroadcast.validateAccountName(chain, login, 'Account'), login, `${chainId}: validates account`);
     assert.strictEqual(context.DposBroadcast.validateAsset(chain, `1.000 ${chain.liquidSymbol}`, chain.liquidSymbol, 'Amount'), `1.000 ${chain.liquidSymbol}`, `${chainId}: validates liquid amount`);

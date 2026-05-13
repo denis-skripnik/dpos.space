@@ -48,6 +48,50 @@
     return SUPPORTED_CHAINS.has(chainId);
   }
 
+  const loadingScripts = new Map();
+
+  function ensureChainLibraryLoaded(chain) {
+    if (!chain || !chain.libraryGlobal || global[chain.libraryGlobal]) return Promise.resolve();
+    if (!chain.libraryPath) return Promise.reject(new Error(`Библиотека ${chain.libraryGlobal} не загружена.`));
+    const sharedScripts = global.__dposScriptLoads || (global.__dposScriptLoads = new Map());
+    if (sharedScripts.has(chain.libraryPath)) return sharedScripts.get(chain.libraryPath);
+    if (loadingScripts.has(chain.libraryPath)) return loadingScripts.get(chain.libraryPath);
+    const documentRef = global.document;
+    if (!documentRef || typeof documentRef.createElement !== 'function') {
+      return Promise.reject(new Error(`Библиотека ${chain.libraryGlobal} не загружена.`));
+    }
+    const existing = documentRef.querySelector && documentRef.querySelector(`script[src="${chain.libraryPath}"]`);
+    if (existing && existing.dataset && existing.dataset.dposLoaded === 'true') {
+      const resolved = Promise.resolve();
+      sharedScripts.set(chain.libraryPath, resolved);
+      return resolved;
+    }
+    const promise = new Promise((resolve, reject) => {
+      const script = existing || documentRef.createElement('script');
+      script.src = chain.libraryPath;
+      script.async = true;
+      script.onload = () => {
+        if (script.dataset) script.dataset.dposLoaded = 'true';
+        sharedScripts.set(chain.libraryPath, Promise.resolve());
+        resolve();
+      };
+      script.onerror = () => {
+        sharedScripts.delete(chain.libraryPath);
+        reject(new Error(`Библиотека ${chain.libraryGlobal} не загружена.`));
+      };
+      const parent = documentRef.head || documentRef.body || documentRef.documentElement;
+      if (!parent || typeof parent.appendChild !== 'function') {
+        sharedScripts.delete(chain.libraryPath);
+        reject(new Error(`Библиотека ${chain.libraryGlobal} не загружена.`));
+        return;
+      }
+      if (!existing) parent.appendChild(script);
+    }).finally(() => loadingScripts.delete(chain.libraryPath));
+    loadingScripts.set(chain.libraryPath, promise);
+    sharedScripts.set(chain.libraryPath, promise);
+    return promise;
+  }
+
   function unique(values) {
     const seen = new Set();
     const result = [];
@@ -245,6 +289,7 @@
 
   async function fetchAccountRows(chain, account, limit) {
     const ops = NOTIFICATION_OPS[chain.id] || [];
+    await ensureChainLibraryLoaded(chain);
     const historyChain = global.DposProfiles && typeof global.DposProfiles.connect === 'function'
       ? await global.DposProfiles.connect(chain)
       : chain;

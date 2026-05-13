@@ -16,6 +16,9 @@ assert(appSource.includes('function bindGolosPostLegacyHelpers'), 'Golos editor 
 assert(appSource.includes('parseSocialPostUrl'), 'Golos editor parses @author/permlink edit URLs');
 assert(appSource.includes('data-golos-edit-mode') && appSource.includes('data-golos-edit-author'), 'Golos editor records loaded edit state on the form');
 assert(appSource.includes('Редактировать существующий Golos пост'), 'Golos editor exposes a visible edit-post helper');
+assert(appSource.includes("renderEditor(chain, state)"), 'Golos editor receives hash state for direct edit URLs');
+assert(appSource.includes('editorInitialEditUrl') && appSource.includes('editorAutoLoadEdit'), 'Golos editor can preload an edit URL from author/permlink hash params');
+assert(appSource.includes('Редактировать') && appSource.includes("app: 'editor'"), 'Golos post page can link an own post to the editor');
 assert(appSource.includes('getContent') && appSource.includes('Пост загружен для редактирования'), 'Golos editor loads post content through public RPC');
 assert(appSource.includes('throw new Error(\'Редактировать можно только пост текущего авторизованного аккаунта.\')'), 'Golos edit mode blocks editing someone else under the selected account');
 assert(appSource.includes('if (isEdit) return [commentOperation];'), 'Golos edit operation sends only comment without comment_options');
