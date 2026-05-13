@@ -50,10 +50,20 @@ const context = {
     getUsers() { return [{ login: 'denis-skripnik' }]; },
     getUserLogin(user) { return user.login; }
   },
+  DposProfiles: {
+    async connect(chain) {
+      return { config: chain, client: { api: {} }, node: 'mock' };
+    }
+  },
   DposHistory: {
     operationTitle(type) { return type; },
     formatDate(value) { return value; },
-    fetchAccountHistory: async () => []
+    fetchAccountHistory: async (chain, account, options) => {
+      assert(chain && chain.config && chain.config.id === 'golos', 'notifications scan passes connected chain to history fetcher');
+      assert(account === 'denis-skripnik', 'notifications scan fetches saved account');
+      assert(options && Array.isArray(options.ops) && options.ops.includes('content_mentions'), 'notifications scan requests selected notification ops');
+      return [];
+    }
   }
 };
 context.window = context;
@@ -115,4 +125,9 @@ assert.strictEqual(api.countUnread({ direction: 'incoming' }), 1, 'unread count 
 api.markAllRead();
 assert.strictEqual(api.countUnread({ direction: 'incoming' }), 0, 'mark all read clears unread count');
 
-console.log('v3-notifications-smoke passed');
+api.scanAccount(context.DposChains.golos, 'denis-skripnik', { limit: 5, collectInitial: true }).then(() => {
+  console.log('v3-notifications-smoke passed');
+}).catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
