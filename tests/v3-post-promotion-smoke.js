@@ -7,6 +7,7 @@ const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const promotionSlice = (appSource.match(/function renderPostPromotionForm[\s\S]*?\n  async function renderGolosPostPage/) || [''])[0];
+const golosPostPageSlice = (appSource.match(/async function renderGolosPostPage[\s\S]*?\n  async function loadGolosRepliesTree/) || [''])[0];
 const submitSlice = (appSource.match(/async function submitPostPromotion[\s\S]*?\n  function bindGolosPostActions/) || [''])[0];
 const socialPostSlice = (appSource.match(/async function renderSocialPostPage[\s\S]*?\n  async function loadSocialRepliesTree/) || [''])[0];
 
@@ -30,6 +31,8 @@ assert(submitSlice.includes('global.confirm'), 'promotion requires explicit conf
 assert(submitSlice.includes('normalizeGolosTokenAmount(chain, amount, symbol'), 'promotion amount is normalized to the chain debt token');
 assert(appSource.includes("querySelectorAll('[data-post-promotion-form]')"), 'post actions bind promotion form submit handlers');
 assert(appSource.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Golos post page renders the promotion spoiler');
+assert(golosPostPageSlice.includes('await loadScript(chain.cryptoPath);') && golosPostPageSlice.indexOf('await loadScript(chain.cryptoPath);') < golosPostPageSlice.indexOf('fetchPostPromotionInfo'), 'Golos post page loads SJCL before checking whether active key is decryptable');
 assert(socialPostSlice.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Hive/Steem post page renders the promotion spoiler');
+assert(socialPostSlice.includes('await loadScript(chain.cryptoPath);') && socialPostSlice.indexOf('await loadScript(chain.cryptoPath);') < socialPostSlice.indexOf('fetchPostPromotionInfo'), 'Hive/Steem post page loads SJCL before checking whether active key is decryptable');
 
 console.log('v3 post promotion smoke passed');
