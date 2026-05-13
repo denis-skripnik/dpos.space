@@ -245,10 +245,13 @@
 
   async function fetchAccountRows(chain, account, limit) {
     const ops = NOTIFICATION_OPS[chain.id] || [];
+    const historyChain = global.DposProfiles && typeof global.DposProfiles.connect === 'function'
+      ? await global.DposProfiles.connect(chain)
+      : chain;
     try {
-      return await global.DposHistory.fetchAccountHistory(chain, account, { limit: limit || DEFAULT_LIMIT, ops });
+      return await global.DposHistory.fetchAccountHistory(historyChain, account, { limit: limit || DEFAULT_LIMIT, ops });
     } catch (error) {
-      return global.DposHistory.fetchAccountHistory(chain, account, { limit: limit || DEFAULT_LIMIT });
+      return global.DposHistory.fetchAccountHistory(historyChain, account, { limit: limit || DEFAULT_LIMIT });
     }
   }
 
