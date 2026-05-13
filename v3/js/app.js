@@ -46,7 +46,39 @@
     return '#';
   }
 
-  function renderInlineMarkdown(value) {
+  function autolinkPlainText(value, chain) {
+    const text = String(value || '');
+    const linkedUrls = text.replace(/https:\/\/[^\s<]+/gi, (rawUrl) => {
+      const suffixMatch = rawUrl.match(/[.,!?;:)\]]+$/);
+      const suffix = suffixMatch ? suffixMatch[0] : '';
+      const url = suffix ? rawUrl.slice(0, -suffix.length) : rawUrl;
+      if (!url) return rawUrl;
+      const safeUrl = escapeHtml(safeMarkdownUrl(url));
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>${escapeHtml(suffix)}`;
+    });
+    if (!chain || !chain.id) return linkedUrls;
+    return linkedUrls.replace(/(^|[^\w./:@-])@([a-z][a-z0-9.-]{1,15})(?=$|[^\w.-])/gi, (match, prefix, login) => {
+      const normalized = String(login || '').toLowerCase();
+      const href = escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: normalized }));
+      return `${prefix}<a href="${href}">@${escapeHtml(login)}</a>`;
+    });
+  }
+
+  function autolinkHtmlText(html, chain) {
+    const parts = String(html || '').split(/(<[^>]+>)/g);
+    let skipDepth = 0;
+    return parts.map((part) => {
+      if (!part) return part;
+      if (part.startsWith('<')) {
+        if (/^<(a|code)\b/i.test(part)) skipDepth += 1;
+        if (/^<\/(a|code)>/i.test(part) && skipDepth > 0) skipDepth -= 1;
+        return part;
+      }
+      return skipDepth ? part : autolinkPlainText(part, chain);
+    }).join('');
+  }
+
+  function renderInlineMarkdown(value, chain) {
     let text = escapeHtml(value);
     text = text.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
     text = text.replace(/!\[([^\]]*)\]\(([^\s)]+)\)/g, (match, alt, url) => `<img src="${escapeHtml(safeMarkdownUrl(url))}" alt="${escapeHtml(alt)}" loading="lazy">`);
@@ -54,7 +86,7 @@
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
     text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/(^|\s)\*([^*]+)\*/g, '$1<em>$2</em>');
-    return text;
+    return autolinkHtmlText(text, chain);
   }
 
   function markdownToTextPreview(markdown, limit = 280) {
@@ -70,7 +102,7 @@
     return text.length > limit ? `${text.slice(0, limit).trim()}…` : text;
   }
 
-  function markdownToPreviewHtml(markdown) {
+  function markdownToPreviewHtml(markdown, chain) {
     const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
     const html = [];
     let listType = '';
@@ -112,20 +144,20 @@
           index += 1;
         }
         index -= 1;
-        html.push(`<div class="table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((unused, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        html.push(`<div class="table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell, chain)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((unused, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || '', chain)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
         continue;
       }
       const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
       if (heading) {
         closeList();
         const level = heading[1].length;
-        html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+        html.push(`<h${level}>${renderInlineMarkdown(heading[2], chain)}</h${level}>`);
         continue;
       }
       const quote = trimmed.match(/^>\s?(.+)$/);
       if (quote) {
         closeList();
-        html.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+        html.push(`<blockquote>${renderInlineMarkdown(quote[1], chain)}</blockquote>`);
         continue;
       }
       const unordered = trimmed.match(/^[-*+]\s+(.+)$/);
@@ -135,7 +167,7 @@
           listType = 'ul';
           html.push('<ul>');
         }
-        html.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
+        html.push(`<li>${renderInlineMarkdown(unordered[1], chain)}</li>`);
         continue;
       }
       const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
@@ -145,11 +177,11 @@
           listType = 'ol';
           html.push('<ol>');
         }
-        html.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+        html.push(`<li>${renderInlineMarkdown(ordered[1], chain)}</li>`);
         continue;
       }
       closeList();
-      html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+      html.push(`<p>${renderInlineMarkdown(line, chain)}</p>`);
     }
     closeList();
     if (inCode) html.push('</code></pre>');
@@ -6088,7 +6120,7 @@
       <article class="card">
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code></p>
-        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '')}</div>
+        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
         <p class="actions">
           <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
           ${golosDonateLink(author, 'Донат автору')}
@@ -6138,7 +6170,7 @@
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
-        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '')}</div>
+        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
         <p class="actions">
           <button type="button" data-golos-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
           ${golosDonateLink(author, 'Донат коммента')}
@@ -6479,7 +6511,7 @@
       <article class="card">
         <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code> · ${escapeHtml(socialFeedActionStats(post))}</p>
-        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '')}</div>
+        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
         <p class="actions">
           <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
           ${editPostLink ? `<a href="${escapeHtml(editPostLink)}">Редактировать</a>` : ''}
@@ -6523,7 +6555,7 @@
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
         <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
-        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '')}</div>
+        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
         <p class="actions">
           <button type="button" data-social-post-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже голосовали' : 'Лайк 100%'}</button>
           <button type="button" data-social-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
