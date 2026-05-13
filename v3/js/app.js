@@ -6280,6 +6280,7 @@
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadGolosRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
+    await loadScript(chain.cryptoPath);
     const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
@@ -6756,6 +6757,7 @@
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
+    await loadScript(chain.cryptoPath);
     const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain)) && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
