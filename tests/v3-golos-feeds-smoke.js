@@ -33,8 +33,10 @@ assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'feeds'") 
   assert(appSource.includes(marker), `Golos feeds implementation marker missing: ${marker}`);
 });
 
-assert(appSource.includes('Новые посты') && appSource.includes('Популярное') && appSource.includes('Донаты') && appSource.includes('Лента подписок'), 'feeds UI exposes new/popular/donates/subscriptions tabs');
+assert(appSource.includes('Новые посты') && appSource.includes('Популярное') && appSource.includes('По тегу') && appSource.includes('Донаты') && appSource.includes('Лента подписок'), 'feeds UI exposes new/popular/tag/donates/subscriptions tabs');
 assert(appSource.includes('markdownToTextPreview') && appSource.includes('golosFeedActionStats'), 'feed cards render teaser and action stats');
+assert(appSource.includes('function golosFeedTagUrl') && appSource.includes("app: 'feeds', feed: 'tag'") && appSource.includes('function golosFeedTagLabel') && appSource.includes("'ru--foto': 'фото'"), 'feed tags link to internal tag feeds with readable labels');
+assert(!appSource.includes('https://golos.id/created/${encodeURIComponent(tag)}'), 'feed tag links stay inside dpos.space instead of opening golos.id');
 assert(appSource.includes('golosDonationPageUrl({ to: row.author') && appSource.includes('target="_blank"'), 'feed cards link donate to confirmed donate flow in a new tab');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'vote'") && appSource.includes("broadcast.prepare(chain, 'posting', 'sendOperations'"), 'feed actions use confirmed posting vote/repost broadcasts');
 assert(appSource.includes('hasGolosVoteFrom(content, voter)'), 'feed vote checks active_votes before broadcast');

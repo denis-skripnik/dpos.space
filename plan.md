@@ -4852,8 +4852,9 @@ Fix tasks:
 
 Scope:
 - Add a static/browser-only Golos `feeds` app for reading public discussion feeds through existing public RPC nodes.
-- Feed types: `Новые посты` via `getDiscussionsByCreated`, `Популярное` via `getDiscussionsByHot` with `getDiscussionsByTrending` fallback, `Донаты` as an account blog/payment-oriented list using public discussion rows, and `Лента подписок` via `getDiscussionsByFeed` for the selected account.
+- Feed types: `Новые посты` via `getDiscussionsByCreated`, `Популярное` via `getDiscussionsByHot` with `getDiscussionsByTrending` fallback, `По тегу` via `getDiscussionsByCreated({ tag })`, `Донаты` as an account blog/payment-oriented list using public discussion rows, and `Лента подписок` via `getDiscussionsByFeed` for the selected account.
 - Each feed card shows title, author/date, short text teaser, basic counters, and actions.
+- Tags under feed cards open internal `#chain=golos&app=feeds&feed=tag&tag=...` links; known `ru--...` categories use readable Russian labels from the Golos editor category list.
 - Post titles open the in-app Dpos Space post route `#chain=golos&app=post&author=...&permlink=...`.
 - Actions stay explicit and static-safe: vote and repost use confirmed posting broadcasts; donate is a link to the existing confirmed Golos donate app.
 
@@ -4876,8 +4877,8 @@ Validation:
 - Broad `for f in tests/v3-*.js; do node "$f" || exit 1; done`
 
 Definition of done:
-- Users can open Golos → Ленты and switch between new/popular/donates/subscriptions feeds.
-- Each row has a readable announcement/teaser, title link to the Dpos Space post page, and explicit like/repost/donate actions.
+- Users can open Golos → Ленты and switch between new/popular/tag/donates/subscriptions feeds.
+- Each row has a readable announcement/teaser, title link to the Dpos Space post page, internal tag links, and explicit like/repost/donate actions.
 - Subscription feed works from the selected/account hash value without adding any service.
 
 ### Follow-up: Golos feeds settings persistence
