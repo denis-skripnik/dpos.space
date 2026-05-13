@@ -5003,6 +5003,38 @@ Definition of done:
 - The implementation handles Hive/Steem payout/metadata field differences without copying Golos donate-specific UI.
 - No backend/indexer/PHP runtime is introduced.
 
+### UX parity: Steem/Hive post comments after Golos vote/edit changes
+
+Scope:
+- Port the latest Golos post/comment UX improvements that are valid for Steem and Hive social post viewers: expandable vote controls for posts/comments and own-comment editing from the post page.
+- Keep notifications out of scope for this pass.
+- Keep Golos donate out of Hive/Steem because Steem and Hive do not have the Golos donate operation.
+- Preserve chain differences: Steem/Hive vote and comment broadcasts use posting authority; vote slider percent `-100..100` is converted to blockchain weight by multiplying by `100`; comment edit is the same `comment` operation with the existing comment author/permlink.
+
+Inspected evidence:
+- Recent Golos-related runtime in `v3/js/app.js`: `renderPostVoteForm`, `submitPostVote`, `renderGolosCommentNode`, `renderGolosCommentForm`, and `bindGolosPostActions` from the Golos vote/edit changes.
+- Current Steem/Hive runtime in `v3/js/app.js`: `renderSocialPostPage`, `renderSocialCommentNode`, `renderSocialCommentForm`, `socialCommentPermlink`, and `bindSocialPostActions`.
+- Focused tests updated: `tests/v3-steem-post-smoke.js`, `tests/v3-hive-post-smoke.js`, and `tests/v3-social-post-feeds-runtime-smoke.js`.
+
+Parity matrix:
+
+| Legacy/latest behavior | Steem/Hive v3 equivalent | Test coverage | Status |
+| --- | --- | --- | --- |
+| Post vote UI is hidden in `<details class="vote-details">` with percent range `-100..100` | Existing shared `renderPostVoteForm('social-post', ...)` is used on the Steem/Hive post page | `tests/v3-steem-post-smoke.js`, `tests/v3-hive-post-smoke.js`, `tests/v3-social-post-feeds-runtime-smoke.js` assert vote-details/range/data-social-post-vote-form | Verified |
+| Comment vote UI uses the same spoiler/slider and posting vote broadcast | `renderSocialCommentNode` uses `renderPostVoteForm('social-post', author, permlink, voted)` and `submitPostVote` sends posting `vote` with `percent * 100` | Focused Steem/Hive tests assert markers and runtime smoke renders comment vote controls | Verified |
+| Own-comment edit button appears only for the authorized comment author | `renderSocialCommentNode` compares current login with comment author and adds `data-social-comment-edit` plus hidden edit slot | Runtime smoke uses current Hive login `bob` and a `bob` reply to assert the edit button/form | Implemented |
+| Comment edit form keeps parent fields and existing comment author/permlink | `renderSocialCommentForm(..., { mode: 'edit', author, permlink, body })` adds `data-social-comment-edit-form`, `data-comment-mode="edit"`, `data-comment-author`, `data-comment-permlink`, and prefilled body | Focused Steem/Hive tests assert edit form markers; runtime smoke asserts existing `bob/re-hello-hive` values | Implemented |
+| Edit submit must not generate a new permlink | `bindSocialPostActions` uses `mode === 'edit' ? commentPermlink : socialCommentPermlink(...)` | Focused Steem/Hive tests assert the edit/create branch | Implemented |
+| Edit submit validates author and uses posting `comment` broadcast | Submit handler validates current login equals comment author, then calls `broadcast.prepare(chain, 'posting', 'comment', ...)` with edit-aware title/feature | Focused Steem/Hive tests assert validation and broadcast markers | Implemented |
+| Notifications | Explicitly excluded from this pass | Plan-only scope note | Non-goal |
+| Golos donate links/buttons | Not copied to Steem/Hive social post/comment runtime | Focused tests assert no donate markers in social runtime slice; runtime smoke checks no `Донат` in Hive post page | Non-goal |
+
+Definition of done:
+- Steem/Hive post and comment vote controls stay in accessible spoilers and keep configurable weight semantics.
+- A user can open an edit form for their own Steem/Hive comment and submit a posting `comment` operation that reuses the existing comment permlink.
+- Reply/create comment flow still generates a fresh `socialCommentPermlink`.
+- No notifications, Golos donate UI, backend, PHP, service, indexer, daemon, or hidden API is introduced.
+
 ### Scoped plan: Hive/Steem auto-upvoter without donations
 
 Scope:

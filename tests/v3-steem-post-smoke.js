@@ -68,4 +68,33 @@ for (const marker of [
 }
 assert(planSource.includes('Steem API probe') && planSource.includes('promoted') && planSource.includes('percent_steem_dollars'), 'plan.md records Steem API shape evidence');
 
+const socialCommentSlice = appSource.slice(
+  appSource.indexOf('function renderSocialCommentNode'),
+  appSource.indexOf('async function renderGolosDonate')
+);
+assert(socialCommentSlice.length > 1000, 'test isolates Steem/Hive social post/comment runtime slice');
+for (const marker of [
+  '<details class="vote-details" data-vote-details>',
+  'data-social-post-vote-form',
+  'name="percent" data-vote-percent type="range" min="-100" max="100" step="1" value="100"'
+]) {
+  assert(appSource.includes(marker), `Steem social vote contract missing: ${marker}`);
+}
+for (const marker of [
+  'data-social-comment-edit',
+  'data-social-comment-edit-slot',
+  'data-social-comment-edit-form',
+  'data-comment-mode="${escapeHtml(mode)}"',
+  'data-comment-author="${escapeHtml(options.author || \'\')}"',
+  'data-comment-permlink="${escapeHtml(options.permlink || \'\')}"',
+  "form.dataset.commentMode === 'edit' ? 'edit' : 'create'",
+  "mode === 'edit' ? commentPermlink : socialCommentPermlink(parentAuthor, parentPermlink)",
+  "String(commentAuthor).toLowerCase() !== String(author || '').toLowerCase()",
+  "broadcast.prepare(chain, 'posting', 'comment'"
+]) {
+  assert(socialCommentSlice.includes(marker), `Steem social comment edit/vote contract missing: ${marker}`);
+}
+assert(!/Донат|golosDonateLink|data-golos-donate/.test(socialCommentSlice), 'Steem/Hive social post/comment runtime slice must not include Golos donate UI');
+assert(planSource.includes('### UX parity: Steem/Hive post comments after Golos vote/edit changes'), 'plan documents Steem/Hive post comment UX parity section');
+
 console.log('v3 Steem post smoke passed');
