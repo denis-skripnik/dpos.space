@@ -12539,10 +12539,17 @@ Memo key: ${keys.memo}`);
       ['Minter: кошелёк', appHash({ chain: 'minter', app: 'wallet' })],
       ['Decimal: кошелёк', appHash({ chain: 'decimal', app: 'wallet' })]
     ];
+    const accountServices = Object.values(chains).map((chain) => [
+      `${chain.title}: аккаунты`,
+      appHash({ chain: chain.id, app: 'accounts' })
+    ]);
     appEl.innerHTML = `<section class="panel">
       <h2>Главная</h2>
-      <p>Выберите блокчейн и раздел выше или откройте один из быстрых переходов. Без параметров в адресе DPOS.space показывает эту стартовую страницу, а не профиль аккаунта по умолчанию.</p>
+      <p>Выберите блокчейн и раздел выше или откройте один из быстрых переходов.</p>
+      <h3>Быстрые переходы</h3>
       <ul>${featured.map(([label, href]) => `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`).join('')}</ul>
+      <h3>Аккаунты по блокчейнам</h3>
+      <ul>${accountServices.map(([label, href]) => `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`).join('')}</ul>
     </section>`;
     setStatus('Главная страница DPOS.space готова. Выберите блокчейн и раздел.', 'info');
   }
