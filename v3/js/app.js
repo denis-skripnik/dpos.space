@@ -6694,16 +6694,23 @@
     const curationPercent = Math.max(0, Math.min(10000, Math.round(Number(form.get('curation_percent') || 50) * 100)));
     const beneficiaries = normalizeEditorBeneficiaries(form.get('beneficiary_account'), form.get('beneficiary_weight'));
     const author = auth.getCurrentLogin(chain);
+    const isEdit = form && form.dataset && form.dataset.golosEditMode === 'true';
+    const editAuthor = String(form && form.dataset && form.dataset.golosEditAuthor || '').trim().replace(/^@/, '');
+    if (isEdit && editAuthor && editAuthor !== author) {
+      throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
+    }
+    const commentOperation = ['comment', {
+      parent_author: '',
+      parent_permlink: category,
+      author,
+      permlink,
+      title,
+      body: String(form.get('body') || ''),
+      json_metadata: JSON.stringify({ app: 'dpos.space/post', format: 'markdown', tags, image: images })
+    }];
+    if (isEdit) return [commentOperation];
     return [
-      ['comment', {
-        parent_author: '',
-        parent_permlink: category,
-        author,
-        permlink,
-        title,
-        body: String(form.get('body') || ''),
-        json_metadata: JSON.stringify({ app: 'dpos.space/post', format: 'markdown', tags, image: images })
-      }],
+      commentOperation,
       ['comment_options', {
         author,
         permlink,
@@ -6754,11 +6761,15 @@
     return operations.map(([name, payload]) => [name, Object.fromEntries(Object.entries(payload).filter(([, value]) => typeof value !== 'undefined'))]);
   }
 
-  function parseSteemPostUrl(value) {
+  function parseSocialPostUrl(value) {
     const text = String(value || '').trim();
-    const match = text.match(/@([^/\s])\/([^/?#\s])/);
+    const match = text.match(/@([^/\s]+)\/([^/?#\s]+)/);
     if (!match) throw new Error('Ссылка должна содержать @author/permlink.');
     return { author: match[1].replace(/^@/, ''), permlink: match[2].replace(/\/$/, '') };
+  }
+
+  function parseSteemPostUrl(value) {
+    return parseSocialPostUrl(value);
   }
 
   function applyEditorDraftToForm(form, draft) {
@@ -6807,7 +6818,7 @@
     if (loadButton && editUrl && form) {
       loadButton.addEventListener('click', async () => {
         try {
-          const target = parseSteemPostUrl(editUrl.value);
+          const target = parseSocialPostUrl(editUrl.value);
           const connection = await getConnection(chain);
           const api = connection.client && connection.client.api;
           let post;
@@ -6838,6 +6849,48 @@
     }
   }
 
+  function bindGolosPostLegacyHelpers(chain) {
+    if (chain.id !== 'golos') return;
+    const form = document.getElementById('editor-form');
+    const loadButton = document.getElementById('editor-load-edit');
+    const editUrl = document.getElementById('editor-edit-url');
+    const status = document.getElementById('editor-helper-status');
+    const report = (message) => { if (status) status.textContent = message; };
+    if (!form) return;
+    form.addEventListener('reset', () => {
+      delete form.dataset.golosEditMode;
+      delete form.dataset.golosEditAuthor;
+      report('Форма очищена, режим редактирования выключен.');
+    });
+    if (!loadButton || !editUrl) return;
+    loadButton.addEventListener('click', async () => {
+      try {
+        const target = parseSocialPostUrl(editUrl.value);
+        const current = auth.getCurrentLogin(chain);
+        if (target.author !== current) throw new Error('Редактировать можно только пост текущего авторизованного аккаунта.');
+        const connection = await getConnection(chain);
+        const post = await profiles.apiCall(connection, 'getContent', [target.author, target.permlink]);
+        if (!post || !post.author) throw new Error('Пост не найден через публичный RPC.');
+        let metadata = {};
+        try { metadata = JSON.parse(post.json_metadata || '{}'); } catch (error) { metadata = {}; }
+        applyEditorDraftToForm(form, {
+          title: post.title,
+          tags: Array.isArray(metadata.tags) ? metadata.tags.join(' ') : '',
+          image: Array.isArray(metadata.image) ? metadata.image.join(',') : '',
+          permlink: post.permlink,
+          body: post.body,
+          category: post.parent_permlink || metadata.tags && metadata.tags[0],
+          payouts: post.percent_steem_dollars
+        });
+        form.dataset.golosEditMode = 'true';
+        form.dataset.golosEditAuthor = target.author;
+        report(`Пост загружен для редактирования: @${target.author}/${target.permlink}. При отправке будет broadcast comment без comment_options.`);
+      } catch (error) {
+        report(profiles.formatError(error));
+      }
+    });
+  }
+
   function renderEditor(chain) {
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
@@ -6846,13 +6899,14 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
         <p>Редактор публикаций: подготовка поста, проверка операции и отправка по подтверждению.</p>
-        <details id="editor-operation-details" class="operation-details"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form">
+        <details id="editor-operation-details" class="operation-details"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
           <fieldset>
             <legend>Публикация поста</legend>
             <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
             ${isGolos ? `<div class="field"><label for="editor-category">Категория</label><select id="editor-category" name="category">${golosEditorCategoryOptions(draft && draft.category)}</select></div>` : ''}
             <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
             ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
+            ${isGolos ? `<details class="subpanel"><summary>Редактировать существующий Golos пост</summary><div class="field"><label for="editor-edit-url">Ссылка на пост</label><input id="editor-edit-url" type="url" placeholder="https://golos.id/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Загрузится только пост текущего выбранного аккаунта. При отправке редактирования будет создана только операция comment, без повторного comment_options.</p></details>` : ''}
             ${(chain.id === 'steem' || chain.id === 'hive') ? `<details class="subpanel"><summary>Загрузить legacy markdown или редактировать пост</summary><div class="field"><label for="editor-md-file">Загрузить файл *.md</label><input id="editor-md-file" type="file" accept=".md,text/markdown,text/plain"></div><p class="muted">Формат: Первая строка - заголовок; вторая - теги через пробел; третья и последующие - текст поста.</p><div class="field"><label for="editor-edit-url">Редактировать пост (введите ссылку)</label><input id="editor-edit-url" type="url" placeholder="https://${chain.id === 'hive' ? 'hive.blog' : 'steemit.com'}/tag/@user/permlink"></div><button id="editor-load-edit" type="button">Загрузить в редактор</button><p id="editor-helper-status" role="status" aria-live="polite"></p><p class="muted">Static-safe: legacy SimpleMDE/Garlic не копируются; фото можно загрузить кнопкой «Загрузить фото» в Markdown-панели.</p></details>` : ''}
             <div class="field"><label for="editor-tags">Теги через пробел</label><input id="editor-tags" name="tags" type="text" placeholder="dpos space" value="${escapeHtml(draft && draft.tags ? draft.tags : '')}"></div>
             ${chain.id === 'steem' ? `<details class="subpanel"><summary>Популярные legacy теги</summary><p><button type="button" data-copy-value="liga-avtorov">Лига авторов</button> <button type="button" data-copy-value="vp-liganovi4kov">Лига новичков</button> <button type="button" data-copy-value="ladyzarulem">ladyzarulem</button> <button type="button" data-copy-value="psk">psk</button> <button type="button" data-copy-value="chaos-legion">Легион хаоса</button> <button type="button" data-copy-value="ru--megagalxyan">Мегагальян</button> <button type="button" data-copy-value="botbod">Проект БОД</button> <button type="button" data-copy-value="boonmood">boonmood</button> <button type="button" data-copy-value="steem">Steem</button> <button type="button" data-copy-value="blockchain">Блокчейн</button> <button type="button" data-copy-value="vox-populi">vox-populi</button> <button type="button" data-copy-value="earth-citizens">Граждане Земли</button></p><p class="muted">Нажатие копирует тег; вставьте нужные теги в поле выше. dpos-post добавляется автоматически.</p></details>` : ''}
@@ -6881,6 +6935,7 @@
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
     });
     bindSteemPostLegacyHelpers(chain);
+    bindGolosPostLegacyHelpers(chain);
     bindMarkdownEditor(appEl);
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
