@@ -40,7 +40,9 @@ assert(!appSource.includes('https://golos.id/created/${encodeURIComponent(tag)}'
 assert(appSource.includes('golosDonationPageUrl({ to: row.author') && appSource.includes('target="_blank"'), 'feed cards link donate to confirmed donate flow in a new tab');
 assert(appSource.includes("broadcast.prepare(chain, 'posting', 'vote'") && appSource.includes("broadcast.prepare(chain, 'posting', 'sendOperations'"), 'feed actions use confirmed posting vote/repost broadcasts');
 assert(appSource.includes('hasGolosVoteFrom(content, voter)'), 'feed vote checks active_votes before broadcast');
-assert(appSource.includes('const storedSettings = readGolosFeedsSettings()') && appSource.includes("writeGolosFeedsSettings({ feed: data.get('feed'), account:") && appSource.includes("form.querySelector('[name=\"feed\"]')"), 'feeds form persists feed/account settings to localStorage and restores them');
+assert(appSource.includes('const storedSettings = readGolosFeedsSettings()') && appSource.includes("writeGolosFeedsSettings({ feed: data.get('feed'), tag: data.get('tag') })") && appSource.includes("form.querySelector('[name=\"feed\"]')"), 'feeds form persists feed/tag settings to localStorage and restores them');
+assert(!appSource.includes('golos-feeds-account') && !appSource.includes('Аккаунт для донатов/подписок'), 'feeds page uses the authorized account selector instead of a duplicate account input');
+assert(appSource.includes("account: auth.getCurrentLogin(chain) || null"), 'feeds form submit keeps the selected authorized account in the route');
 assert(planSource.includes('Scoped plan: Golos feeds page'), 'plan.md records the scoped feeds work');
 
 console.log('v3 Golos feeds smoke: OK');
