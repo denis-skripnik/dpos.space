@@ -45,6 +45,7 @@
 
   function renderInlineMarkdown(value) {
     let text = escapeHtml(value);
+    text = text.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
     text = text.replace(/!\[([^\]]*)\]\(([^\s)]+)\)/g, (match, alt, url) => `<img src="${escapeHtml(safeMarkdownUrl(url))}" alt="${escapeHtml(alt)}" loading="lazy">`);
     text = text.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, (match, label, url) => `<a href="${escapeHtml(safeMarkdownUrl(url))}" target="_blank" rel="noopener noreferrer">${label}</a>`);
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -55,6 +56,7 @@
 
   function markdownToTextPreview(markdown, limit = 280) {
     const text = String(markdown || '')
+      .replace(/<br\s*\/?\s*>/gi, ' ')
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
@@ -9496,6 +9498,482 @@ Memo key: ${keys.memo}`);
     }
   }
 
+
+  const vizTopState = {
+    loading: false,
+    loadedAt: null,
+    rows: [],
+    error: ''
+  };
+
+  const vizTopRankingOptions = [
+    { type: 'shares', aliases: ['SHARES', 'social_capital'], label: 'Соц. капитал (SHARES)', description: 'Собственный социальный капитал аккаунта.' },
+    { type: 'VIZ', aliases: ['viz'], label: 'VIZ', description: 'Ликвидный баланс VIZ.' },
+    { type: 'effective_shares', aliases: ['EFFECTIVE_SHARES', 'effective'], label: 'Эффективный соц. капитал', description: 'SHARES с учётом полученных и отданных делегаций.' },
+    { type: 'received_shares', aliases: ['RECEIVED_SHARES'], label: 'Получено делегированием', description: 'SHARES, полученные от других аккаунтов.' },
+    { type: 'delegated_shares', aliases: ['DELEGATED_SHARES'], label: 'Делегировано', description: 'SHARES, делегированные другим аккаунтам.' },
+    { type: 'vesting_withdraw_rate', aliases: ['WITHDRAW', 'withdraw'], label: 'Выводится SHARES', description: 'Текущая скорость вывода соц. капитала.' }
+  ];
+
+  function normalizeVizTopType(value) {
+    const raw = String(value || 'shares').trim();
+    if (!raw) return 'shares';
+    const lower = raw.toLowerCase();
+    const upper = raw.toUpperCase();
+    const option = vizTopRankingOptions.find((item) => item.type === raw || item.type.toLowerCase() === lower || (item.aliases || []).some((alias) => String(alias).toUpperCase() === upper));
+    return option ? option.type : 'shares';
+  }
+
+  function vizTopOptionLabel(type) {
+    const normalized = normalizeVizTopType(type);
+    const option = vizTopRankingOptions.find((item) => item.type === normalized);
+    return option ? option.label : 'Соц. капитал (SHARES)';
+  }
+
+  function vizTopTypeOptions(selectedType) {
+    const normalized = normalizeVizTopType(selectedType);
+    return vizTopRankingOptions.map((option) => `<option value="${escapeHtml(option.type)}"${normalized === option.type ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+  }
+
+  function vizTopMetric(row, type) {
+    if (!row) return 0;
+    const normalized = normalizeVizTopType(type);
+    if (normalized === 'VIZ') return row.viz || 0;
+    if (normalized === 'effective_shares') return row.effectiveShares || 0;
+    if (normalized === 'received_shares') return row.receivedShares || 0;
+    if (normalized === 'delegated_shares') return row.delegatedShares || 0;
+    if (normalized === 'vesting_withdraw_rate') return row.vestingWithdrawRate || 0;
+    return row.shares || 0;
+  }
+
+  function formatVizTopNumber(value, digits = 3) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) return '0';
+    return number.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: Math.min(digits, 3) });
+  }
+
+  function renderVizTopResults(kind) {
+    if (!vizTopState.rows.length) {
+      return '<p class="muted">Топ ещё не загружен. Нажмите кнопку загрузки — при входе на страницу запросы к ноде не запускаются.</p>';
+    }
+    const sorted = vizTopState.rows
+      .filter((row) => vizTopMetric(row, kind) > 0)
+      .sort((a, b) => vizTopMetric(b, kind) - vizTopMetric(a, kind))
+      .slice(0, 100);
+    if (!sorted.length) return `<p class="muted">Для ${escapeHtml(vizTopOptionLabel(kind))} ненулевые значения не найдены.</p>`;
+    const rows = sorted.map((row, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${renderAccountCell(chains.viz, row.name)}</td>
+        <td>${escapeHtml(formatVizTopNumber(vizTopMetric(row, kind), 6))}</td>
+        <td>${escapeHtml(formatVizTopNumber(row.shares, 6))}</td>
+        <td>${escapeHtml(formatVizTopNumber(row.effectiveShares, 6))}</td>
+        <td>${escapeHtml(formatVizTopNumber(row.viz, 3))}</td>
+        <td>${escapeHtml(formatVizTopNumber(row.sharesPercent, 6))}%</td>
+        <td>${escapeHtml(formatVizTopNumber(row.vizPercent, 6))}%</td>
+      </tr>`).join('');
+    return `<div class="table-wrap"><table><caption>Топ-100 VIZ: ${escapeHtml(vizTopOptionLabel(kind))}</caption><thead><tr><th scope="col">#</th><th scope="col">Аккаунт</th><th scope="col">Значение</th><th scope="col">SHARES</th><th scope="col">Эффективные SHARES</th><th scope="col">VIZ</th><th scope="col">% SHARES</th><th scope="col">% VIZ</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function setVizTopProgress(message, percent) {
+    const progress = document.querySelector('[data-viz-top-progress]');
+    if (progress) {
+      progress.textContent = message;
+      progress.dataset.state = vizTopState.loading ? 'loading' : 'info';
+    }
+    const bar = document.querySelector('[data-viz-top-progress-bar]');
+    if (bar && Number.isFinite(percent)) {
+      bar.max = 100;
+      bar.value = Math.max(0, Math.min(100, percent));
+    }
+    setStatus(message, vizTopState.loading ? 'loading' : 'info');
+  }
+
+  async function fetchVizTopAccountNames(connection, onProgress) {
+    const names = [];
+    let from = '';
+    const limit = 1000;
+    const seen = new Set();
+    while (true) {
+      const chunk = await profiles.apiCall(connection, 'lookupAccounts', [from, limit]);
+      const fresh = (Array.isArray(chunk) ? chunk : []).filter((name) => name && !seen.has(name));
+      fresh.forEach((name) => { seen.add(name); names.push(name); });
+      if (onProgress) onProgress(`Найдено аккаунтов VIZ: ${names.length}`, Math.min(35, names.length ? 10 + names.length / 300 : 5));
+      if (!Array.isArray(chunk) || chunk.length < limit || !fresh.length) break;
+      from = chunk[chunk.length - 1];
+    }
+    return names;
+  }
+
+  function normalizeVizTopAccount(account, totals) {
+    const shares = numericAssetValue(account && account.vesting_shares);
+    const delegatedShares = numericAssetValue(account && account.delegated_vesting_shares);
+    const receivedShares = numericAssetValue(account && account.received_vesting_shares);
+    const viz = numericAssetValue(account && account.balance);
+    return {
+      name: account.name,
+      shares,
+      effectiveShares: shares - delegatedShares + receivedShares,
+      receivedShares,
+      delegatedShares,
+      vestingWithdrawRate: numericAssetValue(account && account.vesting_withdraw_rate),
+      viz,
+      sharesPercent: totals.totalShares ? shares / totals.totalShares * 100 : 0,
+      vizPercent: totals.totalViz ? viz / totals.totalViz * 100 : 0
+    };
+  }
+
+  function vizTopTotals(props) {
+    return {
+      totalShares: numericAssetValue(props && props.total_vesting_shares),
+      totalViz: numericAssetValue(props && props.current_supply)
+    };
+  }
+
+  async function loadVizTopRows(connection, onProgress) {
+    const names = await fetchVizTopAccountNames(connection, onProgress);
+    const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []).catch(() => ({}));
+    const totals = vizTopTotals(props);
+    const accounts = await mapGolosTopChunks(names, 1000, 2, (chunk) => profiles.apiCall(connection, 'getAccounts', [chunk]), (done, total) => {
+      if (onProgress) onProgress(`Загрузка аккаунтов VIZ: ${done}/${total}`, 35 + Math.round((done / Math.max(total, 1)) * 60));
+    });
+    return accounts.filter((account) => account && account.name).map((account) => normalizeVizTopAccount(account, totals));
+  }
+
+  function renderVizTop(chain) {
+    const state = parseHash();
+    const selectedKind = normalizeVizTopType(state.type || state.topType || 'shares');
+    appEl.innerHTML = `
+      <section class="panel viz-top">
+        <h2>VIZ: топ пользователей</h2>
+        <p>Топ загружается только по кнопке. При открытии страницы v3 не сканирует ноду автоматически, чтобы не создавать ожидание и лишнюю нагрузку.</p>
+        <p class="notice">Источник: публичные RPC-ноды VIZ (${escapeHtml((chain.nodes || []).join(', '))}). Backend/indexer, PHP и приватные IP не используются. Данные хранятся только в памяти текущей вкладки.</p>
+        <form id="viz-top-controls" class="route-form">
+          <div class="field field-grow">
+            <label for="viz-top-kind">Сортировать по</label>
+            <select id="viz-top-kind" name="type">${vizTopTypeOptions(selectedKind)}</select>
+            <small class="muted">Выбранный тип сохраняется в URL как <code>type</code>, например <code>#chain=viz&amp;app=top&amp;type=shares</code>.</small>
+          </div>
+          <button type="button" data-viz-top-load${vizTopState.loading ? ' disabled aria-disabled="true"' : ''}>${vizTopState.loading ? 'Загрузка...' : (vizTopState.rows.length ? 'Обновить топ' : 'Загрузить топ')}</button>
+        </form>
+        <div data-viz-top-progress role="status" aria-live="polite">${vizTopState.loadedAt ? `Последняя загрузка: ${escapeHtml(vizTopState.loadedAt)}` : 'Ожидаю запуска загрузки.'}</div>
+        <progress data-viz-top-progress-bar max="100" value="0">0%</progress>
+        ${vizTopState.error ? `<p class="warning">${escapeHtml(vizTopState.error)}</p>` : ''}
+        <div data-viz-top-results>${renderVizTopResults(selectedKind)}</div>
+      </section>`;
+
+    const select = document.getElementById('viz-top-kind');
+    select.addEventListener('change', () => {
+      const result = document.querySelector('[data-viz-top-results]');
+      if (result) result.innerHTML = renderVizTopResults(select.value);
+      navigate({ chain: chain.id, app: 'top', type: normalizeVizTopType(select.value) });
+    });
+
+    const button = document.querySelector('[data-viz-top-load]');
+    button.addEventListener('click', async () => {
+      if (vizTopState.loading) return;
+      vizTopState.loading = true;
+      vizTopState.error = '';
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.textContent = 'Загрузка...';
+      try {
+        setVizTopProgress('Подключаю VIZ RPC...', 3);
+        await loadScript(chain.libraryPath);
+        const connection = await getConnection(chain);
+        const rows = await loadVizTopRows(connection, setVizTopProgress);
+        vizTopState.rows = rows;
+        vizTopState.loadedAt = new Date().toLocaleString('ru-RU');
+        vizTopState.loading = false;
+        setStatus(`VIZ top загружен: ${rows.length} аккаунтов.`, 'ok');
+        renderVizTop(chain);
+      } catch (error) {
+        vizTopState.loading = false;
+        vizTopState.error = profiles.formatError(error);
+        setStatus(`Ошибка загрузки VIZ top: ${profiles.formatError(error)}`, 'error');
+        renderVizTop(chain);
+      }
+    });
+  }
+
+  const golosTopState = {
+    loading: false,
+    loadedAt: null,
+    rows: [],
+    uiaSymbols: [],
+    error: ''
+  };
+
+  const golosTopRankingOptions = [
+    { type: 'GP', aliases: ['sg', 'СГ'], label: 'Сила Голоса (СГ)', description: 'Собственная СГ, рассчитанная из vesting_shares по текущему курсу сети.' },
+    { type: 'EFFECTIVE_GP', aliases: ['effective_sg', 'EGP'], label: 'Эффективная СГ', description: 'СГ с учётом полученных и отданных делегаций.' },
+    { type: 'GOLOS', aliases: ['golos'], label: 'GOLOS', description: 'Ликвидный баланс GOLOS.' },
+    { type: 'GBG', aliases: ['gbg'], label: 'GBG', description: 'Ликвидный баланс GBG.' },
+    { type: 'TIP', aliases: ['tip'], label: 'TIP GOLOS', description: 'TIP-баланс GOLOS.' },
+    { type: 'ACCUMULATIVE', aliases: ['accumulative', 'CLAIM'], label: 'Накопления GOLOS', description: 'accumulative_balance / доступные накопления.' }
+  ];
+
+  function normalizeGolosTopType(value) {
+    const raw = String(value || 'GP').trim();
+    if (!raw) return 'GP';
+    const upper = raw.toUpperCase();
+    if (upper.startsWith('UIA:')) return `UIA:${raw.slice(4).trim().toUpperCase()}`;
+    const option = golosTopRankingOptions.find((item) => item.type === upper || (item.aliases || []).some((alias) => String(alias).toUpperCase() === upper));
+    return option ? option.type : 'GP';
+  }
+
+  function golosTopOptionLabel(type) {
+    const normalized = normalizeGolosTopType(type);
+    const option = golosTopRankingOptions.find((item) => item.type === normalized);
+    if (option) return option.label;
+    if (normalized.startsWith('UIA:')) return `UIA ${normalized.slice(4)}`;
+    return 'Сила Голоса (СГ)';
+  }
+
+  function golosTopKindOptions(selectedType) {
+    const normalized = normalizeGolosTopType(selectedType);
+    const base = golosTopRankingOptions.map((option) => `<option value="${escapeHtml(option.type)}"${normalized === option.type ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    const uia = (golosTopState.uiaSymbols || []).map((symbol) => {
+      const value = `UIA:${symbol}`;
+      return `<option value="${escapeHtml(value)}"${normalized === value ? ' selected' : ''}>UIA ${escapeHtml(symbol)}</option>`;
+    }).join('');
+    return base + uia;
+  }
+
+  function golosTopMetric(row, type) {
+    if (!row) return 0;
+    const normalized = normalizeGolosTopType(type);
+    if (normalized.startsWith('UIA:')) return Number(row.uia && row.uia[normalized.slice(4)] || 0);
+    if (normalized === 'EFFECTIVE_GP') return row.effectiveSg || 0;
+    if (normalized === 'GOLOS') return row.golos || 0;
+    if (normalized === 'GBG') return row.gbg || 0;
+    if (normalized === 'TIP') return row.tip || 0;
+    if (normalized === 'ACCUMULATIVE') return row.accumulative || 0;
+    return row.sg || 0;
+  }
+
+  function formatGolosTopNumber(value, digits = 3) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) return '0';
+    return number.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: Math.min(digits, 3) });
+  }
+
+  function renderGolosTopResults(kind) {
+    if (!golosTopState.rows.length) {
+      return '<p class="muted">Топ ещё не загружен. Нажмите кнопку загрузки — при входе на страницу запросы к ноде не запускаются.</p>';
+    }
+    const sorted = golosTopState.rows
+      .filter((row) => golosTopMetric(row, kind) > 0)
+      .sort((a, b) => golosTopMetric(b, kind) - golosTopMetric(a, kind))
+      .slice(0, 100);
+    if (!sorted.length) return `<p class="muted">Для ${escapeHtml(golosTopOptionLabel(kind))} ненулевые балансы не найдены.</p>`;
+    const rows = sorted.map((row, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${renderAccountCell(chains.golos, row.name)}</td>
+        <td>${escapeHtml(formatGolosTopNumber(golosTopMetric(row, kind), normalizeGolosTopType(kind).startsWith('UIA:') ? 6 : 3))}</td>
+        <td>${escapeHtml(formatGolosTopNumber(row.sg, 3))}</td>
+        <td>${escapeHtml(formatGolosTopNumber(row.golos, 3))}</td>
+        <td>${escapeHtml(formatGolosTopNumber(row.gbg, 3))}</td>
+      </tr>`).join('');
+    return `<div class="table-wrap"><table><caption>Топ-100: ${escapeHtml(golosTopOptionLabel(kind))}</caption><thead><tr><th scope="col">#</th><th scope="col">Аккаунт</th><th scope="col">Значение</th><th scope="col">СГ</th><th scope="col">GOLOS</th><th scope="col">GBG</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function setGolosTopProgress(message, percent) {
+    const progress = document.querySelector('[data-golos-top-progress]');
+    if (progress) {
+      progress.textContent = message;
+      progress.dataset.state = golosTopState.loading ? 'loading' : 'info';
+    }
+    const bar = document.querySelector('[data-golos-top-progress-bar]');
+    if (bar && Number.isFinite(percent)) {
+      bar.max = 100;
+      bar.value = Math.max(0, Math.min(100, percent));
+    }
+    setStatus(message, golosTopState.loading ? 'loading' : 'info');
+  }
+
+  async function fetchGolosTopAccountNames(connection, onProgress) {
+    const names = [];
+    let from = '';
+    const limit = 1000;
+    const seen = new Set();
+    while (true) {
+      const chunk = await profiles.apiCall(connection, 'lookupAccounts', [from, limit]);
+      const fresh = (Array.isArray(chunk) ? chunk : []).filter((name) => name && !seen.has(name));
+      fresh.forEach((name) => { seen.add(name); names.push(name); });
+      if (onProgress) onProgress(`Найдено аккаунтов: ${names.length}`, Math.min(35, names.length ? 10 + names.length / 300 : 5));
+      if (!Array.isArray(chunk) || chunk.length < limit || !fresh.length) break;
+      from = chunk[chunk.length - 1];
+    }
+    return names;
+  }
+
+  async function mapGolosTopChunks(items, chunkSize, concurrency, worker, onProgress) {
+    const chunks = [];
+    for (let i = 0; i < items.length; i += chunkSize) chunks.push(items.slice(i, i + chunkSize));
+    let cursor = 0;
+    let done = 0;
+    const results = [];
+    async function run() {
+      while (cursor < chunks.length) {
+        const index = cursor++;
+        const value = await worker(chunks[index], index);
+        if (Array.isArray(value)) results.push(...value);
+        done += chunks[index].length;
+        if (onProgress) onProgress(done, items.length);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, chunks.length) }, run));
+    return results;
+  }
+
+  function normalizeGolosTopAccount(account, rate) {
+    const ownVests = numericAssetValue(account && account.vesting_shares);
+    const receivedVests = numericAssetValue(account && account.received_vesting_shares);
+    const delegatedVests = numericAssetValue(account && account.delegated_vesting_shares);
+    const toSg = (vests) => rate ? vests / 1000000 * rate : 0;
+    return {
+      name: account.name,
+      sg: toSg(ownVests),
+      effectiveSg: toSg(ownVests + receivedVests - delegatedVests),
+      golos: numericAssetValue(account.balance),
+      gbg: numericAssetValue(account.sbd_balance || account.gbg_balance),
+      tip: numericAssetValue(account.tip_balance),
+      accumulative: numericAssetValue(account.accumulative_balance),
+      uia: {}
+    };
+  }
+
+  function mergeGolosTopUiaRows(row, parsedRows) {
+    (parsedRows || []).forEach((item) => {
+      const meta = item && item[2];
+      if (!row || !meta || meta.kind !== 'uia' || meta.balanceType !== 'main') return;
+      row.uia[meta.symbol] = (row.uia[meta.symbol] || 0) + numericAssetValue(item[1]);
+    });
+  }
+
+  function mergeGolosTopUiaResult(rowsByName, result, chunkNames) {
+    const data = result && result.result !== undefined ? result.result : result;
+    if (!data) return;
+    if (typeof data === 'object' && !Array.isArray(data)) {
+      (chunkNames || Object.keys(data)).forEach((name) => {
+        mergeGolosTopUiaRows(rowsByName[name], parseGolosUiaBalanceRows(data, name));
+      });
+      return;
+    }
+    if (Array.isArray(data) && Array.isArray(chunkNames) && data.length === chunkNames.length) {
+      data.forEach((balances, index) => {
+        const name = chunkNames[index];
+        mergeGolosTopUiaRows(rowsByName[name], parseGolosUiaBalanceRows({ [name]: balances }, name));
+      });
+    }
+  }
+
+  async function fetchGolosTopUiaBalances(connection, names, rowsByName, onProgress) {
+    const api = connection.client && connection.client.api;
+    const fetchChunk = async (chunk) => {
+      if (api && typeof api.getAccountsBalancesAsync === 'function') return api.getAccountsBalancesAsync(chunk);
+      if (api && typeof api.getAccountsBalances === 'function') {
+        return new Promise((resolve, reject) => api.getAccountsBalances(chunk, (error, result) => error ? reject(error) : resolve(result)));
+      }
+      if (!connection.node || typeof global.fetch !== 'function') return null;
+      const response = await global.fetch(connection.node, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'call', params: ['database_api', 'get_accounts_balances', [chunk]] })
+      });
+      if (!response.ok) throw new Error(`get_accounts_balances RPC HTTP ${response.status}`);
+      const payload = await response.json();
+      if (payload.error) throw new Error(payload.error.message || JSON.stringify(payload.error));
+      return payload.result;
+    };
+
+    await mapGolosTopChunks(names, 1000, 2, async (chunk) => {
+      const result = await fetchChunk(chunk);
+      mergeGolosTopUiaResult(rowsByName, result, chunk);
+      return [];
+    }, (done, total) => {
+      if (onProgress) onProgress(`Загрузка UIA-балансов: ${done}/${total}`, 75 + Math.round((done / Math.max(total, 1)) * 20));
+    });
+  }
+
+  async function loadGolosTopRows(connection, onProgress) {
+    const names = await fetchGolosTopAccountNames(connection, onProgress);
+    const props = await profiles.apiCall(connection, 'getDynamicGlobalProperties', []);
+    const rateAccount = { _v3ProfileContext: { dynamicProperties: props } };
+    const rate = profiles.golosPowerRate(rateAccount);
+    const accounts = await mapGolosTopChunks(names, 1000, 2, (chunk) => profiles.apiCall(connection, 'getAccounts', [chunk]), (done, total) => {
+      if (onProgress) onProgress(`Загрузка аккаунтов: ${done}/${total}`, 35 + Math.round((done / Math.max(total, 1)) * 40));
+    });
+    const rows = accounts.filter((account) => account && account.name).map((account) => normalizeGolosTopAccount(account, rate));
+    const rowsByName = Object.fromEntries(rows.map((row) => [row.name, row]));
+    try {
+      await fetchGolosTopUiaBalances(connection, names, rowsByName, onProgress);
+    } catch (error) {
+      console.warn('Golos top UIA balances were not fully loaded:', error);
+      golosTopState.error = `UIA балансы загружены не полностью: ${profiles.formatError(error)}`;
+    }
+    golosTopState.uiaSymbols = Array.from(new Set(rows.flatMap((row) => Object.keys(row.uia || {})))).sort((a, b) => a.localeCompare(b));
+    return rows;
+  }
+
+  function renderGolosTop(chain) {
+    const state = parseHash();
+    const selectedKind = normalizeGolosTopType(state.type || state.topKind || 'GP');
+    appEl.innerHTML = `
+      <section class="panel golos-top">
+        <h2>Golos: топ пользователей</h2>
+        <p>Топ загружается только по кнопке. При открытии страницы v3 не сканирует ноду автоматически, чтобы не создавать ожидание и лишнюю нагрузку.</p>
+        <p class="notice">Источник: публичные RPC-ноды Golos (${escapeHtml((chain.nodes || []).join(', '))}). Backend/indexer, PHP и приватные IP не используются. В этом проходе кэш/БД не добавлены: скорость живой загрузки достаточная, а пользователь явно запускает сканирование.</p>
+        <form id="golos-top-controls" class="route-form">
+          <div class="field field-grow">
+            <label for="golos-top-kind">Сортировать по</label>
+            <select id="golos-top-kind" name="type">${golosTopKindOptions(selectedKind)}</select>
+            <small class="muted">Выбранный тип сохраняется в URL как <code>type</code>, например <code>#chain=golos&amp;app=top&amp;type=GP</code>.</small>
+          </div>
+          <button type="button" data-golos-top-load${golosTopState.loading ? ' disabled aria-disabled="true"' : ''}>${golosTopState.loading ? 'Загрузка...' : (golosTopState.rows.length ? 'Обновить топ' : 'Загрузить топ')}</button>
+        </form>
+        <div data-golos-top-progress role="status" aria-live="polite">${golosTopState.loadedAt ? `Последняя загрузка: ${escapeHtml(golosTopState.loadedAt)}` : 'Ожидаю запуска загрузки.'}</div>
+        <progress data-golos-top-progress-bar max="100" value="0">0%</progress>
+        ${golosTopState.error ? `<p class="warning">${escapeHtml(golosTopState.error)}</p>` : ''}
+        <div data-golos-top-results>${renderGolosTopResults(selectedKind)}</div>
+      </section>`;
+
+    const select = document.getElementById('golos-top-kind');
+    select.addEventListener('change', () => {
+      const result = document.querySelector('[data-golos-top-results]');
+      if (result) result.innerHTML = renderGolosTopResults(select.value);
+      navigate({ chain: chain.id, app: 'top', type: normalizeGolosTopType(select.value) });
+    });
+
+    const button = document.querySelector('[data-golos-top-load]');
+    button.addEventListener('click', async () => {
+      if (golosTopState.loading) return;
+      golosTopState.loading = true;
+      golosTopState.error = '';
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.textContent = 'Загрузка...';
+      try {
+        setGolosTopProgress('Подключаю Golos RPC...', 3);
+        await loadScript(chain.libraryPath);
+        const connection = await getConnection(chain);
+        const rows = await loadGolosTopRows(connection, setGolosTopProgress);
+        golosTopState.rows = rows;
+        golosTopState.loadedAt = new Date().toLocaleString('ru-RU');
+        golosTopState.loading = false;
+        setStatus(`Golos top загружен: ${rows.length} аккаунтов.`, 'ok');
+        renderGolosTop(chain);
+      } catch (error) {
+        golosTopState.loading = false;
+        golosTopState.error = profiles.formatError(error);
+        setStatus(`Ошибка загрузки Golos top: ${profiles.formatError(error)}`, 'error');
+        renderGolosTop(chain);
+      }
+    });
+  }
+
   function renderGolosWitnessesRewards(chain) {
     appEl.innerHTML = `
       <section class="panel golos-witnesses-rewards">
@@ -11926,6 +12404,10 @@ Memo key: ${keys.memo}`);
         renderVizVoiceImport(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'vmp') {
         renderVizVmp(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'top') {
+        renderVizTop(chain);
+      } else if (chain.id === 'golos' && effectiveAppId === 'top') {
+        renderGolosTop(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'witnesses-rewards') {
         renderGolosWitnessesRewards(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'witnesses-rewards') {

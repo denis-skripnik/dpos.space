@@ -2100,6 +2100,57 @@ Removal matrix:
 | Route dispatch | `#chain=golos&app=top` had a dedicated branch. | Dedicated branch removed; because the app is absent from `chain.apps`, stale hashes fall back through the existing safe default app selection. | Smoke asserts no `chain.id === 'golos' && effectiveAppId === 'top'` dispatch. | removed |
 | VIZ top | Separate VIZ static top route. | Later removed by the dedicated `### Decommission: VIZ / top` pass for the same reason: no useful leaderboard data without backend aggregation. | `tests/v3-viz-top-smoke.js` now asserts VIZ top is absent. | removed later |
 
+### Re-opened implementation: Golos / top local RPC loader
+
+User decision after live RPC benchmark: restore Golos `top` because `lookup_accounts` on public Golos RPC returns a practical active set (~9.5k accounts in tests against `https://api.aleksw.space`) and full account/balance loading is fast enough when launched explicitly by the user.
+
+Scope lock for this pass: Golos top only. VIZ top, Hive/Steem large-network tops, backend indexers, hosted services, PHP and private APIs remain out of scope.
+
+Implementation matrix:
+
+| Requirement | v3 implementation | Test coverage | Status |
+|---|---|---|---|
+| App route/menu | `v3/js/chains.js` registers `id: 'top'`, title `Топ пользователей`, `accountField: false`. | `tests/v3-golos-top-smoke.js` asserts the registry entry and neighboring `witnesses-rewards`. | done |
+| No automatic load on route render | `renderGolosTop()` renders controls and explanatory text only. It does not call `lookupAccounts`, `getAccounts` or `getAccountsBalances` until the explicit button click. | Smoke checks explicit `data-golos-top-load` button and runtime markers. | done |
+| No IndexedDB/localStorage cache in this pass | Results are kept only in in-memory `golosTopState` for the current page/session. This follows the user's correction that speed is good enough and DB may be unnecessary. | Plan evidence in this section; no storage API added for top. | done |
+| Duplicate-click protection | Button is disabled and JS-guarded while loading: `golosTopState.loading` is checked before any request starts. Button lock is both UI-level and JS-state-level. | Smoke checks `golosTopState.loading` and `button.disabled = true`. | done |
+| Local public RPC scanning | Account names load via `lookupAccounts` batches, account objects via `getAccounts`, UIA balances via `getAccountsBalances`/direct `get_accounts_balances` JSON-RPC fallback. | Smoke checks lookup/accounts balances markers and forbids private/backend/PHP endpoints in the top slice. | done |
+| Progress visibility | `data-golos-top-progress` live region and `<progress>` update through lookup, account loading and UIA loading stages. | Smoke checks progress DOM hooks. | done |
+| Top categories and direct links | Select exposes understandable names for СГ, effective СГ, GOLOS, GBG, TIP, accumulative balance, and discovered UIA symbols after load. The selected value is stored in the URL as `type`, so direct links like `#chain=golos&app=top&type=GP`, `type=GOLOS`, `type=GBG`, `type=TIP`, `type=ACCUMULATIVE`, `type=EFFECTIVE_GP`, and `type=UIA:VIZUIA` open the requested category immediately. The previous internal `topKind` parameter remains accepted as a fallback. | Smoke checks route/renderer, `normalizeGolosTopType`, `name="type"`, `state.type || state.topKind || 'GP'`, and URL update via `type`. | done |
+| Read-only safety | Top page only reads public RPC data; it does not bind operation forms or call broadcast. | Smoke forbids `broadcast.prepare`, `broadcast.broadcast`, and `bindOperationForm` in the isolated top slice. | done |
+
+Definition of done: opening `#chain=golos&app=top` or a direct category URL such as `#chain=golos&app=top&type=GP` must show a quiet page with no automatic scan and the requested category preselected; pressing “Загрузить топ” must lock the button, show progress, fetch rows from the selected Golos public node, then allow sorting by native balances and discovered UIA tokens while keeping the selected `type` in the hash.
+
+### Re-opened implementation: VIZ / top local RPC loader
+
+User decision after Golos top local RPC loader: restore VIZ `top` too, but with VIZ-specific ranking variants from the old app instead of Golos/GBG/TIP/UIA fields.
+
+Implementation matrix:
+
+| Requirement | v3 implementation | Test coverage | Status |
+|---|---|---|---|
+| App route/menu | `v3/js/chains.js` registers VIZ app `id: 'top'`, title `Топ пользователей`, `accountField: false`. | `tests/v3-viz-top-smoke.js` asserts registry entry and neighboring `witnesses-rewards` / `search`. | done |
+| No automatic load on route render | `renderVizTop()` renders controls and explanatory text only. It does not call `lookupAccounts` or `getAccounts` until the explicit button click. | Smoke checks explicit `data-viz-top-load` button and runtime markers. | done |
+| No cache / no storage | Results are kept only in in-memory `vizTopState`; no IndexedDB/localStorage cache is introduced. | Smoke forbids `localStorage` and `indexedDB` in the VIZ top slice. | done |
+| Duplicate-click protection | Button is disabled and JS-guarded while loading via `vizTopState.loading`; the guard runs before requests start. | Smoke checks `vizTopState.loading` and `button.disabled = true`. | done |
+| Local public RPC scanning | Account names load through `lookupAccounts`; account data loads through `getAccounts`; VIZ does not use Golos `get_accounts_balances` / UIA logic. | Smoke checks lookup/getAccounts markers and forbids `get_accounts_balances`, private IP, backend service and PHP in the top slice. | done |
+| Progress visibility | `data-viz-top-progress` live region and `<progress>` update through lookup/account loading stages. | Smoke checks progress DOM hooks. | done |
+| VIZ-specific ranking types and direct links | Select exposes legacy VIZ variants: `shares`, `VIZ`, `effective_shares`, `received_shares`, `delegated_shares`, `vesting_withdraw_rate`. The selected value is stored in the URL as `type`, so direct links like `#chain=viz&app=top&type=shares`, `type=VIZ`, `type=effective_shares`, `type=received_shares`, `type=delegated_shares`, and `type=vesting_withdraw_rate` open the requested category immediately. Previous internal `topType` remains accepted as a fallback. | Smoke checks `normalizeVizTopType`, `name="type"`, `state.type || state.topType || 'shares'`, URL update via `type`, and all six VIZ type markers. | done |
+| Read-only safety | Top page only reads public RPC data; it does not bind operation forms or call broadcast. | Covered by isolated top-slice assertions and existing broad v3 smoke tests. | done |
+
+Definition of done: opening `#chain=viz&app=top` or a direct category URL such as `#chain=viz&app=top&type=shares` must show a quiet page with no automatic scan and the requested category preselected; pressing “Загрузить топ” must lock the button, show progress, fetch account rows from the selected public VIZ node, then allow sorting by SHARES, VIZ, delegation fields and withdrawal rate while keeping the selected `type` in the hash.
+
+### Fix: post markdown literal `<br>` line breaks
+
+User reported a live Golos post route where literal `<br>` strings were visible in the rendered body: `#chain=golos&app=post&author=lllll1ll&permlink=4oe4bz-utrennii-svet`. Root cause: shared `markdownToPreviewHtml()` escapes all HTML, which is correct for safety, but did not whitelist plain `<br>` / `<br/>` line-break tags commonly present in blockchain post bodies.
+
+Implementation:
+
+- `renderInlineMarkdown()` now converts only escaped bare break tags (`&lt;br&gt;`, `&lt;br/&gt;`, case-insensitive) back to `<br>` after escaping the input.
+- Other HTML remains escaped, including `<script>`, so the fix does not open arbitrary HTML rendering.
+- `markdownToTextPreview()` strips bare `<br>` tags to spaces for feed snippets.
+- Regression coverage in `tests/v3-social-post-feeds-runtime-smoke.js` verifies `<br>` renders as a line break, `&lt;br&gt;` is not visible, and unsafe `<script>` stays escaped.
+
 ### Decommission: Golos / stakebot
 
 User decision after parity: Golos Stake bot should not remain as a static app because the useful participant/jackpot/loto data came from the old private backend/bot state. Keeping a documentation-only route would add clutter while still not delivering live bot data. The app is removed rather than only hidden.
