@@ -5825,7 +5825,6 @@
       if (!parsed || typeof parsed !== 'object') return {};
       return {
         feed: normalizeGolosFeedKind(parsed.feed),
-        account: String(parsed.account || '').trim().replace(/^@/, ''),
         tag: normalizeGolosFeedTag(parsed.tag)
       };
     } catch (error) {
@@ -5837,7 +5836,6 @@
     if (!global.localStorage) return;
     const next = {
       feed: normalizeGolosFeedKind(settings && settings.feed),
-      account: String(settings && settings.account || '').trim().replace(/^@/, ''),
       tag: normalizeGolosFeedTag(settings && settings.tag)
     };
     global.localStorage.setItem(GOLOS_FEEDS_SETTINGS_KEY, JSON.stringify(next));
@@ -5956,9 +5954,9 @@
     const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
     const hasTagParam = Object.prototype.hasOwnProperty.call(state, 'tag') && state.tag;
     const feedKind = normalizeGolosFeedKind(hasFeedParam ? state.feed : storedSettings.feed);
-    const account = String(hasAccountParam ? state.account : (storedSettings.account || auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
+    const account = String(hasAccountParam ? state.account : (auth.getCurrentLogin(chain) || chain.defaultAccount || '')).trim().replace(/^@/, '');
     const tag = normalizeGolosFeedTag(hasTagParam ? state.tag : (storedSettings.tag || 'ru--golos'));
-    writeGolosFeedsSettings({ feed: feedKind, account, tag });
+    writeGolosFeedsSettings({ feed: feedKind, tag });
     appEl.innerHTML = `<section class="panel golos-feeds-page" data-golos-feeds-page>
       <h2>Golos: Ленты</h2>
       <p class="muted">Новые посты, популярное, ленты по тегам, донаты и лента подписок пользователя через публичный RPC. Действия выполняются только после подтверждения.</p>
@@ -5966,7 +5964,6 @@
         <div class="field-grid">
           <div class="field"><label for="golos-feeds-kind">Тип ленты</label><select id="golos-feeds-kind" name="feed" data-golos-feed-kind>${renderGolosFeedKindOptions(feedKind)}</select></div>
           <div class="field"><label for="golos-feeds-tag">Тег для ленты</label><input id="golos-feeds-tag" name="tag" type="text" value="${escapeHtml(tag)}" list="golos-feed-tag-suggestions" autocomplete="off"><datalist id="golos-feed-tag-suggestions">${GOLOS_EDITOR_CATEGORIES.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('')}</datalist></div>
-          <div class="field"><label for="golos-feeds-account">Аккаунт для донатов/подписок</label><input id="golos-feeds-account" name="account" type="text" value="${escapeHtml(account)}" autocomplete="off"></div>
         </div>
         <button type="submit">Показать ленту</button>
       </form>
@@ -5976,19 +5973,17 @@
     if (form) {
       const persistFormSettings = () => {
         const data = new FormData(form);
-        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: data.get('tag') });
+        writeGolosFeedsSettings({ feed: data.get('feed'), tag: data.get('tag') });
       };
       const feedSelect = form.querySelector('[name="feed"]');
-      const accountInput = form.querySelector('[name="account"]');
       const tagInput = form.querySelector('[name="tag"]');
       if (feedSelect) feedSelect.addEventListener('change', persistFormSettings);
-      if (accountInput) accountInput.addEventListener('input', persistFormSettings);
       if (tagInput) tagInput.addEventListener('input', persistFormSettings);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const data = new FormData(form);
-        writeGolosFeedsSettings({ feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: data.get('tag') });
-        navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: String(data.get('account') || '').trim().replace(/^@/, ''), tag: normalizeGolosFeedTag(data.get('tag')) });
+        writeGolosFeedsSettings({ feed: data.get('feed'), tag: data.get('tag') });
+        navigate({ chain: 'golos', app: 'feeds', feed: data.get('feed'), account: auth.getCurrentLogin(chain) || null, tag: normalizeGolosFeedTag(data.get('tag')) });
       });
     }
     const result = document.getElementById('golos-feeds-result');
