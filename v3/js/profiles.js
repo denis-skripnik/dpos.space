@@ -358,8 +358,16 @@
     const parts = [];
     if (hours) parts.push(`${hours} ч.`);
     if (minutes) parts.push(`${minutes} мин.`);
-    if (restSeconds || parts.length === 0) parts.push(`${restSeconds} сек.`);
+    if (restSeconds && parts.length === 0) parts.push(`${restSeconds} сек.`);
+    if (parts.length === 0) parts.push('0 сек.');
     return parts.join(' ');
+  }
+
+  function parseChainTimestamp(value) {
+    if (!present(value)) return NaN;
+    const text = String(value).trim();
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+    return Date.parse(hasTimezone ? text : `${text}Z`);
   }
 
   function computeGolosPostQuota(account) {
@@ -368,13 +376,13 @@
     if (!Number.isFinite(postBandwidth) || postBandwidth < 0) return null;
     const context = account._v3ProfileContext || {};
     const props = context.dynamicProperties || {};
-    const now = props.time ? Date.parse(props.time) : Date.now();
-    const lastPost = Date.parse(account.last_post || 0);
+    const now = props.time ? parseChainTimestamp(props.time) : Date.now();
+    const lastPost = parseChainTimestamp(account.last_post || 0);
     if (!Number.isFinite(now) || !Number.isFinite(lastPost)) return null;
 
     const secondsPerDay = 86400;
     const elapsed = Math.max(0, (now - lastPost) / 1000);
-    if (elapsed > secondsPerDay || postBandwidth <= 0) {
+    if (elapsed >= secondsPerDay || postBandwidth <= 0) {
       return { remaining: 4, text: '4', nextText: '', currentBandwidth: 10000 };
     }
 
@@ -390,12 +398,14 @@
       { max: Infinity, remaining: 0, nextRemaining: 1, target: 40000 }
     ];
     const band = bands.find((item) => currentBandwidth <= item.max) || bands[bands.length - 1];
-    const secondsUntilNext = secondsPerDay - ((band.target - 10000) / (currentBandwidth - 10000)) * secondsPerDay;
-    const nextText = `${band.nextRemaining} станет через ${formatShortDuration(secondsUntilNext)}`;
+    const decayPerSecond = postBandwidth / secondsPerDay;
+    const secondsUntilNext = decayPerSecond > 0 ? (currentBandwidth - band.target) / decayPerSecond : 0;
+    const safeSecondsUntilNext = Math.max(0, Math.ceil(secondsUntilNext));
+    const nextText = `${band.nextRemaining} станет через ${formatShortDuration(safeSecondsUntilNext)}`;
     return {
       remaining: band.remaining,
       nextRemaining: band.nextRemaining,
-      secondsUntilNext: Math.max(0, Math.ceil(secondsUntilNext)),
+      secondsUntilNext: safeSecondsUntilNext,
       text: `${band.remaining}. ${nextText}`,
       nextText,
       currentBandwidth
