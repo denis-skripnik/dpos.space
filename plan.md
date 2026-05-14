@@ -27,25 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — post promotion spoiler
+## Current focused pass — Golos donate history memo
 
 Scope:
 
-- Add a `Продвигать` spoiler under Graphene post pages (`app=post`) for Golos, Hive, and Steem.
-- Show it only when the selected saved account has a decryptable `active` key, because promotion is an `active` transfer to `null`.
-- Inside the spoiler show: amount input, selected account maximum debt-token balance (`GBG`/`HBD`/`SBD`), current highest promoted bid from public RPC, and the target memo `@author/permlink`.
-- Send `transfer` to `null` with memo `@author/permlink` only after an explicit browser confirmation.
+- Fix Golos history rows for `donate` operations where `memo` is a structured object from Golos RPC instead of a plain string.
+- Render structured donate memo fields as readable text instead of `[object Object]`.
+- When `memo.target.author` and `memo.target.permlink` are present, show a v3 post link to `#chain=golos&app=post&author=...&permlink=...`.
+- Keep generic wallet/history rendering safe: escape raw text, do not inject untrusted memo HTML.
 
 Non-goals:
 
-- Do not promote comments in this pass; only the top post page gets the promotion UI.
-- Do not add backend storage, scheduled bidding, or auto-rebid logic.
-- Do not show the form to accounts without an active key.
+- Do not change donate transaction creation or broadcast behavior.
+- Do not add backend lookups for post titles; the history row links by author/permlink only.
+- Do not change non-Golos chains in this pass.
 
 Validation:
 
-- Static smoke test must assert the UI gate, `transfer` payload, `null` receiver, memo shape, and promoted-queue RPC helper.
-- Existing Golos editor/post smoke tests must continue to pass.
+- Add a focused smoke test for Golos donate history memo rendering evidence.
+- Run the new test and the existing JS smoke suite.
+
+Historical focused pass retained for smoke-test traceability: post promotion spoiler.
 
 ## Architecture
 

@@ -601,6 +601,27 @@
     return `${global.location.origin}${global.location.pathname}${appHash({ chain: 'golos', app: 'post', author: String(author || '').trim().replace(/^@/, ''), permlink: String(permlink || '').trim() })}`;
   }
 
+  function golosPostRouteLink(author, permlink, label) {
+    const cleanAuthor = String(author || '').trim().replace(/^@/, '');
+    const cleanPermlink = String(permlink || '').trim();
+    if (!cleanAuthor || !cleanPermlink) return '';
+    return `<a href="${escapeHtml(appHash({ chain: 'golos', app: 'post', author: cleanAuthor, permlink: cleanPermlink }))}">${escapeHtml(label || `@${cleanAuthor}/${cleanPermlink}`)}</a>`;
+  }
+
+  function renderGolosDonateMemoHtml(memo) {
+    if (memo === undefined || memo === null || memo === '') return '';
+    if (typeof memo !== 'object') return escapeHtml(memo);
+    const target = memo.target && typeof memo.target === 'object' ? memo.target : {};
+    const rows = [];
+    const postLink = golosPostRouteLink(target.author, target.permlink);
+    if (postLink) rows.push(`<li><strong>Пост:</strong> ${postLink}</li>`);
+    if (target.type) rows.push(`<li><strong>Тип:</strong> ${escapeHtml(target.type === 'fee_donate' ? 'комиссия доната' : target.type)}</li>`);
+    if (memo.comment) rows.push(`<li><strong>Комментарий:</strong> ${escapeHtml(memo.comment)}</li>`);
+    if (memo.app) rows.push(`<li><strong>Приложение:</strong> ${escapeHtml(memo.app)}${memo.version ? ` v${escapeHtml(memo.version)}` : ''}</li>`);
+    if (!rows.length) return `<pre>${escapeHtml(JSON.stringify(memo, null, 2))}</pre>`;
+    return `<ul class="compact-list">${rows.join('')}</ul>`;
+  }
+
   function hasGolosVoteFrom(content, account) {
     const wanted = String(account || '').trim().replace(/^@/, '');
     const votes = Array.isArray(content && content.active_votes) ? content.active_votes : (Array.isArray(content && content.activeVotes) ? content.activeVotes : []);
@@ -671,6 +692,14 @@
     return details.join('; ');
   }
 
+  function renderTransactionDetailsHtml(row, chain) {
+    if (chain && chain.id === 'golos' && row.type === 'donate') return renderGolosDonateMemoHtml(row.memo);
+    const details = row.memo || transactionDetails(row);
+    if (details === undefined || details === null || details === '') return '';
+    if (typeof details === 'object') return `<pre>${escapeHtml(JSON.stringify(details, null, 2))}</pre>`;
+    return escapeHtml(details);
+  }
+
   function renderAccountCell(chain, value) {
     const text = String(value || '').trim();
     if (!text) return '';
@@ -703,14 +732,14 @@
           <tbody>${rows.map((row) => {
             const displayAmount = history.formatChainAmount ? history.formatChainAmount(chain, 'amount', row.amount) : row.amount;
             const amount = [displayAmount, row.coin].filter(Boolean).join(' ');
-            const details = row.memo || transactionDetails(row);
+            const detailsHtml = renderTransactionDetailsHtml(row, chain);
             return `<tr>
               <td>${escapeHtml(history.formatDate(row.timestamp))}</td>
               <td><code>${escapeHtml(row.type)}</code><br><span class="muted">${escapeHtml(history.operationTitle(row.type))}</span></td>
               <td>${renderAccountCell(chain, row.from)}</td>
               <td>${renderAccountCell(chain, row.to)}</td>
               <td>${escapeHtml(amount)}</td>
-              <td class="longtext">${escapeHtml(details)}</td>
+              <td class="longtext">${detailsHtml}</td>
               <td>${row.block ? explorerLink(chain, 'block', row.block, String(row.block)) : ''}</td>
               <td>${row.trxId ? explorerLink(chain, 'tx', row.trxId, String(row.trxId).slice(0, 12)) : ''}</td>
             </tr>`;
