@@ -7194,6 +7194,35 @@
     setTimeout(() => button.click(), 0);
   }
 
+  async function updateGolosEditorPostQuota(chain) {
+    if (chain.id !== 'golos') return;
+    const quotaEl = document.getElementById('editor-post-quota');
+    if (!quotaEl) return;
+    const login = auth.getCurrentLogin(chain);
+    if (!login) {
+      quotaEl.textContent = 'Выберите Golos-аккаунт, чтобы увидеть лимит постов без штрафа.';
+      return;
+    }
+
+    quotaEl.textContent = `Проверяю лимит постов без штрафа для @${login}...`;
+    try {
+      const connection = await getConnection(chain);
+      const rawAccount = await profiles.fetchAccount(connection, login);
+      const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);
+      const quota = profiles.computeGolosPostQuota(enrichedAccount);
+      quotaEl.textContent = quota
+        ? `Можно опубликовать без штрафа: ${quota.text}`
+        : 'Не удалось рассчитать лимит постов без штрафа: в ответе аккаунта нет post_bandwidth/last_post.';
+    } catch (error) {
+      quotaEl.textContent = `Не удалось рассчитать лимит постов без штрафа: ${profiles.formatError(error)}`;
+    }
+  }
+
+  function editorPostQuotaNotice(chain) {
+    if (chain.id !== 'golos') return '';
+    return '<p id="editor-post-quota" class="notice" role="status" aria-live="polite">Проверяю лимит постов без штрафа...</p>';
+  }
+
   function parseSteemPostUrl(value) {
     return parseSocialPostUrl(value);
   }
@@ -7353,6 +7382,7 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
         <p>Редактор публикаций: подготовка поста, проверка операции и отправка по подтверждению.</p>
+        ${editorPostQuotaNotice(chain)}
         <details id="editor-operation-details" class="operation-details"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
           <fieldset>
             <legend>Публикация поста</legend>
@@ -7390,6 +7420,7 @@
     });
     bindSteemPostLegacyHelpers(chain);
     bindGolosPostLegacyHelpers(chain);
+    updateGolosEditorPostQuota(chain);
     if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
     bindMarkdownEditor(appEl);
     bindCopyButtons(appEl);

@@ -27,27 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Auto-upvoter SPA route persistence
+## Current focused pass — Golos post quota without penalty
 
 Scope:
 
-- Keep the Golos auto-upvoter runner state in the current browser tab when the user navigates to another app route and returns.
-- Restore Start/Stop buttons and feed text from the active in-tab runtime instead of showing “not started”.
-- Preserve the interval handle and runner-lock owner so Stop can cleanly stop the scanner after route changes.
-- Do not move auto-upvoter execution to backend; it remains local active-tab only.
+- Restore the legacy Golos profile statistic “Количество постов, которое можно опубликовать без штрафа” in the static profile service.
+- Show the same remaining post quota in the Golos editor for the currently selected authorized account before publishing.
+- Keep the calculation browser-only: public RPC account data plus dynamic global properties time; no PHP/backend dependency.
+- Preserve the existing history operation `<select multiple>` UX with human-readable labels from the old version.
 
 Non-goals:
 
-- Do not auto-start from `localStorage` after a full page reload or browser restart.
-- Do not change voting/donate rules, account selection, signing, or RPC behavior.
-- Do not change other chains/apps in this pass.
+- Do not change Golos penalty economics or broadcast payloads.
+- Do not auto-publish or block publishing based on the quota; it is informational.
+- Do not add backend services or persistent quota caches.
 
 Validation:
 
-- Add a focused smoke test that checks auto-upvoter runtime is stored on `window` and re-used after SPA re-render.
-- Run the new smoke test, existing auto-upvoter smoke test, and broader JS smoke suite.
+- Add focused smoke coverage for the post quota calculation, profile row, and editor notice wiring.
+- Run JS syntax checks and the full smoke suite.
 
-Historical focused passes retained for smoke-test traceability: Golos donate history memo; post promotion spoiler.
+Historical focused passes retained for smoke-test traceability: Auto-upvoter SPA route persistence; Golos donate history memo; post promotion spoiler.
 
 ## Architecture
 
