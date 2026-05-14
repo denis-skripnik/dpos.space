@@ -470,11 +470,32 @@
     return 1000000 * fund / totalVests;
   }
 
-  function formatGolosPower(account, field) {
+  function formatGolosPower(account, field, digits) {
     const rate = golosPowerRate(account);
     const vests = assetAmount(account[field]);
     if (!rate || !vests) return account[field] || '';
-    return `${(vests / 1000000 * rate).toFixed(6)} СГ`;
+    const decimals = digits === undefined ? 6 : digits;
+    const formatted = (vests / 1000000 * rate).toFixed(decimals);
+    return `${digits === undefined ? formatted : Number(formatted)} СГ`;
+  }
+
+  function formatRussianUtcDateTime(value) {
+    const timestamp = parseChainTimestamp(value);
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return '';
+    const date = new Date(timestamp);
+    if (date.getUTCFullYear() <= 1970) return '';
+    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = months[date.getUTCMonth()];
+    const year = date.getUTCFullYear();
+    const time = [date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()]
+      .map((part) => String(part).padStart(2, '0'))
+      .join(':');
+    return `${day} ${month} ${year} г. ${time}`;
+  }
+
+  function isNonZeroAsset(value) {
+    return present(value) && Math.abs(assetAmount(value)) > 0;
   }
 
   function getBalances(chain, account) {
@@ -620,15 +641,20 @@
       addField(rows, 'Получено делегированием', computePower(chain, account, 'received_vesting_shares'));
       addField(rows, 'Делегировано', computePower(chain, account, 'delegated_vesting_shares'));
       addField(rows, `Итоговая ${chain.config.powerTitle || 'power'}`, computeEffectivePower(chain, account));
-      addField(rows, 'Vesting withdraw rate', account.vesting_withdraw_rate);
-      addField(rows, 'Следующий вывод', account.next_vesting_withdrawal);
+      if (chainId === 'golos' && isNonZeroAsset(account.vesting_withdraw_rate)) {
+        addField(rows, 'Сумма вывода из СГ', formatGolosPower(account, 'vesting_withdraw_rate', 3));
+        addField(rows, 'Следующий вывод', formatRussianUtcDateTime(account.next_vesting_withdrawal));
+      } else if (chainId !== 'golos') {
+        addField(rows, 'Vesting withdraw rate', account.vesting_withdraw_rate);
+        addField(rows, 'Следующий вывод', account.next_vesting_withdrawal);
+      }
       addField(rows, 'Savings withdraw requests', account.savings_withdraw_requests);
       if (chainId === 'golos') {
         const postQuota = computeGolosPostQuota(account);
         addField(rows, 'Количество постов, которое можно опубликовать без штрафа', postQuota && postQuota.text);
       }
       if (chainId !== 'golos') addField(rows, 'Post bandwidth', account.post_bandwidth);
-      if (chainId === 'golos') addField(rows, 'Frozen', account.frozen);
+      if (chainId === 'golos' && account.frozen === true) addField(rows, 'Аккаунт заморожен', 'Да');
     }
 
     return rows;
