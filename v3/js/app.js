@@ -5414,6 +5414,31 @@
     global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({ accounts }));
   }
 
+  function getAutoUpvoterRuntime(chain) {
+    const chainId = String(chain && chain.id || 'golos');
+    if (!global.__dposAutoUpvoterRuntimes || typeof global.__dposAutoUpvoterRuntimes !== 'object') {
+      global.__dposAutoUpvoterRuntimes = {};
+    }
+    if (!global.__dposAutoUpvoterRuntimes[chainId]) {
+      global.__dposAutoUpvoterRuntimes[chainId] = {
+        runners: {},
+        scannerInterval: null,
+        runnerLock: null,
+        batterySummary: '',
+        scannerState: { seen: new Set(), feed: [] },
+        manualVoteState: new Map(),
+        running: false,
+        settings: null
+      };
+    }
+    const runtime = global.__dposAutoUpvoterRuntimes[chainId];
+    if (!runtime.scannerState || typeof runtime.scannerState !== 'object') runtime.scannerState = { seen: new Set(), feed: [] };
+    if (!(runtime.scannerState.seen instanceof Set)) runtime.scannerState.seen = new Set(runtime.scannerState.seen || []);
+    if (!Array.isArray(runtime.scannerState.feed)) runtime.scannerState.feed = [];
+    if (!(runtime.manualVoteState instanceof Map)) runtime.manualVoteState = new Map();
+    return runtime;
+  }
+
   function applyAutoUpvoterStoredSettings(storedSettings) {
     const accounts = storedSettings && storedSettings.accounts && typeof storedSettings.accounts === 'object' ? storedSettings.accounts : {};
     Object.entries(accounts).forEach(([account, settings]) => {
@@ -5533,12 +5558,7 @@
     const startButton = document.getElementById('auto-upvoter-start');
     const stopButton = document.getElementById('auto-upvoter-stop');
     const feed = document.getElementById('auto-upvoter-feed');
-    let runners = {};
-    let scannerInterval = null;
-    let runnerLock = null;
-    let batterySummary = '';
-    const scannerState = { seen: new Set(), feed: [] };
-    const manualVoteState = new Map();
+    const runtime = getAutoUpvoterRuntime(chain);
 
     function autoUpvoterManualDonateUrl(action) {
       return isGolos ? golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' }) : '';
@@ -5578,18 +5598,18 @@
 
     function renderAutoUpvoterBatterySummary(prefix) {
       const label = prefix || 'Перед списком постов';
-      return `<p id="auto-upvoter-battery" class="muted">${escapeHtml(label)}: ${escapeHtml(batterySummary || 'батарейка ещё не загружена.')}</p>`;
+      return `<p id="auto-upvoter-battery" class="muted">${escapeHtml(label)}: ${escapeHtml(runtime.batterySummary || 'батарейка ещё не загружена.')}</p>`;
     }
 
     function updateAutoUpvoterBatteryControls() {
       const block = document.getElementById('auto-upvoter-battery-controls');
-      if (block) block.textContent = `Перед запуском/остановкой: ${batterySummary || 'батарейка ещё не загружена.'}`;
+      if (block) block.textContent = `Перед запуском/остановкой: ${runtime.batterySummary || 'батарейка ещё не загружена.'}`;
     }
 
     function renderAutoUpvoterManualAction(action) {
       if (!action || !action.account || !action.author || !action.permlink) return '';
       const key = autoUpvoterActionKey(action);
-      const state = manualVoteState.get(autoUpvoterActionKey(action));
+      const state = runtime.manualVoteState.get(autoUpvoterActionKey(action));
       const safeAccount = escapeHtml(action.account);
       const safeAuthor = escapeHtml(action.author);
       const safePermlink = escapeHtml(action.permlink);
@@ -5604,7 +5624,7 @@
       const rows = [];
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
       rows.push(renderAutoUpvoterBatterySummary('Перед списком постов'));
-      scannerState.feed.slice(-30).reverse().forEach((entry) => {
+      runtime.scannerState.feed.slice(-30).reverse().forEach((entry) => {
         const message = entry && entry.message ? entry.message : String(entry || '');
         const action = entry && entry.action;
         const postLink = action && action.author && action.permlink
@@ -5619,7 +5639,7 @@
     }
 
     function appendScannerFeed(message) {
-      scannerState.feed.push({ type: 'info', message: `${new Date().toLocaleTimeString()}: ${message}` });
+      runtime.scannerState.feed.push({ type: 'info', message: `${new Date().toLocaleTimeString()}: ${message}` });
       renderScannerFeed();
     }
 
@@ -5662,26 +5682,26 @@
     async function loadAutoUpvoterBatterySummary(settings) {
       const enabledAccounts = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row && row.enabled && row.account).map((row) => String(row.account).trim().replace(/^@/, ''));
       if (!enabledAccounts.length) {
-        batterySummary = 'выберите аккаунты, чтобы показать батарейку.';
+        runtime.batterySummary = 'выберите аккаунты, чтобы показать батарейку.';
         updateAutoUpvoterBatteryControls();
-        return batterySummary;
+        return runtime.batterySummary;
       }
       try {
         const connection = await getConnection(chain);
         const accounts = await profiles.apiCall(connection, 'getAccounts', [enabledAccounts]);
         const byName = new Map((Array.isArray(accounts) ? accounts : []).map((account) => [String(account && account.name || account && account.account || '').trim().replace(/^@/, ''), account]));
-        batterySummary = enabledAccounts.map((name) => `@${name}: ${formatAutoUpvoterBattery(byName.get(name))}`).join('; ');
+        runtime.batterySummary = enabledAccounts.map((name) => `@${name}: ${formatAutoUpvoterBattery(byName.get(name))}`).join('; ');
       } catch (error) {
-        batterySummary = `не удалось загрузить: ${profiles.formatError(error)}`;
+        runtime.batterySummary = `не удалось загрузить: ${profiles.formatError(error)}`;
       }
       updateAutoUpvoterBatteryControls();
-      return batterySummary;
+      return runtime.batterySummary;
     }
 
     async function runAutoUpvoterScan(settings) {
       const adapter = await createAutoUpvoterAdapter();
-      const tick = await helper.runScannerTick(chain, settings, adapter, scannerState, {
-        feed: scannerState.feed,
+      const tick = await helper.runScannerTick(chain, settings, adapter, runtime.scannerState, {
+        feed: runtime.scannerState.feed,
         broadcaster: async (scanChain, action) => {
           const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
           if (hasGolosVoteFrom(content || action, action.account)) {
@@ -5698,7 +5718,7 @@
         }
       });
       await loadAutoUpvoterBatterySummary(settings);
-      renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${scannerState.seen.size}.`);
+      renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${runtime.scannerState.seen.size}.`);
     }
 
     async function sendManualVoteFromFeed(button, percent) {
@@ -5711,7 +5731,7 @@
       const connection = await getConnection(chain);
       const content = await profiles.apiCall(connection, 'getContent', [author, permlink]).catch(() => null);
       if (hasGolosVoteFrom(content, account)) {
-        manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
+        runtime.manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
         appendScannerFeed(`SKIP @${account} уже голосовал за @${author}/${permlink}.`);
         renderScannerFeed();
         setStatus(`@${account} уже голосовал за @${author}/${permlink}.`, 'info');
@@ -5735,7 +5755,7 @@
       await profiles.connect(chain);
       await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
       await loadAutoUpvoterBatterySummary(collectSettings());
-      manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
+      runtime.manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'voted');
       appendScannerFeed(`Голос отправлен: @${account} → @${author}/${permlink}, ${votePercent}%.`);
       renderScannerFeed();
       setStatus('Ручной голос отправлен в сеть.', 'ok');
@@ -5764,7 +5784,7 @@
       await profiles.connect(chain);
       await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
       await loadAutoUpvoterBatterySummary(collectSettings());
-      manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'needs-vote');
+      runtime.manualVoteState.set(autoUpvoterActionKey({ account, author, permlink }), 'needs-vote');
       appendScannerFeed(`Отмена апвота отправлена: @${account} → @${author}/${permlink}.`);
       renderScannerFeed();
       setStatus('Отмена апвота отправлена в сеть.', 'ok');
@@ -5795,15 +5815,17 @@
     }
 
     function stopAutoUpvoter(message) {
-      if (scannerInterval) {
-        clearInterval(scannerInterval);
-        scannerInterval = null;
+      if (runtime.scannerInterval) {
+        clearInterval(runtime.scannerInterval);
+        runtime.scannerInterval = null;
       }
-      if (runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
-        helper.releaseRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
-        runnerLock = null;
+      if (runtime.runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
+        helper.releaseRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
+        runtime.runnerLock = null;
       }
-      runners = {};
+      runtime.runners = {};
+      runtime.running = false;
+      runtime.settings = null;
       startButton.disabled = false;
       stopButton.disabled = true;
       renderScannerFeed(message || 'Остановлен. Активных runner-состояний нет.');
@@ -5875,17 +5897,19 @@
           const settings = collectSettings();
           await loadAutoUpvoterBatterySummary(settings);
           renderScannerFeed('Перед запуском: текущая батарейка загружена.');
-          runners = helper.upsertRunnerState(runners, settings);
-          const accounts = Object.keys(runners);
+          runtime.runners = helper.upsertRunnerState(runtime.runners, settings);
+          const accounts = Object.keys(runtime.runners);
           if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
-          runnerLock = helper.claimRunnerLocks(chain, accounts, runnerLock && runnerLock.owner);
-          if (scannerInterval) clearInterval(scannerInterval);
+          runtime.runnerLock = helper.claimRunnerLocks(chain, accounts, runtime.runnerLock && runtime.runnerLock.owner);
+          if (runtime.scannerInterval) clearInterval(runtime.scannerInterval);
+          runtime.running = true;
+          runtime.settings = settings;
           startButton.disabled = true;
           stopButton.disabled = false;
           appendScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
           await runAutoUpvoterScan(settings);
-          scannerInterval = setInterval(() => {
-            if (runnerLock) runnerLock = helper.claimRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
+          runtime.scannerInterval = setInterval(() => {
+            if (runtime.runnerLock) runtime.runnerLock = helper.claimRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
             runAutoUpvoterScan(settings).catch((error) => {
               appendScannerFeed(`Ошибка scan: ${profiles.formatError(error)}`);
               setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
@@ -5893,10 +5917,12 @@
           }, 60000);
           setStatus(`${chain.title} автоапвоутер запущен локально во вкладке.`, 'ok');
         } catch (error) {
-          if (runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
-            helper.releaseRunnerLocks(chain, runnerLock.accounts, runnerLock.owner);
-            runnerLock = null;
+          if (runtime.runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
+            helper.releaseRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
+            runtime.runnerLock = null;
           }
+          runtime.running = false;
+          runtime.settings = null;
           feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
           setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
         }
@@ -5909,7 +5935,14 @@
       feed.textContent = 'Ошибка: модуль DposGolosAutoUpvoter не загружен.';
     }
 
-    setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
+    if (runtime.running && startButton && stopButton && feed) {
+      startButton.disabled = true;
+      stopButton.disabled = false;
+      renderScannerFeed('Автоапвоутер уже запущен в этой вкладке; состояние восстановлено после перехода по сайту.');
+      setStatus(`${chain.title} автоапвоутер уже запущен локально во вкладке.`, 'ok');
+    } else {
+      setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
+    }
   }
 
   const GOLOS_FEEDS_SETTINGS_KEY = 'dpos_golos_feeds_settings';

@@ -27,27 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Golos donate history memo
+## Current focused pass — Auto-upvoter SPA route persistence
 
 Scope:
 
-- Fix Golos history rows for `donate` operations where `memo` is a structured object from Golos RPC instead of a plain string.
-- Render structured donate memo fields as readable text instead of `[object Object]`.
-- When `memo.target.author` and `memo.target.permlink` are present, show a v3 post link to `#chain=golos&app=post&author=...&permlink=...`.
-- Keep generic wallet/history rendering safe: escape raw text, do not inject untrusted memo HTML.
+- Keep the Golos auto-upvoter runner state in the current browser tab when the user navigates to another app route and returns.
+- Restore Start/Stop buttons and feed text from the active in-tab runtime instead of showing “not started”.
+- Preserve the interval handle and runner-lock owner so Stop can cleanly stop the scanner after route changes.
+- Do not move auto-upvoter execution to backend; it remains local active-tab only.
 
 Non-goals:
 
-- Do not change donate transaction creation or broadcast behavior.
-- Do not add backend lookups for post titles; the history row links by author/permlink only.
-- Do not change non-Golos chains in this pass.
+- Do not auto-start from `localStorage` after a full page reload or browser restart.
+- Do not change voting/donate rules, account selection, signing, or RPC behavior.
+- Do not change other chains/apps in this pass.
 
 Validation:
 
-- Add a focused smoke test for Golos donate history memo rendering evidence.
-- Run the new test and the existing JS smoke suite.
+- Add a focused smoke test that checks auto-upvoter runtime is stored on `window` and re-used after SPA re-render.
+- Run the new smoke test, existing auto-upvoter smoke test, and broader JS smoke suite.
 
-Historical focused pass retained for smoke-test traceability: post promotion spoiler.
+Historical focused passes retained for smoke-test traceability: Golos donate history memo; post promotion spoiler.
 
 ## Architecture
 
