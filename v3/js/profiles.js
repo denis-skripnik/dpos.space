@@ -350,6 +350,58 @@
     return `${parts.join(' ') || '< 1 мин.'} (${date} UTC)`;
   }
 
+  function formatShortDuration(seconds) {
+    const safeSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const restSeconds = safeSeconds % 60;
+    const parts = [];
+    if (hours) parts.push(`${hours} ч.`);
+    if (minutes) parts.push(`${minutes} мин.`);
+    if (restSeconds || parts.length === 0) parts.push(`${restSeconds} сек.`);
+    return parts.join(' ');
+  }
+
+  function computeGolosPostQuota(account) {
+    if (!account || !present(account.post_bandwidth)) return null;
+    const postBandwidth = Number(account.post_bandwidth);
+    if (!Number.isFinite(postBandwidth) || postBandwidth < 0) return null;
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const now = props.time ? Date.parse(props.time) : Date.now();
+    const lastPost = Date.parse(account.last_post || 0);
+    if (!Number.isFinite(now) || !Number.isFinite(lastPost)) return null;
+
+    const secondsPerDay = 86400;
+    const elapsed = Math.max(0, (now - lastPost) / 1000);
+    if (elapsed > secondsPerDay || postBandwidth <= 0) {
+      return { remaining: 4, text: '4', nextText: '', currentBandwidth: 10000 };
+    }
+
+    const currentBandwidth = ((secondsPerDay - elapsed) / secondsPerDay * postBandwidth) + 10000;
+    if (!Number.isFinite(currentBandwidth) || currentBandwidth <= 10000) {
+      return { remaining: 4, text: '4', nextText: '', currentBandwidth };
+    }
+
+    const bands = [
+      { max: 20000, remaining: 3, nextRemaining: 4, target: 10000 },
+      { max: 30000, remaining: 2, nextRemaining: 3, target: 20000 },
+      { max: 40000, remaining: 1, nextRemaining: 2, target: 30000 },
+      { max: Infinity, remaining: 0, nextRemaining: 1, target: 40000 }
+    ];
+    const band = bands.find((item) => currentBandwidth <= item.max) || bands[bands.length - 1];
+    const secondsUntilNext = secondsPerDay - ((band.target - 10000) / (currentBandwidth - 10000)) * secondsPerDay;
+    const nextText = `${band.nextRemaining} станет через ${formatShortDuration(secondsUntilNext)}`;
+    return {
+      remaining: band.remaining,
+      nextRemaining: band.nextRemaining,
+      secondsUntilNext: Math.max(0, Math.ceil(secondsUntilNext)),
+      text: `${band.remaining}. ${nextText}`,
+      nextText,
+      currentBandwidth
+    };
+  }
+
   function calculateReputation(raw) {
     if (!present(raw)) return '';
     const value = Number(raw);
@@ -558,6 +610,10 @@
       addField(rows, 'Vesting withdraw rate', account.vesting_withdraw_rate);
       addField(rows, 'Следующий вывод', account.next_vesting_withdrawal);
       addField(rows, 'Savings withdraw requests', account.savings_withdraw_requests);
+      if (chainId === 'golos') {
+        const postQuota = computeGolosPostQuota(account);
+        addField(rows, 'Количество постов, которое можно опубликовать без штрафа', postQuota && postQuota.text);
+      }
       addField(rows, 'Post bandwidth', account.post_bandwidth);
       if (chainId === 'golos') addField(rows, 'Frozen', account.frozen);
     }
@@ -717,6 +773,7 @@
     fetchDecimalRewards,
     formatError,
     golosPowerRate,
+    computeGolosPostQuota,
     normalizeAccount
   });
 })(window);
