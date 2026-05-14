@@ -627,7 +627,7 @@
         const postQuota = computeGolosPostQuota(account);
         addField(rows, 'Количество постов, которое можно опубликовать без штрафа', postQuota && postQuota.text);
       }
-      addField(rows, 'Post bandwidth', account.post_bandwidth);
+      if (chainId !== 'golos') addField(rows, 'Post bandwidth', account.post_bandwidth);
       if (chainId === 'golos') addField(rows, 'Frozen', account.frozen);
     }
 

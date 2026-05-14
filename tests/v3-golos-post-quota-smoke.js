@@ -45,6 +45,10 @@ assert(
   normalized.economyRows.some(([label, value]) => label === 'Количество постов, которое можно опубликовать без штрафа' && value === '3. 4 станет через 12 ч.'),
   'Golos profile economy rows include the legacy post quota statistic'
 );
+assert(
+  !normalized.economyRows.some(([label]) => label === 'Post bandwidth'),
+  'Golos profile does not expose raw technical post_bandwidth value from RPC'
+);
 
 for (const marker of [
   'id="editor-post-quota"',
