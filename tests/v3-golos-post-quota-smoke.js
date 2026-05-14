@@ -31,13 +31,18 @@ assert.strictEqual(
 );
 assert.strictEqual(
   context.DposProfiles.computeGolosPostQuota(account(20000, '2026-05-14T00:00:00')).text,
-  '3. 4 станет через 24 ч.',
+  '3. 4 станет через 12 ч.',
   'legacy middle band reports remaining posts and next restoration time'
+);
+assert.strictEqual(
+  context.DposProfiles.computeGolosPostQuota(account(10000, '2026-05-13T15:50:00')).text,
+  '3. 4 станет через 3 ч. 50 мин.',
+  'one post almost a day ago restores the fourth safe post after the remaining part of the day'
 );
 
 const normalized = context.DposProfiles.normalizeAccount({ config: { id: 'golos', powerTitle: 'СГ' }, node: 'test' }, account(20000, '2026-05-14T00:00:00'));
 assert(
-  normalized.economyRows.some(([label, value]) => label === 'Количество постов, которое можно опубликовать без штрафа' && value === '3. 4 станет через 24 ч.'),
+  normalized.economyRows.some(([label, value]) => label === 'Количество постов, которое можно опубликовать без штрафа' && value === '3. 4 станет через 12 ч.'),
   'Golos profile economy rows include the legacy post quota statistic'
 );
 
