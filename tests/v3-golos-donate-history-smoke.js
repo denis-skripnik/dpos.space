@@ -13,6 +13,6 @@ assert(appSource.includes("app: 'post'"), 'donate target renderer links to the v
 assert(appSource.includes('renderTransactionDetailsHtml'), 'transaction details can render safe HTML instead of stringifying objects as [object Object]');
 assert(!appSource.includes('<td class="longtext">${escapeHtml(details)}</td>'), 'history table no longer blindly escapes object details');
 
-assert(planSource.includes('Current focused pass — Golos donate history memo'), 'plan documents the Golos donate memo pass');
+assert(planSource.includes('Golos donate history memo'), 'plan keeps Golos donate memo pass traceability');
 
 console.log('v3 Golos donate history smoke passed');
