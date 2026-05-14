@@ -35,6 +35,7 @@ Scope:
 - Show the same remaining post quota in the Golos editor for the currently selected authorized account before publishing.
 - Keep the calculation browser-only: public RPC account data plus dynamic global properties time; no PHP/backend dependency.
 - Preserve the existing history operation `<select multiple>` UX with human-readable labels from the old version.
+- Keep the profile UX user-first: summary, balances, UIA, economy, then recent posts/comments before followers/delegations; avoid exposing implementation notes such as RPC/PHP replacement details.
 
 Non-goals:
 
