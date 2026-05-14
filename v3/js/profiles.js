@@ -401,7 +401,10 @@
     const decayPerSecond = postBandwidth / secondsPerDay;
     const secondsUntilNext = decayPerSecond > 0 ? (currentBandwidth - band.target) / decayPerSecond : 0;
     const safeSecondsUntilNext = Math.max(0, Math.ceil(secondsUntilNext));
-    const nextText = `${band.nextRemaining} станет через ${formatShortDuration(safeSecondsUntilNext)}`;
+    const durationText = formatShortDuration(safeSecondsUntilNext);
+    const nextText = band.remaining === 0
+      ? `Опубликовать пост без штрафа возможно через ${durationText}`
+      : `${band.nextRemaining} станет через ${durationText}`;
     return {
       remaining: band.remaining,
       nextRemaining: band.nextRemaining,

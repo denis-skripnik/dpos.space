@@ -26,7 +26,7 @@ assert.strictEqual(
 );
 assert.strictEqual(
   context.DposProfiles.computeGolosPostQuota(account(40000, '2026-05-14T12:00:00')).text,
-  '0. 1 станет через 6 ч.',
+  '0. Опубликовать пост без штрафа возможно через 6 ч.',
   'high current post bandwidth reports 0 posts and time until one post is safe'
 );
 assert.strictEqual(
