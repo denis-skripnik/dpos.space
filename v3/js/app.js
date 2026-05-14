@@ -910,16 +910,13 @@
     const extras = profile.raw && profile.raw.golosProfileExtras;
     if (!extras) return '';
     const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
-    return `<details open><summary>Golos direct profile data from public RPC</summary>
-      <p class="muted">Эти блоки заменяют старые PHP snippets прямыми browser-safe RPC calls; списки ограничены первыми публичными результатами.</p>
+    return `${renderGolosContentList('Последние посты', extras.blogPosts)}
+      ${renderGolosContentList('Последние комментарии', extras.comments)}
       ${renderGolosAccountList('Подписчики', extras.followers, 'follower')}
       ${renderGolosAccountList('Подписки', extras.following, 'following')}
       ${renderGolosAccountList('Исходящие делегирования СГ', extras.delegationsOut, 'delegatee')}
       ${renderGolosAccountList('Входящие делегирования СГ', extras.delegationsIn, 'delegator')}
-      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
-      ${renderGolosContentList('Последние посты / blog', extras.blogPosts)}
-      ${renderGolosContentList('Последние комментарии', extras.comments)}
-    </details>`;
+      ${witnessRows.length ? detailsSection('Данные делегата', witnessRows) : ''}`;
   }
 
   function renderSteemLegacyDirectSections(profile) {
@@ -1067,10 +1064,10 @@
         ${renderHistoryQuickLinks(profile)}
         ${detailsSection('Балансы', balanceRows, 'Нет данных о балансах.')}
         ${renderGolosUiaProfileSection(profile)}
+        ${detailsSection('Экономика / vesting / staking', profile.economyRows, 'Нет доступных экономических полей.')}
         ${renderGolosLegacyDirectSections(profile)}
         ${renderSteemLegacyDirectSections(profile)}
         ${renderHiveLegacyDirectSections(profile)}
-        ${detailsSection('Экономика / vesting / staking', profile.economyRows, 'Нет доступных экономических полей.')}
         ${detailsSection('Профиль и публичная metadata', profile.profileRows, 'Профильная metadata не заполнена.')}
         ${renderSocialLinks(profile.socials)}
         ${profile.restRows && profile.restRows.length ? detailsSection('Адрес / REST-детали', profile.restRows) : ''}
