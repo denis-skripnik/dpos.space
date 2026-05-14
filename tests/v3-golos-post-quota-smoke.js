@@ -13,10 +13,11 @@ context.window = context;
 vm.createContext(context);
 vm.runInContext(profilesSource, context, { filename: 'v3/js/profiles.js' });
 
-const account = (postBandwidth, lastPost) => ({
+const account = (postBandwidth, lastPost, extra = {}) => ({
   post_bandwidth: postBandwidth,
   last_post: lastPost,
-  _v3ProfileContext: { dynamicProperties: { time: '2026-05-14T12:00:00' } }
+  _v3ProfileContext: { dynamicProperties: { time: '2026-05-14T12:00:00' } },
+  ...extra
 });
 
 assert.strictEqual(
@@ -48,6 +49,40 @@ assert(
 assert(
   !normalized.economyRows.some(([label]) => label === 'Post bandwidth'),
   'Golos profile does not expose raw technical post_bandwidth value from RPC'
+);
+assert(
+  !normalized.economyRows.some(([label]) => label === 'Frozen'),
+  'Golos profile does not expose raw frozen=false value from RPC'
+);
+assert(
+  !normalized.economyRows.some(([label]) => label === 'Vesting withdraw rate' || label === 'Следующий вывод'),
+  'Golos profile hides empty vesting withdraw values and sentinel dates'
+);
+
+const withdrawingAccount = account(20000, '2026-05-14T00:00:00', {
+  vesting_withdraw_rate: '1000000.000000 GESTS',
+  next_vesting_withdrawal: '2026-05-20T12:34:56',
+  frozen: true,
+  _v3ProfileContext: {
+    dynamicProperties: {
+      time: '2026-05-14T12:00:00',
+      total_vesting_fund_steem: '100.000 GOLOS',
+      total_vesting_shares: '100000000.000000 GESTS'
+    }
+  }
+});
+const withdrawing = context.DposProfiles.normalizeAccount({ config: { id: 'golos', powerTitle: 'СГ', liquidSymbol: 'GOLOS' }, node: 'test' }, withdrawingAccount);
+assert(
+  withdrawing.economyRows.some(([label, value]) => label === 'Сумма вывода из СГ' && value === '1 СГ'),
+  'Golos vesting withdraw rate is converted from raw GESTS to readable SG'
+);
+assert(
+  withdrawing.economyRows.some(([label, value]) => label === 'Следующий вывод' && value === '20 мая 2026 г. 12:34:56'),
+  'Golos next vesting withdrawal date is shown in the old readable Russian format'
+);
+assert(
+  withdrawing.economyRows.some(([label, value]) => label === 'Аккаунт заморожен' && value === 'Да'),
+  'Golos frozen status is shown only when it matters'
 );
 
 for (const marker of [
