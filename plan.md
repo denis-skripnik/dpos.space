@@ -27,7 +27,34 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Golos post quota without penalty
+## Current focused pass — Golos auto-upvoter minimum battery guard
+
+Scope:
+
+- Find why the browser-local Golos auto-upvoter could continue voting below a configured 80% / 8000 minimum.
+- Keep the fix static/browser-only: public RPC account refresh plus local per-tick energy accounting; no backend service or daemon.
+- Preserve Start as the consent boundary and avoid changing curator/favorite matching semantics.
+- Make the minimum energy field robust for both raw chain units (`8000`) and human percent input (`80`).
+
+Root-cause finding:
+
+- The scanner refreshed current account energy before planning, but then planned/executed every matching vote in the tick against that single starting value.
+- A full Golos vote consumes voting battery; multiple full votes in one tick could all pass the initial `>= minEnergy` check and cumulatively push the account below the configured floor.
+- A near-threshold single vote could also pass before-broadcast checking even if the vote itself would drop the account under the minimum.
+- The final broadcast path must skip automatic votes when it cannot read the live battery for a configured threshold, instead of failing open.
+
+Non-goals:
+
+- Do not change Golos vote weight economics or the curator/favorite source rules.
+- Do not add background services, server-side queues, or persistent scanner state beyond existing tab-local runtime/localStorage settings.
+- Do not auto-start the scanner after reload.
+
+Validation:
+
+- Extend `tests/v3-golos-auto-upvoter-smoke.js` with RED/GREEN coverage for percent threshold normalization, projected post-vote energy, near-threshold skip, and cumulative per-tick battery reservation.
+- Run JS syntax checks and the full v3 smoke suite.
+
+## Previous focused pass — Golos post quota without penalty
 
 Scope:
 

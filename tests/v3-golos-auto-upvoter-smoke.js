@@ -48,6 +48,7 @@ assert(appSource.includes('manualVoteState.set(autoUpvoterActionKey') && appSour
 assert(appSource.includes('runtime.scannerState.feed.slice(-30).reverse().forEach'), 'auto-upvoter renders newest feed entries first');
 assert(!appSource.includes('message: `SKIP @${action.account} уже голосовал'), 'auto-upvoter suppresses noisy automatic already-voted skip rows');
 assert(helperSource.includes('if (result && result.skipped) continue;'), 'auto-upvoter execution does not add skip rows to feed');
+assert(appSource.includes('helper.estimateVoteEnergyAfter(liveEnergy, action.weight)') && appSource.includes("reason: 'low-battery'") && appSource.includes("reason: 'battery-unavailable'"), 'auto-upvoter rechecks projected live battery immediately before broadcasting and skips if battery cannot be read');
 assert(appSource.includes('loadAutoUpvoterBatterySummary') && appSource.includes('auto-upvoter-battery') && appSource.includes('Перед списком постов'), 'auto-upvoter shows current battery before Start/Stop and before feed list');
 assert((appSource.match(/await loadAutoUpvoterBatterySummary\(settings\)/g) || []).length >= 2, 'auto-upvoter refreshes battery after scanner ticks, not only before start');
 assert(appSource.includes('setInterval') && appSource.includes('clearInterval'), 'Start/Stop wires a real local interval scanner');
@@ -126,6 +127,22 @@ assert(!planned.some((action) => action.author === 'low-energy'), 'min energy is
 assert(planned.some((action) => action.account === 'bob' && action.type === 'vote' && action.weight === 10000), 'full curator mode plans full vote');
 assert(planned.some((action) => action.account === 'alice' && action.source === 'favorite' && action.weight === 7500), 'favorite match uses favorites percent');
 assert(!planned.some((action) => action.account === 'carol'), 'disabled accounts are ignored');
+assert.strictEqual(helpers.normalizeAccountSettings({ account: 'alice', enabled: true, minEnergy: 80 }).minEnergy, 8000, 'min energy accepts human percent input as 80% = 8000');
+assert.strictEqual(helpers.estimateVoteEnergyAfter(8050, 10000), 7889, 'full vote projection includes Golos/Graphene vote energy cost');
+const nearMinimumPlans = helpers.planActionsForEvents([
+  { account: 'alice', enabled: true, curators: ['curator'], minEnergy: 8000, currentEnergy: 8050, curatorMode: 'full' }
+], [
+  { kind: 'curator_vote', voter: 'curator', author: 'near-minimum', permlink: 'skip', weight: 10000, source: 'history:near-minimum' }
+], { seen: new Set() });
+assert.strictEqual(nearMinimumPlans.length, 0, 'auto-upvoter skips a vote that would push battery below the configured minimum');
+const cumulativePlans = helpers.planActionsForEvents([
+  { account: 'alice', enabled: true, curators: ['curator'], minEnergy: 8000, currentEnergy: 8500, curatorMode: 'full' }
+], [
+  { kind: 'curator_vote', voter: 'curator', author: 'first', permlink: 'ok', weight: 10000, source: 'history:first' },
+  { kind: 'curator_vote', voter: 'curator', author: 'second', permlink: 'would-cross', weight: 10000, source: 'history:second' },
+  { kind: 'curator_vote', voter: 'curator', author: 'third', permlink: 'would-cross-too', weight: 10000, source: 'history:third' }
+], { seen: new Set() });
+assert.strictEqual(JSON.stringify(cumulativePlans.map((action) => action.author)), JSON.stringify(['first', 'second']), 'planner reserves per-account battery budget across one scanner tick and stops before crossing minimum');
 
 const deduped = helpers.dedupePlannedActions(planned.concat(planned), new Set());
 const aliceFavoriteVotes = deduped.filter((action) => action.account === 'alice' && action.author === 'favorite' && action.permlink === 'two');

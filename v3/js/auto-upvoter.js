@@ -24,6 +24,23 @@
     return Math.max(0, Math.min(100, number));
   }
 
+  function normalizeEnergyThreshold(value, fallback) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    const normalized = number > 0 && number <= 100 ? number * 100 : number;
+    return Math.max(0, Math.min(10000, Math.round(normalized)));
+  }
+
+  function estimateVoteEnergyAfter(currentEnergy, weight) {
+    const energy = Number(currentEnergy);
+    const voteWeight = Math.abs(Number(weight) || 0);
+    if (!Number.isFinite(energy)) return null;
+    const clampedEnergy = Math.max(0, Math.min(10000, energy));
+    const clampedWeight = Math.max(0, Math.min(10000, voteWeight));
+    const usedEnergy = Math.ceil((clampedEnergy * clampedWeight / 10000) / 50);
+    return Math.max(0, Math.min(10000, Math.round(clampedEnergy - usedEnergy)));
+  }
+
   function currentAccountEnergy(account, options) {
     const raw = account && (account.voting_power ?? account.votingPower ?? account.energy ?? account.charge);
     const value = Number(raw);
@@ -79,13 +96,12 @@
   }
 
   function normalizeAccountSettings(settings) {
-    const minEnergy = Number(settings && settings.minEnergy);
     return Object.assign({}, DEFAULTS, settings || {}, {
       account: String(settings && settings.account || '').trim().replace(/^@/, ''),
       enabled: Boolean(settings && settings.enabled),
       curators: normalizeList(settings && settings.curators),
       favorites: normalizeList(settings && settings.favorites),
-      minEnergy: Number.isFinite(minEnergy) ? Math.max(0, Math.min(10000, Math.round(minEnergy))) : DEFAULTS.minEnergy,
+      minEnergy: normalizeEnergyThreshold(settings && settings.minEnergy, DEFAULTS.minEnergy),
       curatorMode: settings && settings.curatorMode === 'full' ? 'full' : 'repeat',
       curatorCoefficient: clampPercent(settings && settings.curatorCoefficient, DEFAULTS.curatorCoefficient),
       favoritesPercent: clampPercent(settings && settings.favoritesPercent, DEFAULTS.favoritesPercent),
@@ -110,25 +126,26 @@
     return [action.account, action.author, action.permlink].map((item) => String(item || '')).join('|');
   }
 
-  function hasEnoughAccountEnergy(account, event) {
+  function hasEnoughAccountEnergy(account, event, weight) {
     const energy = account && Number.isFinite(Number(account.currentEnergy))
       ? account.currentEnergy
       : event && (event.accountEnergy ?? event.votingPower ?? event.charge);
     const normalized = Number(energy);
     if (!Number.isFinite(normalized)) return true;
-    return normalized >= account.minEnergy;
+    const projected = Number.isFinite(Number(weight)) ? estimateVoteEnergyAfter(normalized, weight) : normalized;
+    return normalized >= account.minEnergy && (!Number.isFinite(Number(projected)) || projected >= account.minEnergy);
   }
 
   function planCuratorVote(account, event) {
     const voter = String(event && event.voter || '').trim().replace(/^@/, '');
     if (!account.curators.includes(voter)) return null;
     const key = postKey(event);
-    if (!key || !hasEnoughAccountEnergy(account, event)) return null;
+    if (!key) return null;
     const incomingWeight = Math.abs(Number(event.weight) || 0);
     const weight = account.curatorMode === 'full'
       ? 10000
       : Math.round(incomingWeight * (account.curatorCoefficient / 100));
-    if (weight < 1) return null;
+    if (weight < 1 || !hasEnoughAccountEnergy(account, event, weight)) return null;
     const action = {
       type: 'vote',
       account: account.account,
@@ -137,6 +154,8 @@
       author: String(event.author || '').trim().replace(/^@/, ''),
       permlink: String(event.permlink || '').trim(),
       weight: Math.max(0, Math.min(10000, weight)),
+      minEnergy: account.minEnergy,
+      currentEnergy: Number.isFinite(Number(account.currentEnergy)) ? Number(account.currentEnergy) : null,
       eventSource: String(event.source || '')
     };
     if (autoDonatePoolEnabled(account)) {
@@ -151,7 +170,7 @@
     const key = postKey(event);
     if (!key) return null;
     const weight = Math.round(account.favoritesPercent * 100);
-    if (!hasEnoughAccountEnergy(account, event) || weight < 1) return null;
+    if (weight < 1 || !hasEnoughAccountEnergy(account, event, weight)) return null;
     const action = {
       type: 'vote',
       account: account.account,
@@ -162,6 +181,8 @@
       title: String(event.title || '').trim(),
       activeVotes: normalizeVoteRows(event.activeVotes || event.active_votes),
       weight: Math.max(0, Math.min(10000, weight)),
+      minEnergy: account.minEnergy,
+      currentEnergy: Number.isFinite(Number(account.currentEnergy)) ? Number(account.currentEnergy) : null,
       eventSource: String(event.source || '')
     };
     if (hasVoteFrom(action.activeVotes, account.account)) return null;
@@ -271,13 +292,30 @@
   function planActionsForEvents(accountSettings, events, state) {
     const seen = state && state.seen instanceof Set ? state.seen : new Set(state && state.seen || []);
     const accounts = (Array.isArray(accountSettings) ? accountSettings : []).map(normalizeAccountSettings).filter((account) => account.enabled && account.account);
+    const energyBudget = new Map();
+    accounts.forEach((account) => {
+      const current = Number(account.currentEnergy);
+      if (Number.isFinite(current)) energyBudget.set(account.account, Math.max(0, Math.min(10000, current)));
+    });
     const rows = [];
     (Array.isArray(events) ? events : []).forEach((event) => {
       accounts.forEach((account) => {
         let action = null;
-        if (event && event.kind === 'curator_vote') action = planCuratorVote(account, event);
-        if (event && event.kind === 'favorite_post') action = planFavoriteVote(account, event);
-        if (action && !seen.has(actionKey(action))) rows.push(action);
+        const budget = energyBudget.get(account.account);
+        const planningAccount = Number.isFinite(budget) ? Object.assign({}, account, { currentEnergy: budget }) : account;
+        if (event && event.kind === 'curator_vote') action = planCuratorVote(planningAccount, event);
+        if (event && event.kind === 'favorite_post') action = planFavoriteVote(planningAccount, event);
+        if (!action || seen.has(actionKey(action))) return;
+        if (Number.isFinite(budget)) {
+          const projected = estimateVoteEnergyAfter(budget, action.weight);
+          if (Number.isFinite(Number(projected))) {
+            if (projected < account.minEnergy) return;
+            energyBudget.set(account.account, projected);
+            action.currentEnergy = budget;
+            action.projectedEnergy = projected;
+          }
+        }
+        rows.push(action);
       });
     });
     return dedupePlannedActions(rows, seen);
@@ -543,6 +581,7 @@
     dedupePlannedActions,
     discussionRowToFavoritePostEvent,
     executePlannedActions,
+    estimateVoteEnergyAfter,
     enrichActionDonateFromEmission,
     findAuthorizedUser,
     hasVoteFrom,

@@ -5492,8 +5492,8 @@
         </div>
         <div class="field-grid">
           <div class="field">
-            <label for="auto-upvoter-min-energy-${index}">Минимальная энергия голоса (0–10000)</label>
-            <input id="auto-upvoter-min-energy-${index}" name="minEnergy" type="number" min="0" max="10000" step="100" value="2500">
+            <label for="auto-upvoter-min-energy-${index}">Минимальная батарейка голоса: % или шкала 0–10000 (80 = 80%, 8000 = 80%)</label>
+            <input id="auto-upvoter-min-energy-${index}" name="minEnergy" type="number" min="0" max="10000" step="1" value="2500">
           </div>
           <div class="field">
             <label for="auto-upvoter-curator-mode-${index}">Режим куратора</label>
@@ -5704,10 +5704,22 @@
           if (hasGolosVoteFrom(content || action, action.account)) {
             return { skipped: true, reason: 'already-voted' };
           }
+          const liveAccount = await adapter.getAccount(action.account).catch(() => null);
+          const liveEnergy = helper && typeof helper.currentAccountEnergy === 'function' ? helper.currentAccountEnergy(liveAccount) : null;
+          const minEnergy = Number(action.minEnergy);
+          if (Number.isFinite(minEnergy) && minEnergy > 0 && !Number.isFinite(liveEnergy)) {
+            return { skipped: true, reason: 'battery-unavailable', minEnergy };
+          }
+          if (Number.isFinite(liveEnergy) && Number.isFinite(minEnergy)) {
+            const projectedEnergy = helper.estimateVoteEnergyAfter(liveEnergy, action.weight);
+            if (liveEnergy < minEnergy || (Number.isFinite(projectedEnergy) && projectedEnergy < minEnergy)) {
+              return { skipped: true, reason: 'low-battery', currentEnergy: liveEnergy, projectedEnergy, minEnergy };
+            }
+          }
           const donateAction = isGolos && action && action.donate && action.donate.enabled
             ? helper.enrichActionDonateFromEmission(
               action,
-              await adapter.getAccount(action.account),
+              liveAccount || await adapter.getAccount(action.account),
               await adapter.getDynamicGlobalProperties()
             )
             : action;
