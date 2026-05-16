@@ -2208,15 +2208,20 @@
     renderManageWitnessSigningKeyHistory(chain);
   }
 
+  function shortSigningKey(key) {
+    const text = String(key || '').trim();
+    return text.length > 18 ? `${text.slice(0, 7)}…${text.slice(-7)}` : text;
+  }
+
   function renderManageWitnessSigningKeyHistory(chain) {
     const keys = readManageWitnessSigningKeys(chain);
     const list = document.getElementById('manage-witness-key-history');
     if (list) list.innerHTML = keys.map((key) => `<option value="${escapeHtml(key)}"></option>`).join('');
-    const select = document.getElementById('manage-witness-saved-key');
-    if (select) {
-      select.innerHTML = '<option value="">Выберите сохранённый ключ</option>'
-        + keys.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(key)}</option>`).join('');
-      select.disabled = keys.length === 0;
+    const hint = document.getElementById('manage-witness-saved-key-hint');
+    if (hint) {
+      hint.innerHTML = keys.length
+        ? `Сохранённый ключ: ${keys.map((key, index) => `<button type="button" class="link-button" data-witness-saved-key="${escapeHtml(key)}" aria-label="Использовать сохранённый ключ подписи блоков ${escapeHtml(key)}">${escapeHtml(shortSigningKey(key))}</button>${index === 0 && keys.length === 1 ? ' <span class="muted">уже подставлен, если поле пустое</span>' : ''}`).join(' ')}`
+        : 'Сохранённого ключа пока нет.';
     }
     const input = document.getElementById('manage-witness-key');
     if (input && !String(input.value || '').trim() && keys.length === 1) input.value = keys[0];
@@ -8092,10 +8097,9 @@
         <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
-            <p class="muted">Для мобильного сценария: вставьте ключ подписи блоков делегата один раз — он появится в подсказках этого браузера. «Остановить» сама подставит технический null-key сети.</p>
+            <p class="muted">Если нужно изменить ключ активации, вставьте новый ключ подписи блоков в поле и нажмите «Активировать делегата». Сохранённый ключ показан под полем сокращённо и доступен кнопкой.</p>
             <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
-            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist></div>
-            <div class="field"><label for="manage-witness-saved-key">Сохранённый ключ</label><select id="manage-witness-saved-key" disabled><option value="">Сохранённых ключей пока нет</option></select></div>
+            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist><p id="manage-witness-saved-key-hint" class="muted">Сохранённого ключа пока нет.</p></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
             <div class="witness-action-buttons" aria-label="Быстрые действия witness">
               <button type="submit" name="intent" value="send" data-witness-action="activate">Активировать делегата</button>
@@ -8570,11 +8574,16 @@ Memo key: ${keys.memo}`);
       }
       prefillManageProfile(chain);
       renderManageWitnessSigningKeyHistory(chain);
-      const witnessSavedKey = document.getElementById('manage-witness-saved-key');
-      if (witnessSavedKey) {
-        witnessSavedKey.addEventListener('change', () => {
+      const witnessSavedKeyHint = document.getElementById('manage-witness-saved-key-hint');
+      if (witnessSavedKeyHint) {
+        witnessSavedKeyHint.addEventListener('click', (event) => {
+          const button = event.target && event.target.closest ? event.target.closest('[data-witness-saved-key]') : null;
+          if (!button) return;
           const input = document.getElementById('manage-witness-key');
-          if (input && witnessSavedKey.value) input.value = witnessSavedKey.value;
+          if (input) {
+            input.value = button.dataset.witnessSavedKey || '';
+            input.focus();
+          }
         });
       }
       const witnessLoad = document.getElementById('manage-witness-load');
