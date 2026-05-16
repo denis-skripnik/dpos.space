@@ -24,8 +24,10 @@ const witnessActionCopy = appSource.slice(appSource.indexOf('id="manage-witness-
 assert(!witnessActionCopy.includes('Проверить активацию') && !witnessActionCopy.includes('Проверить остановку'), 'witness activation UI has no extra preview buttons');
 assert(appSource.includes('manageWitnessSigningKeyStorageKey(chain)'), 'witness activation remembers public block signing keys per chain/account');
 assert(appSource.includes('list="manage-witness-key-history"'), 'witness signing key input keeps native datalist suggestions');
-assert(appSource.includes('id="manage-witness-saved-key"'), 'witness signing key history is exposed as an explicit select');
-assert(appSource.includes('witnessSavedKey.addEventListener'), 'saved witness key select fills the signing key input');
+assert(appSource.includes('id="manage-witness-saved-key-hint"'), 'witness signing key history is shown below the key field');
+assert(appSource.includes('shortSigningKey(key)'), 'saved witness key is displayed in shortened form');
+assert(appSource.includes('data-witness-saved-key'), 'saved witness key hint has a direct fill button');
+assert(appSource.includes('witnessSavedKeyHint.addEventListener'), 'saved witness key button fills the signing key input');
 assert(appSource.includes('keys.length === 1) input.value = keys[0]'), 'single saved witness key is auto-filled on render');
 assert(!appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation must not derive signing key from active WIF');
 assert(!/active\s+(?:key|WIF)|active-ключ|active WIF/i.test(witnessActionCopy), 'public witness activation copy avoids confusing active-key wording');
