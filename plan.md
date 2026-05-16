@@ -33,9 +33,9 @@ Scope:
 
 - Simplify Graphene `manage` witness activation/deactivation for VIZ, Steem, Golos, and Hive.
 - Replace the old “empty signing key means deactivate” mental model with explicit mobile-friendly actions: `Проверить активацию`, `Активировать делегата`, `Проверить остановку`, `Остановить делегата`.
-- For activation, derive the public signing key locally from the currently selected saved active WIF; never display or send the private WIF.
+- For activation, require the delegate's public block signing key in a normal input and remember recent public signing keys per chain/account for native mobile/browser suggestions.
 - For deactivation, submit the correct chain null signing key, including Golos operation key `GLS111...`.
-- Keep manual signing-key entry available only in an advanced `<details>` block for rare key rotation.
+- Never derive witness signing keys from account active WIF: witnesses use their own signing key pair and only the public signing key belongs in this form.
 - Preserve existing preview/send confirmation flow and static-only browser implementation.
 
 Non-goals:
