@@ -23,6 +23,8 @@ assert(appSource.includes('data-witness-action="deactivate"'), 'witness deactiva
 assert(appSource.includes('manageWitnessSigningKeyStorageKey(chain)'), 'witness activation remembers public block signing keys per chain/account');
 assert(appSource.includes('list="manage-witness-key-history"'), 'witness signing key input has native datalist suggestions');
 assert(!appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation must not derive signing key from active WIF');
+const witnessActionCopy = appSource.slice(appSource.indexOf('id="manage-witness-update-details"'), appSource.indexOf('id="viz-witness-props-details"'));
+assert(!/active\s+(?:key|WIF)|active-ключ|active WIF/i.test(witnessActionCopy), 'public witness activation copy avoids confusing active-key wording');
 assert(appSource.includes('loadManageWitnessSettings(chain)'), 'witness settings preload is wired');
 assert(appSource.includes('function renderWitnessPropsFields'), 'witness props render as field forms instead of JSON-only textarea');
 assert(appSource.includes('fillWitnessPropsForm(propsForm, chain, props)'), 'witness props preload fills dedicated field form');
