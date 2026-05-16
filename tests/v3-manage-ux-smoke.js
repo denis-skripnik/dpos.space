@@ -20,8 +20,9 @@ assert(appSource.includes('Настройки witness / параметры се�
 assert(appSource.includes('Активация или деактивация witness'), 'witness activation/deactivation has its own form copy');
 assert(appSource.includes('data-witness-action="activate"'), 'witness activation exposes a direct mobile-friendly action button');
 assert(appSource.includes('data-witness-action="deactivate"'), 'witness deactivation exposes a direct mobile-friendly stop button');
-assert(appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation can derive the public signing key from the selected active key');
-assert(appSource.includes('Расширенная настройка signing key'), 'manual signing key entry is hidden behind an advanced disclosure');
+assert(appSource.includes('manageWitnessSigningKeyStorageKey(chain)'), 'witness activation remembers public block signing keys per chain/account');
+assert(appSource.includes('list="manage-witness-key-history"'), 'witness signing key input has native datalist suggestions');
+assert(!appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation must not derive signing key from active WIF');
 assert(appSource.includes('loadManageWitnessSettings(chain)'), 'witness settings preload is wired');
 assert(appSource.includes('function renderWitnessPropsFields'), 'witness props render as field forms instead of JSON-only textarea');
 assert(appSource.includes('fillWitnessPropsForm(propsForm, chain, props)'), 'witness props preload fills dedicated field form');
