@@ -12,6 +12,7 @@
   const routeForm = document.getElementById('route-form');
   const accountInput = document.getElementById('account-input');
   const accountField = accountInput ? accountInput.closest('.field') : null;
+  const recentAccountList = document.getElementById('recent-account-list');
   const accountSelectField = document.getElementById('account-select-field');
   const accountSelect = document.getElementById('account-select');
   const statusEl = document.getElementById('status');
@@ -23,6 +24,7 @@
   const LONG_FARMING_SENDER = 'Mx01029d73e128e2f53ff1fcc2d52a423283ad9439';
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
   const IMGUR_CLIENT_ID = '372d5f766d47d1d';
+  const RECENT_ACCOUNT_LIMIT = 15;
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -457,7 +459,43 @@
   }
 
   function accountSelectorVisible(app, chain) {
-    return Boolean(app && (appRequiresAccount(app) || appUsesAuthorizedAccount(app)) && auth.getUsers(chain).length);
+    return Boolean(app && appUsesAuthorizedAccount(app) && auth.getUsers(chain).length);
+  }
+
+  function recentAccountsKey(chain) {
+    return `${chain.id}_recent_accounts`;
+  }
+
+  function normalizeRecentAccount(chain, value) {
+    const account = String(value || '').trim().replace(/^@/, '');
+    if (!account) return '';
+    return ['golos', 'viz', 'steem', 'hive'].includes(chain.id) ? account.toLowerCase() : account;
+  }
+
+  function getRecentAccounts(chain) {
+    try {
+      const parsed = JSON.parse(global.localStorage.getItem(recentAccountsKey(chain)) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((item) => normalizeRecentAccount(chain, item)).filter(Boolean).slice(0, RECENT_ACCOUNT_LIMIT);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function rememberRecentAccount(chain, value) {
+    const account = normalizeRecentAccount(chain, value);
+    if (!account) return;
+    const next = [account].concat(getRecentAccounts(chain).filter((item) => item !== account)).slice(0, RECENT_ACCOUNT_LIMIT);
+    try {
+      global.localStorage.setItem(recentAccountsKey(chain), JSON.stringify(next));
+    } catch (error) {
+      // localStorage can be unavailable in private/sandboxed contexts; suggestions are optional.
+    }
+  }
+
+  function fillRecentAccountList(chain) {
+    if (!recentAccountList) return;
+    recentAccountList.innerHTML = getRecentAccounts(chain).map((account) => `<option value="${escapeHtml(account)}"></option>`).join('');
   }
 
   function savedAccountValue(user) {
@@ -499,6 +537,7 @@
     accountField.setAttribute('aria-hidden', inputVisible ? 'false' : 'true');
     accountInput.disabled = !inputVisible;
     accountInput.tabIndex = inputVisible ? 0 : -1;
+    if (inputVisible) fillRecentAccountList(chain);
   }
 
   function profileRows(rows) {
@@ -13095,6 +13134,7 @@ Memo key: ${keys.memo}`);
       } else {
         renderServicePlaceholder(chain, app);
       }
+      if (appRequiresAccount(app) && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, account);
     } catch (error) {
       appEl.innerHTML = `
         <section class="panel error-panel">
@@ -13136,6 +13176,7 @@ Memo key: ${keys.memo}`);
     const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
     const selectedLogin = accountSelect && !accountSelect.disabled ? selectSavedAccount(chain, accountSelect.value) : '';
     const typedLogin = appRequiresAccount(app) && !accountInput.disabled ? accountInput.value.trim().replace(/^@/, '') : '';
+    if (typedLogin && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, typedLogin);
     navigate({
       chain: chainSelect.value,
       app: appSelect.value,
