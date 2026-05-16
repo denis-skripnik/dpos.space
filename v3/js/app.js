@@ -8084,14 +8084,12 @@
         <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
-            <p class="muted">Для мобильного сценария: вставьте ключ подписи блоков делегата один раз — после проверки он появится в подсказках этого браузера. «Остановить» сама подставит технический null-key сети.</p>
+            <p class="muted">Для мобильного сценария: вставьте ключ подписи блоков делегата один раз — он появится в подсказках этого браузера. «Остановить» сама подставит технический null-key сети.</p>
             <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
             <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
             <div class="witness-action-buttons" aria-label="Быстрые действия witness">
-              <button type="submit" name="intent" value="preview" data-witness-action="activate">Проверить активацию</button>
               <button type="submit" name="intent" value="send" data-witness-action="activate">Активировать делегата</button>
-              <button type="submit" name="intent" value="preview" data-witness-action="deactivate" class="secondary">Проверить остановку</button>
               <button type="submit" name="intent" value="send" data-witness-action="deactivate" class="danger-button">Остановить делегата</button>
             </div>
             ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие witness настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
@@ -8389,8 +8387,8 @@
       if (action !== 'deactivate') rememberManageWitnessSigningKey(chain, signingKey);
       const actionTitle = action === 'activate' ? 'Активация witness' : (action === 'deactivate' ? 'Остановка witness' : 'Witness update');
       const actionWarnings = action === 'activate'
-        ? ['Будет использован введённый публичный block signing key делегата. Приватный witness signing key храните отдельно и не вводите в DPoS Space.']
-        : (action === 'deactivate' ? ['Witness будет остановлен через null-key сети.'] : ['Проверьте вручную введённый публичный signing key.']);
+        ? ['Будет установлен введённый ключ подписи блоков.']
+        : (action === 'deactivate' ? ['Делегат будет остановлен через null-key сети.'] : ['Проверьте введённый ключ подписи блоков.']);
       if (chain.id === 'viz') {
         return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey], { title: `VIZ ${actionTitle}`, warnings: ['Legacy VIZ witnessUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'].concat(actionWarnings) });
       }
