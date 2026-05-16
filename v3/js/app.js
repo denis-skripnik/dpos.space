@@ -8084,7 +8084,7 @@
         <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
-            <p class="muted">Для мобильного сценария: вставьте публичный block signing key делегата один раз, дальше он будет подсказываться в этом браузере. «Остановить» ключ не требует и отправляет null-key сети.</p>
+            <p class="muted">Для мобильного сценария: вставьте ключ подписи блоков делегата один раз — после проверки он появится в подсказках этого браузера. «Остановить» сама подставит технический null-key сети.</p>
             <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
             <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
