@@ -27,7 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Golos auto-upvoter minimum battery guard
+## Current focused pass — Graphene account memory UX
+
+Scope:
+
+- For read-only account routes such as profiles/history/backup, remember public logins typed into the top account field and show them as native browser suggestions.
+- Keep the storage static/browser-only and non-secret: `<chain>_recent_accounts` stores only normalized public account names, never keys.
+- Hide the saved authorized-account selector on read-only account routes so it cannot silently override a manually typed viewed account.
+- Preserve the authorized-account selector for services where the selected key-bearing account matters: wallet, broadcast, manage, awards/donate/editor/feeds/post/notifications/swap/auto-upvoter.
+
+Non-goals:
+
+- Do not migrate or rewrite legacy `<chain>_users` / `<chain>_current_user` auth storage.
+- Do not add account lookup services, backend autocomplete, or chain-wide username search.
+- Do not copy selected authorized accounts into the read-only recent-viewed list unless the user explicitly types/opens them through a read-only route.
+
+Validation:
+
+- Add `tests/v3-account-memory-ux-smoke.js` for the datalist, per-chain recent storage, read-only selector hiding, and authorized-service routing guardrails.
+- Run focused smoke plus JS syntax checks and the full v3 smoke suite.
+
+## Previous focused pass — Golos auto-upvoter minimum battery guard
 
 Scope:
 
