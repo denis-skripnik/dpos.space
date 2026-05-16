@@ -2209,9 +2209,17 @@
   }
 
   function renderManageWitnessSigningKeyHistory(chain) {
+    const keys = readManageWitnessSigningKeys(chain);
     const list = document.getElementById('manage-witness-key-history');
-    if (!list) return;
-    list.innerHTML = readManageWitnessSigningKeys(chain).map((key) => `<option value="${escapeHtml(key)}"></option>`).join('');
+    if (list) list.innerHTML = keys.map((key) => `<option value="${escapeHtml(key)}"></option>`).join('');
+    const select = document.getElementById('manage-witness-saved-key');
+    if (select) {
+      select.innerHTML = '<option value="">Выберите сохранённый ключ</option>'
+        + keys.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(key)}</option>`).join('');
+      select.disabled = keys.length === 0;
+    }
+    const input = document.getElementById('manage-witness-key');
+    if (input && !String(input.value || '').trim() && keys.length === 1) input.value = keys[0];
   }
 
   async function resolveManageWitnessUrl(chain, typedUrl) {
@@ -8087,6 +8095,7 @@
             <p class="muted">Для мобильного сценария: вставьте ключ подписи блоков делегата один раз — он появится в подсказках этого браузера. «Остановить» сама подставит технический null-key сети.</p>
             <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
             <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist></div>
+            <div class="field"><label for="manage-witness-saved-key">Сохранённый ключ</label><select id="manage-witness-saved-key" disabled><option value="">Сохранённых ключей пока нет</option></select></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
             <div class="witness-action-buttons" aria-label="Быстрые действия witness">
               <button type="submit" name="intent" value="send" data-witness-action="activate">Активировать делегата</button>
@@ -8561,6 +8570,13 @@ Memo key: ${keys.memo}`);
       }
       prefillManageProfile(chain);
       renderManageWitnessSigningKeyHistory(chain);
+      const witnessSavedKey = document.getElementById('manage-witness-saved-key');
+      if (witnessSavedKey) {
+        witnessSavedKey.addEventListener('change', () => {
+          const input = document.getElementById('manage-witness-key');
+          if (input && witnessSavedKey.value) input.value = witnessSavedKey.value;
+        });
+      }
       const witnessLoad = document.getElementById('manage-witness-load');
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessPropsLoad = document.getElementById('manage-witness-props-load');
