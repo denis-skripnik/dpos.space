@@ -11,12 +11,17 @@ assert(appSource.includes('function renderWitnessChoice'), 'manage renders witne
 assert(appSource.includes('witness-choice-grid'), 'batch witness vote uses a grid instead of a plain label stream');
 assert(cssSource.includes('.witness-choice-grid'), 'CSS styles witness batch grid');
 assert(cssSource.includes('repeat(auto-fit, minmax(18rem, 1fr))'), 'witness grid is responsive and roughly 3 columns on desktop');
+assert(cssSource.includes('.witness-action-buttons') && cssSource.includes('flex: 1 1 13rem'), 'witness activation buttons wrap into mobile-friendly full-width rows');
 assert(appSource.includes('активный делегат') && appSource.includes('неактивный делегат'), 'witness batch list shows active/inactive delegate text');
 assert(appSource.includes('GOLOS1111111111111111111111111111111114T1Anm'), 'Golos legacy null signing key is detected for inactive witnesses');
 assert(appSource.includes('GLS1111111111111111111111111111111114T1Anm'), 'Golos deactivate operation keeps GLS null signing key');
 assert(appSource.includes('VIZ1111111111111111111111111111111114T1Anm'), 'VIZ null signing key is detected for inactive witnesses');
 assert(appSource.includes('Настройки witness / параметры сети'), 'witness props/settings are separated from activation');
 assert(appSource.includes('Активация или деактивация witness'), 'witness activation/deactivation has its own form copy');
+assert(appSource.includes('data-witness-action="activate"'), 'witness activation exposes a direct mobile-friendly action button');
+assert(appSource.includes('data-witness-action="deactivate"'), 'witness deactivation exposes a direct mobile-friendly stop button');
+assert(appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation can derive the public signing key from the selected active key');
+assert(appSource.includes('Расширенная настройка signing key'), 'manual signing key entry is hidden behind an advanced disclosure');
 assert(appSource.includes('loadManageWitnessSettings(chain)'), 'witness settings preload is wired');
 assert(appSource.includes('function renderWitnessPropsFields'), 'witness props render as field forms instead of JSON-only textarea');
 assert(appSource.includes('fillWitnessPropsForm(propsForm, chain, props)'), 'witness props preload fills dedicated field form');

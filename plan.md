@@ -27,7 +27,31 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Graphene account memory UX
+## Current focused pass — Manage witness activation UX
+
+Scope:
+
+- Simplify Graphene `manage` witness activation/deactivation for VIZ, Steem, Golos, and Hive.
+- Replace the old “empty signing key means deactivate” mental model with explicit mobile-friendly actions: `Проверить активацию`, `Активировать делегата`, `Проверить остановку`, `Остановить делегата`.
+- For activation, derive the public signing key locally from the currently selected saved active WIF; never display or send the private WIF.
+- For deactivation, submit the correct chain null signing key, including Golos operation key `GLS111...`.
+- Keep manual signing-key entry available only in an advanced `<details>` block for rare key rotation.
+- Preserve existing preview/send confirmation flow and static-only browser implementation.
+
+Non-goals:
+
+- No backend/indexer/service.
+- No new key-storage schema and no migration of legacy localStorage auth.
+- No automatic real transaction without explicit send button and confirmation.
+- No change to dangerous witness props/network-parameter forms.
+
+Validation:
+
+- RED: `node tests/v3-manage-ux-smoke.js` fails until the direct activation/deactivation action buttons and active-key-to-public-key helper exist.
+- GREEN target: `node tests/v3-manage-ux-smoke.js`.
+- Regression gate: JS syntax checks plus all `tests/v3-*.js`, then `git diff --check`.
+
+## Previous focused pass — Graphene account memory UX
 
 Scope:
 

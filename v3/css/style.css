@@ -137,6 +137,24 @@ button.secondary {
   color: var(--text);
 }
 
+button.danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.witness-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.witness-action-buttons button {
+  flex: 1 1 13rem;
+  margin-inline-start: 0;
+}
+
 .notifications-panel {
   margin-top: 1rem;
 }

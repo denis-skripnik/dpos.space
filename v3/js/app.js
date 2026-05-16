@@ -2188,6 +2188,29 @@
     return manageNullSigningKey(chain);
   }
 
+  function getCurrentActivePublicSigningKey(chain) {
+    const user = auth.getCurrentUser(chain);
+    const login = auth.getUserLogin(user);
+    const encrypted = user && user.active;
+    const client = global[chain.libraryGlobal];
+    if (!login || !encrypted) throw new Error('Для активации witness выберите сохранённый аккаунт с active-ключом.');
+    if (!global.sjcl || typeof global.sjcl.decrypt !== 'function') throw new Error('SJCL недоступен: active-ключ нельзя прочитать локально.');
+    if (!client || !client.auth || typeof client.auth.wifToPublic !== 'function') throw new Error('Библиотека сети не умеет вычислить публичный ключ из active WIF.');
+    const activeWif = global.sjcl.decrypt(`dpos.space_${chain.id}_${login}_activeKey`, encrypted);
+    if (!activeWif || !broadcast.isLikelyWif(activeWif)) throw new Error('Сохранённый active-ключ не похож на WIF. Проверьте аккаунт в разделе «Аккаунты».');
+    return client.auth.wifToPublic(activeWif);
+  }
+
+  async function resolveManageWitnessUrl(chain, typedUrl) {
+    const url = String(typedUrl || '').trim();
+    if (url) return url;
+    const account = auth.getCurrentLogin(chain);
+    if (!account) return '';
+    const connection = await getConnection(chain);
+    const witness = await profiles.apiCall(connection, 'getWitnessByAccount', [account]).catch(() => null);
+    return String((witness && witness.url) || '').trim();
+  }
+
   function isManageWitnessActive(chain, witness) {
     const key = String((witness && (witness.signing_key || witness.signingKey)) || '');
     const nullKey = manageNullSigningKey(chain);
@@ -8045,16 +8068,25 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>` : ''}
-        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — preview перед обновлением</summary><form id="manage-witness-update-form" class="stacked-form">
+        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
-            <p class="muted">Отдельная операция для URL и публичного signing key. Оставьте signing key пустым, чтобы деактивировать witness через null-key сети.</p>
-            <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" required></div>
-            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" placeholder="пусто = деактивировать witness"></div>
-            <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+            <p class="muted">Для мобильного сценария достаточно URL и одной кнопки. «Активировать» берёт публичный signing key из выбранного сохранённого active-ключа. «Остановить» отправляет null-key сети. Приватный ключ не показывается и не уходит в сеть.</p>
+            <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
+            <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+            <div class="witness-action-buttons" aria-label="Быстрые действия witness">
+              <button type="submit" name="intent" value="preview" data-witness-action="activate">Проверить активацию</button>
+              <button type="submit" name="intent" value="send" data-witness-action="activate">Активировать делегата</button>
+              <button type="submit" name="intent" value="preview" data-witness-action="deactivate" class="secondary">Проверить остановку</button>
+              <button type="submit" name="intent" value="send" data-witness-action="deactivate" class="danger-button">Остановить делегата</button>
+            </div>
+            <details><summary>Расширенная настройка signing key</summary>
+              <p class="muted">Используйте только если нужно поставить отдельный публичный ключ подписи блоков. Пустое поле в этом режиме тоже означает остановку через null-key.</p>
+              <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков</label><input id="manage-witness-key" name="signingKey" type="text" placeholder="пусто = деактивировать witness"></div>
+              <button type="submit" name="intent" value="preview" data-witness-action="custom">Проверить ручной signing key</button>
+              <button type="submit" name="intent" value="send" data-witness-action="custom">Сохранить ручной signing key</button>
+            </details>
             ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие witness настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
-            <button type="submit" name="intent" value="preview">Проверить активацию / деактивацию</button>
-            <button type="submit" name="intent" value="send">Сохранить активацию / деактивацию</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
@@ -8328,10 +8360,18 @@
       form.get('approve') === 'on'
     ], { title: 'Голосование за witness', to: normalizeAccountInput(chain, form.get('witness'), 'Witness') }));
 
-    bindOperationForm(chain, 'manage-witness-update-form', (form) => {
+    bindOperationForm(chain, 'manage-witness-update-form', async (form, options = {}) => {
       const account = auth.getCurrentLogin(chain);
-      const url = String(form.get('url') || '').trim();
-      const signingKey = String(form.get('signingKey') || '').trim() || manageDeactivateSigningKey(chain);
+      const action = options.submitter && options.submitter.dataset ? (options.submitter.dataset.witnessAction || 'custom') : 'custom';
+      const url = await resolveManageWitnessUrl(chain, form.get('url'));
+      let signingKey = '';
+      if (action === 'activate') {
+        signingKey = getCurrentActivePublicSigningKey(chain);
+      } else if (action === 'deactivate') {
+        signingKey = manageDeactivateSigningKey(chain);
+      } else {
+        signingKey = String(form.get('signingKey') || '').trim() || manageDeactivateSigningKey(chain);
+      }
       const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
@@ -8339,10 +8379,14 @@
         try { props = JSON.parse(rawProps); } catch (error) { throw new Error('Props JSON должен быть корректным JSON.'); }
       }
       if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key должен быть публичным ключом, а не приватным WIF.');
+      const actionTitle = action === 'activate' ? 'Активация witness' : (action === 'deactivate' ? 'Остановка witness' : 'Witness update');
+      const actionWarnings = action === 'activate'
+        ? ['Будет использован публичный ключ, вычисленный локально из selected active WIF. Приватный ключ не попадёт в транзакцию.']
+        : (action === 'deactivate' ? ['Witness будет остановлен через null-key сети.'] : ['Проверьте вручную введённый публичный signing key.']);
       if (chain.id === 'viz') {
-        return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey], { title: 'VIZ witnessUpdate', warnings: ['Legacy VIZ witnessUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'] });
+        return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey], { title: `VIZ ${actionTitle}`, warnings: ['Legacy VIZ witnessUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'].concat(actionWarnings) });
       }
-      return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: 'Witness update', amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'] });
+      return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: actionTitle, amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'].concat(actionWarnings) });
     });
 
     bindOperationForm(chain, 'manage-authority-form', (form) => {
