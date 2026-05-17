@@ -13297,7 +13297,7 @@ Memo key: ${keys.memo}`);
       return;
     }
 
-    if (state.app === 'backup') {
+    if (state.app === 'backup' && !state.chain) {
       const chain = chains.golos || Object.values(chains)[0];
       const app = chain.apps[0];
       fillChainSelect(chain.id);

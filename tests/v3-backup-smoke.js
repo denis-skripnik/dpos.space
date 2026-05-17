@@ -7,7 +7,7 @@ const appSource = fs.readFileSync('v3/js/app.js', 'utf8');
 
 assert(html.includes('href="#app=backup"'), 'footer exposes internal backup route');
 assert(html.includes('Резервное копирование'), 'footer labels backup route accessibly');
-assert(appSource.includes("if (state.app === 'backup')"), 'backup route is app-scoped and not tied to a blockchain menu item');
+assert(appSource.includes("if (state.app === 'backup' && !state.chain)"), 'site backup route is app-scoped and does not intercept chain-specific backup pages');
 assert(appSource.includes('renderDposBackupPage'), 'backup page renderer exists');
 assert(appSource.includes('encrypted-localstorage-backup'), 'backup file format is encrypted only');
 assert(appSource.includes("warning: 'DPoS Space support will never ask"), 'backup metadata warns against support/social-engineering requests');
