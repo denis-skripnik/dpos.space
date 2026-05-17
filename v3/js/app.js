@@ -723,7 +723,7 @@
     const data = raw.data || raw.message || raw.payload || raw;
     const details = [];
     for (const [key, value] of Object.entries(data || {})) {
-      if (['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'to', 'recipient', 'receiver', 'target', 'validator', 'amount', 'value', 'stake', 'coin', 'denom', 'symbol', 'memo', 'payload', 'comment', 'title', 'url'].includes(key)) continue;
+      if (['from', 'sender', 'address', 'delegator', 'owner', 'account', 'creator', 'to', 'recipient', 'receiver', 'target', 'validator', 'amount', 'value', 'stake', 'coin', 'denom', 'symbol', 'memo', 'payload', 'comment', 'title', 'url', 'list'].includes(key)) continue;
       if (value === undefined || value === null || value === '') continue;
       details.push(`${key}: ${history.formatValue(value)}`);
       if (details.length >= 4) break;
@@ -731,8 +731,63 @@
     return details.join('; ');
   }
 
+  function decimalStringAdd(a, b) {
+    const left = String(a || '0').trim() || '0';
+    const right = String(b || '0').trim() || '0';
+    const [leftWhole, leftFraction = ''] = left.split('.');
+    const [rightWhole, rightFraction = ''] = right.split('.');
+    const scale = Math.max(leftFraction.length, rightFraction.length);
+    const leftUnits = BigInt((leftWhole || '0') + leftFraction.padEnd(scale, '0'));
+    const rightUnits = BigInt((rightWhole || '0') + rightFraction.padEnd(scale, '0'));
+    const sum = String(leftUnits + rightUnits).padStart(scale + 1, '0');
+    if (!scale) return sum;
+    const whole = sum.slice(0, -scale) || '0';
+    const fraction = sum.slice(-scale).replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : whole;
+  }
+
+  function minterMultisendEntriesFromData(data) {
+    const list = data && Array.isArray(data.list) ? data.list : [];
+    return list.map((item) => {
+      const coin = item && item.coin && typeof item.coin === 'object' ? item.coin.symbol : (item && item.coin || item && item.symbol || '');
+      return {
+        to: String(item && (item.to || item.recipient || item.receiver) || '').trim(),
+        value: String(item && (item.value ?? item.amount ?? '') || '').trim(),
+        coin: String(coin || '').trim()
+      };
+    }).filter((item) => item.to || item.value || item.coin);
+  }
+
+  function minterMultisendEntries(rowOrTx) {
+    const raw = rowOrTx && rowOrTx.raw ? rowOrTx.raw : (rowOrTx || {});
+    const data = raw.data || rowOrTx && rowOrTx.data || {};
+    return minterMultisendEntriesFromData(data);
+  }
+
+  function summarizeMinterMultisend(rowOrTx) {
+    const entries = minterMultisendEntries(rowOrTx);
+    const totals = entries.reduce((acc, entry) => {
+      const coin = entry.coin || 'монета не указана';
+      acc[coin] = decimalStringAdd(acc[coin] || '0', entry.value || '0');
+      return acc;
+    }, {});
+    return { entries, totals, count: entries.length };
+  }
+
+  function formatMinterMultisendTotals(summary) {
+    return Object.entries(summary.totals).map(([coin, value]) => `${value} ${coin}`).join('; ');
+  }
+
+  function renderMinterMultisendDetailsHtml(chain, rowOrTx) {
+    const summary = summarizeMinterMultisend(rowOrTx);
+    if (!summary.count) return '';
+    const totals = formatMinterMultisendTotals(summary);
+    return `<p><strong>Всего:</strong> ${escapeHtml(totals)}. <strong>Получателей:</strong> ${escapeHtml(summary.count)}</p><ol>${summary.entries.map((entry) => `<li>${renderAccountCell(chain, entry.to)} — ${escapeHtml(entry.value)} ${escapeHtml(entry.coin)}</li>`).join('')}</ol>`;
+  }
+
   function renderTransactionDetailsHtml(row, chain) {
     if (chain && chain.id === 'golos' && row.type === 'donate') return renderGolosDonateMemoHtml(row.memo);
+    if (chain && chain.id === 'minter' && Number(row.type) === 13) return renderMinterMultisendDetailsHtml(chain, row);
     const details = row.memo || transactionDetails(row);
     if (details === undefined || details === null || details === '') return '';
     if (typeof details === 'object') return `<pre>${escapeHtml(JSON.stringify(details, null, 2))}</pre>`;
@@ -769,14 +824,16 @@
             </tr>
           </thead>
           <tbody>${rows.map((row) => {
-            const displayAmount = history.formatChainAmount ? history.formatChainAmount(chain, 'amount', row.amount) : row.amount;
-            const amount = [displayAmount, row.coin].filter(Boolean).join(' ');
+            const multisend = chain.id === 'minter' && Number(row.type) === 13 ? summarizeMinterMultisend(row) : null;
+            const displayAmount = multisend && multisend.count ? formatMinterMultisendTotals(multisend) : (history.formatChainAmount ? history.formatChainAmount(chain, 'amount', row.amount) : row.amount);
+            const amount = multisend && multisend.count ? displayAmount : [displayAmount, row.coin].filter(Boolean).join(' ');
+            const recipient = multisend && multisend.count ? `${multisend.count} получателей` : renderAccountCell(chain, row.to);
             const detailsHtml = renderTransactionDetailsHtml(row, chain);
             return `<tr>
               <td>${escapeHtml(history.formatDate(row.timestamp))}</td>
               <td><code>${escapeHtml(row.type)}</code><br><span class="muted">${escapeHtml(history.operationTitle(row.type))}</span></td>
               <td>${renderAccountCell(chain, row.from)}</td>
-              <td>${renderAccountCell(chain, row.to)}</td>
+              <td>${multisend && multisend.count ? escapeHtml(recipient) : recipient}</td>
               <td>${escapeHtml(amount)}</td>
               <td class="longtext">${detailsHtml}</td>
               <td>${row.block ? explorerLink(chain, 'block', row.block, String(row.block)) : ''}</td>
@@ -9136,7 +9193,8 @@ Memo key: ${keys.memo}`);
 
   function renderMinterExplorerData(chain, data) {
     if (!data || typeof data !== 'object') return escapeHtml(data);
-    const entries = Array.isArray(data.list) ? data.list.flatMap((item) => Object.entries(item || {})) : Object.entries(data);
+    if (Array.isArray(data.list)) return renderMinterMultisendDetailsHtml(chain, { data });
+    const entries = Object.entries(data);
     return `<dl class="kv-list">${entries.map(([key, value]) => {
       let rendered;
       if (isAccountLikeKey(key)) rendered = renderAccountCell(chain, value);
@@ -13484,6 +13542,7 @@ Memo key: ${keys.memo}`);
     renderRoute,
     appRequiresAccount,
     backup: Object.freeze({ validateBackupPassword, dposBackupStorageKeys }),
+    transactions: Object.freeze({ summarizeMinterMultisend, renderMinterMultisendDetailsHtml }),
     long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
   });
 

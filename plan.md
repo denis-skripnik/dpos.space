@@ -27,7 +27,28 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Encrypted local backup/restore
+## Current focused pass — Minter multisend history/explorer readability
+
+Scope:
+
+- Fix Minter transaction type `13` rendering in profile/wallet transaction tables and Minter explorer.
+- Show a multisend total amount grouped by coin instead of an empty/unclear amount cell.
+- Show the recipient count in the recipient column and a readable ordered recipient list with profile links in details.
+- Avoid raw JSON / `[object Object]` formatting for Minter multisend `coin` objects.
+- Keep the implementation static/browser-only and shared by profile, wallet, block explorer, and transaction explorer renderers.
+
+Non-goals:
+
+- No backend/indexer changes.
+- No change to Minter broadcast payloads.
+- No pagination or history API expansion.
+
+Validation:
+
+- Add `tests/v3-minter-multisend-smoke.js` covering totals, recipient count, recipient profile links, and no `[object Object]` output.
+- Regression gate: `node --check v3/js/app.js`, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — Encrypted local backup/restore
 
 Scope:
 
