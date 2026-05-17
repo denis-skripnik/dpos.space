@@ -12959,6 +12959,206 @@ Memo key: ${keys.memo}`);
     return Object.keys(state || {}).some((key) => String(state[key] || '').trim() !== '');
   }
 
+  function bytesToBase64(bytes) {
+    let binary = '';
+    const chunk = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk));
+    }
+    return global.btoa(binary);
+  }
+
+  function base64ToBytes(value) {
+    const binary = global.atob(String(value || ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  function getCryptoApi() {
+    const cryptoApi = global.crypto && global.crypto.subtle ? global.crypto : null;
+    if (!cryptoApi) throw new Error('WebCrypto недоступен в этом браузере. Откройте сайт по HTTPS или localhost.');
+    return cryptoApi;
+  }
+
+  function validateBackupPassword(password, context = {}) {
+    const text = String(password || '');
+    const lower = text.toLowerCase();
+    const errors = [];
+    const common = ['123456', '123456789', 'qwerty', 'йцукен', 'password', 'пароль', 'letmein', 'admin', 'dpos', 'dposspace', 'backup', 'denis', 'denis2026'];
+    const contextWords = Object.values(context).flat().filter(Boolean).map((item) => String(item).toLowerCase()).filter((item) => item.length >= 4);
+    if (text.length < 12) errors.push('Минимум 12 символов. Лучше длинная фраза из нескольких слов.');
+    if (/^\d+$/.test(text)) errors.push('Пароль не должен состоять только из цифр.');
+    if (/^[a-zа-яё]+$/i.test(text)) errors.push('Пароль не должен состоять только из букв без пробелов, дефисов или других символов.');
+    if (/(.)\1{4,}/.test(text)) errors.push('Слишком много одинаковых символов подряд.');
+    if (/(?:012345|123456|234567|345678|456789|abcdef|qwerty|йцукен)/i.test(text)) errors.push('Не используйте очевидные последовательности вроде 123456 или qwerty.');
+    if (common.some((item) => lower.includes(item))) errors.push('Пароль похож на популярный или слишком очевидный пароль.');
+    if (contextWords.some((item) => lower.includes(item))) errors.push('Пароль не должен содержать логин, название сети или сайта.');
+    const classes = [/[a-zа-яё]/.test(text), /[A-ZА-ЯЁ]/.test(text), /\d/.test(text), /[^a-zа-яё\d]/i.test(text)].filter(Boolean).length;
+    if (text.length < 20 && classes < 3) errors.push('Для короткого пароля нужны разные типы символов. Проще использовать длинную фразу.');
+    return { ok: errors.length === 0, errors };
+  }
+
+  function dposBackupStorageKeys() {
+    if (!global.localStorage) return [];
+    const chainIds = Object.keys(chains || {});
+    const keys = [];
+    for (let index = 0; index < global.localStorage.length; index += 1) {
+      const key = global.localStorage.key(index);
+      if (!key) continue;
+      const chainScoped = chainIds.some((chainId) => key === `${chainId}_users` || key === `${chainId}_current_user` || key.startsWith(`${chainId}_`));
+      const appScoped = key.startsWith('dpos_') || key === 'viz_transfer_templates' || /^(?:[A-Z0-9]{2,12})_(?:transfer|donate)_templates$/.test(key);
+      if (chainScoped || appScoped) keys.push(key);
+    }
+    return keys.sort();
+  }
+
+  function collectDposBackupStorage() {
+    const storage = {};
+    dposBackupStorageKeys().forEach((key) => { storage[key] = global.localStorage.getItem(key); });
+    return storage;
+  }
+
+  async function deriveBackupKey(password, salt, iterations) {
+    const cryptoApi = getCryptoApi();
+    const encoded = new TextEncoder().encode(String(password || ''));
+    const material = await cryptoApi.subtle.importKey('raw', encoded, 'PBKDF2', false, ['deriveKey']);
+    return cryptoApi.subtle.deriveKey({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  async function encryptDposBackup(password) {
+    const cryptoApi = getCryptoApi();
+    const salt = cryptoApi.getRandomValues(new Uint8Array(16));
+    const iv = cryptoApi.getRandomValues(new Uint8Array(12));
+    const iterations = 600000;
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      origin: global.location.origin,
+      storage: collectDposBackupStorage()
+    };
+    const key = await deriveBackupKey(password, salt, iterations);
+    const encrypted = await cryptoApi.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+    return {
+      app: 'dpos.space',
+      type: 'encrypted-localstorage-backup',
+      version: 1,
+      createdAt: payload.createdAt,
+      warning: 'DPoS Space support will never ask for this backup file, private keys, or backup password. Do not send them to anyone.',
+      kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations, salt: bytesToBase64(salt) },
+      cipher: { name: 'AES-GCM', iv: bytesToBase64(iv) },
+      payload: bytesToBase64(new Uint8Array(encrypted))
+    };
+  }
+
+  async function decryptDposBackup(fileText, password) {
+    let backup;
+    try { backup = JSON.parse(fileText); } catch (error) { throw new Error('Файл backup не похож на JSON DPoS Space.'); }
+    if (!backup || backup.app !== 'dpos.space' || backup.type !== 'encrypted-localstorage-backup' || !backup.payload) {
+      throw new Error('Это не зашифрованный backup DPoS Space.');
+    }
+    if (!backup.kdf || backup.kdf.name !== 'PBKDF2' || !backup.cipher || backup.cipher.name !== 'AES-GCM') {
+      throw new Error('Формат шифрования backup не поддерживается этой версией сайта.');
+    }
+    const key = await deriveBackupKey(password, base64ToBytes(backup.kdf.salt), Number(backup.kdf.iterations || 600000));
+    let decrypted;
+    try {
+      decrypted = await getCryptoApi().subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(backup.cipher.iv) }, key, base64ToBytes(backup.payload));
+    } catch (error) {
+      throw new Error('Не удалось расшифровать backup. Проверьте пароль и файл.');
+    }
+    const payload = JSON.parse(new TextDecoder().decode(decrypted));
+    if (!payload || payload.version !== 1 || !payload.storage || typeof payload.storage !== 'object') throw new Error('Расшифрованный backup имеет неподдерживаемый формат.');
+    return payload;
+  }
+
+  function importDposBackupStorage(storage) {
+    if (!global.localStorage) throw new Error('localStorage недоступен в этом браузере.');
+    const allowed = Object.entries(storage || {}).filter(([key]) => {
+      const chainIds = Object.keys(chains || {});
+      return chainIds.some((chainId) => key === `${chainId}_users` || key === `${chainId}_current_user` || key.startsWith(`${chainId}_`))
+        || key.startsWith('dpos_') || key === 'viz_transfer_templates' || /^(?:[A-Z0-9]{2,12})_(?:transfer|donate)_templates$/.test(key);
+    });
+    allowed.forEach(([key, value]) => { global.localStorage.setItem(key, String(value ?? '')); });
+    return { imported: allowed.length, skipped: Object.keys(storage || {}).length - allowed.length };
+  }
+
+  function backupPasswordContext() {
+    const logins = [];
+    Object.values(chains || {}).forEach((chain) => auth.getUsers(chain).forEach((user) => logins.push(auth.getUserLogin(user))));
+    return { words: ['dpos', 'space', 'backup'].concat(Object.keys(chains || {}), logins) };
+  }
+
+  function renderDposBackupPage() {
+    appEl.innerHTML = `<section class="panel">
+      <h2>Резервное копирование</h2>
+      <p>Здесь можно перенести локальные данные DPoS Space на другое устройство: аккаунты, настройки, уведомления, сохранённые ключи и локальные зашифрованные данные.</p>
+      <p class="notice"><strong>Важно:</strong> поддержка DPoS Space никогда не просит backup-файл, приватные ключи или пароль от backup-а. Никому не отправляйте файл и пароль.</p>
+      <div class="cards-grid">
+        <article class="card">
+          <h3>Экспорт</h3>
+          <form id="backup-export-form" class="stacked-form">
+            <div class="field"><label for="backup-password">Пароль backup-файла</label><input id="backup-password" name="password" type="password" required autocomplete="new-password"></div>
+            <div class="field"><label for="backup-password-repeat">Повторите пароль</label><input id="backup-password-repeat" name="repeat" type="password" required autocomplete="new-password"></div>
+            <p class="muted">Слабый пароль не принимается: украденный backup можно пытаться подбирать offline.</p>
+            <button type="submit">Скачать зашифрованную резервную копию</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </form>
+        </article>
+        <article class="card">
+          <h3>Импорт</h3>
+          <form id="backup-import-form" class="stacked-form">
+            <div class="field"><label for="backup-file">Backup-файл DPoS Space</label><input id="backup-file" name="file" type="file" accept="application/json,.json" required></div>
+            <div class="field"><label for="backup-import-password">Пароль backup-файла</label><input id="backup-import-password" name="password" type="password" required autocomplete="current-password"></div>
+            <button type="submit">Импортировать резервную копию</button>
+            <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+          </form>
+        </article>
+      </div>
+    </section>`;
+
+    const exportForm = document.getElementById('backup-export-form');
+    exportForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(exportForm);
+      const password = String(data.get('password') || '');
+      const repeat = String(data.get('repeat') || '');
+      try {
+        if (password !== repeat) throw new Error('Пароли не совпадают.');
+        const validation = validateBackupPassword(password, backupPasswordContext());
+        if (!validation.ok) throw new Error(validation.errors.join(' '));
+        const keys = dposBackupStorageKeys();
+        if (!keys.length) throw new Error('В localStorage пока нет данных DPoS Space для backup-а.');
+        setOperationResult(exportForm, 'Шифрую backup локально в браузере...', 'loading');
+        const backup = await encryptDposBackup(password);
+        const date = new Date().toISOString().slice(0, 10);
+        downloadTextFile(`dpos-space-backup-${date}.json`, JSON.stringify(backup, null, 2));
+        setOperationResult(exportForm, `Backup создан: ${keys.length} локальных записей. Храните файл и пароль отдельно.`, 'ok');
+      } catch (error) {
+        setOperationResult(exportForm, profiles.formatError(error), 'error');
+      }
+    });
+
+    const importForm = document.getElementById('backup-import-form');
+    importForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(importForm);
+      const file = data.get('file');
+      const password = String(data.get('password') || '');
+      try {
+        if (!file || typeof file.text !== 'function') throw new Error('Выберите backup-файл.');
+        if (!password) throw new Error('Введите пароль backup-файла.');
+        setOperationResult(importForm, 'Расшифровываю backup локально в браузере...', 'loading');
+        const payload = await decryptDposBackup(await file.text(), password);
+        const result = importDposBackupStorage(payload.storage);
+        setOperationResult(importForm, `Импорт завершён: записей импортировано ${result.imported}${result.skipped ? `, пропущено ${result.skipped}` : ''}. Обновите страницу, если данные не появились сразу.`, 'ok');
+      } catch (error) {
+        setOperationResult(importForm, profiles.formatError(error), 'error');
+      }
+    });
+    setStatus('Резервное копирование DPoS Space готово. Шифрование и импорт выполняются локально.', 'info');
+  }
+
   function renderHome() {
     const featured = [
       ['Golos: история операций', appHash({ chain: 'golos', app: 'history' })],
@@ -13094,6 +13294,17 @@ Memo key: ${keys.memo}`);
       updateAccountField(app, chain);
       accountInput.value = '';
       renderHome();
+      return;
+    }
+
+    if (state.app === 'backup') {
+      const chain = chains.golos || Object.values(chains)[0];
+      const app = chain.apps[0];
+      fillChainSelect(chain.id);
+      fillAppSelect(chain, app.id);
+      updateAccountField(app, chain);
+      accountInput.value = '';
+      renderDposBackupPage();
       return;
     }
 
@@ -13272,6 +13483,7 @@ Memo key: ${keys.memo}`);
     navigate,
     renderRoute,
     appRequiresAccount,
+    backup: Object.freeze({ validateBackupPassword, dposBackupStorageKeys }),
     long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
   });
 

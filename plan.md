@@ -27,28 +27,51 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Manage witness activation UX
+## Current focused pass — Encrypted local backup/restore
+
+Scope:
+
+- Add a footer-only internal route `#app=backup` / `Резервное копирование`; keep it out of the blockchain section selector because it is site-level, not chain-level.
+- Provide one simple transfer scenario: encrypted export of DPoS Space local browser data and encrypted import on another device.
+- Keep the implementation static/browser-only: WebCrypto PBKDF2 + AES-GCM, no backend, no plaintext export mode, no external dependency.
+- Export/import only whitelisted DPoS Space `localStorage` keys: legacy auth records, chain-scoped settings, notifications, templates, saved witness keys, and other `dpos_` app settings.
+- Require a strong backup password for export; reject simple/common/password-like values instead of only warning.
+- Show the social-engineering warning in the UI and backup metadata: DPoS Space support never asks for the backup file, private keys, or backup password.
+
+Non-goals:
+
+- No category picker or advanced export modes.
+- No server-side storage, upload, sync, recovery, or password reset.
+- No migration of legacy auth/key storage format.
+- No unencrypted localStorage dump helper or global `exportLocalStorage()` API.
+
+Validation:
+
+- Add `tests/v3-backup-smoke.js` for the footer route, encrypted-only format, password gate, whitelisted storage keys, and no unrelated localStorage export.
+- Regression gate: `node --check v3/js/app.js`, `node --check tests/v3-backup-smoke.js`, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — Manage witness activation UX
 
 Scope:
 
 - Simplify Graphene `manage` witness activation/deactivation for VIZ, Steem, Golos, and Hive.
-- Replace the old “empty signing key means deactivate” mental model with explicit mobile-friendly actions: `Проверить активацию`, `Активировать делегата`, `Проверить остановку`, `Остановить делегата`.
-- For activation, require the delegate's public block signing key in a normal input and remember recent public signing keys per chain/account for native mobile/browser suggestions.
+- Use direct mobile-friendly actions: `Активировать делегата` and `Остановить делегата`.
+- For activation, allow entering a public block signing key and show the saved key for the current chain/account inline under the field in shortened form.
 - For deactivation, submit the correct chain null signing key, including Golos operation key `GLS111...`.
 - Never derive witness signing keys from account active WIF: witnesses use their own signing key pair and only the public signing key belongs in this form.
-- Preserve existing preview/send confirmation flow and static-only browser implementation.
+- Preserve existing send confirmation flow and static-only browser implementation.
 
 Non-goals:
 
 - No backend/indexer/service.
 - No new key-storage schema and no migration of legacy localStorage auth.
 - No automatic real transaction without explicit send button and confirmation.
+- No extra check/preview buttons in the simplified witness UI.
 - No change to dangerous witness props/network-parameter forms.
 
 Validation:
 
-- RED: `node tests/v3-manage-ux-smoke.js` fails until the direct activation/deactivation action buttons and active-key-to-public-key helper exist.
-- GREEN target: `node tests/v3-manage-ux-smoke.js`.
+- `node tests/v3-manage-ux-smoke.js`.
 - Regression gate: JS syntax checks plus all `tests/v3-*.js`, then `git diff --check`.
 
 ## Previous focused pass — Graphene account memory UX
