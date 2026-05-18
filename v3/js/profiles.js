@@ -635,6 +635,7 @@
 
     if (['golos', 'hive', 'steem'].includes(chainId)) {
       addField(rows, 'Актуальная батарейка', currentMana(account, account.voting_power, getRegenSeconds(chainId, context), props.time));
+      addField(rows, 'Репутация', calculateReputation(account.reputation));
       addField(rows, '100% батарейка', timeUntilFullMana(account, account.voting_power, getRegenSeconds(chainId, context), props.time));
       addField(rows, 'Voting power в аккаунте', formatPercentHundredths(account.voting_power));
       addField(rows, `Личная ${chain.config.powerTitle || 'power'}`, computePower(chain, account, 'vesting_shares'));
@@ -687,8 +688,6 @@
     addField(rows, 'Последнее голосование / награда', account.last_vote_time);
     addField(rows, 'Последний пост', account.last_post);
     addField(rows, 'Количество постов', account.post_count);
-    addField(rows, 'Репутация', calculateReputation(account.reputation));
-    addField(rows, 'Репутация raw', account.reputation);
     addField(rows, 'Recovery account / регистратор', account.recovery_account);
     addField(rows, 'Reset account', account.reset_account);
     addField(rows, 'Last owner update', account.last_owner_update);

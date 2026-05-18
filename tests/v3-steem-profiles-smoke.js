@@ -90,6 +90,7 @@ const profile = context.DposProfiles.normalizeAccount({ config: { id: 'steem', t
 assert.strictEqual(profile.displayName, 'Denis', 'Steem display name is normalized');
 assert(profile.balances.some(([label]) => label === 'STEEM'), 'Steem liquid balance is exposed');
 assert(profile.economyRows.some(([label]) => label === 'Итоговая SP'), 'Steem effective SP is computed from public dynamic properties');
+assert(profile.economyRows.some(([label]) => label === 'Репутация'), 'Steem reputation is shown in the same economy block as voting power');
 assert(profile.activityRows.some(([label, value]) => label === 'Подписчиков' && value === 3), 'Steem follow count is exposed');
 assert(profile.socials.some(([label, value]) => label === 'twitter' && value === 'denis'), 'Steem socials are exposed');
 assert.strictEqual(profile.raw.steemProfileExtras.followers[0].follower, 'alice', 'direct Steem follow-list extras are preserved for rendering');
