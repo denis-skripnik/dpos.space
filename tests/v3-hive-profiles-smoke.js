@@ -39,7 +39,7 @@ assert(profilesSource.includes("if (chainId === 'hive') return config.HIVE_VOTIN
 assert(historySource.includes('hive: new Set') && historySource.includes('comment_benefactor_reward'), 'history supports Hive profile reward filters');
 
 assert(appSource.includes('function hiveLegacyProfileLinks(account)'), 'Hive profiles expose a legacy subpage to static history-link mapper');
-assert(appSource.includes("'Hive legacy profile pages → static profile/history filters'"), 'Hive profile quick links are labeled as static replacements');
+assert(appSource.includes("'Быстрые переходы по профилю Hive'"), 'Hive profile quick links use user-facing labels');
 assert(appSource.includes("'Переводы средств'") && appSource.includes('transfer,transfer_to_vesting,withdraw_vesting,transfer_to_savings,transfer_from_savings,cancel_transfer_from_savings'), 'Hive transfers subpage maps to public history filters');
 assert(appSource.includes("'Hive Power'") && appSource.includes('delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation,fill_vesting_withdraw,set_withdraw_vesting_route'), 'Hive HP subpage maps to history filters');
 assert(appSource.includes("'ДАО / witness votes / proposals'") && appSource.includes('account_witness_vote,account_witness_proxy,proposal_create,proposal_update,proposal_delete'), 'Hive DAO subpage maps to history filters');
@@ -51,7 +51,8 @@ assert(appSource.includes("getVestingDelegations', [account, '', 100]"), 'delega
 assert(appSource.includes("getWitnessByAccount', [account]"), 'witness.php maps to getWitnessByAccount');
 assert(appSource.includes("getDiscussionsByBlog', [{ limit: 10, tag: account }]"), 'blog-posts.php maps to getDiscussionsByBlog tag query');
 assert(appSource.includes("getDiscussionsByComments', [{ limit: 10, start_author: account }]"), 'comments.php maps to getDiscussionsByComments');
-assert(appSource.includes('Hive direct profile data from public RPC'), 'Hive direct snippets render without PHP');
+assert(appSource.includes('Связи, делегирования и последние публикации Hive'), 'Hive direct snippets render under user-facing title');
+assert(appSource.includes('Входящие делегирования HP'), 'Hive profile exposes incoming delegation summary/limitation without backend');
 
 const profileSliceStart = appSource.indexOf('function hiveLegacyProfileLinks(account)');
 const profileSliceEnd = appSource.indexOf('function renderProfile(profile)');
@@ -85,7 +86,12 @@ const profile = context.DposProfiles.normalizeAccount({ config: { id: 'hive', ti
     comments: [{ author: 'denis-skripnik', permlink: 'comment', title: '' }]
   },
   _v3ProfileContext: {
-    dynamicProperties: { time: '2026-05-10T01:00:00', total_vesting_fund_hive: '1000.000 HIVE', total_vesting_shares: '1000000.000000 VESTS' },
+    dynamicProperties: {
+      time: '2026-05-10T01:00:00',
+      total_vesting_fund_hive: '1000.000 HIVE',
+      total_vesting_shares: '1000000.000000 VESTS'
+    },
+    rewardFund: { reward_balance: '10.000 HIVE', recent_claims: '1000000000' },
     followCount: { follower_count: 3, following_count: 4 }
   }
 });
@@ -93,6 +99,8 @@ assert.strictEqual(profile.displayName, 'Denis Hive', 'Hive display name is norm
 assert(profile.balances.some(([label]) => label === 'HIVE'), 'Hive liquid balance is exposed');
 assert(profile.balances.some(([label]) => label === 'HBD'), 'Hive HBD balance is exposed');
 assert(profile.economyRows.some(([label]) => label === 'Итоговая HP'), 'Hive effective HP is computed from public dynamic properties');
+assert(profile.economyRows.some(([label]) => label === 'Прогноз стоимости апвоута'), 'Hive vote value estimate is exposed');
+assert(profile.economyRows.some(([label]) => label === 'Доля аккаунта от всей HP'), 'Hive network share is exposed');
 assert(profile.economyRows.some(([label]) => label === 'Репутация'), 'Hive reputation is shown in the same economy block as voting power');
 assert(profile.activityRows.some(([label, value]) => label === 'Подписчиков' && value === 3), 'Hive follow count is exposed');
 assert(profile.socials.some(([label, value]) => label === 'github' && value === 'web3blind'), 'Hive socials are exposed');

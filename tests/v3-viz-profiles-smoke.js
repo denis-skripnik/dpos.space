@@ -30,7 +30,7 @@ assert(appSource.includes("'Бенефициарские'") && appSource.include
 assert(appSource.includes("'Платные подписки'") && appSource.includes("set_paid_subscription,paid_subscribe,paid_subscription_action,cancel_paid_subscription"), 'VIZ subscriptions subpage maps to history filters');
 assert(appSource.includes("'Наградить пользователя'") && appSource.includes("app: 'award'"), 'VIZ profile page points award action to static award app');
 assert(appSource.includes("'Изменить профиль'") && appSource.includes("app: 'manage'"), 'VIZ profile page points edit action to static manage app');
-assert(appSource.includes("'VIZ legacy profile pages → static profile/history filters'"), 'VIZ profile links are labeled as static replacements');
+assert(appSource.includes("'Быстрые переходы по профилю VIZ'"), 'VIZ profile links use user-facing labels');
 const profileSliceStart = appSource.indexOf('function vizLegacyProfileLinks(account)');
 const profileSliceEnd = appSource.indexOf('function renderGolosUiaProfileSection(profile)');
 const profileRuntimeSlice = appSource.slice(profileSliceStart, profileSliceEnd);

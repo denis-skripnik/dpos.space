@@ -37,7 +37,7 @@ assert(profilesSource.includes("if (chainId === 'steem') return config.STEEM_VOT
 assert(historySource.includes("steem: new Set") && historySource.includes("comment_benefactor_reward"), 'history supports Steem profile reward filters');
 
 assert(appSource.includes('function steemLegacyProfileLinks(account)'), 'Steem profiles expose a legacy subpage to static history-link mapper');
-assert(appSource.includes("'Steem legacy profile pages → static profile/history filters'"), 'Steem profile quick links are labeled as static replacements');
+assert(appSource.includes("'Быстрые переходы по профилю Steem'"), 'Steem profile quick links use user-facing labels');
 assert(appSource.includes("'Переводы средств'") && appSource.includes("transfer,transfer_to_vesting,withdraw_vesting,transfer_to_savings,transfer_from_savings,cancel_transfer_from_savings"), 'Steem transfers subpage maps to public history filters');
 assert(appSource.includes("'Steem Power'") && appSource.includes("delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation"), 'Steem SP subpage maps to history filters');
 assert(appSource.includes("'ДАО / witness votes'") && appSource.includes("account_witness_vote,account_witness_proxy,proposal_create,proposal_update,proposal_delete"), 'Steem DAO subpage maps to history filters');
@@ -49,7 +49,7 @@ assert(appSource.includes("getVestingDelegations', [account, '', 100, 'delegated
 assert(appSource.includes("getWitnessByAccount', [account]"), 'witness.php maps to getWitnessByAccount');
 assert(appSource.includes("getDiscussionsByBlog', [{ limit: 10, tag: account }]"), 'blog-posts.php maps to getDiscussionsByBlog tag query');
 assert(appSource.includes("getDiscussionsByComments', [{ limit: 10, start_author: account }]"), 'comments.php maps to getDiscussionsByComments');
-assert(appSource.includes('Steem direct profile data from public RPC'), 'Steem direct snippets render without PHP');
+assert(appSource.includes('Связи, делегирования и последние публикации Steem'), 'Steem direct snippets render under user-facing title');
 
 const profileSliceStart = appSource.indexOf('function steemLegacyProfileLinks(account)');
 const profileSliceEnd = appSource.indexOf('function renderProfile(profile)');
