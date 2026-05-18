@@ -27,7 +27,25 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Minter multisend history/explorer readability
+## Current focused pass — Profile reputation near voting power
+
+Scope:
+
+- In Golos/Hive/Steem profiles, show human-readable reputation in the same `Экономика / vesting / staking` block as the current voting power/battery.
+- Keep reputation independent from SG/HP/SP labels and power calculations; use the existing blockchain `reputation` field and existing legacy-compatible formula.
+- Avoid duplicating the human-readable reputation in `Активность и статистика`; keep raw reputation only in the lower stats section for diagnostics.
+
+Non-goals:
+
+- No reputation for Minter/Decimal REST profiles unless their APIs expose a separate reputation field later.
+- No backend/indexer changes and no new formulas.
+
+Validation:
+
+- Update profile smoke tests for Golos, Hive, and Steem to assert reputation is in economy rows near voting power.
+- Regression gate: `node --check v3/js/profiles.js`, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — Minter multisend history/explorer readability
 
 Scope:
 

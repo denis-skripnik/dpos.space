@@ -99,7 +99,9 @@ assert(golosProfile.balances.some(([label, value]) => label === 'СГ' && value 
 assert(golosProfile.balances.some(([label, value]) => label === 'Делегировано СГ' && value === '2.500000 СГ'), 'Golos delegated СГ is computed when present');
 assert(golosProfile.balances.some(([label, value]) => label === 'Получено делегированием СГ' && value === '1.250000 СГ'), 'Golos received СГ is computed when present');
 assert(golosProfile.economyRows.some(([label]) => label === '100% батарейка'), 'Golos profile exposes time until full voting power');
-assert(golosProfile.activityRows.some(([label]) => label === 'Репутация'), 'Golos profile exposes human-readable reputation');
+assert(golosProfile.economyRows.some(([label]) => label === 'Репутация'), 'Golos profile shows human-readable reputation next to voting power/economy data');
+assert(!golosProfile.activityRows.some(([label]) => label === 'Репутация'), 'Golos profile does not duplicate human-readable reputation in activity statistics');
+assert(!golosProfile.activityRows.some(([label]) => label === 'Репутация raw'), 'Golos profile hides raw reputation from visible activity statistics');
 assert(golosProfile.profileImage === 'https://example.com/avatar.jpg', 'Golos profile exposes profile image URL for rendering');
 assert(golosProfile.coverImage === 'https://example.com/cover.jpg', 'Golos profile exposes cover image URL for rendering');
 assert(golosProfile.socials.some(([label, value]) => label === 'telegram' && value === 'denis'), 'Golos socials stay structured for link rendering');

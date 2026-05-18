@@ -93,6 +93,7 @@ assert.strictEqual(profile.displayName, 'Denis Hive', 'Hive display name is norm
 assert(profile.balances.some(([label]) => label === 'HIVE'), 'Hive liquid balance is exposed');
 assert(profile.balances.some(([label]) => label === 'HBD'), 'Hive HBD balance is exposed');
 assert(profile.economyRows.some(([label]) => label === 'Итоговая HP'), 'Hive effective HP is computed from public dynamic properties');
+assert(profile.economyRows.some(([label]) => label === 'Репутация'), 'Hive reputation is shown in the same economy block as voting power');
 assert(profile.activityRows.some(([label, value]) => label === 'Подписчиков' && value === 3), 'Hive follow count is exposed');
 assert(profile.socials.some(([label, value]) => label === 'github' && value === 'web3blind'), 'Hive socials are exposed');
 assert.strictEqual(profile.raw.hiveProfileExtras.followers[0].follower, 'alice', 'direct Hive follow-list extras are preserved for rendering');
