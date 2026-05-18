@@ -27,7 +27,28 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Profile reputation near voting power
+## Current focused pass — Profile legacy userinfo parity, five scoped items
+
+Scope:
+
+- Add profile economy rows for account share of total network SG/HP/SP/VIZ social capital where public dynamic properties are available.
+- Add estimated full/current vote value for Golos/Hive/Steem and estimated VIZ 20% award where enough chain data is available; keep calculations clearly marked as estimates.
+- Add user-readable VIZ bandwidth and reward parameters near energy/social-capital rows.
+- Add Hive incoming delegations if public RPC can provide them without a backend/indexer; otherwise expose a clear non-blocking limitation.
+- Rename visible `direct RPC / PHP snippets` profile section copy to user-facing Russian labels.
+
+Non-goals:
+
+- Do not implement the larger legacy profile subpage parity pass for payouts, donations, post analytics, old aggregate tables, or backend-indexed histories in this pass.
+- Do not add backend/indexer services, dependencies, build tooling, or write/broadcast behavior.
+- Do not change routing, account storage, or old URL compatibility outside profile display.
+
+Validation:
+
+- Update profile smoke tests for Golos, Hive, Steem, and VIZ to cover new rows and user-facing section labels.
+- Regression gate: `node --check v3/js/profiles.js`, `node --check v3/js/app.js`, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — Profile reputation near voting power
 
 Scope:
 

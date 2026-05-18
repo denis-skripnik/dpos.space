@@ -28,17 +28,29 @@ const vizAccount = {
   regular: { weight_threshold: 1, key_auths: [['VIZ111', 1]], account_auths: [] },
   active: { weight_threshold: 1, key_auths: [['VIZ222', 1]], account_auths: [] },
   memo_key: 'VIZ333',
+  average_bandwidth: 123456,
+  last_bandwidth_update: '2026-05-09T23:00:00',
   json_metadata: JSON.stringify({ profile: { nickname: 'Denis', about: 'Accessibility and web3', site: 'https://example.com', birthday: '01.01.1990', services: { telegram: 'denis' }, interests: ['a11y', 'dpos'] } }),
   _v3ProfileContext: {
-    dynamicProperties: { time: '2026-05-10T01:00:00', total_vesting_fund: '1000.000 VIZ', total_vesting_shares: '1000000.000000 SHARES' },
-    config: { CHAIN_ENERGY_REGENERATION_SECONDS: 432000 }
+    dynamicProperties: {
+      time: '2026-05-10T01:00:00',
+      total_vesting_fund: '1000.000 VIZ',
+      total_vesting_shares: '1000000.000000 SHARES',
+      total_reward_fund: '100.000 VIZ',
+      total_reward_shares: '1000000000'
+    },
+    config: { CHAIN_ENERGY_REGENERATION_SECONDS: 432000, VOTE_ACCOUNTING_MIN_VIZ: 1 }
   }
 };
 
 const vizProfile = context.DposProfiles.normalizeAccount(vizChain, vizAccount);
 assert.strictEqual(vizProfile.displayName, 'Denis');
 assert(vizProfile.balances.some(([label]) => label === 'Энергия'), 'VIZ energy is exposed');
-assert(vizProfile.economyRows.some(([label]) => label === 'custom_sequence'), 'VIZ custom sequence is exposed');
+assert(vizProfile.economyRows.some(([label]) => label === 'Пропускная способность аккаунта'), 'VIZ bandwidth is exposed with a user-facing label');
+assert(vizProfile.economyRows.some(([label]) => label === 'Минимальная энергия для награды'), 'VIZ minimum award energy is exposed');
+assert(vizProfile.economyRows.some(([label]) => label === 'Оценка награды за 20% энергии'), 'VIZ award estimate is exposed');
+assert(vizProfile.economyRows.some(([label]) => label === 'Доля аккаунта от всего соцкапитала'), 'VIZ network share is exposed');
+assert(vizProfile.economyRows.some(([label]) => label === 'Номер последней custom-операции'), 'VIZ custom sequence is exposed with a user-facing label');
 assert(vizProfile.governanceRows.some(([label]) => label === 'Голоса за witness'), 'witness votes are exposed');
 assert(vizProfile.authorityRows.some(([label]) => label === 'Regular authority'), 'VIZ regular authority is exposed');
 assert(vizProfile.profileRows.some(([label]) => label === 'День рождения'), 'VIZ birthday metadata is exposed');
@@ -53,11 +65,27 @@ const hiveProfile = context.DposProfiles.normalizeAccount(hiveChain, {
   savings_balance: '1.000 HIVE',
   savings_hbd_balance: '0.500 HBD',
   reward_hive_balance: '0.001 HIVE',
+  received_vesting_shares: '1.000000 VESTS',
+  delegated_vesting_shares: '0.250000 VESTS',
+  voting_power: 7000,
+  last_vote_time: '2026-05-09T00:00:00',
+  reputation: '1234567890123',
   posting_json_metadata: JSON.stringify({ profile: { name: 'Alice', website: 'https://alice.example' } }),
-  posting: { weight_threshold: 1, key_auths: [['STM111', 1]], account_auths: [] }
+  posting: { weight_threshold: 1, key_auths: [['STM111', 1]], account_auths: [] },
+  _v3ProfileContext: {
+    dynamicProperties: {
+      time: '2026-05-10T00:00:00',
+      total_vesting_fund_hive: '100.000 HIVE',
+      total_vesting_shares: '100.000000 VESTS'
+    },
+    rewardFund: { reward_balance: '10.000 HIVE', recent_claims: '1000000000' },
+    config: { HIVE_VOTING_MANA_REGENERATION_SECONDS: 432000 }
+  }
 });
 assert.strictEqual(hiveProfile.displayName, 'Alice');
 assert(hiveProfile.balances.some(([label]) => label === 'Savings HIVE'), 'Hive savings balance is exposed');
+assert(hiveProfile.economyRows.some(([label]) => label === 'Прогноз стоимости апвоута'), 'Hive vote value estimate is exposed');
+assert(hiveProfile.economyRows.some(([label]) => label === 'Доля аккаунта от всей HP'), 'Hive network share is exposed');
 assert(hiveProfile.authorityRows.some(([label]) => label === 'Posting authority'), 'Hive posting authority is exposed');
 
 const minterProfile = context.DposProfiles.normalizeAccount({ config: { id: 'minter', title: 'Minter' }, node: 'https://api.minter.one/v2' }, {
@@ -91,7 +119,9 @@ const golosProfile = context.DposProfiles.normalizeAccount(golosChain, {
     dynamicProperties: {
       time: '2026-05-10T00:00:00',
       total_vesting_fund_steem: '10.000 GOLOS',
-      total_vesting_shares: '1000000.000000 GESTS'
+      total_vesting_shares: '1000000.000000 GESTS',
+      total_reward_fund_steem: '5.000 GOLOS',
+      total_reward_shares2: '1000000000'
     },
   }
 });
@@ -99,6 +129,8 @@ assert(golosProfile.balances.some(([label, value]) => label === 'СГ' && value 
 assert(golosProfile.balances.some(([label, value]) => label === 'Делегировано СГ' && value === '2.500000 СГ'), 'Golos delegated СГ is computed when present');
 assert(golosProfile.balances.some(([label, value]) => label === 'Получено делегированием СГ' && value === '1.250000 СГ'), 'Golos received СГ is computed when present');
 assert(golosProfile.economyRows.some(([label]) => label === '100% батарейка'), 'Golos profile exposes time until full voting power');
+assert(golosProfile.economyRows.some(([label]) => label === 'Прогноз стоимости апвоута'), 'Golos vote value estimate is exposed');
+assert(golosProfile.economyRows.some(([label]) => label === 'Доля аккаунта от всей СГ'), 'Golos network share is exposed');
 assert(golosProfile.economyRows.some(([label]) => label === 'Репутация'), 'Golos profile shows human-readable reputation next to voting power/economy data');
 assert(!golosProfile.activityRows.some(([label]) => label === 'Репутация'), 'Golos profile does not duplicate human-readable reputation in activity statistics');
 assert(!golosProfile.activityRows.some(([label]) => label === 'Репутация raw'), 'Golos profile hides raw reputation from visible activity statistics');
@@ -110,5 +142,8 @@ assert(appSource.includes('fetchGolosUiaBalances(connection, account)'), 'Golos 
 assert(appSource.includes('renderProfileMedia(profile)'), 'Profile rendering includes profile/cover images');
 assert(appSource.includes('renderSocialLinks(profile.socials)'), 'Profile rendering turns social metadata into safe links');
 assert(appSource.includes('renderHistoryQuickLinks(profile)'), 'Profile rendering exposes static history filter links instead of backend profile subpages');
+assert(appSource.includes('Быстрые переходы по профилю Hive'), 'Profile quick links use user-facing labels instead of migration wording');
+assert(appSource.includes('Связи, делегирования и последние публикации Hive'), 'Hive direct profile section uses a user-facing title');
+assert(appSource.includes('Входящие делегирования HP'), 'Hive profile explains incoming delegation availability without backend/indexer');
 
 console.log('v3 profiles smoke passed');

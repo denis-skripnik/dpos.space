@@ -943,16 +943,16 @@
     let title = 'Быстрые переходы';
     if (profile.chainId === 'golos') {
       links = golosLegacyProfileLinks(account);
-      title = 'Golos legacy profile pages → static history filters';
+      title = 'Быстрые переходы по профилю Golos';
     } else if (profile.chainId === 'viz') {
       links = vizLegacyProfileLinks(account);
-      title = 'VIZ legacy profile pages → static profile/history filters';
+      title = 'Быстрые переходы по профилю VIZ';
     } else if (profile.chainId === 'steem') {
       links = steemLegacyProfileLinks(account);
-      title = 'Steem legacy profile pages → static profile/history filters';
+      title = 'Быстрые переходы по профилю Steem';
     } else if (profile.chainId === 'hive') {
       links = hiveLegacyProfileLinks(account);
-      title = 'Hive legacy profile pages → static profile/history filters';
+      title = 'Быстрые переходы по профилю Hive';
     } else {
       links = [
         ['Вся история', appHash({ chain: chain.id, app: 'history', account })],
@@ -1020,14 +1020,14 @@
     const extras = profile.raw && profile.raw.steemProfileExtras;
     if (!extras) return '';
     const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
-    return `<details open><summary>Steem direct profile data from public RPC</summary>
-      <p class="muted">Эти блоки заменяют legacy PHP snippets прямыми browser-safe RPC calls; большие PHP pagination-таблицы оставлены как static-only history links/non-goal без нового backend service.</p>
+    return `<details open><summary>Связи, делегирования и последние публикации Steem</summary>
+      <p class="muted">Краткие списки из публичного RPC. Подробные старые таблицы доступны через быстрые фильтры истории ниже.</p>
       ${renderSteemAccountList('Подписчики', extras.followers, 'follower')}
       ${renderSteemAccountList('Подписки', extras.following, 'following')}
       ${renderSteemAccountList('Исходящие делегирования SP', extras.delegationsOut, 'delegatee')}
       ${renderSteemAccountList('Входящие делегирования SP', extras.delegationsIn, 'delegator')}
-      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
-      ${renderSteemContentList('Последние посты / blog', extras.blogPosts)}
+      ${witnessRows.length ? detailsSection('Данные witness', witnessRows) : ''}
+      ${renderSteemContentList('Последние посты', extras.blogPosts)}
       ${renderSteemContentList('Последние комментарии', extras.comments)}
     </details>`;
   }
@@ -1053,13 +1053,17 @@
     const extras = profile.raw && profile.raw.hiveProfileExtras;
     if (!extras) return '';
     const witnessRows = extras.witness ? Object.entries(extras.witness).map(([key, value]) => [key, value]) : [];
-    return `<details open><summary>Hive direct profile data from public RPC</summary>
-      <p class="muted">Эти блоки заменяют legacy PHP snippets прямыми browser-safe RPC calls; большие PHP pagination-таблицы представлены static-only history filters без нового backend service.</p>
+    const incomingDelegationNote = profile.raw && profile.raw.received_vesting_shares
+      ? `<details><summary>Входящие делегирования HP</summary><p>Всего получено: ${escapeHtml(profile.raw.received_vesting_shares)}. Публичный Hive RPC для профиля отдаёт сумму, но не даёт надёжный список делегаторов без индексера; список не раскрывается, чтобы не показывать неполные данные.</p></details>`
+      : '';
+    return `<details open><summary>Связи, делегирования и последние публикации Hive</summary>
+      <p class="muted">Краткие списки из публичного RPC. Подробные старые таблицы доступны через быстрые фильтры истории ниже.</p>
       ${renderHiveAccountList('Подписчики', extras.followers, 'follower')}
       ${renderHiveAccountList('Подписки', extras.following, 'following')}
       ${renderHiveAccountList('Исходящие делегирования HP', extras.delegationsOut, 'delegatee')}
-      ${witnessRows.length ? detailsSection('Witness data', witnessRows) : ''}
-      ${renderHiveContentList('Последние посты / blog', extras.blogPosts)}
+      ${incomingDelegationNote}
+      ${witnessRows.length ? detailsSection('Данные witness', witnessRows) : ''}
+      ${renderHiveContentList('Последние посты', extras.blogPosts)}
       ${renderHiveContentList('Последние комментарии', extras.comments)}
     </details>`;
   }

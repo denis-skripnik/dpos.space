@@ -321,12 +321,18 @@
     return Number(number.toFixed(digits || 3));
   }
 
-  function currentMana(account, rawValue, regenSeconds, nowTime) {
-    if (!present(rawValue)) return '';
+  function currentManaValue(account, rawValue, regenSeconds, nowTime) {
+    if (!present(rawValue)) return NaN;
     const lastVote = Date.parse(account.last_vote_time || account.last_vote || 0);
     const now = nowTime ? Date.parse(nowTime) : Date.now();
     const regen = Number(regenSeconds) || 432000;
     const value = Number(rawValue) + Math.max(0, (now - lastVote) / 1000) * (10000 / regen);
+    return Math.min(10000, Math.max(0, value));
+  }
+
+  function currentMana(account, rawValue, regenSeconds, nowTime) {
+    const value = currentManaValue(account, rawValue, regenSeconds, nowTime);
+    if (!Number.isFinite(value)) return '';
     return `${Math.min(100, Math.round(value) / 100)}%`;
   }
 
@@ -460,6 +466,118 @@
     return `${((own + received - delegated) * fund / totalVests).toFixed(3)} ${chain.config.liquidSymbol || chain.config.powerTitle || ''}`.trim();
   }
 
+  function effectiveVestingShares(account) {
+    const own = assetAmount(account.vesting_shares);
+    const received = assetAmount(account.received_vesting_shares);
+    const delegated = assetAmount(account.delegated_vesting_shares);
+    return own + received - delegated;
+  }
+
+  function effectiveLiquidPower(chain, account) {
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const fund = assetAmount(props[vestingFundField(chain.config.id)]);
+    const totalVests = assetAmount(props.total_vesting_shares);
+    const effectiveVests = effectiveVestingShares(account);
+    if (!fund || !totalVests || !effectiveVests) return 0;
+    return effectiveVests * fund / totalVests;
+  }
+
+  function formatNetworkShare(chain, account) {
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const totalPower = assetAmount(props[vestingFundField(chain.config.id)]);
+    const accountPower = effectiveLiquidPower(chain, account);
+    if (!totalPower || !accountPower) return '';
+    const percent = accountPower / totalPower * 100;
+    const totalLabel = `${Number(totalPower.toFixed(3))} ${chain.config.liquidSymbol || chain.config.powerTitle || ''}`.trim();
+    if (percent < 0.00001) return `< 0.00001% из ${totalLabel}`;
+    return `${percent.toFixed(5)}% из ${totalLabel}`;
+  }
+
+  function voteRewardFund(account, chainId) {
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const rewardFund = context.rewardFund || {};
+    if (chainId === 'golos') {
+      return {
+        rewardBalance: assetAmount(rewardFund.reward_balance || props.total_reward_fund_steem || props.total_reward_fund),
+        recentClaims: Number(rewardFund.recent_claims || props.total_reward_shares2 || props.total_reward_shares || 0)
+      };
+    }
+    return {
+      rewardBalance: assetAmount(rewardFund.reward_balance || props.total_reward_fund || props.total_reward_fund_steem),
+      recentClaims: Number(rewardFund.recent_claims || props.total_reward_shares || props.total_reward_shares2 || 0)
+    };
+  }
+
+  function estimateVoteValue(chain, account, fullMana) {
+    const chainId = chain.config.id;
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const reward = voteRewardFund(account, chainId);
+    const fund = assetAmount(props[vestingFundField(chainId)]);
+    const totalVests = assetAmount(props.total_vesting_shares);
+    const effectiveVests = effectiveVestingShares(account);
+    if (!reward.rewardBalance || !reward.recentClaims || !fund || !totalVests || !effectiveVests) return '';
+    const mana = fullMana ? 10000 : currentManaValue(account, account.voting_power, getRegenSeconds(chainId, context), props.time);
+    if (!Number.isFinite(mana) || mana <= 0) return '';
+    const rshares = effectiveVests * (mana / 10000);
+    const value = rshares * reward.rewardBalance / reward.recentClaims;
+    if (!Number.isFinite(value) || value <= 0) return '';
+    return `${value.toFixed(3)} ${chain.config.liquidSymbol || ''}`.trim();
+  }
+
+  function formatVoteValueEstimate(chain, account) {
+    const current = estimateVoteValue(chain, account, false);
+    const full = estimateVoteValue(chain, account, true);
+    if (!current && !full) return '';
+    if (current && full) return `${current} (${full} при 100%)`;
+    return current || `${full} при 100%`;
+  }
+
+  function formatVizBandwidth(account) {
+    if (!present(account.average_bandwidth)) return '';
+    const raw = Number(account.average_bandwidth);
+    if (!Number.isFinite(raw)) return account.average_bandwidth;
+    const parts = [`average ${Number(raw.toFixed(0))}`];
+    if (present(account.last_bandwidth_update)) parts.push(`обновлено ${formatRussianUtcDateTime(account.last_bandwidth_update) || account.last_bandwidth_update}`);
+    return parts.join(', ');
+  }
+
+  function estimateVizAward(chain, account, percent) {
+    const context = account._v3ProfileContext || {};
+    const props = context.dynamicProperties || {};
+    const totalRewardShares = Number(props.total_reward_shares || 0);
+    const totalRewardFund = assetAmount(props.total_reward_fund);
+    const totalVestingFund = assetAmount(props.total_vesting_fund);
+    const totalVestingShares = assetAmount(props.total_vesting_shares);
+    const effectivePower = effectiveLiquidPower(chain, account);
+    if (!totalRewardShares || !totalRewardFund || !totalVestingFund || !totalVestingShares || !effectivePower) return '';
+    const payout = effectivePower * (Number(percent) / 100) / (totalRewardShares / 1000000) * totalRewardFund / (totalVestingFund / totalVestingShares) * 1000000;
+    const normalized = Math.floor(payout) / 1000000;
+    if (!Number.isFinite(normalized) || normalized <= 0) return 'Меньше минимальной';
+    return `${Number(normalized.toFixed(6))} VIZ`;
+  }
+
+  function formatVizAwardEstimate(chain, account) {
+    const current = estimateVizAward(chain, account, 20);
+    const full = estimateVizAward(chain, account, 100);
+    if (!current && !full) return '';
+    if (current && full) return `${current} (${full} при 100%)`;
+    return current || `${full} при 100%`;
+  }
+
+  function formatVizMinimumAwardEnergy(chain, account) {
+    const context = account._v3ProfileContext || {};
+    const config = context.config || {};
+    const minViz = Number(config.VOTE_ACCOUNTING_MIN_VIZ || config.CHAIN_VOTE_ACCOUNTING_MIN_VIZ || 0);
+    const effectivePower = effectiveLiquidPower(chain, account);
+    if (!minViz || !effectivePower) return '';
+    const minEnergy = minViz / effectivePower * 100;
+    if (minEnergy > 100) return 'Аккаунт не может награждать при текущем количестве токенов в соц. капитале.';
+    return `${Math.max(0.01, minEnergy).toFixed(2)}%`;
+  }
 
   function golosPowerRate(account) {
     const context = account._v3ProfileContext || {};
@@ -620,16 +738,20 @@
     const rows = [];
     if (chainId === 'viz') {
       addField(rows, 'Актуальная энергия', currentMana(account, account.energy, getRegenSeconds(chainId, context), props.time));
+      addField(rows, '100% энергии', timeUntilFullMana(account, account.energy, getRegenSeconds(chainId, context), props.time));
       addField(rows, 'Энергия в аккаунте', formatPercentHundredths(account.energy));
+      addField(rows, 'Пропускная способность аккаунта', formatVizBandwidth(account));
       addField(rows, 'Личный соцкапитал', computePower(chain, account, 'vesting_shares'));
       addField(rows, 'Получено соцкапитала', computePower(chain, account, 'received_vesting_shares'));
       addField(rows, 'Делегировано соцкапитала', computePower(chain, account, 'delegated_vesting_shares'));
       addField(rows, 'Итоговый соцкапитал', computeEffectivePower(chain, account));
-      addField(rows, 'Vesting withdraw rate', account.vesting_withdraw_rate);
+      addField(rows, 'Минимальная энергия для награды', formatVizMinimumAwardEnergy(chain, account));
+      addField(rows, 'Оценка награды за 20% энергии', formatVizAwardEstimate(chain, account));
+      addField(rows, 'Доля аккаунта от всего соцкапитала', formatNetworkShare(chain, account));
+      addField(rows, 'Сумма вывода из соцкапитала', computePower(chain, account, 'vesting_withdraw_rate'));
       addField(rows, 'Следующий вывод', account.next_vesting_withdrawal);
-      addField(rows, 'Пропускная способность, average_bandwidth', account.average_bandwidth);
-      addField(rows, 'custom_sequence', account.custom_sequence);
-      addField(rows, 'custom_sequence_block_num', account.custom_sequence_block_num);
+      addField(rows, 'Номер последней custom-операции', account.custom_sequence);
+      addField(rows, 'Блок последней custom-операции', account.custom_sequence_block_num);
       return rows;
     }
 
@@ -642,6 +764,8 @@
       addField(rows, 'Получено делегированием', computePower(chain, account, 'received_vesting_shares'));
       addField(rows, 'Делегировано', computePower(chain, account, 'delegated_vesting_shares'));
       addField(rows, `Итоговая ${chain.config.powerTitle || 'power'}`, computeEffectivePower(chain, account));
+      addField(rows, 'Прогноз стоимости апвоута', formatVoteValueEstimate(chain, account));
+      addField(rows, `Доля аккаунта от всей ${chain.config.powerTitle || 'power'}`, formatNetworkShare(chain, account));
       if (chainId === 'golos' && isNonZeroAsset(account.vesting_withdraw_rate)) {
         addField(rows, 'Сумма вывода из СГ', formatGolosPower(account, 'vesting_withdraw_rate', 3));
         addField(rows, 'Следующий вывод', formatRussianUtcDateTime(account.next_vesting_withdrawal));
