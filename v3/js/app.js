@@ -10473,7 +10473,8 @@ Memo key: ${keys.memo}`);
     { type: 'GOLOS', aliases: ['golos'], label: 'GOLOS', description: 'Ликвидный баланс GOLOS.' },
     { type: 'GBG', aliases: ['gbg'], label: 'GBG', description: 'Ликвидный баланс GBG.' },
     { type: 'TIP', aliases: ['tip'], label: 'TIP GOLOS', description: 'TIP-баланс GOLOS.' },
-    { type: 'ACCUMULATIVE', aliases: ['accumulative', 'CLAIM'], label: 'Накопления GOLOS', description: 'accumulative_balance / доступные накопления.' }
+    { type: 'ACCUMULATIVE', aliases: ['accumulative', 'CLAIM'], label: 'Накопления GOLOS', description: 'accumulative_balance / доступные накопления.' },
+    { type: 'REPUTATION', aliases: ['reputation', 'rating', 'рейтинг', 'репутация'], label: 'Рейтинг / репутация', description: 'Человекочитаемая репутация аккаунта, рассчитанная локально из raw reputation.' }
   ];
 
   function normalizeGolosTopType(value) {
@@ -10512,6 +10513,7 @@ Memo key: ${keys.memo}`);
     if (normalized === 'GBG') return row.gbg || 0;
     if (normalized === 'TIP') return row.tip || 0;
     if (normalized === 'ACCUMULATIVE') return row.accumulative || 0;
+    if (normalized === 'REPUTATION') return row.reputation || 0;
     return row.sg || 0;
   }
 
@@ -10519,6 +10521,13 @@ Memo key: ${keys.memo}`);
     const number = Number(value || 0);
     if (!Number.isFinite(number)) return '0';
     return number.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: Math.min(digits, 3) });
+  }
+
+  function golosTopValueDigits(kind) {
+    const normalized = normalizeGolosTopType(kind);
+    if (normalized.startsWith('UIA:')) return 6;
+    if (normalized === 'REPUTATION') return 2;
+    return 3;
   }
 
   function renderGolosTopResults(kind) {
@@ -10534,7 +10543,7 @@ Memo key: ${keys.memo}`);
       <tr>
         <td>${index + 1}</td>
         <td>${renderAccountCell(chains.golos, row.name)}</td>
-        <td>${escapeHtml(formatGolosTopNumber(golosTopMetric(row, kind), normalizeGolosTopType(kind).startsWith('UIA:') ? 6 : 3))}</td>
+        <td>${escapeHtml(formatGolosTopNumber(golosTopMetric(row, kind), golosTopValueDigits(kind)))}</td>
         <td>${escapeHtml(formatGolosTopNumber(row.sg, 3))}</td>
         <td>${escapeHtml(formatGolosTopNumber(row.golos, 3))}</td>
         <td>${escapeHtml(formatGolosTopNumber(row.gbg, 3))}</td>
@@ -10596,6 +10605,7 @@ Memo key: ${keys.memo}`);
     const receivedVests = numericAssetValue(account && account.received_vesting_shares);
     const delegatedVests = numericAssetValue(account && account.delegated_vesting_shares);
     const toSg = (vests) => rate ? vests / 1000000 * rate : 0;
+    const reputation = Number(profiles.calculateReputation(account && account.reputation));
     return {
       name: account.name,
       sg: toSg(ownVests),
@@ -10604,6 +10614,8 @@ Memo key: ${keys.memo}`);
       gbg: numericAssetValue(account.sbd_balance || account.gbg_balance),
       tip: numericAssetValue(account.tip_balance),
       accumulative: numericAssetValue(account.accumulative_balance),
+      reputation: Number.isFinite(reputation) ? reputation : 0,
+      reputationRaw: account.reputation,
       uia: {}
     };
   }

@@ -139,6 +139,7 @@ assert(golosProfile.coverImage === 'https://example.com/cover.jpg', 'Golos profi
 assert(golosProfile.socials.some(([label, value]) => label === 'telegram' && value === 'denis'), 'Golos socials stay structured for link rendering');
 assert(appSource.includes('UIA активы'), 'Profile route renders Golos UIA assets when loaded');
 assert(appSource.includes('fetchGolosUiaBalances(connection, account)'), 'Golos profile route loads UIA balances through static public RPC helpers');
+assert.strictEqual(context.DposProfiles.calculateReputation('59353618993462171'), '94.96', 'shared reputation formatter stays human-readable for profiles and top');
 assert(appSource.includes('renderProfileMedia(profile)'), 'Profile rendering includes profile/cover images');
 assert(appSource.includes('renderSocialLinks(profile.socials)'), 'Profile rendering turns social metadata into safe links');
 assert(appSource.includes('renderHistoryQuickLinks(profile)'), 'Profile rendering exposes static history filter links instead of backend profile subpages');

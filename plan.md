@@ -27,7 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Profile legacy userinfo parity, five scoped items
+## Current focused pass — Golos top reputation rating
+
+Scope:
+
+- Restore old Golos top `reputation` / рейтинг option in the v3 static `top` service.
+- Compute the human-readable reputation locally from `getAccounts` account rows; no backend/indexer.
+- Keep UIA top options unchanged and keep reputation as a base sort option, not a UIA token.
+- Validate URL aliases such as `#chain=golos&app=top&type=REPUTATION` and old-style `type=rating`/`type=reputation`.
+
+Non-goals:
+
+- Do not implement old paginated backend top pages.
+- Do not add storage/cache or automatic background scanning.
+- Do not change VIZ top unless VIZ exposes a comparable reputation field.
+
+Validation:
+
+- Update Golos top smoke test for reputation option, metric, URL normalization, and no backend dependency.
+- Regression gate: `node tests/v3-golos-top-smoke.js`, `node --check v3/js/app.js`, `node --check v3/js/profiles.js`, `git diff --check`, all `tests/v3-*.js`.
+
+## Previous focused pass — Profile legacy userinfo parity, five scoped items
 
 Scope:
 

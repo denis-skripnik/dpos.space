@@ -37,7 +37,9 @@ assert(appSource.includes('normalizeGolosTopType'), 'Golos top normalizes URL ty
 assert(appSource.includes("state.type || state.topKind || 'GP'"), 'Golos top reads type=GP from URL and keeps topKind fallback');
 assert(appSource.includes("name=\"type\""), 'Golos top select writes the type parameter');
 assert(appSource.includes("type: normalizeGolosTopType(select.value)"), 'Golos top selection updates the URL type parameter');
-assert(appSource.includes("type: 'GP'") && appSource.includes("type: 'EFFECTIVE_GP'"), 'Golos top has share-power URL type codes');
+assert(appSource.includes("type: 'GP'") && appSource.includes("type: 'EFFECTIVE_GP'") && appSource.includes("type: 'REPUTATION'"), 'Golos top has share-power and reputation URL type codes');
+assert(appSource.includes("aliases: ['reputation', 'rating', 'рейтинг', 'репутация']"), 'Golos top supports old reputation/rating aliases');
+assert(appSource.includes("label: 'Рейтинг / репутация'"), 'Golos top select exposes reputation rating option');
 assert(appSource.includes('lookupAccounts') || appSource.includes('lookup_accounts'), 'Golos top uses account lookup RPC, not backend indexers');
 assert(appSource.includes('getAccountsBalances') || appSource.includes('get_accounts_balances'), 'Golos top supports UIA balance scan');
 
@@ -45,11 +47,16 @@ const topSlice = appSource.slice(appSource.indexOf('const golosTopState'), appSo
 assert(topSlice.length > 1000, 'Golos top runtime slice is isolated');
 assert(!/178\.20\.43\.121|backend\.dpos\.space|\.php/.test(topSlice), 'Golos top runtime slice does not use private/backend/PHP endpoints');
 assert(!/broadcast\.(prepare|broadcast)|bindOperationForm/.test(topSlice), 'Golos top is read-only and does not broadcast');
+assert(topSlice.includes('profiles.calculateReputation(account && account.reputation)'), 'Golos top computes human-readable reputation locally from account rows');
+assert(topSlice.includes("if (normalized === 'REPUTATION') return row.reputation || 0"), 'Golos top can sort by computed reputation');
+assert(topSlice.includes("if (normalized === 'REPUTATION') return 2"), 'Golos top formats reputation with reputation-specific precision');
+assert(topSlice.includes('reputationRaw: account.reputation'), 'Golos top keeps raw reputation only as internal data, not as the visible metric');
 
-assert(planSource.includes('### Re-opened implementation: Golos / top local RPC loader'), 'plan.md records the reopened Golos top implementation');
+assert(planSource.includes('## Current focused pass — Golos top reputation rating'), 'plan.md records current reputation top pass');
 assert(planSource.includes('No automatic load on route render'), 'plan.md records no auto-load requirement');
 assert(planSource.includes('No IndexedDB/localStorage cache in this pass'), 'plan.md records no DB/cache decision');
 assert(planSource.includes('Button is disabled and JS-guarded while loading'), 'plan.md records duplicate-click protection');
 assert(planSource.includes('`#chain=golos&app=top&type=GP`'), 'plan.md records direct type=GP links');
+assert(planSource.includes('type=REPUTATION') && planSource.includes('type=rating'), 'plan.md records reputation/rating direct links');
 
 console.log('Golos top local RPC smoke passed');
