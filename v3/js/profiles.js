@@ -935,6 +935,7 @@
     fetchDecimalRewards,
     formatError,
     golosPowerRate,
+    calculateReputation,
     computeGolosPostQuota,
     normalizeAccount
   });
