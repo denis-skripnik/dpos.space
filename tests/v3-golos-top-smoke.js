@@ -52,7 +52,7 @@ assert(topSlice.includes("if (normalized === 'REPUTATION') return row.reputation
 assert(topSlice.includes("if (normalized === 'REPUTATION') return 2"), 'Golos top formats reputation with reputation-specific precision');
 assert(topSlice.includes('reputationRaw: account.reputation'), 'Golos top keeps raw reputation only as internal data, not as the visible metric');
 
-assert(planSource.includes('## Current focused pass — Golos top reputation rating'), 'plan.md records current reputation top pass');
+assert(planSource.includes('## Previous focused pass — Golos top reputation rating'), 'plan.md records the reputation top pass');
 assert(planSource.includes('No automatic load on route render'), 'plan.md records no auto-load requirement');
 assert(planSource.includes('No IndexedDB/localStorage cache in this pass'), 'plan.md records no DB/cache decision');
 assert(planSource.includes('Button is disabled and JS-guarded while loading'), 'plan.md records duplicate-click protection');

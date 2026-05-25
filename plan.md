@@ -27,7 +27,28 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Golos top reputation rating
+## Current focused pass — PWA install shell and foreground runtime notifications
+
+Scope:
+
+- Add a static PWA layer for v3: web manifest, service worker, app icons, and browser registration without backend/build tooling.
+- Keep the promise honest: installed DPoS Space can keep auto-upvoter/notifications running while the PWA/tab is alive and Android does not suspend it; do not promise execution after the app/browser is fully closed.
+- Add local Notification API helpers for runtime events, focused first on auto-upvoter Start/Stop/errors and app visibility changes; no Web Push subscription/server.
+- Preserve current auto-upvoter, notifications page, routing, auth/localStorage, and broadcast behavior.
+- Add accessible UI/status copy so screen reader users know whether PWA install/service worker/notification support is available.
+
+Non-goals:
+
+- No backend Web Push, FCM server, cron, native Android foreground service, browser extension, or key storage migration.
+- No background blockchain scanning from service worker timers.
+- No automatic broadcast in tests and no changes to existing confirmation/consent boundaries.
+
+Validation:
+
+- Add PWA smoke tests for manifest, service worker registration, cache versioning, notification helper, and auto-upvoter notification hooks.
+- Regression gate: `node --check v3/js/*.js`, `node --check tests/*.js`, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — Golos top reputation rating
 
 Scope:
 

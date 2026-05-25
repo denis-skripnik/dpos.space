@@ -7,6 +7,7 @@
   const profiles = global.DposProfiles;
   const history = global.DposHistory;
   const notifications = global.DposNotifications;
+  const pwa = global.DposPwa;
   const chainSelect = document.getElementById('chain-select');
   const appSelect = document.getElementById('app-select');
   const routeForm = document.getElementById('route-form');
@@ -18,6 +19,7 @@
   const statusEl = document.getElementById('status');
   const appEl = document.getElementById('app');
   const notificationsPanel = document.getElementById('notifications-panel');
+  const pwaPanel = document.getElementById('pwa-panel');
   let notificationsController = null;
   const loadedScripts = new Set();
   const LONG_API_BASE = '/api/smartfarm';
@@ -5984,10 +5986,17 @@
       runtime.runners = {};
       runtime.running = false;
       runtime.settings = null;
+      runtime.hiddenNoticeSent = false;
       startButton.disabled = false;
       stopButton.disabled = true;
       renderScannerFeed(message || 'Остановлен. Активных runner-состояний нет.');
       setStatus(`${chain.title} автоапвоутер остановлен.`, 'info');
+      if (pwa && typeof pwa.notify === 'function') {
+        pwa.notify('Автоапвоутер остановлен', {
+          body: `${chain.title}: local scanner остановлен; новых отправок не будет.`,
+          tag: `${chain.id}-auto-upvoter-stop`
+        });
+      }
     }
 
     function syncAutoDonatePoolVisibility(card) {
@@ -6046,6 +6055,17 @@
       });
     }
 
+    if (!runtime.visibilityListenerAttached && global.document && typeof global.document.addEventListener === 'function') {
+      runtime.visibilityListenerAttached = true;
+      global.document.addEventListener('visibilitychange', () => {
+        if (!runtime.running || runtime.hiddenNoticeSent || !pwa || typeof pwa.notifyVisibilityRuntime !== 'function') return;
+        if (global.document.visibilityState === 'hidden') {
+          runtime.hiddenNoticeSent = true;
+          pwa.notifyVisibilityRuntime(`${chain.title} автоапвоутер`);
+        }
+      });
+    }
+
     if (startButton && form && helper) {
       startButton.addEventListener('click', async () => {
         try {
@@ -6062,6 +6082,7 @@
           if (runtime.scannerInterval) clearInterval(runtime.scannerInterval);
           runtime.running = true;
           runtime.settings = settings;
+          runtime.hiddenNoticeSent = false;
           startButton.disabled = true;
           stopButton.disabled = false;
           appendScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
@@ -6071,8 +6092,24 @@
             runAutoUpvoterScan(settings).catch((error) => {
               appendScannerFeed(`Ошибка scan: ${profiles.formatError(error)}`);
               setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+              if (pwa && typeof pwa.notify === 'function') {
+                pwa.notify('Ошибка автоапвоутера', {
+                  body: `${chain.title}: ${profiles.formatError(error)}`,
+                  tag: `${chain.id}-auto-upvoter-error`,
+                  renotify: true
+                });
+              }
             });
           }, 60000);
+          if (pwa && typeof pwa.notify === 'function') {
+            pwa.notify('Автоапвоутер запущен', {
+              body: `${chain.title}: local scanner работает для ${accounts.map((account) => `@${account}`).join(', ')}. Можно переключиться на другое приложение, пока PWA/вкладка остаётся живой.`,
+              tag: `${chain.id}-auto-upvoter-running`
+            });
+          }
+          if (pwa && typeof pwa.notifyVisibilityRuntime === 'function') {
+            pwa.notifyVisibilityRuntime(`${chain.title} автоапвоутер`);
+          }
           setStatus(`${chain.title} автоапвоутер запущен локально во вкладке.`, 'ok');
         } catch (error) {
           if (runtime.runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
@@ -6083,6 +6120,13 @@
           runtime.settings = null;
           feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
           setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+          if (pwa && typeof pwa.notify === 'function') {
+            pwa.notify('Ошибка запуска автоапвоутера', {
+              body: `${chain.title}: ${profiles.formatError(error)}`,
+              tag: `${chain.id}-auto-upvoter-start-error`,
+              renotify: true
+            });
+          }
         }
       });
       stopButton.addEventListener('click', async () => {
@@ -6097,6 +6141,9 @@
       startButton.disabled = true;
       stopButton.disabled = false;
       renderScannerFeed('Автоапвоутер уже запущен в этой вкладке; состояние восстановлено после перехода по сайту.');
+      if (pwa && typeof pwa.notifyVisibilityRuntime === 'function') {
+        pwa.notifyVisibilityRuntime(`${chain.title} автоапвоутер`);
+      }
       setStatus(`${chain.title} автоапвоутер уже запущен локально во вкладке.`, 'ok');
     } else {
       setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
@@ -13552,6 +13599,9 @@ Memo key: ${keys.memo}`);
   });
   if (notifications && notificationsPanel) {
     notificationsController = notifications.init(notificationsPanel, chains, { setStatus });
+  }
+  if (pwa && pwaPanel && typeof pwa.init === 'function') {
+    pwa.init(pwaPanel);
   }
   global.DposV3 = Object.freeze({
     navigate,
