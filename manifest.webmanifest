@@ -1,0 +1,28 @@
+{
+  "name": "DPoS Space",
+  "short_name": "DPoS Space",
+  "description": "DPoS инструменты: профили, кошельки, история, уведомления и локальный автоапвоутер.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050507",
+  "theme_color": "#00d992",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/v3/assets/icons/dpos-space-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/v3/assets/icons/dpos-space-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

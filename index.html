@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dpos space</title>
   <meta name="description" content="DPoS инструменты: профили, кошельки, история и безопасная подготовка операций.">
+  <meta name="theme-color" content="#00d992">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DPoS Space">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/v3/assets/icons/dpos-space-192.png">
   <link rel="stylesheet" href="v3/css/style.css">
 </head>
 <body>
@@ -45,6 +51,7 @@
   <aside id="notifications-panel" class="notifications-panel" aria-label="Уведомления" hidden></aside>
 
   <p id="status" class="status" role="status" aria-live="polite">Готово.</p>
+  <aside id="pwa-panel" aria-label="Приложение и локальные уведомления"></aside>
 
   <main id="app" tabindex="-1">
     <section class="panel">
@@ -75,6 +82,7 @@
   <script src="v3/js/history.js"></script>
   <script src="v3/js/notifications.js"></script>
   <script src="v3/js/auto-upvoter.js"></script>
+  <script src="v3/js/pwa.js"></script>
   <script src="v3/js/app.js"></script>
 </body>
 </html>
