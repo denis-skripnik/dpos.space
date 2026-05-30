@@ -27,7 +27,21 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — PWA install shell and foreground runtime notifications
+## Current focused pass — Backup export via Web Share API
+
+Scope:
+
+- Add a no-backend "Поделиться backup-файлом" action to the site-wide DPoS Space backup page.
+- Reuse the existing local WebCrypto backup encryption, password validation, filename, and allowed-key whitelist; do not create plaintext export or QR transfer.
+- Use `navigator.share({ files: [...] })` only when file sharing is supported; otherwise keep the existing download flow and show an accessible fallback message.
+- Preserve current import-from-file behavior and all backup safety warnings.
+
+Validation:
+
+- Extend `tests/v3-backup-smoke.js` to cover Web Share API usage, feature detection, fallback copy, and unchanged encrypted-only format.
+- Regression gate: `node tests/v3-backup-smoke.js`, syntax checks, `git diff --check`, and all `tests/v3-*.js`.
+
+## Previous focused pass — PWA install shell and foreground runtime notifications
 
 Scope:
 

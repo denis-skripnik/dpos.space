@@ -2404,6 +2404,27 @@
     link.remove();
   }
 
+  function makeShareFile(filename, text, type = 'application/json') {
+    const blob = new Blob([text], { type });
+    if (typeof File === 'function') return new File([blob], filename, { type, lastModified: Date.now() });
+    blob.name = filename;
+    return blob;
+  }
+
+  function canShareBackupFile(file) {
+    return !!(global.navigator && typeof global.navigator.share === 'function' && typeof global.navigator.canShare === 'function' && global.navigator.canShare({ files: [file] }));
+  }
+
+  async function shareBackupFile(filename, text) {
+    const file = makeShareFile(filename, text, 'application/json');
+    if (!canShareBackupFile(file)) throw new Error('Ваш браузер не поддерживает отправку файлов через системное меню.');
+    await global.navigator.share({
+      title: 'DPoS Space backup',
+      text: 'Зашифрованная резервная копия DPoS Space. Пароль передавайте отдельно.',
+      files: [file]
+    });
+  }
+
   function vizInvitePublic(secret) {
     const client = global.viz;
     const text = String(secret || '').trim();
@@ -13222,7 +13243,11 @@ Memo key: ${keys.memo}`);
             <div class="field"><label for="backup-password">Пароль backup-файла</label><input id="backup-password" name="password" type="password" required autocomplete="new-password"></div>
             <div class="field"><label for="backup-password-repeat">Повторите пароль</label><input id="backup-password-repeat" name="repeat" type="password" required autocomplete="new-password"></div>
             <p class="muted">Слабый пароль не принимается: украденный backup можно пытаться подбирать offline.</p>
-            <button type="submit">Скачать зашифрованную резервную копию</button>
+            <div class="button-row">
+              <button type="submit" name="exportMode" value="download">Скачать зашифрованную резервную копию</button>
+              <button type="submit" name="exportMode" value="share">Поделиться backup-файлом</button>
+            </div>
+            <p class="muted">Кнопка «Поделиться» открывает системное меню Android/iOS/браузера, если оно поддерживает отправку файлов. Пароль передавайте отдельно.</p>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </form>
         </article>
@@ -13253,8 +13278,25 @@ Memo key: ${keys.memo}`);
         setOperationResult(exportForm, 'Шифрую backup локально в браузере...', 'loading');
         const backup = await encryptDposBackup(password);
         const date = new Date().toISOString().slice(0, 10);
-        downloadTextFile(`dpos-space-backup-${date}.json`, JSON.stringify(backup, null, 2));
-        setOperationResult(exportForm, `Backup создан: ${keys.length} локальных записей. Храните файл и пароль отдельно.`, 'ok');
+        const filename = `dpos-space-backup-${date}.json`;
+        const backupText = JSON.stringify(backup, null, 2);
+        const exportMode = event.submitter && event.submitter.value === 'share' ? 'share' : 'download';
+        if (exportMode === 'share') {
+          try {
+            await shareBackupFile(filename, backupText);
+            setOperationResult(exportForm, `Системное меню отправки открыто для ${keys.length} локальных записей. Пароль backup-а передайте отдельно.`, 'ok');
+          } catch (shareError) {
+            if (shareError && shareError.name === 'AbortError') {
+              setOperationResult(exportForm, 'Отправка backup-файла отменена. Файл не был скачан автоматически.', 'info');
+            } else {
+              downloadTextFile(filename, backupText);
+              setOperationResult(exportForm, `${profiles.formatError(shareError)} Backup скачан как файл: ${keys.length} локальных записей.`, 'info');
+            }
+          }
+        } else {
+          downloadTextFile(filename, backupText);
+          setOperationResult(exportForm, `Backup создан: ${keys.length} локальных записей. Храните файл и пароль отдельно.`, 'ok');
+        }
       } catch (error) {
         setOperationResult(exportForm, profiles.formatError(error), 'error');
       }
@@ -13607,7 +13649,7 @@ Memo key: ${keys.memo}`);
     navigate,
     renderRoute,
     appRequiresAccount,
-    backup: Object.freeze({ validateBackupPassword, dposBackupStorageKeys }),
+    backup: Object.freeze({ validateBackupPassword, dposBackupStorageKeys, makeShareFile, canShareBackupFile }),
     transactions: Object.freeze({ summarizeMinterMultisend, renderMinterMultisendDetailsHtml }),
     long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
   });

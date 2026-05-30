@@ -52,7 +52,7 @@ assert(appSource.includes("pwa.notify('Автоапвоутер запущен'"
 assert(appSource.includes("pwa.notify('Автоапвоутер остановлен'"), 'auto-upvoter stop sends local notification when allowed');
 assert(appSource.includes("pwa.notify('Ошибка автоапвоутера'"), 'auto-upvoter scan errors send local notification when allowed');
 assert(appSource.includes('visibilitychange') && appSource.includes('notifyVisibilityRuntime'), 'auto-upvoter has visibility-aware foreground runtime notice');
-assert(planSource.includes('## Current focused pass — PWA install shell and foreground runtime notifications'), 'plan records PWA foreground pass');
+assert(planSource.includes('## Previous focused pass — PWA install shell and foreground runtime notifications'), 'plan records PWA foreground pass');
 assert(planSource.includes('No backend Web Push'), 'plan records no backend push non-goal');
 
 console.log('v3 PWA foreground smoke passed');

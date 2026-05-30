@@ -53,6 +53,11 @@ const context = {
   location: { hash: '#app=backup', origin: 'https://dpos.blinddev.xyz', pathname: '/' },
   addEventListener() {},
   crypto: { subtle: {} },
+  Blob,
+  navigator: {
+    canShare(payload) { return !!(payload && Array.isArray(payload.files) && payload.files.length === 1 && payload.files[0].name === 'backup.json'); },
+    async share() {}
+  },
   localStorage: {
     get length() { return storage.size; },
     key(index) { return Array.from(storage.keys())[index] || null; },
@@ -100,5 +105,14 @@ assert(keys.includes('golos_users'), 'backup includes legacy auth users');
 assert(keys.includes('viz_denis_witness_signing_keys'), 'backup includes saved witness keys');
 assert(keys.includes('dpos_notifications_v1'), 'backup includes notification settings');
 assert(!keys.includes('unrelated_analytics_key'), 'backup excludes unrelated localStorage keys');
+assert(appSource.includes('Поделиться backup-файлом'), 'backup export offers accessible share-file action');
+assert(appSource.includes('navigator.share({') && appSource.includes('navigator.canShare({ files: [file] })'), 'backup share uses Web Share API file feature detection');
+assert(appSource.includes('Пароль backup-а передайте отдельно'), 'backup share warns that password must be sent separately');
+assert(appSource.includes('Backup скачан как файл'), 'backup share has download fallback when file sharing is unsupported');
+const shareFile = backup.makeShareFile('backup.json', '{"ok":true}');
+assert.strictEqual(shareFile.name, 'backup.json', 'share helper preserves backup filename');
+assert(backup.canShareBackupFile(shareFile), 'share helper accepts supported navigator file sharing');
+context.navigator.canShare = () => false;
+assert(!backup.canShareBackupFile(shareFile), 'share helper rejects unsupported navigator file sharing');
 
 console.log('v3 backup smoke: ok');
