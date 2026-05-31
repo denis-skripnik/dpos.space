@@ -27,7 +27,27 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Backup export via Web Share API
+## Current focused pass — VIZ validator terminology and viz-js-lib update
+
+Scope:
+
+- Update the vendored browser VIZ library (`v3/vendor/viz/viz.min.js`) from upstream `VIZ-Blockchain/viz-js-lib` so v3 has the new validator API names.
+- Read upstream docs and migrate VIZ-only calls/copy from witness/delegate wording to validator where the new API exposes validator equivalents: `getValidatorByAccount`, `getValidatorsByVote`, `accountValidatorVote`, `accountValidatorProxy`, `validatorUpdate`, and validator chain-property labels.
+- Keep Golos, Steem, and Hive witness terminology and APIs unchanged.
+- In Russian VIZ UI copy use «валидатор» instead of «делегат» for validator management/voting/list sections.
+
+Non-goals:
+
+- Do not rename shared CSS/storage/test helper identifiers when they are internal and still serve non-VIZ witness chains.
+- Do not change real transaction confirmation boundaries, keys, or localStorage auth format.
+- Do not modify Minter/Decimal validator wording.
+
+Validation:
+
+- Add/adjust focused smoke assertions proving VIZ uses validator APIs/copy while Golos/Steem/Hive still expose witness wording.
+- Regression gate: `node --check v3/js/*.js`, relevant `tests/v3-*manage*`/VIZ tests, `git diff --check`, and all feasible `tests/v3-*.js`.
+
+## Previous focused pass — Backup export via Web Share API
 
 Scope:
 
@@ -3023,8 +3043,8 @@ Scope and result:
 - Legacy app order context: VIZ `randomblockchain`, `calc`, `analytics`, `awards`, `manage`, `witnesses-rewards`, then `polls`; wallet/awards/calc/analytics/manage were already closed, so this pass covers only `witnesses-rewards`.
 - Legacy purpose from `config.json`: `Награды делегатов`; description: `Страница со списком делегатов Viz и их наград за текущий день и месяц, предыдущий день и месяц.`; menu/category: `Делегаты` / `reytings`.
 - Exact backend dependency confirmed before classification: `content.php` backend read `file_get_contents('http://178.20.43.121:3100/viz-api?service=witnesses')`, decoded JSON, then rendered daily/monthly reward aggregate fields.
-- Static-only decision: historical day/month reward sums are backend/indexer-only non-goals for v3 because public VIZ RPC witness methods expose current witness records/votes/properties, not those precomputed reward aggregates. v3 must not call PHP, `178.20.43.121`, `backend.dpos.space`, or a replacement private API.
-- Public RPC alternative: vendored VIZ client includes witness RPC descriptors in `witness_api`: `get_witnesses_by_vote`, `lookup_witness_accounts`, `get_witness_by_account`, `get_active_witnesses`. v3 exposes a bounded public RPC witness list loader as honest static-safe replacement context, while marking reward aggregate columns unavailable.
+- Static-only decision: historical day/month reward sums are backend/indexer-only non-goals for v3 because public VIZ RPC validator methods expose current validator records/votes/properties, not those precomputed reward aggregates. v3 must not call PHP, `178.20.43.121`, `backend.dpos.space`, or a replacement private API.
+- Public RPC alternative: vendored VIZ client includes validator RPC descriptors in `validator_api`: `get_validators_by_vote`, `lookup_validator_accounts`, `get_validator_by_account`, `get_active_validators`. v3 exposes a bounded public RPC validator list loader as honest static-safe replacement context, while marking reward aggregate columns unavailable.
 - Runtime safety: route is read-only, uses no auth keys, no operation forms, no `bindOperationForm`, no `broadcast.prepare`, and no broadcast execution.
 
 Files inspected for this one-app pass:
@@ -3039,7 +3059,7 @@ File/function/form/control/helper matrix:
 | `config.json` app metadata | title `Награды делегатов`; description `Страница со списком делегатов Viz и их наград за текущий день и месяц, предыдущий день и месяц.`; `in_menu` `Делегаты`; category `reytings` | `v3/js/chains.js` VIZ app route `witnesses-rewards`, title preserved, `accountField: false`; asserted by `tests/v3-viz-witnesses-rewards-smoke.js` | Implemented static route |
 | `content.php` backend read `file_get_contents('http://178.20.43.121:3100/viz-api?service=witnesses')` | Direct private IP/indexer service call; no public browser-safe URL; JSON decoded with `json_decode($html, true)` | Runtime does not fetch this service; `renderVizWitnessesRewards` documents `viz-api?service=witnesses` only as evidence; smoke test forbids `178.20.43.121`, `backend.dpos.space`, `file_get_contents`, and runtime `viz-api` fetches | Static-only non-goal for backend/indexer dependency |
 | `content.php` table notice | `<strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong>` | Same notice in v3 renderer; smoke test asserts `Обновление происходит в полночь по GMT` | Ported as user-facing context |
-| `content.php` table header `Логин`; row link `$conf['siteUrl'].'viz/profiles/'.$witness['login'].'/witness'` | Legacy profile/witness link per row | v3 public RPC rows link to `#chain=viz&app=profiles&account=<witness>` with text `профиль witness`; smoke test asserts hash profile link and text | Implemented static-safe alternative |
+| `content.php` table header `Логин`; row link `$conf['siteUrl'].'viz/profiles/'.$witness['login'].'/witness'` | Legacy profile/witness link per row | v3 public RPC rows link to `#chain=viz&app=profiles&account=<validator>` with text `профиль валидатора`; smoke test asserts hash profile link and text | Implemented static-safe alternative |
 | `content.php` table header `за вчерашний день`; row field `round($witness['old_daily_profit'], 3)` | Historical previous UTC-day reward aggregate from private backend | v3 legacy column matrix lists `old_daily_profit`; marked backend-only non-goal and does not invent numbers; smoke test asserts evidence and classification | Static-only non-goal |
 | `content.php` table header `за сегодня`; row field `round($witness['now_daily_profit'], 3)` | Historical/current UTC-day reward aggregate from private backend | v3 legacy column matrix lists `now_daily_profit`; marked backend-only non-goal | Static-only non-goal |
 | `content.php` table header `за прошлый месяц`; row field `round($witness['old_monthly_profit'], 3)` | Historical previous UTC-month reward aggregate from private backend | v3 legacy column matrix lists `old_monthly_profit`; marked backend-only non-goal | Static-only non-goal |
@@ -3047,8 +3067,8 @@ File/function/form/control/helper matrix:
 | `index.php` | Guard-only stub: `if (!defined('NOTLOAD')) exit(...)`; no UI or logic | No v3 runtime equivalent needed; route is handled by static SPA renderer | Not needed |
 | Shared `blockchain.js` | Node setup and auth helpers exist globally, but `witnesses-rewards/content.php` does not call browser JS or broadcast | v3 uses existing `profiles.connect(chain)` and `loadScript(chain.libraryPath)` only for public RPC; no key/account dependency | Reused safe helper path |
 | Shared `modal-accounts.js` | Account save/select, key encryption and `sendToVizonator` helpers are unrelated to this read-only page | v3 route sets `accountField: false`, no account selector requirement, no key prompt | Excluded as unrelated auth/broadcast helper |
-| `viz.min.js` witness API descriptors | Contains `witness_api` descriptors for `get_witnesses_by_vote`, `lookup_witness_accounts`, `get_witness_by_account`, `get_active_witnesses` | `loadVizWitnessesByVote(chain)` calls `getWitnessesByVote('', 50)` and falls back to `lookupWitnessAccounts('', 50)` + `getWitnessByAccount(name)`; smoke test asserts methods and plan evidence | Implemented public RPC alternative |
-| Forms / controls | Legacy app has no form, no button, no transaction submit; it renders a backend-filled table server-side | v3 adds one explicit keyboard button to load current public witness records and an aria-live status; no write operation controls | Static-safe accessibility improvement |
+| `viz.min.js` validator API descriptors | Contains `validator_api` descriptors for `get_validators_by_vote`, `lookup_validator_accounts`, `get_validator_by_account`, `get_active_validators` | `loadVizWitnessesByVote(chain)` calls `getValidatorsByVote('', 50)` and falls back to `lookupValidatorAccounts('', 50)` + `getValidatorByAccount(name)`; smoke test asserts methods and plan evidence | Implemented public RPC alternative |
+| Forms / controls | Legacy app has no form, no button, no transaction submit; it renders a backend-filled table server-side | v3 adds one explicit keyboard button to load current public validator records and an aria-live status; no write operation controls | Static-safe accessibility improvement |
 | Broadcast behavior | No legacy broadcast in app files; shared helpers contain broadcast operations but are not used here | v3 slice has no `bindOperationForm`, no `broadcast.prepare`, no `broadcast.broadcast`; smoke test asserts read-only behavior | Read-only preserved |
 
 Validation plan for this app:
@@ -3057,7 +3077,7 @@ Validation plan for this app:
 
 Remaining gaps/non-goals:
 - Exact daily/monthly reward aggregates (`old_daily_profit`, `now_daily_profit`, `old_monthly_profit`, `now_monthly_profit`) remain unavailable without the legacy private indexer/backend. Static v3 must not fake or scrape them.
-- The public RPC witness list is intentionally bounded to 50 records for a lightweight static page; it is a current witness context, not a historical reward replacement.
+- The public RPC validator list is intentionally bounded to 50 records for a lightweight static page; it is a current validator context, not a historical reward replacement.
 
 ### Rigorous parity: VIZ / polls
 

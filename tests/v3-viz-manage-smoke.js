@@ -54,9 +54,9 @@ assert(appSource.includes('id="viz-manage-nav"'), 'VIZ manage exposes legacy sub
 
 [
   'accountMetadata',
-  'accountWitnessProxy',
-  'accountWitnessVote',
-  'witnessUpdate',
+  'accountValidatorProxy',
+  'accountValidatorVote',
+  'validatorUpdate',
   'versionedChainPropertiesUpdate',
   'accountUpdate',
   'accountCreate',

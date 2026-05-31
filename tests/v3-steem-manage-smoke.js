@@ -42,9 +42,9 @@ assert(appSource.includes("effectiveAppId === 'manage'") && appSource.includes('
 for (const marker of [
   'Управление блокчейном и профилем',
   'Профиль',
-  'Делегаты / witness votes',
-  'Управление делегатом',
-  'manage-profile-form',
+  "const witnessLabelPluralTitle = validatorMode ? 'Валидаторы' : 'Делегаты'",
+  "const witnessLabel = validatorMode ? 'валидатор' : 'witness'",
+  "validatorMode ? 'Активировать валидатора' : 'Активировать делегата'",
   'manage-proxy-form',
   'manage-witness-form',
   'manage-witnesses-batch-form',
@@ -61,12 +61,12 @@ for (const marker of [
 }
 
 for (const marker of [
-  "broadcast.prepare(chain, 'active', 'accountWitnessProxy'",
-  "broadcast.prepare(chain, 'active', 'accountWitnessVote'",
+  "broadcast.prepare(chain, 'active', chain.id === 'viz' ? 'accountValidatorProxy' : 'accountWitnessProxy'",
+  "broadcast.prepare(chain, 'active', chain.id === 'viz' ? 'accountValidatorVote' : 'accountWitnessVote'",
   "broadcast.prepare(chain, 'active', 'witnessUpdate'",
   "broadcast.prepare(chain, 'active', 'accountUpdate'",
   "broadcast.prepare(chain, 'active', 'sendOperations'",
-  "['account_witness_vote'",
+  "const opName = chain.id === 'viz' ? 'account_validator_vote' : 'account_witness_vote'",
   'getWitnessesByVote',
   'getWitnessByAccount',
   'fetchChainAccount(chain, account)',

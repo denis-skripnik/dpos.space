@@ -897,7 +897,7 @@
       ['Бенефициарские', appHash({ chain: 'viz', app: 'history', account, ops: 'benefactor_award' })],
       ['Аккаунты', appHash({ chain: 'viz', app: 'history', account, ops: 'set_account_price,set_subaccount_price,buy_account,account_sale,target_account_sale,bid,outbid' })],
       ['Платные подписки', appHash({ chain: 'viz', app: 'history', account, ops: 'set_paid_subscription,paid_subscribe,paid_subscription_action,cancel_paid_subscription' })],
-      ['Делегат', appHash({ chain: 'viz', app: 'witnesses-rewards', account })],
+      ['Валидатор', appHash({ chain: 'viz', app: 'witnesses-rewards', account })],
       ['Наградить пользователя', appHash({ chain: 'viz', app: 'award', account, target: account })],
       ['Изменить профиль', appHash({ chain: 'viz', app: 'manage', account, section: 'profile' })]
     ];
@@ -1923,12 +1923,12 @@
     if (chain.id === 'viz') return common.concat([
       'create_account_delegation_ratio', 'create_account_delegation_time', 'min_delegation',
       'bandwidth_reserve_percent', 'bandwidth_reserve_below', 'vote_accounting_min_rshares',
-      'committee_request_approve_min_percent', 'inflation_witness_percent',
+      'committee_request_approve_min_percent', 'inflation_validator_percent',
       'inflation_ratio_committee_vs_reward_fund', 'inflation_recalc_period',
-      'data_operations_cost_additional_bandwidth', 'witness_miss_penalty_percent',
-      'witness_miss_penalty_duration', 'create_invite_min_balance', 'committee_create_request_fee',
+      'data_operations_cost_additional_bandwidth', 'validator_miss_penalty_percent',
+      'validator_miss_penalty_duration', 'create_invite_min_balance', 'committee_create_request_fee',
       'create_paid_subscription_fee', 'account_on_sale_fee', 'subaccount_on_sale_fee',
-      'witness_declaration_fee', 'withdraw_intervals'
+      'validator_declaration_fee', 'withdraw_intervals'
     ]);
     if (chain.id === 'golos') return common.concat(['create_account_delegation', 'create_account_delegation_ratio', 'create_account_delegation_time', 'min_delegation']);
     if (chain.id === 'hive') return common.concat(['hbd_interest_rate', 'account_subsidy_budget', 'account_subsidy_decay']);
@@ -1949,17 +1949,21 @@
       vote_accounting_min_rshares: 'Минимальный rshares для учёта голоса',
       committee_request_approve_min_percent: 'Минимальный % для заявки фонда',
       inflation_witness_percent: 'Доля эмиссии делегатам, %',
+      inflation_validator_percent: 'Доля эмиссии валидаторам, %',
       inflation_ratio_committee_vs_reward_fund: 'Соотношение фонд DAO / фонд наград',
       inflation_recalc_period: 'Период пересчёта инфляции',
       data_operations_cost_additional_bandwidth: 'Наценка bandwidth за data-операции',
       witness_miss_penalty_percent: 'Штраф за пропуск блока, %',
       witness_miss_penalty_duration: 'Длительность штрафа за пропуск',
+      validator_miss_penalty_percent: 'Штраф валидатору за пропуск блока, %',
+      validator_miss_penalty_duration: 'Длительность штрафа валидатору за пропуск',
       create_invite_min_balance: 'Минимальный баланс инвайта',
       committee_create_request_fee: 'Комиссия заявки фонда',
       create_paid_subscription_fee: 'Комиссия платной подписки',
       account_on_sale_fee: 'Комиссия продажи аккаунта',
       subaccount_on_sale_fee: 'Комиссия продажи субаккаунта',
       witness_declaration_fee: 'Комиссия декларации делегата',
+      validator_declaration_fee: 'Комиссия декларации валидатора',
       withdraw_intervals: 'Количество интервалов вывода',
       hbd_interest_rate: 'HBD interest rate',
       sbd_interest_rate: 'SBD interest rate',
@@ -1997,7 +2001,7 @@
       const value = normalizeWitnessPropValue(form.get(name));
       if (typeof value !== 'undefined') props[name] = value;
     });
-    if (!Object.keys(props).length) throw new Error('Заполните хотя бы одно поле witness props или дополнительный JSON.');
+    if (!Object.keys(props).length) throw new Error(chain.id === 'viz' ? 'Заполните хотя бы одно поле validator props или дополнительный JSON.' : 'Заполните хотя бы одно поле witness props или дополнительный JSON.');
     return props;
   }
 
@@ -2040,8 +2044,9 @@
     try {
       const connection = await getConnection(chain);
       const account = auth.getCurrentLogin(chain);
-      const witness = await profiles.apiCall(connection, 'getWitnessByAccount', [account]);
-      if (!witness) throw new Error('Witness для текущего аккаунта не найден.');
+      const method = chain.id === 'viz' ? 'getValidatorByAccount' : 'getWitnessByAccount';
+      const witness = await profiles.apiCall(connection, method, [account]);
+      if (!witness) throw new Error(chain.id === 'viz' ? 'Валидатор для текущего аккаунта не найден.' : 'Witness для текущего аккаунта не найден.');
       const form = document.getElementById('manage-witness-update-form');
       fillFormValue(form, 'url', witness.url || '');
       fillFormValue(form, 'signingKey', witness.signing_key || witness.signingKey || '');
@@ -2053,8 +2058,8 @@
       const propsForm = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-form' : 'manage-witness-props-form');
       fillWitnessPropsForm(propsForm, chain, props);
       const propsResult = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-prefill-result' : 'manage-witness-props-prefill-result');
-      if (propsResult) propsResult.textContent = 'Witness props загружены в поля формы.';
-      if (result) result.textContent = 'Witness настройки загружены через getWitnessByAccount.';
+      if (propsResult) propsResult.textContent = chain.id === 'viz' ? 'Validator props загружены в поля формы.' : 'Witness props загружены в поля формы.';
+      if (result) result.textContent = chain.id === 'viz' ? 'Настройки валидатора загружены через getValidatorByAccount.' : 'Witness настройки загружены через getWitnessByAccount.';
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
     }
@@ -2296,7 +2301,8 @@
     const account = auth.getCurrentLogin(chain);
     if (!account) return '';
     const connection = await getConnection(chain);
-    const witness = await profiles.apiCall(connection, 'getWitnessByAccount', [account]).catch(() => null);
+    const method = chain.id === 'viz' ? 'getValidatorByAccount' : 'getWitnessByAccount';
+    const witness = await profiles.apiCall(connection, method, [account]).catch(() => null);
     return String((witness && witness.url) || '').trim();
   }
 
@@ -2320,7 +2326,8 @@
     const url = (witness && witness.url) || '';
     const active = isManageWitnessActive(chain, witness);
     const checked = state.currentVotes.has(owner) ? 'checked' : '';
-    const status = active ? 'активный делегат' : 'неактивный делегат';
+    const statusName = chain.id === 'viz' ? 'валидатор' : 'делегат';
+    const status = active ? `активный ${statusName}` : `неактивный ${statusName}`;
     const urlHtml = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(witnessUrlLabel(chain, url))}</a>` : '<span class="muted">без URL</span>';
     return `<label class="witness-choice"><input type="checkbox" data-witness-vote="${escapeHtml(owner)}" ${checked}> <span><strong>${escapeHtml(owner)}</strong><br><span class="muted">${status}; ${urlHtml}; ${accountLink(chain, owner)}; ${explorerLink(chain, 'account', owner, 'Параметры')}</span></span></label>`;
   }
@@ -2368,15 +2375,18 @@
     if (chain.id !== 'golos' && chain.id !== 'viz' && chain.id !== 'hive' && chain.id !== 'steem') return;
     const result = document.getElementById('manage-witnesses-result');
     try {
-      if (result) result.textContent = 'Загружаю делегатов через getWitnessesByVote...';
+      const apiMethod = chain.id === 'viz' ? 'getValidatorsByVote' : 'getWitnessesByVote';
+      const listName = chain.id === 'viz' ? 'валидаторов' : 'делегатов';
+      if (result) result.textContent = chain.id === 'viz' ? 'Загружаю валидаторов через getValidatorsByVote...' : 'Загружаю делегатов через getWitnessesByVote...';
       const connection = await getConnection(chain);
       const account = await fetchChainAccount(chain, auth.getCurrentLogin(chain));
-      state.currentVotes = new Set(account && Array.isArray(account.witness_votes) ? account.witness_votes : []);
+      const voteList = chain.id === 'viz' && Array.isArray(account && account.validator_votes) ? account.validator_votes : (account && Array.isArray(account.witness_votes) ? account.witness_votes : []);
+      state.currentVotes = new Set(voteList);
       state.proxy = account && account.proxy ? account.proxy : '';
       const witnesses = [];
       let from = '';
       for (let page = 0; page < 5; page += 1) {
-        const chunk = await profiles.apiCall(connection, 'getWitnessesByVote', [from, 100]);
+        const chunk = await profiles.apiCall(connection, apiMethod, [from, 100]);
         if (!Array.isArray(chunk) || !chunk.length) break;
         chunk.forEach((row) => {
           const owner = row.owner || row[0] || '';
@@ -2388,8 +2398,8 @@
         from = last;
       }
       if (!result) return;
-      const proxyNotice = state.proxy ? `<p class="notice">У аккаунта установлен proxy <strong>${escapeHtml(state.proxy)}</strong>. Ручное witness voting конфликтует с proxy; сначала снимите proxy, если нужно голосовать вручную.</p>` : '';
-      result.innerHTML = `${proxyNotice}<fieldset><legend>Делегаты</legend><div class="witness-choice-grid">${witnesses.map((row) => renderWitnessChoice(chain, row, state)).join('')}</div></fieldset>`;
+      const proxyNotice = state.proxy ? `<p class="notice">У аккаунта установлен proxy <strong>${escapeHtml(state.proxy)}</strong>. Ручное ${chain.id === 'viz' ? 'голосование за валидаторов' : 'witness voting'} конфликтует с proxy; сначала снимите proxy, если нужно голосовать вручную.</p>` : '';
+      result.innerHTML = `${proxyNotice}<fieldset><legend>${chain.id === 'viz' ? 'Валидаторы' : 'Делегаты'}</legend><div class="witness-choice-grid">${witnesses.map((row) => renderWitnessChoice(chain, row, state)).join('')}</div></fieldset>`;
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
     }
@@ -3865,11 +3875,11 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form>`),
-      operationDetails('Голос за witness denis-skripnik', `
+      operationDetails('Голос за валидатора denis-skripnik', `
         <form id="wallet-viz-witness-vote-form" class="stacked-form">
           <fieldset>
-            <legend>Witness vote</legend>
-            <p class="muted">Голос за witness можно проверить перед отправкой.</p>
+            <legend>Validator vote</legend>
+            <p class="muted">Голос за валидатора можно проверить перед отправкой.</p>
             <button type="submit" name="intent" value="preview">Проверить голос</button>
             <button type="submit" name="intent" value="send">Проголосовать</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -4817,11 +4827,11 @@
       return broadcast.prepare(chain, 'active', 'createInvite', [auth.getCurrentLogin(chain), amount, inviteKey], { title: 'Создание invite', amount });
     });
 
-    bindOperationForm(chain, 'wallet-viz-witness-vote-form', () => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
+    bindOperationForm(chain, 'wallet-viz-witness-vote-form', () => broadcast.prepare(chain, 'active', 'accountValidatorVote', [
       auth.getCurrentLogin(chain),
       'denis-skripnik',
       true
-    ], { title: 'Witness vote denis-skripnik', to: 'denis-skripnik' }));
+    ], { title: 'Validator vote denis-skripnik', to: 'denis-skripnik' }));
   }
 
   function prefillVizTransferFromUrl() {
@@ -8177,14 +8187,21 @@
   }
 
   function renderManage(chain) {
+    const validatorMode = chain.id === 'viz';
+    const witnessLabel = validatorMode ? 'валидатор' : 'witness';
+    const witnessLabelPlural = validatorMode ? 'валидаторы' : 'делегаты';
+    const witnessLabelPluralTitle = validatorMode ? 'Валидаторы' : 'Делегаты';
+    const witnessVoteTitle = validatorMode ? 'Голосование за валидатора' : 'Голосование за witness';
+    const witnessProxyTitle = validatorMode ? 'Validator proxy' : 'Witness proxy';
+    const witnessPropsTitle = validatorMode ? 'validator props' : 'witness props';
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: управление</h2>
-        <p>Управление блокчейном и профилем: proxy, голосование за witness, настройки witness, профиль и права доступа. Для VIZ доступны invite и committee операции.</p>
+        <p>Управление блокчейном и профилем: proxy, ${validatorMode ? 'голосование за валидаторов, настройки валидатора' : 'голосование за witness, настройки witness'}, профиль и права доступа. Для VIZ доступны invite и committee операции.</p>
         ${chain.id === 'viz' ? `<nav id="viz-manage-nav" aria-label="Страницы VIZ manage">
           <a href="#viz-manage-profile">Профиль</a>
-          <a href="#viz-manage-witnesses">Делегаты</a>
-          <a href="#viz-manage-witness">Управление делегатом</a>
+          <a href="#viz-manage-witnesses">Валидаторы</a>
+          <a href="#viz-manage-witness">Управление валидатором</a>
           <a href="#viz-manage-workers">Заявки воркеров</a>
           <a href="#viz-manage-create-account">Создать аккаунт/субаккаунт</a>
           <a href="#viz-manage-access">Доступы аккаунта</a>
@@ -8192,56 +8209,56 @@
           <a href="#viz-manage-many-invites">Множество инвайтов (чеков)</a>
           <a href="#viz-manage-multisig">Мультисиг</a>
         </nav>` : ''}
-        <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">Делегаты / witness votes</h3></section>
-        <details id="manage-proxy-details" class="operation-details"><summary>Witness proxy — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
+        <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">${witnessLabelPluralTitle} / ${validatorMode ? 'validator votes' : 'witness votes'}</h3></section>
+        <details id="manage-proxy-details" class="operation-details"><summary>${witnessProxyTitle} — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
           <fieldset>
-            <legend>Witness proxy</legend>
+            <legend>${witnessProxyTitle}</legend>
             <div class="field"><label for="manage-proxy-login">Прокси-аккаунт</label><input id="manage-proxy-login" name="proxy" type="text" autocomplete="off" placeholder="пусто = снять proxy"></div>
             <button type="submit" name="intent" value="preview">Проверить proxy</button>
             <button type="submit" name="intent" value="send">Установить proxy в сети</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-witness-details" class="operation-details"><summary>Голосование за witness — preview перед отправкой</summary><form id="manage-witness-form" class="stacked-form">
+        <details id="manage-witness-details" class="operation-details"><summary>${witnessVoteTitle} — preview перед отправкой</summary><form id="manage-witness-form" class="stacked-form">
           <fieldset>
-            <legend>Голосование за witness</legend>
-            <div class="field"><label for="manage-witness-login">Witness</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
+            <legend>${witnessVoteTitle}</legend>
+            <div class="field"><label for="manage-witness-login">${validatorMode ? 'Валидатор' : 'Witness'}</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
             <label class="inline-choice"><input name="approve" type="checkbox" checked> подтвердить голос</label>
             <button type="submit" name="intent" value="preview">Проверить голос</button>
             <button type="submit" name="intent" value="send">Отправить голос в сеть</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witnesses-batch-details" class="operation-details"><summary>Batch witness vote — загрузить и проверить изменения</summary><form id="manage-witnesses-batch-form" class="stacked-form">
+        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witnesses-batch-details" class="operation-details"><summary>${validatorMode ? 'Batch validator vote' : 'Batch witness vote'} — загрузить и проверить изменения</summary><form id="manage-witnesses-batch-form" class="stacked-form">
           <fieldset>
-            <legend>Список делегатов / batch witness vote</legend>
-            <p class="muted">Загружает текущие witness_votes и список делегатов через публичный RPC. Отправляет только изменения.</p>
-            <button type="button" id="manage-witnesses-load">Загрузить список делегатов</button>
+            <legend>Список ${witnessLabelPlural} / ${validatorMode ? 'batch validator vote' : 'batch witness vote'}</legend>
+            <p class="muted">Загружает текущие ${validatorMode ? 'validator_votes' : 'witness_votes'} и список ${witnessLabelPlural} через публичный RPC. Отправляет только изменения.</p>
+            <button type="button" id="manage-witnesses-load">Загрузить список ${witnessLabelPlural}</button>
             <button type="submit" name="intent" value="preview">Проверить изменения голосов</button>
             <button type="submit" name="intent" value="send">Отправить изменения голосов</button>
             <div id="manage-witnesses-result" class="operation-result" role="status" aria-live="polite"></div>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>` : ''}
-        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация witness — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
+        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация ${witnessLabel} — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
-            <legend><span id="viz-manage-witness">Активация или деактивация witness</span></legend>
-            <p class="muted">Если нужно изменить ключ активации, вставьте новый ключ подписи блоков в поле и нажмите «Активировать делегата». Сохранённый ключ показан под полем сокращённо и доступен кнопкой.</p>
-            <div class="field"><label for="manage-witness-url">URL witness / пост делегата</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL witness"></div>
-            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков делегата</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist><p id="manage-witness-saved-key-hint" class="muted">Сохранённого ключа пока нет.</p></div>
+            <legend><span id="viz-manage-witness">Активация или деактивация ${witnessLabel}</span></legend>
+            <p class="muted">Если нужно изменить ключ активации, вставьте новый ключ подписи блоков в поле и нажмите «${validatorMode ? 'Активировать валидатора' : 'Активировать делегата'}». Сохранённый ключ показан под полем сокращённо и доступен кнопкой.</p>
+            <div class="field"><label for="manage-witness-url">URL ${witnessLabel} / ${validatorMode ? 'пост валидатора' : 'пост делегата'}</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL ${witnessLabel}"></div>
+            <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков ${witnessLabel}</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist><p id="manage-witness-saved-key-hint" class="muted">Сохранённого ключа пока нет.</p></div>
             <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
-            <div class="witness-action-buttons" aria-label="Быстрые действия witness">
-              <button type="submit" name="intent" value="send" data-witness-action="activate">Активировать делегата</button>
-              <button type="submit" name="intent" value="send" data-witness-action="deactivate" class="danger-button">Остановить делегата</button>
+            <div class="witness-action-buttons" aria-label="Быстрые действия ${witnessLabel}">
+              <button type="submit" name="intent" value="send" data-witness-action="activate">${validatorMode ? 'Активировать валидатора' : 'Активировать делегата'}</button>
+              <button type="submit" name="intent" value="send" data-witness-action="deactivate" class="danger-button">${validatorMode ? 'Остановить валидатора' : 'Остановить делегата'}</button>
             </div>
-            ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие witness настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
+            ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие ${witnessLabel} настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
-          <legend>VIZ witness props / versionedChainPropertiesUpdate</legend>
-          <p class="notice">Опасная операция witness: меняет chain properties VIZ. Заполните поля вручную или подгрузите текущие значения, затем проверьте preview перед отправкой.</p>
-          <button type="button" id="viz-witness-props-load">Загрузить текущие witness props</button>
+        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки валидатора / параметры сети — поля и подгрузка</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
+          <legend>VIZ validator props / versionedChainPropertiesUpdate</legend>
+          <p class="notice">Опасная операция валидатора: меняет chain properties VIZ. Заполните поля вручную или подгрузите текущие значения, затем проверьте preview перед отправкой.</p>
+          <button type="button" id="viz-witness-props-load">Загрузить текущие validator props</button>
           <div id="viz-witness-props-prefill-result" class="operation-result" role="status" aria-live="polite"></div>
           ${renderWitnessPropsFields(chain, 'viz-witness-props')}
           <button type="submit" name="intent" value="preview">Проверить versionedChainPropertiesUpdate</button><button type="submit" name="intent" value="send">Отправить versionedChainPropertiesUpdate</button>
@@ -8498,15 +8515,18 @@
         </fieldset></form></details>` : ''}
       </section>`;
 
-    bindOperationForm(chain, 'manage-proxy-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessProxy', [
+    bindOperationForm(chain, 'manage-proxy-form', (form) => broadcast.prepare(chain, 'active', chain.id === 'viz' ? 'accountValidatorProxy' : 'accountWitnessProxy', [
       auth.getCurrentLogin(chain),
       String(form.get('proxy') || '').trim().replace(/^@/, '')
     ]));
-    bindOperationForm(chain, 'manage-witness-form', (form) => broadcast.prepare(chain, 'active', 'accountWitnessVote', [
-      auth.getCurrentLogin(chain),
-      normalizeAccountInput(chain, form.get('witness'), 'Witness'),
-      form.get('approve') === 'on'
-    ], { title: 'Голосование за witness', to: normalizeAccountInput(chain, form.get('witness'), 'Witness') }));
+    bindOperationForm(chain, 'manage-witness-form', (form) => {
+      const target = normalizeAccountInput(chain, form.get('witness'), chain.id === 'viz' ? 'Валидатор' : 'Witness');
+      return broadcast.prepare(chain, 'active', chain.id === 'viz' ? 'accountValidatorVote' : 'accountWitnessVote', [
+        auth.getCurrentLogin(chain),
+        target,
+        form.get('approve') === 'on'
+      ], { title: chain.id === 'viz' ? 'Голосование за валидатора' : 'Голосование за witness', to: target });
+    });
 
     bindOperationForm(chain, 'manage-witness-update-form', async (form, options = {}) => {
       const account = auth.getCurrentLogin(chain);
@@ -8517,9 +8537,9 @@
         signingKey = manageDeactivateSigningKey(chain);
       } else {
         signingKey = String(form.get('signingKey') || '').trim();
-        if (!signingKey) throw new Error('Для активации нужен публичный block signing key делегата. Приватный ключ сюда вводить нельзя.');
+        if (!signingKey) throw new Error(chain.id === 'viz' ? 'Для активации нужен публичный block signing key валидатора. Приватный ключ сюда вводить нельзя.' : 'Для активации нужен публичный block signing key делегата. Приватный ключ сюда вводить нельзя.');
       }
-      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
+      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, chain.id === 'viz' ? 'Validator fee' : 'Witness fee');
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
       if (rawProps) {
@@ -8527,12 +8547,14 @@
       }
       if (!signingKey || broadcast.isLikelyWif(signingKey)) throw new Error('Signing key должен быть публичным ключом, а не приватным WIF.');
       if (action !== 'deactivate') rememberManageWitnessSigningKey(chain, signingKey);
-      const actionTitle = action === 'activate' ? 'Активация witness' : (action === 'deactivate' ? 'Остановка witness' : 'Witness update');
+      const actionTitle = action === 'activate'
+        ? (chain.id === 'viz' ? 'Активация валидатора' : 'Активация witness')
+        : (action === 'deactivate' ? (chain.id === 'viz' ? 'Остановка валидатора' : 'Остановка witness') : (chain.id === 'viz' ? 'Validator update' : 'Witness update'));
       const actionWarnings = action === 'activate'
         ? ['Будет установлен введённый ключ подписи блоков.']
-        : (action === 'deactivate' ? ['Делегат будет остановлен через null-key сети.'] : ['Проверьте введённый ключ подписи блоков.']);
+        : (action === 'deactivate' ? [chain.id === 'viz' ? 'Валидатор будет остановлен через null-key сети.' : 'Делегат будет остановлен через null-key сети.'] : ['Проверьте введённый ключ подписи блоков.']);
       if (chain.id === 'viz') {
-        return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey], { title: `VIZ ${actionTitle}`, warnings: ['Legacy VIZ witnessUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'].concat(actionWarnings) });
+        return broadcast.prepare(chain, 'active', 'validatorUpdate', [account, url, signingKey], { title: `VIZ ${actionTitle}`, warnings: ['VIZ validatorUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'].concat(actionWarnings) });
       }
       return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: actionTitle, amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'].concat(actionWarnings) });
     });
@@ -8873,11 +8895,13 @@ Memo key: ${keys.memo}`);
       const account = auth.getCurrentLogin(chain);
       const checked = new Set(Array.from(document.querySelectorAll('[data-witness-vote]')).filter((item) => item.checked).map((item) => item.dataset.witnessVote));
       const ops = [];
-      witnessVoteState.currentVotes.forEach((witness) => { if (!checked.has(witness)) ops.push(['account_witness_vote', { account, witness, approve: false }]); });
-      checked.forEach((witness) => { if (!witnessVoteState.currentVotes.has(witness)) ops.push(['account_witness_vote', { account, witness, approve: true }]); });
-      if (!ops.length) throw new Error('Нет изменений witness_votes. Сначала загрузите список и отметьте изменения.');
+      const opName = chain.id === 'viz' ? 'account_validator_vote' : 'account_witness_vote';
+      const targetField = chain.id === 'viz' ? 'validator' : 'witness';
+      witnessVoteState.currentVotes.forEach((witness) => { if (!checked.has(witness)) ops.push([opName, { account, [targetField]: witness, approve: false }]); });
+      checked.forEach((witness) => { if (!witnessVoteState.currentVotes.has(witness)) ops.push([opName, { account, [targetField]: witness, approve: true }]); });
+      if (!ops.length) throw new Error(chain.id === 'viz' ? 'Нет изменений validator_votes. Сначала загрузите список и отметьте изменения.' : 'Нет изменений witness_votes. Сначала загрузите список и отметьте изменения.');
       const warnings = witnessVoteState.proxy ? [`У аккаунта установлен proxy ${witnessVoteState.proxy}; ручное голосование может конфликтовать с proxy.`] : [];
-      return broadcast.prepare(chain, 'active', 'sendOperations', [ops], { title: `${chain.title} batch witness votes`, warnings });
+      return broadcast.prepare(chain, 'active', 'sendOperations', [ops], { title: chain.id === 'viz' ? `${chain.title} batch validator votes` : `${chain.title} batch witness votes`, warnings });
     });
 
     bindOperationForm(chain, 'manage-create-account-form', async (form) => {
@@ -9057,7 +9081,7 @@ Memo key: ${keys.memo}`);
     bindOperationForm(chain, 'viz-witness-props-form', (form) => {
       if (chain.id !== 'viz') throw new Error('versionedChainPropertiesUpdate доступен только для VIZ.');
       const props = collectWitnessPropsFromForm(chain, form);
-      return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная witness операция: меняет chain properties; проверьте поля перед отправкой.'] });
+      return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная операция валидатора: меняет chain properties; проверьте поля перед отправкой.'] });
     });
 
     bindOperationForm(chain, 'viz-multisig-authority-form', (form) => {
@@ -9143,18 +9167,22 @@ Memo key: ${keys.memo}`);
       bandwidth_reserve_below: 'Порог резервной пропускной способности',
       vote_accounting_min_rshares: 'Минимальный вес голоса для учёта при награждении',
       committee_request_approve_min_percent: 'Минимальная доля соц. капитала для решения Фонда ДАО',
-      inflation_witness_percent: 'Доля эмиссии на вознаграждение делегатов',
+      inflation_witness_percent: 'Доля эмиссии на вознаграждение валидаторов',
+      inflation_validator_percent: 'Доля эмиссии на вознаграждение валидаторов',
       inflation_ratio_committee_vs_reward_fund: 'Доля эмиссии в Фонд ДАО относительно Фонда наград',
       inflation_recalc_period: 'Количество блоков между пересчётом инфляции',
       data_operations_cost_additional_bandwidth: 'Наценка bandwidth за data-операции',
-      witness_miss_penalty_percent: 'Штраф делегату за пропуск блока',
-      witness_miss_penalty_duration: 'Длительность штрафа делегату за пропуск блока',
+      witness_miss_penalty_percent: 'Штраф валидатору за пропуск блока',
+      witness_miss_penalty_duration: 'Длительность штрафа валидатору за пропуск блока',
+      validator_miss_penalty_percent: 'Штраф валидатору за пропуск блока',
+      validator_miss_penalty_duration: 'Длительность штрафа валидатору за пропуск блока',
       create_invite_min_balance: 'Минимальный баланс для создания инвайта',
       committee_create_request_fee: 'Комиссия за заявку в комитет',
       create_paid_subscription_fee: 'Комиссия за платную подписку',
       account_on_sale_fee: 'Комиссия за продажу аккаунта',
       subaccount_on_sale_fee: 'Комиссия за продажу субаккаунтов',
-      witness_declaration_fee: 'Комиссия за декларирование делегатом',
+      witness_declaration_fee: 'Комиссия за декларирование валидатором',
+      validator_declaration_fee: 'Комиссия за декларирование валидатором',
       withdraw_intervals: 'Количество интервалов уменьшения капитала'
     };
     var chainPropsHtml = chainProps._error ? `<p class="notice">Основные параметры не загрузились: ${escapeHtml(chainProps._error)}</p>` : `<dl class="kv-list">${Object.keys(chainPropRows).filter(function (key) { return !['min_curation_percent', 'max_curation_percent', 'flag_energy_additional_cost'].includes(key); }).map(function (key) { return `<div><dt>${escapeHtml(chainPropDescriptions[key] || key)}</dt><dd><code>${escapeHtml(key)}</code>: ${formatExplorerValue(chain, key, chainPropRows[key])}</dd></div>`; }).join('')}</dl>`;
@@ -10314,8 +10342,8 @@ Memo key: ${keys.memo}`);
         witnesses = normalizeGolosWitnessRows(witnessResults.filter(Boolean));
       }
       if (!witnesses.length) {
-        target.innerHTML = '<p class="muted">Публичная нода не вернула witness-список.</p>';
-        status.textContent = 'Witness-список не найден в ответе публичной ноды.';
+        target.innerHTML = '<p class="muted">Публичная нода не вернула список делегатов.</p>';
+        status.textContent = 'Список делегатов не найден в ответе публичной ноды.';
         return;
       }
       const rows = witnesses.map((witness) => `<tr><td><a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: witness.owner }))}">${escapeHtml(witness.owner)}</a> <span class="muted">профиль witness</span></td><td><code>${escapeHtml(String(witness.url || ''))}</code></td><td>${escapeHtml(String(witness.votes || ''))}</td><td>${escapeHtml(String(witness.produced || ''))}</td></tr>`).join('');
@@ -10323,8 +10351,8 @@ Memo key: ${keys.memo}`);
       status.textContent = `Загружено делегатов Golos через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
       setStatus(`Golos witnesses-rewards: загружено witness records: ${witnesses.length}.`, 'ok');
     } catch (error) {
-      target.innerHTML = `<p class="muted">Не удалось загрузить публичный witness-список: ${escapeHtml(profiles.formatError(error))}</p>`;
-      status.textContent = `Ошибка загрузки witness-списка: ${profiles.formatError(error)}`;
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список делегатов: ${escapeHtml(profiles.formatError(error))}</p>`;
+      status.textContent = `Ошибка загрузки списка делегатов: ${profiles.formatError(error)}`;
       setStatus(`Golos witnesses-rewards: ${profiles.formatError(error)}`, 'error');
     }
   }
@@ -10836,7 +10864,7 @@ Memo key: ${keys.memo}`);
   }
 
   const vizWitnessRewardColumns = [
-    ['Логин', 'login', 'Имя делегата/witness и ссылка на профиль witness.'],
+    ['Логин', 'login', 'Имя валидатора и ссылка на профиль валидатора.'],
     ['за вчерашний день', 'old_daily_profit', 'Предыдущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
     ['за сегодня', 'now_daily_profit', 'Текущий UTC-day reward aggregate из старого backend, округлялся до 3 знаков.'],
     ['за прошлый месяц', 'old_monthly_profit', 'Предыдущий UTC-month reward aggregate из старого backend, округлялся до 3 знаков.'],
@@ -10844,7 +10872,7 @@ Memo key: ${keys.memo}`);
   ];
 
   function renderVizWitnessRewardColumnRows() {
-    return vizWitnessRewardColumns.map(([label, field, meaning]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(field)}</code></td><td>${escapeHtml(meaning)}</td><td>${field === 'login' ? 'заменено v3 profile/witness hash-ссылкой и public RPC witness list' : 'backend-only non-goal: public witness RPC does not expose historical daily/monthly reward sums'}</td></tr>`).join('');
+    return vizWitnessRewardColumns.map(([label, field, meaning]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(field)}</code></td><td>${escapeHtml(meaning)}</td><td>${field === 'login' ? 'заменено v3 profile/validator hash-ссылкой и public RPC validator list' : 'backend-only non-goal: public validator RPC does not expose historical daily/monthly reward sums'}</td></tr>`).join('');
   }
 
   function normalizeVizWitnessRows(result) {
@@ -10866,28 +10894,28 @@ Memo key: ${keys.memo}`);
     const status = document.getElementById('viz-witnesses-rewards-status');
     const target = document.getElementById('viz-witnesses-rewards-list');
     if (!status || !target) return;
-    status.textContent = 'Загружаю список делегатов VIZ через публичный RPC...';
+    status.textContent = 'Загружаю список валидаторов VIZ через публичный RPC...';
     try {
       await loadScript(chain.libraryPath);
       const connection = await profiles.connect(chain);
-      let witnesses = normalizeVizWitnessRows(await profiles.apiCall(connection, 'getWitnessesByVote', ['', 50]));
+      let witnesses = normalizeVizWitnessRows(await profiles.apiCall(connection, 'getValidatorsByVote', ['', 50]));
       if (!witnesses.length) {
-        const names = await profiles.apiCall(connection, 'lookupWitnessAccounts', ['', 50]);
-        const witnessResults = await Promise.all((Array.isArray(names) ? names : []).slice(0, 50).map((name) => profiles.apiCall(connection, 'getWitnessByAccount', [name]).catch(() => null)));
+        const names = await profiles.apiCall(connection, 'lookupValidatorAccounts', ['', 50]);
+        const witnessResults = await Promise.all((Array.isArray(names) ? names : []).slice(0, 50).map((name) => profiles.apiCall(connection, 'getValidatorByAccount', [name]).catch(() => null)));
         witnesses = normalizeVizWitnessRows(witnessResults.filter(Boolean));
       }
       if (!witnesses.length) {
-        target.innerHTML = '<p class="muted">Публичная нода не вернула witness-список.</p>';
-        status.textContent = 'Witness-список не найден в ответе публичной ноды.';
+        target.innerHTML = '<p class="muted">Публичная нода не вернула список валидаторов.</p>';
+        status.textContent = 'Список валидаторов не найден в ответе публичной ноды.';
         return;
       }
-      const rows = witnesses.map((witness) => `<tr><td><a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: witness.owner }))}">${escapeHtml(witness.owner)}</a> <span class="muted">профиль witness</span></td><td><code>${escapeHtml(String(witness.url || ''))}</code></td><td>${escapeHtml(String(witness.votes || ''))}</td><td>${escapeHtml(String(witness.produced || ''))}</td></tr>`).join('');
-      target.innerHTML = `<div class="table-wrap"><table aria-label="Публичный список делегатов VIZ"><caption>Публичный список делегатов VIZ из witness_api</caption><thead><tr><th scope="col">Делегат</th><th scope="col">URL/signing key</th><th scope="col">Votes / service field</th><th scope="col">Produced/signing data</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-      status.textContent = `Загружено делегатов VIZ через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
-      setStatus(`VIZ witnesses-rewards: загружено witness records: ${witnesses.length}.`, 'ok');
+      const rows = witnesses.map((witness) => `<tr><td><a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: witness.owner }))}">${escapeHtml(witness.owner)}</a> <span class="muted">профиль валидатора</span></td><td><code>${escapeHtml(String(witness.url || ''))}</code></td><td>${escapeHtml(String(witness.votes || ''))}</td><td>${escapeHtml(String(witness.produced || ''))}</td></tr>`).join('');
+      target.innerHTML = `<div class="table-wrap"><table aria-label="Публичный список валидаторов VIZ"><caption>Публичный список валидаторов VIZ из validator_api</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">URL/signing key</th><th scope="col">Votes / service field</th><th scope="col">Produced/signing data</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      status.textContent = `Загружено валидаторов VIZ через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
+      setStatus(`VIZ validator list: загружено validator records: ${witnesses.length}.`, 'ok');
     } catch (error) {
-      target.innerHTML = `<p class="muted">Не удалось загрузить публичный witness-список: ${escapeHtml(profiles.formatError(error))}</p>`;
-      status.textContent = `Ошибка загрузки witness-списка: ${profiles.formatError(error)}`;
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список валидаторов: ${escapeHtml(profiles.formatError(error))}</p>`;
+      status.textContent = `Ошибка загрузки списка валидаторов: ${profiles.formatError(error)}`;
       setStatus(`VIZ witnesses-rewards: ${profiles.formatError(error)}`, 'error');
     }
   }
@@ -10895,25 +10923,25 @@ Memo key: ${keys.memo}`);
   function renderVizWitnessesRewards(chain) {
     appEl.innerHTML = `
       <section class="panel viz-witnesses-rewards">
-        <h2>Награды делегатов</h2>
-        <p>Страница со списком делегатов Viz и их наград за текущий день и месяц, предыдущий день и месяц.</p>
-        <p><strong>Обновление происходит в полночь по GMT, но не все сразу делегаты обновляются, а те, которые подписывают блоки.</strong></p>
+        <h2>Награды валидаторов</h2>
+        <p>Страница со списком валидаторов VIZ и их наград за текущий день и месяц, предыдущий день и месяц.</p>
+        <p><strong>Обновление происходит в полночь по GMT, но не все сразу валидаторы обновляются, а те, которые подписывают блоки.</strong></p>
         <section class="subpanel" aria-labelledby="viz-witnesses-live-heading">
-          <h3 id="viz-witnesses-live-heading">Public RPC witness list</h3>
-          <p>Публичный RPC может показать текущих делегатов/witness records без приватных ключей и без старого backend. В vendored VIZ client найдены descriptors <code>witness_api</code>: <code>get_witnesses_by_vote</code>, <code>lookup_witness_accounts</code>, <code>get_witness_by_account</code>, <code>get_active_witnesses</code>. Это отдельный статический слой: он не заменяет исторические reward-агрегаты.</p>
-          <button type="button" id="viz-witnesses-rewards-load">Загрузить делегатов через public RPC</button>
-          <p id="viz-witnesses-rewards-status" role="status" aria-live="polite">Witness-список ещё не загружен.</p>
-          <div id="viz-witnesses-rewards-list"><p class="muted">Нажмите кнопку, чтобы запросить <code>getWitnessesByVote</code> / <code>lookupWitnessAccounts</code> через публичную ноду.</p></div>
+          <h3 id="viz-witnesses-live-heading">Public RPC validator list</h3>
+          <p>Публичный RPC может показать текущих валидаторов без приватных ключей и без старого backend. В vendored VIZ client доступны validator API: <code>getValidatorsByVote</code>, <code>lookupValidatorAccounts</code>, <code>getValidatorByAccount</code>. Это отдельный статический слой: он не заменяет исторические reward-агрегаты.</p>
+          <button type="button" id="viz-witnesses-rewards-load">Загрузить валидаторов через public RPC</button>
+          <p id="viz-witnesses-rewards-status" role="status" aria-live="polite">Список валидаторов ещё не загружен.</p>
+          <div id="viz-witnesses-rewards-list"><p class="muted">Нажмите кнопку, чтобы запросить <code>getValidatorsByVote</code> / <code>lookupValidatorAccounts</code> через публичную ноду.</p></div>
         </section>
         <section class="subpanel" aria-labelledby="viz-witnesses-columns-heading">
           <h3 id="viz-witnesses-columns-heading">Legacy reward columns</h3>
           <p class="notice">Старые поля <code>old_daily_profit</code>, <code>now_daily_profit</code>, <code>old_monthly_profit</code>, <code>now_monthly_profit</code> приходили из <code>viz-api?service=witnesses</code> на приватном backend/IP. Static v3 не восстанавливает этот backend и не показывает вымышленные суммы.</p>
-          <div class="table-wrap"><table aria-label="Legacy columns for VIZ witnesses rewards"><caption>Legacy columns for VIZ witnesses rewards</caption><thead><tr><th scope="col">Колонка</th><th scope="col">Legacy field</th><th scope="col">Meaning</th><th scope="col">v3 status</th></tr></thead><tbody>${renderVizWitnessRewardColumnRows()}</tbody></table></div>
+          <div class="table-wrap"><table aria-label="Legacy columns for VIZ validator rewards"><caption>Legacy columns for VIZ validator rewards</caption><thead><tr><th scope="col">Колонка</th><th scope="col">Legacy field</th><th scope="col">Meaning</th><th scope="col">v3 status</th></tr></thead><tbody>${renderVizWitnessRewardColumnRows()}</tbody></table></div>
         </section>
       </section>`;
     const loadButton = document.getElementById('viz-witnesses-rewards-load');
     if (loadButton) loadButton.addEventListener('click', () => loadVizWitnessesByVote(chain));
-    setStatus('VIZ: witnesses-rewards открыт в статическом режиме.', 'info');
+    setStatus('VIZ: validator rewards открыт в статическом режиме.', 'info');
   }
 
   function buildVizProjectMemo(type, data) {
