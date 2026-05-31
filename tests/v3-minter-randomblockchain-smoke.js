@@ -29,6 +29,14 @@ assert(randomSeedSlice.includes('BigInt(`0x${hex}`) % BigInt(modulo)'), 'random 
 assert(randomRenderSlice.includes('https://mcorp.space/post/65'), 'Minter legacy algorithm article link is preserved');
 assert(randomRenderSlice.includes('https://github.com/denis-skripnik/minter_random'), 'Minter legacy repository link is preserved');
 
+assert(randomRenderSlice.includes('value="${escapeHtml(initialFirst)}"'), 'randomblockchain pre-fills first block from URL');
+assert(randomRenderSlice.includes('value="${escapeHtml(initialSecond)}"'), 'randomblockchain pre-fills second block from URL');
+assert(appSource.includes("'block1', 'block2', 'participants'"), 'randomblockchain result params are app-scoped and cleared on app/chain changes');
+assert(appSource.includes('function replaceHashParams'), 'randomblockchain updates result URL without adding another page navigation helper');
+assert(randomRenderSlice.includes("replaceHashParams({ chain: chain.id, app: 'randomblockchain', block1: first, block2: second"), 'randomblockchain writes block1/block2 permalink params after calculation');
+assert(randomRenderSlice.includes('Ссылка на результат с этими блоками'), 'randomblockchain renders a copyable/shareable result link');
+assert(randomRenderSlice.includes('Блоки результата'), 'randomblockchain displays the result block list');
+
 assert(!randomRenderSlice.includes('broadcast.prepare'), 'randomblockchain renderer does not prepare transactions');
 assert(!randomRenderSlice.includes('broadcast.broadcast'), 'randomblockchain renderer does not broadcast transactions');
 assert(!randomRenderSlice.includes('bindOperationForm'), 'randomblockchain renderer does not bind operation forms');
@@ -41,5 +49,6 @@ assert(planSource.includes('### Rigorous parity: Minter / randomblockchain'), 'p
 assert(planSource.includes('blockchains/minter/apps/randomblockchain/js/app.js'), 'plan records legacy Minter randomblockchain app.js inspection');
 assert(planSource.includes('https://api.minter.one/v2/block/'), 'plan records public Minter block API dependency');
 assert(planSource.includes('Minter randomblockchain is read-only'), 'plan records read-only/no-broadcast classification');
+assert(planSource.includes('block1`/`block2`/`participants`'), 'plan records shareable block-result URL params');
 
 console.log('v3-minter-randomblockchain-smoke ok');

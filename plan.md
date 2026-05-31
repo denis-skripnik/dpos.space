@@ -4139,7 +4139,7 @@ Remaining gaps/non-goals:
 Scope and result:
 - Legacy purpose from `config.json`: `LONG farming`, an app for viewing BIP/LONG provider/farming data.
 - Backend yes/no: **backend yes in legacy, no new backend service added in v3**. The existing same-origin `/api/smartfarm` backend is active and intentionally used for LONG provider/top/bids/deferred data; v3 must not call the old private IP, `backend.dpos.space`, PHP endpoints, or create another service.
-- Static-safe result: Minter `long` route renders the legacy app title, provider ranking/top data from same-origin `/api/smartfarm`, public BIP/LONG pool summary, Telegram/Chainik links, farming sender wallet, bids, and deferred transactions. It does not call private IPs, `backend.dpos.space`, PHP endpoints, or new hidden services.
+- Static-safe result: Minter `long` route renders the legacy app title, provider ranking/top data from same-origin `/api/smartfarm`, public BIP/LONG pool summary, Telegram/Chainik links, farming sender wallet, bids, deferred transactions, and daily lottery details via `/api/smartfarm/loto?date=YYYY-MM-DD`. It does not call private IPs, `backend.dpos.space`, PHP endpoints, or new hidden services.
 
 Files inspected for this one-app pass:
 - Legacy exact app files: `/root/ai-projects/dpos.space/blockchains/minter/apps/long/config.json`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/content.php`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/index.php`, `/root/ai-projects/dpos.space/blockchains/minter/apps/long/js/app.js`.
@@ -4156,7 +4156,8 @@ Matrix:
 | Provider ranking table | Legacy renders provider liquidity, invest days, future farming and 50-day bonus from backend provider list | v3 renders the provider ranking table from `/api/smartfarm`, with pool composition from public Minter API when available | smoke checks `Рейтинг провайдеров LONG`, `Будущий фарминг`, `Бонус 50 дней` | Implemented backend data |
 | `pages/bids` + `js/app.js updateBidsTable` | Reads projects/active bids from smartfarm/backend and uses memo send instructions | v3 reads `/api/smartfarm/bids` and `/api/smartfarm/bids/active?coin=...`, renders allowed coins/projects/active bids and memo instructions without adding a LONG-specific send form | route smoke checks dedicated renderer and no broadcast binding in LONG slice | Implemented backend data/read-only |
 | `pages/deferred-txs` | Reads deferred transaction list from smartfarm backend | v3 reads `/api/smartfarm/deferred-txs` and renders the backend list for manual verification | route smoke checks dedicated renderer and no direct old backend host | Implemented backend data/read-only |
-| `pages/surveys`, `loto`, `payd-loto`, `rps`, `dragon`, `calc` | Mix of private backend state and optional direct Minter sends to LONG service address | v3 keeps them documented as requiring server state/indexed lists; direct wallet actions are not added under LONG in this pass | plan + smoke check non-goal and no `bindOperationForm`/broadcast calls in slice | Static-only non-goal |
+| `pages/loto` | Reads daily lottery details from `smartfarm/loto?date=YYYY-MM-DD`; lists previous dates from 2021-10-29 | v3 accepts `#chain=minter&app=long&long_page=loto`, fetches same-origin `/api/smartfarm/loto?date=...`, renders rules/details/date picker/history, and also accepts legacy typo `long_page=lotto` as an alias | route smoke checks menu link after deferred transactions, `/api/smartfarm/loto?date=...`, rules/history, and no private/backend/PHP dependency | Implemented backend data/read-only |
+| `pages/surveys`, `payd-loto`, `rps`, `dragon`, `calc` | Mix of private backend state and optional direct Minter sends to LONG service address | v3 keeps them documented as requiring server state/indexed lists; direct wallet actions are not added under LONG in this pass | plan + smoke check non-goal and no `bindOperationForm`/broadcast calls in slice | Static-only non-goal |
 | Public pool dependency | Legacy uses public Minter pool endpoint for BIP/LONG reserves/pricing | v3 fetches `https://api-minter.mnst.club/v2/swap_pool/0/2782` read-only | smoke checks exact public API call | Implemented public API |
 | Forbidden runtime dependencies | Legacy used old `http://178.20.43.121:3852/smartfarm`, `https://backend.dpos.space/smartfarm`, and PHP app pages | v3 Minter LONG runtime slice may use only the active same-origin `/api/smartfarm`; it must not call private IP, backend.dpos.space, `.php`, or add a new service | focused smoke isolates `function longUrl` to validators boundary | Enforced |
 
@@ -4168,7 +4169,7 @@ Validation plan for this app:
 
 Remaining gaps/non-goals:
 - No new backend service, PHP route, private IP runtime call, `backend.dpos.space`, indexer, daemon, hosted helper application, or newly hosted app is added. Existing same-origin `/api/smartfarm` is reused because it is active.
-- Legacy LONG survey lists/results, lottery state, dragons and family calculator data remain backend/indexer-only non-goals until their exact active `/api/smartfarm` shapes are verified.
+- Legacy LONG survey lists/results, dragons and family calculator data remain backend/indexer-only non-goals until their exact active `/api/smartfarm` shapes are verified.
 - v3 does not add LONG-specific direct broadcast forms; users can use existing Minter wallet/swap routes for explicitly supported actions only.
 
 ### Rigorous parity: Minter / explorer
@@ -4360,7 +4361,7 @@ Remaining gaps/non-goals:
 Scope and result:
 - Legacy purpose from `config.json`: `Генератор случайных чисел`, a read-only random-number generator using two Minter block hashes and participant count/list.
 - Backend yes/no: **no backend service added**. Legacy `content.php` is PHP-rendered form/page switching, but the runtime data dependency is public Minter node API `https://api.minter.one/v2/block/{height}` via axios defaults; no private backend or storage is required.
-- Static-safe result: v3 keeps the `minter/randomblockchain` route, preserves the form fields and Minter article/repository links, fetches public block hashes directly from the browser, computes `block_hash_1 + block_hash_2` modulo participant count locally, and remains read-only.
+- Static-safe result: v3 keeps the `minter/randomblockchain` route, preserves the form fields and Minter article/repository links, fetches public block hashes directly from the browser, computes `block_hash_1 + block_hash_2` modulo participant count locally, updates the URL with `block1`/`block2`/`participants` after calculation, auto-renders shared result links, and remains read-only.
 
 Files inspected for this one-app pass:
 - Legacy exact app files: `/root/ai-projects/dpos.space/blockchains/minter/apps/randomblockchain/config.json`, `/root/ai-projects/dpos.space/blockchains/minter/apps/randomblockchain/content.php`, `/root/ai-projects/dpos.space/blockchains/minter/apps/randomblockchain/js/app.js`.
@@ -4373,7 +4374,7 @@ Matrix:
 | --- | --- | --- | --- | --- |
 | `config.json` | Registers Minter `randomblockchain`, menu `ГСЧ`, title `Генератор случайных чисел` | `v3/js/chains.js` includes Minter app `randomblockchain` and route dispatch calls `renderRandomBlockchain` | `tests/v3-minter-randomblockchain-smoke.js` checks registry and dispatch | Implemented |
 | `content.php` empty-query form | Shows labels for `block1`, `block2`, `participants`, `data_list`, and submit `Сгенерировать` | v3 renders accessible `randomblockchain-form` with the same labels/prompts and status region | focused smoke checks label text and `role="status" aria-live="polite"` | Implemented static form |
-| `content.php` result page | Reads GET params, shows start/end block explorer links, participants count, hidden `data_list`, hash textareas, calculate button, hash/result/member fields | v3 keeps one static form/result panel: the submitted data is handled client-side, result shows lucky number, optional winner, and raw calculation details | focused smoke checks calculate label and data-list handling markers | Static SPA replacement |
+| `content.php` result page | Reads GET params, shows start/end block explorer links, participants count, hidden `data_list`, hash textareas, calculate button, hash/result/member fields | v3 keeps one static form/result panel: the submitted data is handled client-side, result shows lucky number, block pair, optional winner, raw calculation details, and a shareable `#chain=minter&app=randomblockchain&block1=...&block2=...` permalink | focused smoke checks calculate label, data-list handling markers, URL params, `replaceHashParams`, and permalink text | Static SPA replacement |
 | Legacy article/repository links | Links to `https://mcorp.space/post/65` and `https://github.com/denis-skripnik/minter_random` | v3 shows the same Minter-specific links when `chain.id === 'minter'` | focused smoke checks both URLs | Implemented |
 | `js/app.js blocksData` | Sets axios base `https://api.minter.one/v2`, calls `/block/{start}` and `/block/{end}`, fills `sig1`/`sig2` from `response.data.hash` | `fetchMinterRandomBlock` calls `${chain.apiBase}/block/${encodeURIComponent(text)}` and `blockRandomSeed` uses `block.hash` for Minter | focused smoke checks `/block/${encodeURIComponent(text)}`, `block.hash`, and plan public API evidence `https://api.minter.one/v2/block/` | Implemented public API |
 | `js/app.js calculate` | Concatenates two hex hashes, computes `bigInt(h,16).mod(participants)`, shows `parseInt(d.value)+1`, and uses `data_list` lines as winner list when present | `hashRandomBlockchainSeeds` uses `BigInt(0x${hex}) % BigInt(modulo)` and `random.value + 1`; list length overrides participant count and winner is rendered | focused smoke checks modulo expression and Minter algorithm label | Implemented local calculation |
@@ -4389,7 +4390,7 @@ Validation plan for this app:
 
 Remaining gaps/non-goals:
 - No backend service, PHP route, private IP runtime call, `backend.dpos.space`, hidden server API, indexer, daemon, hosted helper application, or newly hosted app is added.
-- v3 does not recreate PHP clean URLs or GET result pages; the static SPA form/result panel replaces them.
+- v3 does not recreate PHP clean URLs or server redirects; the static SPA form/result panel and hash permalink replace them.
 - If public Minter block API is unavailable/CORS-blocked, v3 surfaces the error instead of adding a proxy or hidden service.
 
 ### Rigorous parity: Minter / swap

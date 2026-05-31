@@ -63,6 +63,9 @@ const context = {
     if (String(url) === '/api/smartfarm') {
       return { ok: true, text: async () => JSON.stringify(smartfarm) };
     }
+    if (String(url) === '/api/smartfarm/loto?date=2021-10-29') {
+      return { ok: true, text: async () => 'Победитель: Mx1111111111111111111111111111111111111111 получил 50 LONG' };
+    }
     if (String(url).includes('/swap_pool/0/2782')) {
       return { ok: true, text: async () => JSON.stringify(pool) };
     }
@@ -112,9 +115,20 @@ vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), contex
   assert(slice.includes("const LONG_API_BASE = '/api/smartfarm'") || source.includes("const LONG_API_BASE = '/api/smartfarm'"), 'Minter LONG uses same-origin smartfarm API path');
   assert(!/broadcast\.broadcast|broadcast\.prepare|bindOperationForm/.test(slice), 'Minter LONG parity page does not introduce wallet broadcast behavior');
 
+  context.location.hash = '#chain=minter&app=long&long_page=lotto&date=2021-10-29';
+  await context.DposV3.renderRoute();
+  const lotoHtml = elements.get('app').innerHTML;
+  assert(fetchCalls.some((url) => url === '/api/smartfarm/loto?date=2021-10-29'), 'LONG loto uses same-origin smartfarm loto endpoint with date');
+  assert(lotoHtml.includes('LONG: ежедневная лотерея'), 'LONG loto renders page title');
+  assert(source.indexOf("['deferred-txs', 'Отложенные транзакции']") < source.indexOf("['loto', 'Лотерея']"), 'LONG nav includes loto link after deferred transactions');
+  assert(lotoHtml.includes('Победитель: Mx1111111111111111111111111111111111111111 получил 50 LONG'), 'LONG loto renders backend lottery details');
+  assert(lotoHtml.includes('Предыдущие лотереи'), 'LONG loto renders history links');
+  assert(!fetchCalls.some((url) => url.includes('178.20.43.121') || url.includes('backend.dpos.space')), 'LONG loto must not call legacy private IP/backend host directly');
+
   const plan = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
   assert(plan.includes('### Rigorous parity: Minter / long'), 'plan contains exact Minter / long parity section');
   assert(plan.includes('same-origin `/api/smartfarm`'), 'plan records smartfarm backend is active and intentionally used');
+  assert(plan.includes('/api/smartfarm/loto?date=YYYY-MM-DD'), 'plan records active LONG loto endpoint');
 })().catch((error) => {
   console.error(error);
   process.exit(1);

@@ -371,7 +371,7 @@
     return Object.fromEntries(new URLSearchParams(raw));
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -386,6 +386,20 @@
       else params.set(key, value);
     });
     global.location.hash = params.toString();
+  }
+
+  function replaceHashParams(nextState) {
+    const params = new URLSearchParams(parseHash());
+    Object.entries(nextState).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') params.delete(key);
+      else params.set(key, value);
+    });
+    const nextHash = `#${params.toString()}`;
+    if (global.history && typeof global.history.replaceState === 'function') {
+      global.history.replaceState(null, '', `${global.location.pathname || ''}${global.location.search || ''}${nextHash}`);
+    } else {
+      global.location.hash = nextHash;
+    }
   }
 
   function loadScript(src) {
@@ -10198,6 +10212,10 @@ Memo key: ${keys.memo}`);
   }
 
   function renderRandomBlockchain(chain) {
+    const state = parseHash();
+    const initialFirst = String(state.block1 || '').trim();
+    const initialSecond = String(state.block2 || '').trim();
+    const initialParticipants = String(state.participants || '100').trim() || '100';
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: случайный блокчейн</h2>
@@ -10206,9 +10224,9 @@ Memo key: ${keys.memo}`);
         <form id="randomblockchain-form" class="stacked-form">
           <fieldset>
             <legend>Генератор случайного числа</legend>
-            <div class="field"><label for="randomblockchain-first">Первый блок (начальный) / Сигнатура первого указанного блока</label><input id="randomblockchain-first" name="first" type="text" required inputmode="numeric" placeholder="Введите стартовый блок"></div>
-            <div class="field"><label for="randomblockchain-second">Второй блок, на основе которого будет производиться генерация / Сигнатура второго указанного блока</label><input id="randomblockchain-second" name="second" type="text" required inputmode="numeric" placeholder="Введите второй блок"></div>
-            <div class="field"><label for="randomblockchain-participants">Количество участников (максимальное число)</label><input id="randomblockchain-participants" name="participants" type="number" min="2" value="100" placeholder="Введите число участников"></div>
+            <div class="field"><label for="randomblockchain-first">Первый блок (начальный) / Сигнатура первого указанного блока</label><input id="randomblockchain-first" name="first" type="text" required inputmode="numeric" placeholder="Введите стартовый блок" value="${escapeHtml(initialFirst)}"></div>
+            <div class="field"><label for="randomblockchain-second">Второй блок, на основе которого будет производиться генерация / Сигнатура второго указанного блока</label><input id="randomblockchain-second" name="second" type="text" required inputmode="numeric" placeholder="Введите второй блок" value="${escapeHtml(initialSecond)}"></div>
+            <div class="field"><label for="randomblockchain-participants">Количество участников (максимальное число)</label><input id="randomblockchain-participants" name="participants" type="number" min="2" value="${escapeHtml(initialParticipants)}" placeholder="Введите число участников"></div>
             <div class="field"><label for="randomblockchain-list">Список данных, указывайте каждый элемент с новой строки</label><textarea id="randomblockchain-list" name="data_list" rows="6" placeholder="Если заполнено, N берётся из количества строк, а победитель будет показан текстом."></textarea></div>
             <button type="submit">Вычислить счастливое число</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -10217,14 +10235,16 @@ Memo key: ${keys.memo}`);
       </section>`;
     const form = document.getElementById('randomblockchain-form');
     const resultEl = form.querySelector('[data-operation-result]');
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
+    async function calculateAndRender(updateUrl) {
       const data = new FormData(form);
       const first = String(data.get('first') || '').trim();
       const second = String(data.get('second') || '').trim();
       const list = String(data.get('data_list') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
       const participants = list.length || (Number.parseInt(String(data.get('participants') || '100'), 10) || 100);
       const modulo = Math.max(2, participants);
+      if (updateUrl) {
+        replaceHashParams({ chain: chain.id, app: 'randomblockchain', block1: first, block2: second, participants: list.length ? '' : String(modulo) });
+      }
       try {
         resultEl.textContent = 'Получаю блоки и считаю random локально...';
         const connection = await getConnection(chain);
@@ -10234,13 +10254,21 @@ Memo key: ${keys.memo}`);
         ]);
         const random = await hashRandomBlockchainSeeds(chain, firstSeed, secondSeed, modulo);
         const winner = list.length ? list[random.value] : '';
-        resultEl.innerHTML = `<p><strong>Счастливое число:</strong> ${escapeHtml(random.luckyNumber)}</p>${winner ? `<p><strong>Победитель:</strong> ${escapeHtml(winner)}</p>` : ''}<p class="muted">Алгоритм: ${escapeHtml(random.algorithm)}. Legacy VIZ возвращает остаток + 1, поэтому диапазон результата — 1..N.</p>${rawJsonDetails('Данные расчёта', { chain: chain.id, participants: modulo, hash: random.hash, resultIndexZeroBased: random.value, luckyNumber: random.luckyNumber, winner, first: firstSeed, second: secondSeed })}`;
+        const permalink = `${global.location.origin || ''}${global.location.pathname || ''}#${new URLSearchParams({ chain: chain.id, app: 'randomblockchain', block1: first, block2: second, participants: list.length ? String(list.length) : String(modulo) }).toString()}`;
+        resultEl.innerHTML = `<p><strong>Счастливое число:</strong> ${escapeHtml(random.luckyNumber)}</p>${winner ? `<p><strong>Победитель:</strong> ${escapeHtml(winner)}</p>` : ''}<p><strong>Блоки результата:</strong> ${escapeHtml(first)}, ${escapeHtml(second)}</p><p><a href="${escapeHtml(permalink)}">Ссылка на результат с этими блоками</a></p><p class="muted">Алгоритм: ${escapeHtml(random.algorithm)}. Legacy VIZ возвращает остаток + 1, поэтому диапазон результата — 1..N.</p>${rawJsonDetails('Данные расчёта', { chain: chain.id, participants: modulo, hash: random.hash, resultIndexZeroBased: random.value, luckyNumber: random.luckyNumber, winner, first: firstSeed, second: secondSeed })}`;
         setStatus(`${chain.title}: randomblockchain посчитан по публичным данным.`, 'ok');
       } catch (error) {
         resultEl.textContent = profiles.formatError(error);
         setStatus(profiles.formatError(error), 'error');
       }
+    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await calculateAndRender(true);
     });
+    if (initialFirst && initialSecond) {
+      setTimeout(() => { calculateAndRender(false); }, 0);
+    }
     setStatus(`${chain.title}: randomblockchain готов.`, 'ok');
   }
 
@@ -12756,6 +12784,21 @@ Memo key: ${keys.memo}`);
     return fetchJsonText(longUrl(path, params), 'LONG backend');
   }
 
+  async function fetchLongText(path, params) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+    try {
+      const response = await fetch(longUrl(path, params), { headers: { accept: 'text/html, text/plain;q=0.9, application/json;q=0.5, */*;q=0.1' }, signal: controller ? controller.signal : undefined });
+      if (!response.ok) throw new Error(`LONG backend HTTP ${response.status}`);
+      return response.text();
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('LONG backend не ответил за 10 секунд.');
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   async function fetchMinterLongPool() {
     try {
       return await fetchJsonText(MINTER_LONG_POOL_URL, 'Minter pool API');
@@ -12766,14 +12809,21 @@ Memo key: ${keys.memo}`);
   }
 
   function longPageHash(page, extra = {}) {
-    return appHash(Object.assign({ chain: 'minter', app: 'long', longPage: page }, extra));
+    return appHash(Object.assign({ chain: 'minter', app: 'long', long_page: page }, extra));
+  }
+
+  function normalizeLongPage(value) {
+    const page = String(value || '').trim();
+    if (page === 'lotto') return 'loto';
+    return page || 'main';
   }
 
   function renderLongNav(activePage) {
     const items = [
       ['main', 'Обзор и рейтинг'],
       ['bids', 'Ставки'],
-      ['deferred-txs', 'Отложенные транзакции']
+      ['deferred-txs', 'Отложенные транзакции'],
+      ['loto', 'Лотерея']
     ];
     return `<nav class="subnav" aria-label="LONG"><ul>${items.map(([page, title]) => `<li>${page === activePage ? `<strong>${escapeHtml(title)}</strong>` : `<a href="${escapeHtml(longPageHash(page))}">${escapeHtml(title)}</a>`}</li>`).join('')}</ul></nav>`;
   }
@@ -12961,11 +13011,58 @@ Memo key: ${keys.memo}`);
     setStatus(`LONG: отложенные транзакции загружены (${rows.length}).`, 'ok');
   }
 
+  function currentUtcDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function renderLongLotoHistory(selectedDate) {
+    const start = Date.UTC(2021, 9, 29);
+    const today = Date.parse(`${currentUtcDate()}T00:00:00Z`);
+    if (!Number.isFinite(today) || today <= start) return '';
+    const links = [];
+    for (let time = start; time < today; time += 86400000) {
+      const date = new Date(time).toISOString().slice(0, 10);
+      links.push(`<li>${date === selectedDate ? `<strong>${escapeHtml(date)}</strong>` : `<a href="${escapeHtml(longPageHash('loto', { date }))}">${escapeHtml(date)}</a>`}</li>`);
+    }
+    return `<details><summary>Предыдущие лотереи</summary><ul>${links.reverse().join('')}</ul></details>`;
+  }
+
+  async function renderLongLoto() {
+    const state = parseHash();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(state.date || '')) ? String(state.date) : currentUtcDate();
+    appEl.innerHTML = '<section class="panel"><h2>LONG: лотерея</h2><p>Загружаю данные лотереи LONG...</p></section>';
+    setStatus('Загружаю LONG: лотерея...', 'loading');
+    const result = await fetchLongText('/loto', { date });
+    appEl.innerHTML = `<section class="panel"><h2>LONG: ежедневная лотерея</h2>${renderLongNav('loto')}
+      <p>О LONG можно узнать на странице обзора и рейтинга. Здесь показываются данные лотереи среди топ 100 провайдеров пула за выбранную дату.</p>
+      <article class="card"><h3>Правила</h3><ol>
+        <li>Проводится каждый день в случайное время.</li>
+        <li>Метод: сумма фарминга, умноженная на 10, но не более 10 000 LONG.</li>
+        <li>Собирается список топ 100 провайдеров пула.</li>
+        <li>Проверяется, что количество получений меньше или равно 50.</li>
+      </ol></article>
+      <form class="stacked-form" id="long-loto-date-form">
+        <div class="field"><label for="long-loto-date">Дата лотереи UTC</label><input id="long-loto-date" name="date" type="date" value="${escapeHtml(date)}"></div>
+        <button type="submit">Открыть дату</button>
+      </form>
+      <article class="card"><h3>Подробности за ${escapeHtml(date)}</h3><div class="longtext">${escapeHtml(result || 'Backend вернул пустой ответ.')}</div></article>
+      ${renderLongLotoHistory(date)}
+    </section>`;
+    const form = document.getElementById('long-loto-date-form');
+    if (form) form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const nextDate = String(new FormData(form).get('date') || '').trim();
+      navigate({ chain: 'minter', app: 'long', long_page: 'loto', date: nextDate });
+    });
+    setStatus(`LONG: лотерея за ${date} загружена из /api/smartfarm/loto.`, 'ok');
+  }
+
   async function renderMinterLong() {
     const state = parseHash();
-    const page = state.longPage || 'main';
+    const page = normalizeLongPage(state.long_page || state.longPage || 'main');
     if (page === 'bids') return renderLongBids();
     if (page === 'deferred-txs') return renderLongDeferredTxs();
+    if (page === 'loto') return renderLongLoto();
     return renderLongMain();
   }
 
