@@ -12,12 +12,12 @@ assert(appSource.includes('witness-choice-grid'), 'batch witness vote uses a gri
 assert(cssSource.includes('.witness-choice-grid'), 'CSS styles witness batch grid');
 assert(cssSource.includes('repeat(auto-fit, minmax(18rem, 1fr))'), 'witness grid is responsive and roughly 3 columns on desktop');
 assert(cssSource.includes('.witness-action-buttons') && cssSource.includes('flex: 1 1 13rem'), 'witness activation buttons wrap into mobile-friendly full-width rows');
-assert(appSource.includes('активный делегат') && appSource.includes('неактивный делегат'), 'witness batch list shows active/inactive delegate text');
+assert(appSource.includes("const statusName = chain.id === 'viz' ? 'валидатор' : 'делегат'") && appSource.includes('активный ${statusName}') && appSource.includes('неактивный ${statusName}'), 'witness batch list shows active/inactive delegate/validator text by chain');
 assert(appSource.includes('GOLOS1111111111111111111111111111111114T1Anm'), 'Golos legacy null signing key is detected for inactive witnesses');
 assert(appSource.includes('GLS1111111111111111111111111111111114T1Anm'), 'Golos deactivate operation keeps GLS null signing key');
 assert(appSource.includes('VIZ1111111111111111111111111111111114T1Anm'), 'VIZ null signing key is detected for inactive witnesses');
 assert(appSource.includes('Настройки witness / параметры сети'), 'witness props/settings are separated from activation');
-assert(appSource.includes('Активация или деактивация witness'), 'witness activation/deactivation has its own form copy');
+assert(appSource.includes('Активация или деактивация ${witnessLabel}'), 'witness/validator activation/deactivation has its own form copy');
 assert(appSource.includes('data-witness-action="activate"'), 'witness activation exposes a direct mobile-friendly action button');
 assert(appSource.includes('data-witness-action="deactivate"'), 'witness deactivation exposes a direct stop button');
 const witnessActionCopy = appSource.slice(appSource.indexOf('id="manage-witness-update-details"'), appSource.indexOf('id="viz-witness-props-details"'));

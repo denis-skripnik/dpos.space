@@ -58,7 +58,7 @@ assert(appSource.includes('createAccountState.pendingKeys'), 'Golos account crea
 assert(appSource.includes('manage-create-saved'), 'Golos account creation requires saved backup confirmation');
 assert(appSource.includes('manage-witnesses-batch-form'), 'Golos manage exposes batch witness voting form');
 assert(appSource.includes('getWitnessesByVote'), 'Golos manage can load witness list via public RPC');
-assert(appSource.includes("['account_witness_vote'"), 'Golos manage batch voting prepares account_witness_vote operations');
+assert(appSource.includes("const opName = chain.id === 'viz' ? 'account_validator_vote' : 'account_witness_vote'"), 'Golos manage batch voting prepares account_witness_vote operations outside VIZ');
 assert(appSource.includes('witnessVoteState.proxy'), 'Golos manage warns when proxy exists during manual witness voting');
 
 [

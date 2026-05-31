@@ -41,9 +41,9 @@ for (const method of [
   "'useInviteBalance'",
   "'claimInviteBalance'",
   "'createInvite'",
-  "'accountWitnessVote'"
+  "'accountValidatorVote'"
 ]) {
-  assert(bindVizForms.includes(method), `VIZ wallet prepares legacy method ${method}`);
+  assert(bindVizForms.includes(method), `VIZ wallet prepares method ${method}`);
 }
 
 assert(appSource.includes('encodeVizMemoIfNeeded'), 'VIZ encrypted memo helper is present');
