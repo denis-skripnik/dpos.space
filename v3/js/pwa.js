@@ -2,6 +2,7 @@
   'use strict';
 
   const SERVICE_WORKER_PATH = '/sw.js';
+  const PANEL_DISMISSED_KEY = 'dpos_pwa_panel_dismissed';
   let deferredInstallPrompt = null;
   let registrationPromise = null;
   let lastVisibilityNoticeAt = 0;
@@ -79,14 +80,43 @@
     });
   }
 
+  function isPanelDismissed() {
+    try {
+      return Boolean(global.localStorage && global.localStorage.getItem(PANEL_DISMISSED_KEY) === '1');
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function dismissPanel(container) {
+    try {
+      if (global.localStorage) global.localStorage.setItem(PANEL_DISMISSED_KEY, '1');
+    } catch (error) {
+      // Ignore storage errors: the close button should still hide the panel in this view.
+    }
+    if (container) {
+      container.hidden = true;
+      container.innerHTML = '';
+    }
+  }
+
   function renderPanel(container) {
     if (!container) return;
+    if (isPanelDismissed()) {
+      container.hidden = true;
+      container.innerHTML = '';
+      return;
+    }
+    container.hidden = false;
     const swText = supportsInstall() ? 'поддерживается' : 'нужен HTTPS или localhost';
     const installText = isStandalone() ? 'установлено / standalone' : (deferredInstallPrompt ? 'можно установить' : 'если браузер предложит установку, кнопка станет активной');
     const permission = notificationPermission();
     container.innerHTML = `
       <section class="panel pwa-panel" aria-labelledby="pwa-panel-heading">
-        <h2 id="pwa-panel-heading">Приложение и уведомления</h2>
+        <div class="pwa-panel-header">
+          <h2 id="pwa-panel-heading">Приложение и уведомления</h2>
+          <button type="button" class="secondary pwa-panel-close" data-pwa-dismiss aria-label="Скрыть блок про установку приложения и уведомления">Закрыть</button>
+        </div>
         <p>DPoS Space можно установить как PWA. Локальные процессы, например автоапвоутер, работают пока приложение/вкладка живы; после полного закрытия работа не обещается.</p>
         <ul>
           <li>Service Worker: ${escapeHtml(swText)}</li>
@@ -99,6 +129,10 @@
         </p>
         <p class="muted">Это не Web Push и не серверный фон: уведомления приходят от открытого приложения/PWA.</p>
       </section>`;
+    const dismissButton = container.querySelector('[data-pwa-dismiss]');
+    if (dismissButton) {
+      dismissButton.addEventListener('click', () => dismissPanel(container));
+    }
     const installButton = container.querySelector('[data-pwa-install]');
     if (installButton) {
       installButton.addEventListener('click', async () => {
