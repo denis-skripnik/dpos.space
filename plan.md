@@ -27,7 +27,26 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — VIZ validator terminology and viz-js-lib update
+## Current focused pass — Mobile-friendly PWA install/notification panel
+
+Scope:
+
+- Move the PWA install/local notification panel after the main app content so it reads like an end-of-page helper on phones instead of interrupting the selected service.
+- Add an accessible close control that hides only the PWA helper panel and persists the dismissal locally.
+- Keep the panel in normal document flow; it must not be fixed/sticky or cover the app page.
+- Preserve existing PWA/service-worker/notification behavior and honest foreground-runtime wording.
+
+Non-goals:
+
+- No change to service worker caching, notification permission semantics, auto-upvoter runtime, or install prompt logic.
+- No new server push or background execution promises.
+
+Validation:
+
+- Extend `tests/v3-pwa-smoke.js` to assert the panel appears after `<main>`, has a dismiss button/local dismissal key, and is not fixed over app content.
+- Regression gate: `node --check v3/js/pwa.js`, `node tests/v3-pwa-smoke.js`, `git diff --check`, and focused syntax checks for touched files.
+
+## Previous focused pass — VIZ validator terminology and viz-js-lib update
 
 Scope:
 

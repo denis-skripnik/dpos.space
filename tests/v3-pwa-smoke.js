@@ -8,6 +8,7 @@ const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const pwaSource = fs.readFileSync(path.join(root, 'v3/js/pwa.js'), 'utf8');
 const swSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+const styleSource = fs.readFileSync(path.join(root, 'v3/css/style.css'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
@@ -21,7 +22,15 @@ assert(fs.existsSync(path.join(root, 'v3/assets/icons/dpos-space-512.png')), '51
 assert(indexSource.includes('<link rel="manifest" href="/manifest.webmanifest">'), 'index links web manifest');
 assert(indexSource.includes('name="theme-color"'), 'index exposes theme color');
 assert(indexSource.includes('id="pwa-panel"'), 'index has accessible PWA status panel');
+assert(indexSource.includes('class="pwa-shell"'), 'PWA panel has a normal in-flow shell');
+assert(indexSource.indexOf('id="app"') < indexSource.indexOf('id="pwa-panel"'), 'PWA panel is rendered after main app content');
+assert(indexSource.indexOf('id="pwa-panel"') < indexSource.indexOf('<footer'), 'PWA panel stays near the end before footer');
 assert(indexSource.indexOf('v3/js/pwa.js') < indexSource.indexOf('v3/js/app.js'), 'PWA helper loads before app.js');
+assert(pwaSource.includes('data-pwa-dismiss'), 'PWA panel has a close button');
+assert(pwaSource.includes('PANEL_DISMISSED_KEY'), 'PWA close state is persisted locally');
+assert(pwaSource.includes('container.hidden = true'), 'PWA close hides only the PWA panel container');
+assert(styleSource.includes('.pwa-panel {\n  position: static;'), 'PWA panel is not fixed over the page');
+assert(!/\.pwa-panel\s*\{[^}]*position:\s*(fixed|sticky)/.test(styleSource), 'PWA panel must not overlay app content');
 
 assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-"), 'service worker has explicit versioned cache');
 assert(swSource.includes("'/v3/js/pwa.js'"), 'service worker caches PWA helper');

@@ -52,6 +52,7 @@ p {
 .site-footer,
 main,
 nav,
+.pwa-shell,
 .notifications-panel,
 .status {
   width: min(1100px, calc(100% - 2rem));
@@ -327,6 +328,40 @@ textarea {
 
 .status[data-state="ok"] {
   border-left-color: var(--ok);
+}
+
+.pwa-shell {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pwa-shell[hidden] {
+  display: none;
+}
+
+.pwa-panel {
+  position: static;
+}
+
+.pwa-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.pwa-panel-header h2 {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
+.pwa-panel-close {
+  flex: 0 0 auto;
+}
+
+.pwa-panel button {
+  margin-top: 0.25rem;
 }
 
 main {
