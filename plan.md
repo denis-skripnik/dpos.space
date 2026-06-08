@@ -27,7 +27,26 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — Mobile-friendly PWA install/notification panel
+## Current focused pass — VIZ validator signing-key history on current-settings load
+
+Scope:
+
+- When `Загрузить текущие валидатор настройки` fills the VIZ public block signing key, also save a reusable non-null public key into the existing validator/witness signing-key history.
+- Keep null/deactivation keys out of activation-key history and show an explicit hint when the loaded key is the VIZ null-key.
+- Apply the same helper semantics to Golos/Hive/Steem manage forms because they share the same code path, without changing their witness terminology or operation APIs.
+- Preserve the rule that private WIFs are never stored or inferred for validator/witness signing.
+
+Non-goals:
+
+- No changes to transaction signing, active/owner key handling, local auth format, or validator/witness operation parameters.
+- No new duplicate account selector or separate identity field.
+
+Validation:
+
+- Extend focused manage smoke tests to assert current-settings load remembers reusable public signing keys, returns a boolean save result, and does not store null/deactivation keys.
+- Regression gate: `node --check v3/js/app.js`, VIZ/manage smoke tests, shared manage UX smoke, `git diff --check`.
+
+## Previous focused pass — Mobile-friendly PWA install/notification panel
 
 Scope:
 

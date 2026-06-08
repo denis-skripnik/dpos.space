@@ -2063,8 +2063,10 @@
       if (!witness) throw new Error(chain.id === 'viz' ? 'Валидатор для текущего аккаунта не найден.' : 'Witness для текущего аккаунта не найден.');
       const form = document.getElementById('manage-witness-update-form');
       fillFormValue(form, 'url', witness.url || '');
-      fillFormValue(form, 'signingKey', witness.signing_key || witness.signingKey || '');
+      const signingKey = String(witness.signing_key || witness.signingKey || '').trim();
+      fillFormValue(form, 'signingKey', signingKey);
       fillFormValue(form, 'fee', `0.000 ${chain.liquidSymbol}`);
+      const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);
       let props = witness.props || {};
       if (!Object.keys(props).length) {
         props = await profiles.apiCall(connection, 'getChainProperties', []).catch(() => props);
@@ -2073,7 +2075,14 @@
       fillWitnessPropsForm(propsForm, chain, props);
       const propsResult = document.getElementById(chain.id === 'viz' ? 'viz-witness-props-prefill-result' : 'manage-witness-props-prefill-result');
       if (propsResult) propsResult.textContent = chain.id === 'viz' ? 'Validator props загружены в поля формы.' : 'Witness props загружены в поля формы.';
-      if (result) result.textContent = chain.id === 'viz' ? 'Настройки валидатора загружены через getValidatorByAccount.' : 'Witness настройки загружены через getWitnessByAccount.';
+      const keyStatus = signingKey
+        ? (savedSigningKey ? ' Публичный ключ подписи блоков сохранён для подсказки под полем.' : ` Загруженный ключ — null-key остановки, он не сохраняется как ключ активации.`)
+        : ' Ключ подписи блоков в текущих настройках не найден.';
+      if (result) result.textContent = (chain.id === 'viz' ? 'Настройки валидатора загружены через getValidatorByAccount.' : 'Witness настройки загружены через getWitnessByAccount.') + keyStatus;
+      if (signingKey && !savedSigningKey && !isReusableManageWitnessSigningKey(chain, signingKey)) {
+        const hint = document.getElementById('manage-witness-saved-key-hint');
+        if (hint) hint.textContent = chain.id === 'viz' ? 'Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.' : 'Текущий ключ — null-key остановленного делегата; сохранённого ключа активации пока нет.';
+      }
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
     }
@@ -2282,12 +2291,18 @@
     return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 10) : [];
   }
 
+  function isReusableManageWitnessSigningKey(chain, key) {
+    const text = String(key || '').trim();
+    return Boolean(text && text !== manageDeactivateSigningKey(chain) && text !== manageNullSigningKey(chain));
+  }
+
   function rememberManageWitnessSigningKey(chain, key) {
     const text = String(key || '').trim();
-    if (!text || text === manageDeactivateSigningKey(chain) || text === manageNullSigningKey(chain) || !global.localStorage) return;
+    if (!isReusableManageWitnessSigningKey(chain, text) || !global.localStorage) return false;
     const next = [text].concat(readManageWitnessSigningKeys(chain).filter((item) => item !== text)).slice(0, 10);
     global.localStorage.setItem(manageWitnessSigningKeyStorageKey(chain), JSON.stringify(next));
     renderManageWitnessSigningKeyHistory(chain);
+    return true;
   }
 
   function shortSigningKey(key) {

@@ -98,4 +98,13 @@ assert(planSource.includes('### Rigorous parity: VIZ / manage'), 'plan has exact
   'tests/v3-viz-manage-smoke.js'
 ].forEach((marker) => assert(planSource.includes(marker), `plan matrix evidence exists: ${marker}`));
 
+assert(appSource.includes('function isReusableManageWitnessSigningKey'), 'manage signing-key helper distinguishes reusable activation keys');
+assert(appSource.includes('return Boolean(text && text !== manageDeactivateSigningKey(chain) && text !== manageNullSigningKey(chain));'), 'manage signing-key history rejects null/deactivation keys');
+assert(appSource.includes('const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);'), 'loading current VIZ validator settings remembers reusable public signing key');
+assert(appSource.includes('Публичный ключ подписи блоков сохранён для подсказки под полем.'), 'current-settings load reports saved public signing key');
+assert(appSource.includes('Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.'), 'VIZ null-key load explains why activation key history stays empty');
+assert(appSource.includes('return true;') && appSource.includes('return false;'), 'rememberManageWitnessSigningKey returns whether it saved the key');
+
+assert(planSource.includes('VIZ validator signing-key history on current-settings load'), 'plan records VIZ current-settings signing-key history fix');
+
 console.log('v3 VIZ manage smoke passed');
