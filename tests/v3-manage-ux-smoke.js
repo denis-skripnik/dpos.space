@@ -29,6 +29,9 @@ assert(appSource.includes('shortSigningKey(key)'), 'saved witness key is display
 assert(appSource.includes('data-witness-saved-key'), 'saved witness key hint has a direct fill button');
 assert(appSource.includes('witnessSavedKeyHint.addEventListener'), 'saved witness key button fills the signing key input');
 assert(appSource.includes('keys.length === 1) input.value = keys[0]'), 'single saved witness key is auto-filled on render');
+assert(appSource.includes('function isReusableManageWitnessSigningKey'), 'witness signing-key storage checks reusable activation keys explicitly');
+assert(appSource.includes('const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);'), 'loading current witness/validator settings saves reusable public signing keys');
+assert(appSource.includes('Загруженный ключ — null-key остановки, он не сохраняется как ключ активации.'), 'loading null-key settings does not pretend a reusable activation key was saved');
 assert(!appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation must not derive signing key from active WIF');
 assert(!/active\s+(?:key|WIF)|active-ключ|active WIF/i.test(witnessActionCopy), 'public witness activation copy avoids confusing active-key wording');
 assert(appSource.includes('loadManageWitnessSettings(chain)'), 'witness settings preload is wired');
