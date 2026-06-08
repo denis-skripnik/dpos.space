@@ -99,8 +99,12 @@ assert(planSource.includes('### Rigorous parity: VIZ / manage'), 'plan has exact
 ].forEach((marker) => assert(planSource.includes(marker), `plan matrix evidence exists: ${marker}`));
 
 assert(appSource.includes('function isReusableManageWitnessSigningKey'), 'manage signing-key helper distinguishes reusable activation keys');
-assert(appSource.includes('return Boolean(text && text !== manageDeactivateSigningKey(chain) && text !== manageNullSigningKey(chain));'), 'manage signing-key history rejects null/deactivation keys');
-assert(appSource.includes('const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);'), 'loading current VIZ validator settings remembers reusable public signing key');
+assert(appSource.includes('function sameManageSigningKey'), 'manage signing-key helper compares null keys case-insensitively');
+assert(appSource.includes('sameManageSigningKey(text, manageDeactivateSigningKey(chain))') && appSource.includes('sameManageSigningKey(text, manageNullSigningKey(chain))'), 'manage signing-key history rejects null/deactivation keys case-insensitively');
+assert(appSource.includes("witnessKeyInput.addEventListener('change', () => rememberManageWitnessSigningKeyFromInput(chain))"), 'manual signing-key input is saved to history on change');
+assert(appSource.includes("witnessKeyInput.addEventListener('blur', () => rememberManageWitnessSigningKeyFromInput(chain))"), 'manual signing-key input is saved to history on blur');
+assert(appSource.includes("chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem'") && appSource.includes('renderManageWitnessSigningKeyHistory(chain);'), 'VIZ and other shared manage pages render saved signing-key history on page load');
+assert(appSource.includes('const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);'), 'loading current VIZ validator settings also remembers reusable public signing key');
 assert(appSource.includes('Публичный ключ подписи блоков сохранён для подсказки под полем.'), 'current-settings load reports saved public signing key');
 assert(appSource.includes('Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.'), 'VIZ null-key load explains why activation key history stays empty');
 assert(appSource.includes('return true;') && appSource.includes('return false;'), 'rememberManageWitnessSigningKey returns whether it saved the key');
