@@ -2291,9 +2291,16 @@
     return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 10) : [];
   }
 
+  function sameManageSigningKey(left, right) {
+    return String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+  }
+
   function isReusableManageWitnessSigningKey(chain, key) {
     const text = String(key || '').trim();
-    return Boolean(text && text !== manageDeactivateSigningKey(chain) && text !== manageNullSigningKey(chain));
+    if (!text) return false;
+    if (sameManageSigningKey(text, manageDeactivateSigningKey(chain)) || sameManageSigningKey(text, manageNullSigningKey(chain))) return false;
+    if (broadcast && typeof broadcast.isLikelyWif === 'function' && broadcast.isLikelyWif(text)) return false;
+    return true;
   }
 
   function rememberManageWitnessSigningKey(chain, key) {
@@ -2322,6 +2329,17 @@
     }
     const input = document.getElementById('manage-witness-key');
     if (input && !String(input.value || '').trim() && keys.length === 1) input.value = keys[0];
+  }
+
+  function rememberManageWitnessSigningKeyFromInput(chain) {
+    const input = document.getElementById('manage-witness-key');
+    if (!input) return false;
+    const saved = rememberManageWitnessSigningKey(chain, input.value);
+    if (saved) {
+      const hint = document.getElementById('manage-witness-saved-key-hint');
+      if (hint) hint.setAttribute('data-last-saved-from-input', 'true');
+    }
+    return saved;
   }
 
   async function resolveManageWitnessUrl(chain, typedUrl) {
@@ -8645,6 +8663,26 @@
     const createAccountState = { name: '', pendingKeys: null, backupConfirmed: false };
     const resetKeys = { pendingKeys: null, backupConfirmed: false };
     const manyInvitesState = { invites: [] };
+    if (chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') {
+      renderManageWitnessSigningKeyHistory(chain);
+      const witnessKeyInput = document.getElementById('manage-witness-key');
+      if (witnessKeyInput) {
+        witnessKeyInput.addEventListener('change', () => rememberManageWitnessSigningKeyFromInput(chain));
+        witnessKeyInput.addEventListener('blur', () => rememberManageWitnessSigningKeyFromInput(chain));
+      }
+      const witnessSavedKeyHint = document.getElementById('manage-witness-saved-key-hint');
+      if (witnessSavedKeyHint) {
+        witnessSavedKeyHint.addEventListener('click', (event) => {
+          const button = event.target && event.target.closest ? event.target.closest('[data-witness-saved-key]') : null;
+          if (!button) return;
+          const input = document.getElementById('manage-witness-key');
+          if (input) {
+            input.value = button.dataset.witnessSavedKey || '';
+            input.focus();
+          }
+        });
+      }
+    }
     if (chain.id === 'golos') {
       const createGeneratedEl = document.getElementById('manage-create-generated');
       const createDownloadBtn = document.getElementById('manage-create-download');
@@ -8753,19 +8791,6 @@ Memo key: ${keys.memo}`);
         savedBox.addEventListener('change', () => { resetKeys.backupConfirmed = savedBox.checked; });
       }
       prefillManageProfile(chain);
-      renderManageWitnessSigningKeyHistory(chain);
-      const witnessSavedKeyHint = document.getElementById('manage-witness-saved-key-hint');
-      if (witnessSavedKeyHint) {
-        witnessSavedKeyHint.addEventListener('click', (event) => {
-          const button = event.target && event.target.closest ? event.target.closest('[data-witness-saved-key]') : null;
-          if (!button) return;
-          const input = document.getElementById('manage-witness-key');
-          if (input) {
-            input.value = button.dataset.witnessSavedKey || '';
-            input.focus();
-          }
-        });
-      }
       const witnessLoad = document.getElementById('manage-witness-load');
       if (witnessLoad) witnessLoad.addEventListener('click', () => loadManageWitnessSettings(chain));
       const witnessPropsLoad = document.getElementById('manage-witness-props-load');
