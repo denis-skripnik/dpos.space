@@ -27,7 +27,26 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — VIZ validator signing-key history on current-settings load
+## Current focused pass — VIZ validator signing-key history on activation click
+
+Scope:
+
+- When the user presses `Активировать валидатора`, save the typed reusable VIZ public block signing key into chain/account history immediately, before script loading, confirmation, RPC, or broadcast can fail or rerender the page.
+- Keep the existing change/blur and operation-build saves as defense in depth, but do not rely on focus loss or successful operation preparation for the key to appear later.
+- When current VIZ settings report the null-key (`VIZ111...`), keep/refresh the saved-key hint so a previously activated key is offered by a direct one-click button under the field; only show “сохранённого ключа пока нет” when local history is genuinely empty.
+- Preserve the rule that private WIFs and chain null/deactivation keys are never stored or suggested as activation keys.
+
+Non-goals:
+
+- No changes to transaction signing, active/owner key handling, local auth format, or validator/witness operation parameters.
+- No new duplicate account selector or separate identity field.
+
+Validation:
+
+- Extend focused manage smoke tests to assert activation submit/click persistence is wired before `bindOperationForm` async preparation and before `loadScript`, current-settings null-key handling refreshes the visible saved-key history, and null/deactivation keys/WIFs remain excluded.
+- Regression gate: `node --check v3/js/app.js`, VIZ/manage smoke tests, shared manage UX smoke, Golos/Hive/Steem manage regressions, `git diff --check`.
+
+## Previous focused pass — VIZ validator signing-key history on current-settings load
 
 Scope:
 
