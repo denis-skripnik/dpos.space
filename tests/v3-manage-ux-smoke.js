@@ -34,6 +34,9 @@ assert(appSource.includes('function sameManageSigningKey'), 'witness signing-key
 assert(appSource.includes('rememberManageWitnessSigningKeyFromInput(chain)'), 'manual signing-key input can be saved before a later null-key state');
 assert(appSource.includes("witnessKeyInput.addEventListener('change', () => rememberManageWitnessSigningKeyFromInput(chain))"), 'manual signing-key input is persisted on change');
 assert(appSource.includes("witnessKeyInput.addEventListener('blur', () => rememberManageWitnessSigningKeyFromInput(chain))"), 'manual signing-key input is persisted on blur');
+assert(appSource.includes('function bindManageWitnessActivationKeyPersistence'), 'activation button has a dedicated pre-submit persistence helper');
+assert(appSource.includes("button.dataset.witnessAction === 'activate'"), 'activation click path persists a typed public signing key');
+assert(appSource.includes("form.addEventListener('submit', persistFromActivateSubmit, true)"), 'activation submit capture runs before async operation submission');
 assert(appSource.includes('const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);'), 'loading current witness/validator settings saves reusable public signing keys');
 assert(appSource.includes('Загруженный ключ — null-key остановки, он не сохраняется как ключ активации.'), 'loading null-key settings does not pretend a reusable activation key was saved');
 assert(!appSource.includes('getCurrentActivePublicSigningKey(chain)'), 'witness activation must not derive signing key from active WIF');

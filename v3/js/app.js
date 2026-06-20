@@ -2080,8 +2080,10 @@
         : ' Ключ подписи блоков в текущих настройках не найден.';
       if (result) result.textContent = (chain.id === 'viz' ? 'Настройки валидатора загружены через getValidatorByAccount.' : 'Witness настройки загружены через getWitnessByAccount.') + keyStatus;
       if (signingKey && !savedSigningKey && !isReusableManageWitnessSigningKey(chain, signingKey)) {
+        renderManageWitnessSigningKeyHistory(chain);
+        const keys = readManageWitnessSigningKeys(chain);
         const hint = document.getElementById('manage-witness-saved-key-hint');
-        if (hint) hint.textContent = chain.id === 'viz' ? 'Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.' : 'Текущий ключ — null-key остановленного делегата; сохранённого ключа активации пока нет.';
+        if (hint && !keys.length) hint.textContent = chain.id === 'viz' ? 'Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.' : 'Текущий ключ — null-key остановленного делегата; сохранённого ключа активации пока нет.';
       }
     } catch (error) {
       if (result) result.textContent = profiles.formatError(error);
@@ -2340,6 +2342,21 @@
       if (hint) hint.setAttribute('data-last-saved-from-input', 'true');
     }
     return saved;
+  }
+
+  function bindManageWitnessActivationKeyPersistence(chain) {
+    const form = document.getElementById('manage-witness-update-form');
+    if (!form) return;
+    const persistActivateKey = () => rememberManageWitnessSigningKeyFromInput(chain);
+    form.querySelectorAll('[data-witness-action="activate"]').forEach((button) => {
+      if (button.dataset.witnessAction === 'activate') button.addEventListener('click', persistActivateKey);
+    });
+    const persistFromActivateSubmit = (event) => {
+      const submitter = event && event.submitter;
+      const button = submitter && submitter.dataset ? submitter : (document.activeElement && document.activeElement.dataset ? document.activeElement : null);
+      if (button && button.dataset.witnessAction === 'activate') persistActivateKey();
+    };
+    form.addEventListener('submit', persistFromActivateSubmit, true);
   }
 
   async function resolveManageWitnessUrl(chain, typedUrl) {
@@ -8566,6 +8583,7 @@
       auth.getCurrentLogin(chain),
       String(form.get('proxy') || '').trim().replace(/^@/, '')
     ]));
+    bindManageWitnessActivationKeyPersistence(chain);
     bindOperationForm(chain, 'manage-witness-form', (form) => {
       const target = normalizeAccountInput(chain, form.get('witness'), chain.id === 'viz' ? 'Валидатор' : 'Witness');
       return broadcast.prepare(chain, 'active', chain.id === 'viz' ? 'accountValidatorVote' : 'accountWitnessVote', [
