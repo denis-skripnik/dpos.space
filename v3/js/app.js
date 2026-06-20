@@ -2289,8 +2289,13 @@
   function readManageWitnessSigningKeys(chain) {
     if (!global.localStorage) return [];
     const raw = global.localStorage.getItem(manageWitnessSigningKeyStorageKey(chain));
-    const parsed = parseJsonObject(raw, []);
-    return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 10) : [];
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 10) : [];
+    } catch (error) {
+      return [];
+    }
   }
 
   function sameManageSigningKey(left, right) {

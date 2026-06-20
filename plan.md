@@ -27,7 +27,31 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — VIZ validator signing-key history on activation click
+## Current focused pass — VIZ validator signing-key history survives refresh
+
+Root cause:
+
+- Activation-click persistence wrote the public signing key into `localStorage`, but `readManageWitnessSigningKeys()` parsed the stored JSON array through `parseJsonObject()`.
+- `parseJsonObject()` intentionally rejects arrays, so the rendered hint always saw an empty list after refresh and showed `Сохранённого ключа пока нет.` despite the key being stored.
+
+Scope:
+
+- Read signing-key history with an array-safe JSON parser so stored public keys survive refresh and route rerender.
+- Keep the activation click/capture-submit persistence from the previous pass, but prove it with a runtime DOM/localStorage regression rather than only string smoke checks.
+- When current VIZ settings report the null-key (`VIZ111...`), the saved-key hint must offer a direct one-click button if local history contains a reusable public key; only show “сохранённого ключа пока нет” when local history is genuinely empty.
+- Preserve the rule that private WIFs and chain null/deactivation keys are never stored or suggested as activation keys.
+
+Non-goals:
+
+- No changes to transaction signing, active/owner key handling, local auth format, or validator/witness operation parameters.
+- No new duplicate account selector or separate identity field.
+
+Validation:
+
+- Add/extend a runtime smoke test that executes `app.js` in a DOM-like environment: click `Активировать валидатора`, verify the JSON array is stored, rerender as after refresh, and verify the saved-key button/hint is visible.
+- Regression gate: `node --check v3/js/app.js`, VIZ/manage smoke tests, shared manage UX smoke, Golos/Hive/Steem manage regressions, `git diff --check`.
+
+## Previous focused pass — VIZ validator signing-key history on activation click
 
 Scope:
 
