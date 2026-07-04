@@ -48,8 +48,8 @@ assert(appSource.includes("app: 'dpos.space/post'"), 'Golos editor preserves leg
 assert(appSource.includes("format: 'markdown'"), 'Golos editor preserves markdown metadata format');
 assert(appSource.includes('image: images'), 'Golos editor includes preview image metadata');
 assert(appSource.includes("tags.includes('dpos-post')"), 'Golos editor appends dpos-post tag');
-assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Golos editor publish form is collapsed under operation details');
-assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Golos editor details summary makes preview-before-send explicit');
+assert(appSource.includes('id="editor-operation-details" class="operation-modal-source"'), 'Golos editor publish form is available as modal-upgraded operation source');
+assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Golos editor modal trigger title makes preview-before-send explicit');
 assert(appSource.includes('function renderMarkdownEditorField'), 'Golos editor uses shared Markdown editor renderer');
 assert(appSource.includes('role="toolbar" aria-label="Панель форматирования Markdown"'), 'Markdown editor toolbar is labelled for accessibility');
 assert(appSource.includes('data-md-action="bold"') && appSource.includes('data-md-action="table"'), 'Markdown editor exposes formatting buttons');

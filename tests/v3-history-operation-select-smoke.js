@@ -2,14 +2,21 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const historySource = fs.readFileSync(path.join(root, 'v3/js/history.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
+function readLegacyProfileSource(chain) {
+  const siblingPath = path.resolve(root, `../dpos.space/blockchains/${chain}/apps/profiles/js/app.js`);
+  if (fs.existsSync(siblingPath)) return fs.readFileSync(siblingPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:blockchains/${chain}/apps/profiles/js/app.js`], { cwd: root, encoding: 'utf8' });
+}
+
 const legacySources = Object.fromEntries(['golos', 'viz', 'steem', 'hive'].map((chain) => [
   chain,
-  fs.readFileSync(path.resolve(root, `../dpos.space/blockchains/${chain}/apps/profiles/js/app.js`), 'utf8')
+  readLegacyProfileSource(chain)
 ]));
 
 for (const [chain, source] of Object.entries(legacySources)) {

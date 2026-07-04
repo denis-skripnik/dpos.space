@@ -1,16 +1,24 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const profilesSource = fs.readFileSync(path.join(root, 'v3/js/profiles.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
-const legacyIndex = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/profiles/index.php'), 'utf8');
-const legacyContent = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/profiles/content.php'), 'utf8');
-const legacyUserinfo = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/profiles/page/userinfo.php'), 'utf8');
-const legacyHistoryJs = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/profiles/js/app.js'), 'utf8');
+
+function readLegacyFile(relativePath) {
+  const localPath = path.resolve(root, '../dpos.space', relativePath);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:${relativePath}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyIndex = readLegacyFile('blockchains/viz/apps/profiles/index.php');
+const legacyContent = readLegacyFile('blockchains/viz/apps/profiles/content.php');
+const legacyUserinfo = readLegacyFile('blockchains/viz/apps/profiles/page/userinfo.php');
+const legacyHistoryJs = readLegacyFile('blockchains/viz/apps/profiles/js/app.js');
 
 assert(legacyContent.includes('Введите логин без @'), 'legacy profile search form inspected');
 assert(legacyIndex.includes('/transfers') && legacyIndex.includes('/receive-awards') && legacyIndex.includes('/subscriptions'), 'legacy profile subpage nav inspected');

@@ -1,16 +1,24 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
-const legacyCatalog = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/projects/pages/catalog/content.php'), 'utf8');
-const legacyTasks = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/projects/pages/tasks/content.php'), 'utf8');
-const legacyAdd = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/projects/pages/add/content.php'), 'utf8');
-const legacyNewTask = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/projects/pages/new-task/content.php'), 'utf8');
-const legacyJs = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/projects/js/app.js'), 'utf8');
+
+function readLegacyFile(relativePath) {
+  const localPath = path.resolve(root, '../dpos.space', relativePath);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:${relativePath}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyCatalog = readLegacyFile('blockchains/viz/apps/projects/pages/catalog/content.php');
+const legacyTasks = readLegacyFile('blockchains/viz/apps/projects/pages/tasks/content.php');
+const legacyAdd = readLegacyFile('blockchains/viz/apps/projects/pages/add/content.php');
+const legacyNewTask = readLegacyFile('blockchains/viz/apps/projects/pages/new-task/content.php');
+const legacyJs = readLegacyFile('blockchains/viz/apps/projects/js/app.js');
 
 assert(legacyCatalog.includes('service=viz-projects&type=projects'), 'legacy catalog backend dependency inspected');
 assert(legacyTasks.includes('service=viz-projects&type=tasks'), 'legacy tasks backend dependency inspected');
@@ -25,8 +33,8 @@ assert(appSource.includes('viz-projects-catalog') && appSource.includes('Кат�
 assert(appSource.includes('viz-projects-tasks') && appSource.includes('Список задач'), 'renderer keeps tasks section');
 assert(appSource.includes('viz-projects-add-project-form') && appSource.includes('Стоимость добавления проекта: 1.000 VIZ'), 'renderer keeps add-project form and fee');
 assert(appSource.includes('viz-projects-add-task-form') && appSource.includes('Стоимость добавления задачи: 1.000 VIZ'), 'renderer keeps add-task form and fee');
-assert(appSource.includes('id="viz-projects-add-project-details" class="operation-details"'), 'add-project operation form is separated in an accessible spoiler');
-assert(appSource.includes('id="viz-projects-add-task-details" class="operation-details"'), 'add-task operation form is separated in an accessible spoiler');
+assert(appSource.includes('id="viz-projects-add-project-details" class="operation-modal-source"'), 'add-project operation form is rendered as a modal-upgraded source');
+assert(appSource.includes('id="viz-projects-add-task-details" class="operation-modal-source"'), 'add-task operation form is rendered as a modal-upgraded source');
 assert(appSource.includes("broadcast.prepare(chain, 'active', 'transfer'") && appSource.includes("'viz-projects'") && appSource.includes("'1.000 VIZ'"), 'v3 prepares legacy paid transfer to viz-projects');
 assert(appSource.includes("['project', data]") && appSource.includes("['task', data]"), 'v3 memo format preserves legacy [type,data] JSON');
 assert(appSource.includes("app: 'history'") && appSource.includes('query: \'viz-projects\''), 'v3 gives public history fallback for indexed lists');

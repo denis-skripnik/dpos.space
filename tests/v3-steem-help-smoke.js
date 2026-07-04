@@ -1,15 +1,23 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
-const legacyConfig = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/steem/apps/help/config.json'), 'utf8');
-const legacyContent = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/steem/apps/help/content.php'), 'utf8');
-const legacyIndex = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/steem/apps/help/index.php'), 'utf8');
+
+function readLegacyFile(relativePath) {
+  const localPath = path.resolve(root, '../dpos.space', relativePath);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:${relativePath}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyConfig = readLegacyFile('blockchains/steem/apps/help/config.json');
+const legacyContent = readLegacyFile('blockchains/steem/apps/help/content.php');
+const legacyIndex = readLegacyFile('blockchains/steem/apps/help/index.php');
 
 const sandbox = { window: {} };
 vm.runInNewContext(chainsSource, sandbox);

@@ -65,7 +65,7 @@ assert(appSource.includes("prepareWithPrivateKey(chain, account, 'owner'"), 'aut
 assert(appSource.includes('Owner WIF используется только в памяти'), 'authority update warns about owner WIF handling');
 
 assert(appSource.includes('renderTransactionsTable'), 'profiles/history use shared accessible transaction table renderer');
-assert(appSource.includes('<details class="operation-details"'), 'wallet operations are grouped in native details/summary spoilers');
+assert(appSource.includes('<details class="operation-modal-source"'), 'wallet operations are grouped in modal-upgraded operation sources');
 assert(!appSource.includes('Особенности кошелька'), 'wallet does not show technical wallet-capabilities block');
 assert(appSource.includes('<caption>'), 'transaction tables include captions');
 assert(appSource.includes('scope=\"col\"'), 'transaction tables include scoped column headers');

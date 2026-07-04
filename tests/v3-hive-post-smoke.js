@@ -133,7 +133,7 @@ const socialCommentSlice = appSource.slice(
 );
 assert(socialCommentSlice.length > 1000, 'test isolates Hive/Steem social post/comment runtime slice');
 for (const marker of [
-  '<details class="vote-details" data-vote-details>',
+  '<details class="operation-modal-source vote-details" data-vote-details>',
   'data-social-post-vote-form',
   'name="percent" data-vote-percent type="range" min="-100" max="100" step="1" value="100"'
 ]) {

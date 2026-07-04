@@ -42,6 +42,176 @@
     statusEl.dataset.state = state || 'info';
   }
 
+
+  const modalStack = [];
+  let generatedModalId = 0;
+
+  function modalFocusableElements(modal) {
+    if (!modal) return [];
+    return Array.from(modal.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter((item) => item.offsetParent !== null || item === document.activeElement);
+  }
+
+  function restoreModalFocus(entry) {
+    const target = entry && entry.opener && entry.opener.isConnected ? entry.opener : entry && entry.previousFocus;
+    if (target && target.isConnected && typeof target.focus === 'function') target.focus();
+  }
+
+  function updateModalBodyState() {
+    document.body.classList.toggle('app-modal-open', modalStack.length > 0);
+  }
+
+  function openAppModal(modalOrId, opener) {
+    const modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
+    if (!modal) return null;
+    if (modalStack.length && modalStack[modalStack.length - 1].modal === modal) return modal;
+    const previousFocus = document.activeElement;
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-modal', 'true');
+    modalStack.push({ modal, opener: opener || previousFocus, previousFocus });
+    updateModalBodyState();
+    const focusable = modalFocusableElements(modal);
+    const first = modal.querySelector('[data-app-modal-close]') || focusable[0] || modal;
+    if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+    global.setTimeout(() => {
+      if (first && typeof first.focus === 'function') first.focus();
+      else modal.focus();
+    }, 0);
+    return modal;
+  }
+
+  function closeTopModal() {
+    const entry = modalStack.pop();
+    if (!entry) return;
+    entry.modal.classList.remove('is-open');
+    entry.modal.hidden = true;
+    updateModalBodyState();
+    restoreModalFocus(entry);
+  }
+
+  function trapModalFocus(event) {
+    const entry = modalStack[modalStack.length - 1];
+    if (!entry) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeTopModal();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = modalFocusableElements(entry.modal);
+    if (!focusable.length) {
+      event.preventDefault();
+      entry.modal.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function openModalForElement(element, opener) {
+    const modal = element && element.closest ? element.closest('[data-app-modal]') : null;
+    if (!modal) return null;
+    return openAppModal(modal, opener);
+  }
+
+  function openModalForForm(formId, opener) {
+    const form = document.getElementById(formId);
+    if (!form) return null;
+    return openModalForElement(form, opener);
+  }
+
+  function upgradeOperationDetailsToModals(root) {
+    const scope = root || document;
+    if (!scope || typeof scope.querySelectorAll !== 'function') return;
+    scope.querySelectorAll('details.operation-modal-source').forEach((details) => {
+      const summary = details.querySelector(':scope > summary');
+      const title = summary ? summary.textContent.trim() : 'Операция';
+      const rawId = details.id || `operation-modal-${++generatedModalId}`;
+      const labelId = `${rawId}-title`;
+      const section = document.createElement('section');
+      section.className = 'operation-modal-entry';
+      section.id = `${rawId}-entry`;
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'operation-modal-trigger';
+      trigger.setAttribute('data-app-modal-open', rawId);
+      trigger.textContent = title || 'Открыть операцию';
+      const modal = document.createElement('div');
+      modal.id = rawId;
+      modal.className = 'app-modal';
+      Array.from(details.attributes).forEach((attribute) => {
+        if (attribute.name === 'id' || attribute.name === 'class' || attribute.name === 'open') return;
+        modal.setAttribute(attribute.name, attribute.value);
+      });
+      details.classList.forEach((className) => {
+        if (className !== 'operation-modal-source') modal.classList.add(className);
+      });
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', labelId);
+      modal.setAttribute('data-app-modal', '');
+      modal.hidden = true;
+      const backdrop = document.createElement('div');
+      backdrop.className = 'app-modal-backdrop';
+      const panel = document.createElement('div');
+      panel.className = 'app-modal-panel';
+      const header = document.createElement('div');
+      header.className = 'app-modal-header';
+      const topClose = document.createElement('button');
+      topClose.type = 'button';
+      topClose.className = 'app-modal-close';
+      topClose.setAttribute('data-app-modal-close', '');
+      topClose.textContent = 'Закрыть окно';
+      const heading = document.createElement('h3');
+      heading.id = labelId;
+      heading.textContent = title || 'Операция';
+      header.append(topClose, heading);
+      const body = document.createElement('div');
+      body.className = 'app-modal-body';
+      Array.from(details.childNodes).forEach((node) => {
+        if (node === summary) return;
+        body.appendChild(node);
+      });
+      const footer = document.createElement('div');
+      footer.className = 'app-modal-footer';
+      const bottomClose = document.createElement('button');
+      bottomClose.type = 'button';
+      bottomClose.className = 'app-modal-close';
+      bottomClose.setAttribute('data-app-modal-close', '');
+      bottomClose.textContent = 'Закрыть окно';
+      footer.appendChild(bottomClose);
+      panel.append(header, body, footer);
+      modal.append(backdrop, panel);
+      section.append(trigger, modal);
+      details.replaceWith(section);
+    });
+  }
+
+  if (document && typeof document.addEventListener === 'function') {
+    document.addEventListener('keydown', trapModalFocus);
+    document.addEventListener('click', (event) => {
+      const openButton = event.target && event.target.closest ? event.target.closest('[data-app-modal-open]') : null;
+      if (openButton) {
+        event.preventDefault();
+        openAppModal(openButton.dataset.appModalOpen, openButton);
+        return;
+      }
+      const closeButton = event.target && event.target.closest ? event.target.closest('[data-app-modal-close]') : null;
+      if (closeButton) {
+        event.preventDefault();
+        closeTopModal();
+      }
+    });
+  }
+
   function safeMarkdownUrl(value) {
     const raw = String(value || '').trim();
     if (!raw) return '#';
@@ -1601,8 +1771,7 @@
       button.addEventListener('click', () => {
         const form = root.querySelector(`#${button.dataset.walletOpenForm}`);
         if (!form) return;
-        const details = form.closest('details');
-        if (details) details.open = true;
+        openModalForElement(form, button);
         let target = null;
         Object.entries(button.dataset).forEach(([key, value]) => {
           if (!key.startsWith('walletFill')) return;
@@ -2163,7 +2332,7 @@
       const activeRows = groups.find(([state]) => state === 'created')?.[1] || [];
       const historyRows = groups.filter(([state]) => state !== 'created');
       if (activeList) activeList.innerHTML = activeRows.length ? activeRows.map((row) => renderGolosWorkerCard(row, true)).join('') : '<p class="muted">Активных заявок для голосования нет.</p>';
-      if (historyList) historyList.innerHTML = historyRows.map(([state, rows]) => `<details><summary>${escapeHtml(workerStateLabel(state))}: ${rows.length}</summary>${rows.length ? `<div class="request-list">${rows.map((row) => renderGolosWorkerCard(row, false)).join('')}</div>` : '<p class="muted">Нет заявок.</p>'}</details>`).join('');
+      if (historyList) historyList.innerHTML = historyRows.map(([state, rows]) => `<section class="subpanel request-history-group" aria-label="${escapeHtml(workerStateLabel(state))}: ${rows.length}"><h4>${escapeHtml(workerStateLabel(state))}: ${rows.length}</h4>${rows.length ? `<div class="request-list">${rows.map((row) => renderGolosWorkerCard(row, false)).join('')}</div>` : '<p class="muted">Нет заявок.</p>'}</section>`).join('');
       const bindButtons = (root) => {
         if (!root) return;
         root.querySelectorAll('[data-worker-vote]').forEach((button) => {
@@ -3298,7 +3467,7 @@
 
   function operationDetails(title, body, open) {
     return `
-      <details class="operation-details" ${open ? 'open' : ''}>
+      <details class="operation-modal-source" ${open ? 'open' : ''}>
         <summary>${escapeHtml(title)}</summary>
         ${body}
       </details>`;
@@ -4551,8 +4720,7 @@
         const toInput = document.getElementById('wallet-delegation-to');
         const amountInput = document.getElementById('wallet-delegation-vesting');
         const interestInput = document.getElementById('wallet-golos-delegation-interest');
-        const details = amountInput && amountInput.closest('details');
-        if (details) details.open = true;
+        if (amountInput) openModalForElement(amountInput, button);
         if (toInput) toInput.value = delegatee;
         if (amountInput) amountInput.value = '0.000000 СГ';
         if (interestInput) interestInput.value = '0';
@@ -4840,8 +5008,7 @@
         const delegatee = button.dataset.vizCancelDelegation || '';
         const toInput = document.getElementById('wallet-delegation-to');
         const amountInput = document.getElementById('wallet-delegation-vesting');
-        const details = amountInput && amountInput.closest('details');
-        if (details) details.open = true;
+        if (amountInput) openModalForElement(amountInput, button);
         if (toInput) toInput.value = delegatee;
         if (amountInput) amountInput.value = '0.000000 SHARES';
         if (toInput) toInput.focus();
@@ -6523,7 +6690,7 @@
     const safeAuthor = String(author || '').replace(/[^a-zA-Z0-9_-]/g, '-');
     const safePermlink = String(permlink || '').replace(/[^a-zA-Z0-9_-]/g, '-');
     const inputId = `${safePrefix}-vote-percent-${safeAuthor}-${safePermlink}`.slice(0, 120);
-    return `<details class="vote-details" data-vote-details>
+    return `<details class="operation-modal-source vote-details" data-vote-details>
       <summary>Голос</summary>
       <form class="inline-form vote-form" data-${escapeHtml(safePrefix)}-vote-form data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
         <label for="${escapeHtml(inputId)}">Вес голоса: <output data-vote-output for="${escapeHtml(inputId)}">100%</output></label>
@@ -6636,7 +6803,7 @@
     const maxNumber = Number(info.maxNumber) > 0 ? Number(info.maxNumber).toFixed(3) : '';
     const currentTop = info.currentTop || `0.000 ${symbol}`;
     const memo = `@${author}/${permlink}`;
-    return `<details class="promotion-details" data-post-promotion-details>
+    return `<details class="operation-modal-source promotion-details" data-post-promotion-details>
       <summary>Продвигать</summary>
       <form class="stacked-form" data-post-promotion-form data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" data-symbol="${escapeHtml(symbol)}">
         <p class="muted">Перевод ${escapeHtml(symbol)} на <code>null</code> с memo <code>${escapeHtml(memo)}</code> сжигает средства и поднимает пост в промо-очереди.</p>
@@ -7702,7 +7869,7 @@
         <h2>${escapeHtml(chain.title)}: редактор</h2>
         <p>Редактор публикаций: подготовка поста, проверка операции и отправка по подтверждению.</p>
         ${editorPostQuotaNotice(chain)}
-        <details id="editor-operation-details" class="operation-details"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
+        <details id="editor-operation-details" class="operation-modal-source"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
           <fieldset>
             <legend>Публикация поста</legend>
             <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
@@ -8294,7 +8461,7 @@
           <a href="#viz-manage-multisig">Мультисиг</a>
         </nav>` : ''}
         <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">${witnessLabelPluralTitle} / ${validatorMode ? 'validator votes' : 'witness votes'}</h3></section>
-        <details id="manage-proxy-details" class="operation-details"><summary>${witnessProxyTitle} — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
+        <details id="manage-proxy-details" class="operation-modal-source"><summary>${witnessProxyTitle} — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
           <fieldset>
             <legend>${witnessProxyTitle}</legend>
             <div class="field"><label for="manage-proxy-login">Прокси-аккаунт</label><input id="manage-proxy-login" name="proxy" type="text" autocomplete="off" placeholder="пусто = снять proxy"></div>
@@ -8303,7 +8470,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-witness-details" class="operation-details"><summary>${witnessVoteTitle} — preview перед отправкой</summary><form id="manage-witness-form" class="stacked-form">
+        <details id="manage-witness-details" class="operation-modal-source"><summary>${witnessVoteTitle} — preview перед отправкой</summary><form id="manage-witness-form" class="stacked-form">
           <fieldset>
             <legend>${witnessVoteTitle}</legend>
             <div class="field"><label for="manage-witness-login">${validatorMode ? 'Валидатор' : 'Witness'}</label><input id="manage-witness-login" name="witness" type="text" required autocomplete="off"></div>
@@ -8313,7 +8480,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witnesses-batch-details" class="operation-details"><summary>${validatorMode ? 'Batch validator vote' : 'Batch witness vote'} — загрузить и проверить изменения</summary><form id="manage-witnesses-batch-form" class="stacked-form">
+        ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witnesses-batch-details" class="operation-modal-source"><summary>${validatorMode ? 'Batch validator vote' : 'Batch witness vote'} — загрузить и проверить изменения</summary><form id="manage-witnesses-batch-form" class="stacked-form">
           <fieldset>
             <legend>Список ${witnessLabelPlural} / ${validatorMode ? 'batch validator vote' : 'batch witness vote'}</legend>
             <p class="muted">Загружает текущие ${validatorMode ? 'validator_votes' : 'witness_votes'} и список ${witnessLabelPlural} через публичный RPC. Отправляет только изменения.</p>
@@ -8324,7 +8491,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>` : ''}
-        <details id="manage-witness-update-details" class="operation-details"><summary>Активация / деактивация ${witnessLabel} — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
+        <details id="manage-witness-update-details" class="operation-modal-source"><summary>Активация / деактивация ${witnessLabel} — простые действия</summary><form id="manage-witness-update-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-witness">Активация или деактивация ${witnessLabel}</span></legend>
             <p class="muted">Если нужно изменить ключ активации, вставьте новый ключ подписи блоков в поле и нажмите «${validatorMode ? 'Активировать валидатора' : 'Активировать делегата'}». Сохранённый ключ показан под полем сокращённо и доступен кнопкой.</p>
@@ -8339,7 +8506,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-details"><summary>Настройки валидатора / параметры сети — поля и подгрузка</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
+        ${chain.id === 'viz' ? `<details id="viz-witness-props-details" class="operation-modal-source"><summary>Настройки валидатора / параметры сети — поля и подгрузка</summary><form id="viz-witness-props-form" class="stacked-form"><fieldset>
           <legend>VIZ validator props / versionedChainPropertiesUpdate</legend>
           <p class="notice">Опасная операция валидатора: меняет chain properties VIZ. Заполните поля вручную или подгрузите текущие значения, затем проверьте preview перед отправкой.</p>
           <button type="button" id="viz-witness-props-load">Загрузить текущие validator props</button>
@@ -8348,7 +8515,7 @@
           <button type="submit" name="intent" value="preview">Проверить versionedChainPropertiesUpdate</button><button type="submit" name="intent" value="send">Отправить versionedChainPropertiesUpdate</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>` : ''}
-        ${(chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form"><fieldset>
+        ${(chain.id === 'hive' || chain.id === 'steem') ? `<details id="manage-witness-props-details" class="operation-modal-source"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form"><fieldset>
           <legend>${escapeHtml(chain.title)} witness props / chain_properties_update</legend>
           <p class="notice">Опасная witness операция: меняет chain properties. Подгрузите текущие параметры, измените нужные поля и обязательно проверьте preview.</p>
           <button type="button" id="manage-witness-props-load">Загрузить текущие witness props</button>
@@ -8357,7 +8524,7 @@
           <button type="submit" name="intent" value="preview">Проверить chain_properties_update</button><button type="submit" name="intent" value="send">Отправить chain_properties_update</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>` : ''}
-        <details id="manage-authority-details" class="operation-details"><summary>Authority / доступы — owner WIF только в памяти</summary><form id="manage-authority-form" class="stacked-form">
+        <details id="manage-authority-details" class="operation-modal-source"><summary>Authority / доступы — owner WIF только в памяти</summary><form id="manage-authority-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-access">Обновление authority / доступа</span></legend>
             <p class="muted">Обновление прав доступа: введите готовые публичные ключи/account auths. Owner WIF используется только для подписи и не сохраняется.</p>
@@ -8372,7 +8539,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-profile-details" class="operation-details"><summary>Метаданные профиля — preview перед обновлением</summary><form id="manage-profile-form" class="stacked-form">
+        <details id="manage-profile-details" class="operation-modal-source"><summary>Метаданные профиля — preview перед обновлением</summary><form id="manage-profile-form" class="stacked-form">
           <fieldset>
             <legend><span id="viz-manage-profile">Метаданные профиля</span></legend>
             ${(chain.id === 'golos' || chain.id === 'hive' || chain.id === 'steem') ? '<p id="manage-profile-prefill-result" class="muted" role="status" aria-live="polite">Текущий профиль будет загружен из json_metadata.</p>' : ''}
@@ -8398,7 +8565,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        ${chain.id === 'golos' ? `<details id="manage-create-account-details" class="operation-details"><summary>Создание аккаунта Golos — ключи и preview</summary><form id="manage-create-account-form" class="stacked-form">
+        ${chain.id === 'golos' ? `<details id="manage-create-account-details" class="operation-modal-source"><summary>Создание аккаунта Golos — ключи и preview</summary><form id="manage-create-account-form" class="stacked-form">
           <fieldset>
             <legend>Создание аккаунта Golos</legend>
             <p class="notice">Новые ключи генерируются локально. Перед отправкой скачайте backup нового аккаунта.</p>
@@ -8414,7 +8581,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-reset-keys-details" class="operation-details"><summary>Сброс ключей Golos — опасная операция</summary><form id="manage-reset-keys-form" class="stacked-form">
+        <details id="manage-reset-keys-details" class="operation-modal-source"><summary>Сброс ключей Golos — опасная операция</summary><form id="manage-reset-keys-form" class="stacked-form">
           <fieldset>
             <legend>Сброс ключей Golos</legend>
             <p class="notice">Опасная операция: старые owner/active/posting/memo ключи и account auths будут заменены одиночными новыми ключами. Сначала нажмите «Сгенерировать ключи» и сохраните backup.</p>
@@ -8428,7 +8595,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-follow-details" class="operation-details"><summary>Golos follow/unfollow — posting preview</summary><form id="manage-follow-form" class="stacked-form">
+        <details id="manage-follow-details" class="operation-modal-source"><summary>Golos follow/unfollow — posting preview</summary><form id="manage-follow-form" class="stacked-form">
           <fieldset>
             <legend>Подписки / follow</legend>
             <p class="muted">Static-safe перенос legacy subscribes: custom_json follow через posting key.</p>
@@ -8441,7 +8608,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
-        <details id="manage-workers-details" class="operation-details"><summary>Golos workers — заявки, голосование и создание</summary>
+        <details id="manage-workers-details" class="operation-modal-source"><summary>Golos workers — заявки, голосование и создание</summary>
           <section id="manage-workers-vote-section" aria-labelledby="manage-workers-vote-title">
             <h3 id="manage-workers-vote-title">Голосовать за воркеров</h3>
             <p class="muted">Активные заявки подгружаются через публичный RPC. Откройте заявку без модального окна, чтобы увидеть детали и голоса.</p>
@@ -8481,7 +8648,7 @@
             </fieldset></form>
           </section>
         </details>
-        <details id="manage-witness-props-details" class="operation-details"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form">
+        <details id="manage-witness-props-details" class="operation-modal-source"><summary>Настройки witness / параметры сети — поля и подгрузка</summary><form id="manage-witness-props-form" class="stacked-form">
           <fieldset>
             <legend>Golos witness props / chain_properties_update</legend>
             <p class="notice">Опасная операция witness: меняет chain properties. Подгрузите текущие значения, измените поля и проверьте preview перед отправкой.</p>
@@ -8493,7 +8660,7 @@
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>` : ''}
-        ${chain.id === 'viz' ? `<details id="viz-create-account-details" class="operation-details"><summary>VIZ: создать аккаунт/субаккаунт — ключи и preview</summary><form id="viz-create-account-form" class="stacked-form"><fieldset>
+        ${chain.id === 'viz' ? `<details id="viz-create-account-details" class="operation-modal-source"><summary>VIZ: создать аккаунт/субаккаунт — ключи и preview</summary><form id="viz-create-account-form" class="stacked-form"><fieldset>
           <legend><span id="viz-manage-create-account">VIZ: создать аккаунт/субаккаунт</span></legend>
           <p class="notice">Новые master/active/regular/memo ключи генерируются локально через crypto.getRandomValues. Preview операции показывает только публичные ключи; приватные ключи доступны только в backup-файле.</p>
           <div class="field"><label for="viz-create-name">Новый логин или имя субаккаунта</label><input id="viz-create-name" name="name" type="text" required autocomplete="off"></div>
@@ -8507,7 +8674,7 @@
           <div id="viz-create-generated" class="operation-result" role="status" aria-live="polite">Ключи нового аккаунта ещё не сгенерированы.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-reset-keys-details" class="operation-details"><summary>VIZ: сброс ключей — опасная операция</summary><form id="viz-reset-keys-form" class="stacked-form"><fieldset>
+        <details id="viz-reset-keys-details" class="operation-modal-source"><summary>VIZ: сброс ключей — опасная операция</summary><form id="viz-reset-keys-form" class="stacked-form"><fieldset>
           <legend><span id="viz-manage-reset-keys">VIZ: сброс ключей</span></legend>
           <p class="notice">Опасная операция: заменяет master/active/regular/memo authority одним новым ключом каждого типа. Owner/master WIF используется только в памяти; private WIF не попадает в preview/result.</p>
           <div class="field"><label for="viz-reset-account">Аккаунт для сброса</label><input id="viz-reset-account" name="account" type="text" value="${escapeHtml(auth.getCurrentLogin(chain) || '')}" required></div>
@@ -8520,7 +8687,7 @@
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
         <section id="viz-manage-many-invites" aria-labelledby="viz-many-invites-title"><h3 id="viz-many-invites-title">Множество инвайтов (чеков)</h3></section>
-        <details id="viz-many-invites-details" class="operation-details"><summary>VIZ: множество инвайтов — secrets и preview</summary><form id="viz-many-invites-form" class="stacked-form"><fieldset>
+        <details id="viz-many-invites-details" class="operation-modal-source"><summary>VIZ: множество инвайтов — secrets и preview</summary><form id="viz-many-invites-form" class="stacked-form"><fieldset>
           <legend>VIZ: batch create/use/claim invites</legend>
           <p class="notice">Генерация invite secret выполняется локально через crypto.getRandomValues. Preview create_invite содержит только публичные invite_key; секреты скачиваются отдельным backup.</p>
           <div class="field"><label for="viz-many-invites-mode">Режим</label><select id="viz-many-invites-mode" name="mode"><option value="create">создать много чеков</option><option value="use">использовать в SHARES</option><option value="claim">получить на баланс VIZ</option></select></div>
@@ -8533,14 +8700,14 @@
           <div id="viz-many-invites-result" class="operation-result" role="status" aria-live="polite">Secrets не отображаются в preview; скачайте backup после генерации.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-create-invite-details" class="operation-details"><summary>VIZ: создать один invite — preview</summary><form id="viz-create-invite-form" class="stacked-form"><fieldset>
+        <details id="viz-create-invite-details" class="operation-modal-source"><summary>VIZ: создать один invite — preview</summary><form id="viz-create-invite-form" class="stacked-form"><fieldset>
           <legend>VIZ: создание одного invite</legend>
           <div class="field"><label for="viz-invite-balance">Баланс инвайта</label><input id="viz-invite-balance" name="balance" type="text" required placeholder="1.000 VIZ"></div>
           <div class="field"><label for="viz-invite-public">Публичный ключ invite</label><input id="viz-invite-public" name="publicKey" type="text" required></div>
           <button type="submit" name="intent" value="preview">Проверить create_invite</button><button type="submit" name="intent" value="send">Создать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-use-invite-details" class="operation-details"><summary>VIZ: use/claim invite balance — secret only in form</summary><form id="viz-use-invite-form" class="stacked-form"><fieldset>
+        <details id="viz-use-invite-details" class="operation-modal-source"><summary>VIZ: use/claim invite balance — secret only in form</summary><form id="viz-use-invite-form" class="stacked-form"><fieldset>
           <legend>VIZ: использование/получение invite balance</legend>
           <div class="field"><label for="viz-use-invite-secret">Секрет invite</label><input id="viz-use-invite-secret" name="secret" type="text" required></div>
           <div class="field"><label for="viz-use-invite-receiver">Получатель</label><input id="viz-use-invite-receiver" name="receiver" type="text" placeholder="пусто = текущий аккаунт"></div>
@@ -8548,7 +8715,7 @@
           <button type="submit" name="intent" value="preview">Проверить invite use/claim</button><button type="submit" name="intent" value="send">Использовать invite в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-committee-details" class="operation-details"><summary>VIZ committee / фонд развития — заявки, голосование и создание</summary>
+        <details id="viz-committee-details" class="operation-modal-source"><summary>VIZ committee / фонд развития — заявки, голосование и создание</summary>
           <section id="viz-committee-vote-section" aria-labelledby="viz-committee-vote-title">
             <h3 id="viz-committee-vote-title"><span id="viz-manage-workers">Голосовать за заявки фонда развития</span></h3>
             <button type="button" id="viz-committee-load">Показать заявки фонда развития</button>
@@ -8582,7 +8749,7 @@
           </section>
         </details>
         <section id="viz-manage-multisig" aria-labelledby="viz-multisig-title"><h3 id="viz-multisig-title">Мультисиг</h3><p class="notice">Legacy multisig подписывал JSON-транзакции client-side и отправлял signed transaction через публичную ноду. В v3 доступны static-safe helpers: настройка account auths через accountUpdate и отправка заранее подписанной transaction JSON без хранения WIF.</p></section>
-        <details id="viz-multisig-authority-details" class="operation-details"><summary>VIZ multisig authority — проверить accountUpdate</summary><form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
+        <details id="viz-multisig-authority-details" class="operation-modal-source"><summary>VIZ multisig authority — проверить accountUpdate</summary><form id="viz-multisig-authority-form" class="stacked-form"><fieldset>
           <legend>VIZ multisig authority</legend>
           <div class="field"><label for="viz-multisig-owner-wif">Active WIF текущего аккаунта</label><input id="viz-multisig-owner-wif" name="activeWif" type="password" autocomplete="off" required></div>
           <div class="field"><label for="viz-multisig-kind">Authority</label><select id="viz-multisig-kind" name="kind"><option value="regular">regular</option><option value="active">active</option></select></div>
@@ -8591,7 +8758,7 @@
           <button type="submit" name="intent" value="preview">Проверить multisig accountUpdate</button><button type="submit" name="intent" value="send">Отправить multisig accountUpdate</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="viz-multisig-signed-tx-details" class="operation-details"><summary>VIZ signed transaction — проверить JSON перед broadcast</summary><form id="viz-multisig-signed-tx-form" class="stacked-form"><fieldset>
+        <details id="viz-multisig-signed-tx-details" class="operation-modal-source"><summary>VIZ signed transaction — проверить JSON перед broadcast</summary><form id="viz-multisig-signed-tx-form" class="stacked-form"><fieldset>
           <legend>VIZ signed transaction submit</legend>
           <div class="field"><label for="viz-multisig-signed-json">Signed transaction JSON</label><textarea id="viz-multisig-signed-json" name="signedTx" rows="6" required></textarea></div>
           <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX</button>
@@ -9626,7 +9793,7 @@ Memo key: ${keys.memo}`);
           <button type="submit" id="import-button">Импортировать локально</button>
           <div id="results" class="operation-result" role="status" aria-live="polite"></div>
         </fieldset></form>
-        <details id="viz-voice-publish-details" class="operation-details"><summary>Опубликовать в Voice — preview перед отправкой</summary><form id="viz-voice-publish-form" class="stacked-form"><fieldset>
+        <details id="viz-voice-publish-details" class="operation-modal-source"><summary>Опубликовать в Voice — preview перед отправкой</summary><form id="viz-voice-publish-form" class="stacked-form"><fieldset>
           <legend>Опубликовать в Voice</legend>
           <div class="field"><label for="viz-voice-title">Заголовок</label><input id="viz-voice-title" name="title" type="text" required></div>
           <div class="field"><label for="viz-voice-content">HTML/текст публикации</label><textarea id="viz-voice-content" name="content" rows="12" required></textarea></div>
@@ -9825,15 +9992,15 @@ Memo key: ${keys.memo}`);
     }).join('')}</tbody></table></div>`;
   }
 
-  function openSwapCancelDetails(orderId) {
-    const details = document.getElementById('swap-cancel-details');
-    if (details) details.open = true;
+  function openSwapCancelDetails(orderId, opener) {
+    const modal = document.getElementById('swap-cancel-details');
+    if (modal) openAppModal(modal, opener || document.activeElement);
     const input = document.getElementById('swap-cancel-id');
     if (input && orderId !== undefined && orderId !== null) {
       input.value = String(orderId);
       input.focus();
     }
-    if (details) details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (modal) modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function loadGrapheneOrderBook(chain, limit) {
@@ -10026,7 +10193,7 @@ Memo key: ${keys.memo}`);
         <p>Создание/отмена ордеров и прямой обмен по текущему стакану с подтверждением операции.</p>
         ${hiveSwapNotice}
         ${steemSwapNotice}
-        ${chain.id === 'golos' ? `<details id="swap-direct-details" class="operation-details"><summary>Прямой обмен — рассчитать и preview перед отправкой</summary><form id="swap-direct-form" class="stacked-form"><fieldset>
+        ${chain.id === 'golos' ? `<details id="swap-direct-details" class="operation-modal-source"><summary>Прямой обмен — рассчитать и preview перед отправкой</summary><form id="swap-direct-form" class="stacked-form"><fieldset>
           <legend>Прямой обмен по рынку</legend>
           <p class="muted">Legacy flow из dpos.space/golos/swap: расчёт через Golos DEX, затем отправка цепочки limit_order_create с fill_or_kill=true.</p>
           <button type="button" id="golos-swap-load-tokens">Загрузить мои токены и доступные пары</button>
@@ -10038,7 +10205,7 @@ Memo key: ${keys.memo}`);
           <button type="submit" name="intent" value="preview">Рассчитать и проверить обмен</button><button type="submit" name="intent" value="send">Совершить обмен в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>` : ''}
-        <details id="swap-create-details" class="operation-details"><summary>Создать лимитный ордер — preview перед отправкой</summary><form id="swap-create-form" class="stacked-form"><fieldset>
+        <details id="swap-create-details" class="operation-modal-source"><summary>Создать лимитный ордер — preview перед отправкой</summary><form id="swap-create-form" class="stacked-form"><fieldset>
           <legend>Создание лимитного ордера</legend>
           <div class="field"><label for="swap-order-id">ID ордера</label><input id="swap-order-id" name="orderId" type="number" min="0" step="1" required value="0"></div>
           <div class="field"><label for="swap-sell">Сумма продажи</label><input id="swap-sell" name="sell" type="text" required placeholder="1.000 ${escapeHtml(chain.liquidSymbol)}"></div>
@@ -10048,7 +10215,7 @@ Memo key: ${keys.memo}`);
           <button type="submit" name="intent" value="preview">Проверить ордер</button><button type="submit" name="intent" value="send">Создать ордер в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        <details id="swap-cancel-details" class="operation-details"><summary>Отменить ордер — preview перед отправкой</summary><form id="swap-cancel-form" class="stacked-form"><fieldset>
+        <details id="swap-cancel-details" class="operation-modal-source"><summary>Отменить ордер — preview перед отправкой</summary><form id="swap-cancel-form" class="stacked-form"><fieldset>
           <legend>Отмена ордера</legend>
           <div class="field"><label for="swap-cancel-id">ID ордера</label><input id="swap-cancel-id" name="orderId" type="number" min="0" step="1" required></div>
           <button type="submit" name="intent" value="preview">Проверить отмену</button><button type="submit" name="intent" value="send">Отменить ордер в сети</button>
@@ -10083,7 +10250,7 @@ Memo key: ${keys.memo}`);
     if (readonlyResult) readonlyResult.addEventListener('click', (event) => {
       const button = event.target && event.target.closest ? event.target.closest('[data-swap-cancel-prefill]') : null;
       if (!button) return;
-      openSwapCancelDetails(button.dataset.swapCancelPrefill);
+      openSwapCancelDetails(button.dataset.swapCancelPrefill, button);
       setStatus('ID ордера перенесён в форму отмены. Проверьте preview перед отправкой.', 'ok');
     });
     const orderbookBtn = document.getElementById('swap-orderbook-load');
@@ -10118,7 +10285,7 @@ Memo key: ${keys.memo}`);
         ${isGolos || isViz ? `<p>Регистрация по invite: WIF подписанта используется только в памяти для отправки и не сохраняется. Для ${escapeHtml(chain.title)} нужен приватный WIF service/invite аккаунта с правом регистрации.</p>` : '<p>Для Hive/Steem укажите fee/delegation и публичные ключи нового аккаунта. Операция отправляется только после подтверждения текущим active key.</p>'}
         ${isGolos ? '<p class="notice">Для Golos также доступно создание аккаунта с делегированием. Вводится только публичный ключ нового аккаунта; приватные ключи не генерируются и не показываются.</p>' : ''}
         ${isViz ? '<p class="notice">Legacy VIZ registration восстановлен безопаснее: приватный WIF нового аккаунта генерируется локально, хранится только в памяти страницы, показывается для копии/backup и не попадает в preview JSON.</p>' : ''}
-        <details id="register-form-details" class="operation-details"><summary>Создание аккаунта — проверить перед отправкой</summary><form id="register-form" class="stacked-form"><fieldset>
+        <details id="register-form-details" class="operation-modal-source"><summary>Создание аккаунта — проверить перед отправкой</summary><form id="register-form" class="stacked-form"><fieldset>
           <legend>Создание аккаунта</legend>
           <div class="field"><label for="register-name">Новый аккаунт</label><input id="register-name" name="name" type="text" required></div>
           ${isViz ? '<button type="button" id="viz-register-check-name">Проверить доступность имени</button><div id="viz-register-name-status" class="muted" role="status" aria-live="polite"></div>' : ''}
@@ -10141,7 +10308,7 @@ Memo key: ${keys.memo}`);
           <button type="submit" name="intent" value="send">Создать аккаунт в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>
-        ${isGolos ? `<details id="golos-register-delegation-details" class="operation-details"><summary>Golos: создание с делегированием — preview перед отправкой</summary><form id="golos-register-delegation-form" class="stacked-form"><fieldset>
+        ${isGolos ? `<details id="golos-register-delegation-details" class="operation-modal-source"><summary>Golos: создание с делегированием — preview перед отправкой</summary><form id="golos-register-delegation-form" class="stacked-form"><fieldset>
           <legend>Golos: создание аккаунта с делегированием</legend>
           <div class="field"><label for="golos-register-delegation-name">Новый аккаунт</label><input id="golos-register-delegation-name" name="name" type="text" required></div>
           <div class="field"><label for="golos-register-delegation-fee">Комиссия</label><input id="golos-register-delegation-fee" name="fee" type="text" required value="1.000 GOLOS"></div>
@@ -11086,7 +11253,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" id="viz-projects-add-project" aria-labelledby="viz-projects-add-project-heading">
           <h3 id="viz-projects-add-project-heading">Добавить проект</h3>
           <p><strong>Стоимость добавления проекта: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['project', data]</code>.</p>
-          <details id="viz-projects-add-project-details" class="operation-details"><summary>Добавить проект — paid transfer preview</summary><form id="viz-projects-add-project-form" class="stacked-form"><fieldset>
+          <details id="viz-projects-add-project-details" class="operation-modal-source"><summary>Добавить проект — paid transfer preview</summary><form id="viz-projects-add-project-form" class="stacked-form"><fieldset>
             <legend>Новый проект</legend>
             <div class="field"><label for="viz-project-name">Название</label><input id="viz-project-name" name="name" type="text" required></div>
             <div class="field"><label for="viz-project-description">Описание</label><textarea id="viz-project-description" name="description" rows="3" required></textarea></div>
@@ -11104,7 +11271,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" id="viz-projects-add-task" aria-labelledby="viz-projects-add-task-heading">
           <h3 id="viz-projects-add-task-heading">Добавить задачу</h3>
           <p><strong>Стоимость добавления задачи: 1.000 VIZ</strong> переводом аккаунту <code>viz-projects</code> с memo JSON <code>['task', data]</code>.</p>
-          <details id="viz-projects-add-task-details" class="operation-details"><summary>Добавить задачу — paid transfer preview</summary><form id="viz-projects-add-task-form" class="stacked-form"><fieldset>
+          <details id="viz-projects-add-task-details" class="operation-modal-source"><summary>Добавить задачу — paid transfer preview</summary><form id="viz-projects-add-task-form" class="stacked-form"><fieldset>
             <legend>Новая задача</legend>
             <div class="field"><label for="viz-task-name">Название</label><input id="viz-task-name" name="name" type="text" required></div>
             <div class="field"><label for="viz-task-description">Описание</label><textarea id="viz-task-description" name="description" rows="3" required></textarea></div>
@@ -11276,7 +11443,7 @@ Memo key: ${keys.memo}`);
         <h2>VIZ: JSON-генератор custom_json</h2>
         <p>Legacy <code>custom-generator</code> собирал произвольную форму, генерировал HTML/JS и отправлял <code>viz.broadcast.custom</code> после POST в <code>json_encode.php</code>.</p>
         <p class="notice"><strong>Backend yes:</strong> старый сгенерированный скрипт зависел от PHP <code>json_encode.php</code>, который преобразовывал form-urlencoded поля в JSON. Static v3 не восстанавливает PHP endpoint, jQuery UI drag/drop builder и вставляемый внешний скрипт; JSON проверяется локально в браузере.</p>
-        <details id="viz-custom-generator-details" class="operation-details"><summary>Отправить custom_json — preview перед broadcast</summary><form id="viz-custom-generator-form" class="stacked-form"><fieldset>
+        <details id="viz-custom-generator-details" class="operation-modal-source"><summary>Отправить custom_json — preview перед broadcast</summary><form id="viz-custom-generator-form" class="stacked-form"><fieldset>
           <legend>Подготовить VIZ custom_json</legend>
           <div class="field"><label for="viz-custom-protocol">ID/protocol custom_json</label><input id="viz-custom-protocol" name="protocol" type="text" maxlength="32" pattern="[A-Za-z0-9_.-]" placeholder="my-protocol" required></div>
           <div class="field"><label for="viz-custom-json">JSON payload</label><textarea id="viz-custom-json" name="json" rows="10" spellcheck="false" required>{"example":true}</textarea></div>
@@ -11347,7 +11514,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" aria-labelledby="viz-polls-create-heading">
           <h3 id="viz-polls-create-heading">Создание опроса</h3>
           <p>Форма повторяет static-safe часть legacy <code>pages/create</code>: готовит memo <code>contractName: viz-votes</code>, <code>contractAction: createVote</code> и отправляет перевод на <code>committee</code>. Нужен выбранный VIZ-аккаунт с active key или Vizonator.</p>
-          <details id="viz-polls-create-details" class="operation-details"><summary>Создать опрос — paid transfer preview</summary><form id="viz-polls-create-form" class="stacked-form"><fieldset>
+          <details id="viz-polls-create-details" class="operation-modal-source"><summary>Создать опрос — paid transfer preview</summary><form id="viz-polls-create-form" class="stacked-form"><fieldset>
             <legend>Создать опрос через перевод 1.000 VIZ</legend>
             <div class="field"><label for="viz-polls-question">Вопрос</label><input id="viz-polls-question" name="question" type="text" required></div>
             <div class="field"><label for="viz-polls-answers">Варианты ответа, каждый с новой строки</label><textarea id="viz-polls-answers" name="answers" rows="5" required></textarea></div>
@@ -11364,7 +11531,7 @@ Memo key: ${keys.memo}`);
         <section class="subpanel" aria-labelledby="viz-polls-vote-heading">
           <h3 id="viz-polls-vote-heading">Голосование</h3>
           <p>Так как ответы и активность опроса legacy получал из backend/indexer, v3 не угадывает список вариантов. Введите известный <code>votePermlink</code> и номер <code>answerId</code> из источника опроса; отправка использует существующий <code>broadcast.prepare</code> для <code>custom</code> с regular authority.</p>
-          <details id="viz-polls-vote-details" class="operation-details"><summary>Проголосовать — custom_json preview</summary><form id="viz-polls-vote-form" class="stacked-form"><fieldset>
+          <details id="viz-polls-vote-details" class="operation-modal-source"><summary>Проголосовать — custom_json preview</summary><form id="viz-polls-vote-form" class="stacked-form"><fieldset>
             <legend>Проголосовать через custom_json viz-votes</legend>
             <div class="field"><label for="viz-polls-permlink">Permlink опроса</label><input id="viz-polls-permlink" name="permlink" type="text" required></div>
             <div class="field"><label for="viz-polls-answer-id">answerId (0, 1, 2... как в legacy форме)</label><input id="viz-polls-answer-id" name="answer_id" type="number" min="0" step="1" required></div>
@@ -11726,7 +11893,7 @@ Memo key: ${keys.memo}`);
   }
 
   function renderMinterWalletForms(chain) {
-    return `<details id="minter-send-details" class="operation-details"><summary>Перевод</summary><form id="minter-send-form" class="stacked-form"><fieldset>
+    return `<details id="minter-send-details" class="operation-modal-source"><summary>Перевод</summary><form id="minter-send-form" class="stacked-form"><fieldset>
       <legend>Minter: перевод</legend>
       <div class="field"><label for="minter-send-to">Адрес получателя</label><input id="minter-send-to" name="to" type="text" required placeholder="Mx..."></div>
       <div class="field"><label for="minter-send-amount">Сумма</label><input id="minter-send-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" id="minter-send-max-button" data-fill-target="minter-send-amount" data-fill-value="" hidden>Максимум</button></div>
@@ -11736,7 +11903,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="minter-delegate-details" class="operation-details"><summary>Stake / unbond</summary><form id="minter-delegate-form" class="stacked-form"><fieldset>
+    <details id="minter-delegate-details" class="operation-modal-source"><summary>Stake / unbond</summary><form id="minter-delegate-form" class="stacked-form"><fieldset>
       <legend>Minter: stake</legend>
       <div class="field"><label for="minter-validator">Публичный ключ валидатора</label><input id="minter-validator" name="validator" type="text" required placeholder="Mp..."></div>
       <div class="field"><label for="minter-delegate-amount">Сумма</label><input id="minter-delegate-amount" name="amount" type="text" required placeholder="1.000"> <button type="button" id="minter-delegate-max-button" data-fill-target="minter-delegate-amount" data-fill-value="" hidden>Максимум</button></div>
@@ -12109,7 +12276,7 @@ Memo key: ${keys.memo}`);
     const delMax = decimalBalanceMaximum(data, 'DEL');
     const delMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-send-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
     const delStakeMaxButton = delMax ? ` <button type="button" data-fill-target="decimal-delegate-amount" data-fill-value="${escapeHtml(delMax)}">Максимум ${escapeHtml(delMax)} DEL</button>` : '';
-    return `<details id="decimal-send-details" class="operation-details"><summary>Перевод DEL / coin / token</summary><form id="decimal-send-form" class="stacked-form"><fieldset>
+    return `<details id="decimal-send-details" class="operation-modal-source"><summary>Перевод DEL / coin / token</summary><form id="decimal-send-form" class="stacked-form"><fieldset>
       <legend>Decimal: перевод DEL / coin / token</legend>
       <div class="field"><label for="decimal-send-to">Адрес получателя</label><input id="decimal-send-to" name="to" type="text" required placeholder="d0..., dx... или 0x..."></div>
       <div class="field"><label for="decimal-send-amount">Сумма</label><input id="decimal-send-amount" name="amount" type="text" required placeholder="1.000">${delMaxButton}</div>
@@ -12117,7 +12284,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить перевод</button><button type="submit" name="intent" value="send">Отправить перевод в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="decimal-delegate-details" class="operation-details"><summary>Stake / unbond</summary><form id="decimal-delegate-form" class="stacked-form"><fieldset>
+    <details id="decimal-delegate-details" class="operation-modal-source"><summary>Stake / unbond</summary><form id="decimal-delegate-form" class="stacked-form"><fieldset>
       <legend>Decimal: stake / unbond</legend>
       <div class="field"><label for="decimal-validator">Адрес валидатора</label><input id="decimal-validator" name="validator" type="text" required placeholder="0x... или d0valoper..."></div>
       <div class="field"><label for="decimal-delegate-amount">Сумма stake</label><input id="decimal-delegate-amount" name="amount" type="text" required placeholder="1.000">${delStakeMaxButton}</div>
@@ -12197,7 +12364,7 @@ Memo key: ${keys.memo}`);
     return `<article class="card"><h3>Minter swap: static parity notes</h3>
       <p class="notice">Legacy swap auto-quote used public explorer endpoints <code>https://explorer-api.minter.network/api/v2/pools/coins/{from}/{to}/route</code> and <code>https://explorer-api.minter.network/api/v2/pools/providers/{address}</code>. v3 keeps the direct browser wallet operations and asks you to enter minimum buy amount and optional route explicitly; it does not add a proxy, PHP endpoint, indexer, daemon, private API, or hidden service.</p>
     </article>
-    <details id="minter-swap-details" class="operation-details"><summary>Обмен / продажа</summary><form id="minter-swap-form" class="stacked-form"><fieldset>
+    <details id="minter-swap-details" class="operation-modal-source"><summary>Обмен / продажа</summary><form id="minter-swap-form" class="stacked-form"><fieldset>
       <legend>Minter: обмен / продажа</legend>
       <div class="field"><label for="minter-swap-from">Монета к продаже</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-swap-to">Монета к покупке</label><input id="minter-swap-to" name="to" type="text" required></div>
@@ -12207,7 +12374,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить swap</button><button type="submit" name="intent" value="send">Отправить swap в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="minter-liquidity-details" class="operation-details"><summary>Ликвидность / pool</summary><form id="minter-liquidity-form" class="stacked-form"><fieldset>
+    <details id="minter-liquidity-details" class="operation-modal-source"><summary>Ликвидность / pool</summary><form id="minter-liquidity-form" class="stacked-form"><fieldset>
       <legend>Minter: ликвидность / pool</legend>
       <div class="field"><label for="minter-liquidity-mode">Операция</label><select id="minter-liquidity-mode" name="mode"><option value="ADD_LIQUIDITY">Добавить ликвидность</option><option value="REMOVE_LIQUIDITY">Убрать ликвидность</option><option value="CREATE_SWAP_POOL">Создать swap pool</option></select></div>
       <div class="field"><label for="minter-liquidity-coin0">Монета 0</label><input id="minter-liquidity-coin0" name="coin0" type="text" required value="BIP"></div>
@@ -12218,7 +12385,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить ликвидность</button><button type="submit" name="intent" value="send">Отправить liquidity в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="minter-hub-withdraw-details" class="operation-details"><summary>Minter Hub: вывод</summary><form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
+    <details id="minter-hub-withdraw-details" class="operation-modal-source"><summary>Minter Hub: вывод</summary><form id="minter-hub-withdraw-form" class="stacked-form"><fieldset>
       <legend>Minter Hub: вывод</legend>
       <p class="notice">Вывод через Minter Hub отправляет токены на адрес Hub с memo. Проверьте сеть назначения, адрес, сумму и комиссию перед отправкой.</p>
       <div class="field"><label for="minter-hub-chain">ID сети назначения</label><input id="minter-hub-chain" name="chainId" type="text" required placeholder="ethereum или bsc"></div>
@@ -12230,7 +12397,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить вывод через Hub</button><button type="submit" name="intent" value="send">Отправить вывод через Hub в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="minter-coin-details" class="operation-details"><summary>Монета/токен</summary><form id="minter-coin-form" class="stacked-form"><fieldset>
+    <details id="minter-coin-details" class="operation-modal-source"><summary>Монета/токен</summary><form id="minter-coin-form" class="stacked-form"><fieldset>
       <legend>Minter: создание, пересоздание, выпуск, сжигание и смена владельца монеты/токена</legend>
       <div class="field"><label for="minter-coin-mode">Операция</label><select id="minter-coin-mode" name="mode"><option value="CREATE_COIN">Создать монету</option><option value="RECREATE_COIN">Пересоздать монету</option><option value="CREATE_TOKEN">Создать токен</option><option value="RECREATE_TOKEN">Пересоздать токен</option><option value="MINT_TOKEN">Выпустить токен</option><option value="BURN_TOKEN">Сжечь токен</option><option value="EDIT_COIN_OWNER">Сменить владельца</option></select></div>
       <div class="field"><label for="minter-coin-symbol">Символ</label><input id="minter-coin-symbol" name="symbol" type="text" required></div>
@@ -12248,7 +12415,7 @@ Memo key: ${keys.memo}`);
   function decimalNftForms(data) {
     const nftOptions = decimalNftOptions(data);
     const nftPicker = nftOptions ? `<div class="field"><label for="decimal-nft-pick">NFT из кошелька</label><select id="decimal-nft-pick"><option value="">Выберите NFT из списка</option>${nftOptions}</select></div>` : '<p class="muted">Если NFT есть в таблице выше, нажмите «Stake NFT» в строке NFT, чтобы заполнить форму.</p>';
-    return `<details id="decimal-convert-details" class="operation-details"><summary>Convert / swap</summary><form id="decimal-convert-form" class="stacked-form"><fieldset>
+    return `<details id="decimal-convert-details" class="operation-modal-source"><summary>Convert / swap</summary><form id="decimal-convert-form" class="stacked-form"><fieldset>
       <legend>Decimal: convert / swap</legend>
       <p class="notice">Можно вводить DEL, тикер токена или адрес 0x. Поиск использует публичный Decimal coins API без backend-сервиса.</p>
       <datalist id="decimal-token-suggestions"></datalist>
@@ -12262,7 +12429,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить конвертацию</button><button type="submit" name="intent" value="send">Отправить convert в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="decimal-token-details" class="operation-details"><summary>Создание токена</summary><form id="decimal-token-form" class="stacked-form"><fieldset>
+    <details id="decimal-token-details" class="operation-modal-source"><summary>Создание токена</summary><form id="decimal-token-form" class="stacked-form"><fieldset>
       <legend>Decimal: создание токена</legend>
       <div class="field"><label for="decimal-token-title">Название</label><input id="decimal-token-title" name="title" type="text" required></div>
       <div class="field"><label for="decimal-token-symbol">Символ</label><input id="decimal-token-symbol" name="symbol" type="text" required></div>
@@ -12271,7 +12438,7 @@ Memo key: ${keys.memo}`);
       <button type="submit" name="intent" value="preview">Проверить token</button><button type="submit" name="intent" value="send">Создать token в сети</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
     </fieldset></form></details>
-    <details id="decimal-nft-details" class="operation-details"><summary>NFT stake</summary><form id="decimal-nft-form" class="stacked-form"><fieldset>
+    <details id="decimal-nft-details" class="operation-modal-source"><summary>NFT stake</summary><form id="decimal-nft-form" class="stacked-form"><fieldset>
       <legend>Decimal: NFT stake</legend>
       <div class="field"><label for="decimal-nft-mode">Операция</label><select id="decimal-nft-mode" name="mode"><option value="delegate">Делегировать NFT</option><option value="unbond">Анбонд NFT</option></select></div>
       ${nftPicker}
@@ -12290,12 +12457,12 @@ Memo key: ${keys.memo}`);
   }
 
 
-  function openMinterOperationDetails(id) {
-    const details = document.getElementById(id);
-    if (!details) return null;
-    details.open = true;
-    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return details;
+  function openMinterOperationDetails(id, opener) {
+    const modal = document.getElementById(id);
+    if (!modal) return null;
+    openAppModal(modal, opener || document.activeElement);
+    modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return modal;
   }
 
   function setMinterField(id, value) {
@@ -12316,7 +12483,7 @@ Memo key: ${keys.memo}`);
       button.addEventListener('click', () => {
         const action = button.dataset.minterAction;
         if (action === 'send') {
-          openMinterOperationDetails('minter-send-details');
+          openMinterOperationDetails('minter-send-details', button);
           setMinterField('minter-send-amount', button.dataset.minterAmount);
           setMinterField('minter-send-coin', button.dataset.minterCoin);
           setMinterMaxButton('minter-send-max-button', button.dataset.minterAmount, button.dataset.minterCoin);
@@ -12325,7 +12492,7 @@ Memo key: ${keys.memo}`);
           return;
         }
         if (action === 'delegate' || action === 'unbond') {
-          openMinterOperationDetails('minter-delegate-details');
+          openMinterOperationDetails('minter-delegate-details', button);
           setMinterField('minter-validator', button.dataset.minterValidator);
           setMinterField('minter-delegate-amount', button.dataset.minterAmount);
           setMinterField('minter-delegate-coin', button.dataset.minterCoin || 'BIP');
@@ -12336,7 +12503,7 @@ Memo key: ${keys.memo}`);
           return;
         }
         if (action === 'swap') {
-          openMinterOperationDetails('minter-swap-details');
+          openMinterOperationDetails('minter-swap-details', button);
           setMinterField('minter-swap-from', button.dataset.minterCoin || 'BIP');
           setMinterField('minter-swap-amount', button.dataset.minterAmount);
           const target = document.getElementById('minter-swap-to');
@@ -12344,7 +12511,7 @@ Memo key: ${keys.memo}`);
           return;
         }
         if (action === 'liquidity') {
-          openMinterOperationDetails('minter-liquidity-details');
+          openMinterOperationDetails('minter-liquidity-details', button);
           setMinterField('minter-liquidity-coin0', button.dataset.minterCoin || 'BIP');
           setMinterField('minter-liquidity-volume0', button.dataset.minterAmount);
           const target = document.getElementById('minter-liquidity-coin1');
@@ -12442,12 +12609,12 @@ Memo key: ${keys.memo}`);
   }
 
 
-  function openDecimalOperationDetails(id) {
-    const details = document.getElementById(id);
-    if (!details) return null;
-    details.open = true;
-    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return details;
+  function openDecimalOperationDetails(id, opener) {
+    const modal = document.getElementById(id);
+    if (!modal) return null;
+    openAppModal(modal, opener || document.activeElement);
+    modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return modal;
   }
 
   function setDecimalField(id, value) {
@@ -12460,7 +12627,7 @@ Memo key: ${keys.memo}`);
       button.addEventListener('click', () => {
         const action = button.dataset.decimalAction;
         if (action === 'send') {
-          openDecimalOperationDetails('decimal-send-details');
+          openDecimalOperationDetails('decimal-send-details', button);
           setDecimalField('decimal-send-amount', button.dataset.decimalAmount);
           setDecimalField('decimal-send-coin', button.dataset.decimalCoin);
           const target = document.getElementById('decimal-send-to');
@@ -12468,7 +12635,7 @@ Memo key: ${keys.memo}`);
           return;
         }
         if (action === 'delegate' || action === 'unbond') {
-          openDecimalOperationDetails('decimal-delegate-details');
+          openDecimalOperationDetails('decimal-delegate-details', button);
           setDecimalField('decimal-validator', button.dataset.decimalValidator);
           setDecimalField('decimal-delegate-amount', button.dataset.decimalAmount);
           setDecimalField('decimal-delegate-coin', button.dataset.decimalCoin || 'DEL');
@@ -12478,7 +12645,7 @@ Memo key: ${keys.memo}`);
           return;
         }
         if (action === 'convert') {
-          openDecimalOperationDetails('decimal-convert-details');
+          openDecimalOperationDetails('decimal-convert-details', button);
           setDecimalField('decimal-convert-from', button.dataset.decimalCoin || 'DEL');
           updateDecimalConvertMaximum(data);
           const target = document.getElementById('decimal-convert-to');
@@ -12488,7 +12655,7 @@ Memo key: ${keys.memo}`);
     });
     (root || document).querySelectorAll('[data-decimal-nft-action]').forEach((button) => {
       button.addEventListener('click', () => {
-        openDecimalOperationDetails('decimal-nft-details');
+        openDecimalOperationDetails('decimal-nft-details', button);
         setDecimalField('decimal-nft-mode', button.dataset.decimalNftAction || 'unbond');
         setDecimalField('decimal-nft-collection', button.dataset.decimalNftCollection);
         setDecimalField('decimal-nft-id', button.dataset.decimalNftId);
@@ -12785,14 +12952,14 @@ Memo key: ${keys.memo}`);
     appEl.innerHTML = `<section class="panel">
       <h2>Minter: отправка</h2>
       <p>Отправка готовой Minter-транзакции: signed TX не требует seed, multisig принимает транзакцию и внешние подписи.</p>
-      <details id="minter-signed-tx-details" class="operation-details"><summary>Готовая signed TX — Проверить signed TX перед отправкой</summary><form id="minter-signed-tx-form" class="stacked-form"><fieldset>
+      <details id="minter-signed-tx-details" class="operation-modal-source"><summary>Готовая signed TX — Проверить signed TX перед отправкой</summary><form id="minter-signed-tx-form" class="stacked-form"><fieldset>
         <legend>Готовая signed TX</legend>
         <p class="notice">Опасная внешняя транзакция: сначала проверьте содержимое, затем отправляйте только если signed TX получена из доверенного кошелька.</p>
         <div class="field"><label for="minter-signed-tx">Signed TX hex/base64</label><textarea id="minter-signed-tx" name="tx" rows="4" required></textarea></div>
         <button type="submit" name="intent" value="preview">Проверить signed TX</button><button type="submit" name="intent" value="send">Отправить signed TX в сеть</button>
         <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
       </fieldset></form></details>
-      <details id="minter-multisig-details" class="operation-details"><summary>Multisig — проверить перед отправкой</summary><form id="minter-multisig-form" class="stacked-form"><fieldset>
+      <details id="minter-multisig-details" class="operation-modal-source"><summary>Multisig — проверить перед отправкой</summary><form id="minter-multisig-form" class="stacked-form"><fieldset>
         <legend>Multisig: отправка транзакции</legend>
         <p class="notice">Проверьте адрес multisig, JSON транзакции и количество подписей перед отправкой во внешнюю Minter сеть.</p>
         <div class="field"><label for="minter-multisig-address">Адрес multisig</label><input id="minter-multisig-address" name="multisig" type="text" required></div>
@@ -13790,6 +13957,7 @@ Memo key: ${keys.memo}`);
       } else {
         renderServicePlaceholder(chain, app);
       }
+      upgradeOperationDetailsToModals(appEl);
       if (appRequiresAccount(app) && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, account);
     } catch (error) {
       appEl.innerHTML = `

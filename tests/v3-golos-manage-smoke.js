@@ -39,7 +39,7 @@ assert(appSource.includes('manage-workers-vote-form'), 'Golos manage exposes a d
 assert(appSource.includes('manage-workers-create-form'), 'Golos manage exposes a dedicated worker create form');
 assert(appSource.includes('manage-workers-active-list'), 'Golos manage separates active worker requests for voting');
 assert(appSource.includes('manage-workers-history-list'), 'Golos manage separates historical worker requests');
-assert(appSource.includes('manage-worker-detail-page'), 'Golos manage renders a non-modal worker request detail page');
+assert(appSource.includes('manage-worker-detail-page'), 'Golos manage keeps a worker request detail container inside the modal flow');
 assert(appSource.includes('getWorkerRequestVotes'), 'Golos manage loads worker request voters on the detail page');
 assert(appSource.includes("['worker_request'"), 'Golos manage can prepare worker_request operation');
 assert(appSource.includes("['worker_request_vote'"), 'Golos manage can prepare worker_request_vote operation');
@@ -73,6 +73,6 @@ assert(appSource.includes('witnessVoteState.proxy'), 'Golos manage warns when pr
   'manage-follow-details',
   'manage-workers-details',
   'manage-witness-props-details'
-].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-details"`), `Golos manage wraps dangerous form in details: ${marker}`));
+].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-modal-source"`), `Golos manage renders dangerous form as modal-upgraded source: ${marker}`));
 
 console.log('v3 Golos manage smoke passed');

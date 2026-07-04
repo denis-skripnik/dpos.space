@@ -17,8 +17,8 @@ assert(appSource.includes('fetchPromotedDiscussions'), 'promotion helper reads p
 assert(appSource.includes("'getDiscussionsByPromoted'"), 'promotion helper tries library getDiscussionsByPromoted');
 assert(appSource.includes("'tags', 'get_discussions_by_promoted'"), 'promotion helper has Golos tags API JSON-RPC fallback');
 assert(appSource.includes("'condenser_api.get_discussions_by_promoted'"), 'promotion helper has Hive/Steem condenser API JSON-RPC fallback');
-assert(promotionSlice.includes('data-post-promotion-details'), 'promotion UI renders as a details/spoiler block');
-assert(promotionSlice.includes('<summary>Продвигать</summary>'), 'promotion spoiler summary is named Продвигать');
+assert(promotionSlice.includes('class="operation-modal-source promotion-details" data-post-promotion-details'), 'promotion UI renders as a modal-upgraded source block');
+assert(promotionSlice.includes('<summary>Продвигать</summary>'), 'promotion modal trigger title is named Продвигать');
 assert(promotionSlice.includes('keyStatus.hasActive'), 'promotion form is rendered only for a selected account with active key');
 assert(promotionSlice.includes('data-post-promotion-form'), 'promotion form has a dedicated data hook');
 assert(promotionSlice.includes('data-post-promotion-max'), 'promotion form exposes a maximum balance helper');
@@ -30,9 +30,9 @@ assert(submitSlice.includes('`@${author}/${permlink}`'), 'promotion memo targets
 assert(submitSlice.includes('global.confirm'), 'promotion requires explicit confirmation before broadcast');
 assert(submitSlice.includes('normalizeGolosTokenAmount(chain, amount, symbol'), 'promotion amount is normalized to the chain debt token');
 assert(appSource.includes("querySelectorAll('[data-post-promotion-form]')"), 'post actions bind promotion form submit handlers');
-assert(appSource.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Golos post page renders the promotion spoiler');
+assert(appSource.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Golos post page renders the promotion modal source');
 assert(golosPostPageSlice.includes('await loadScript(chain.cryptoPath);') && golosPostPageSlice.indexOf('await loadScript(chain.cryptoPath);') < golosPostPageSlice.indexOf('fetchPostPromotionInfo'), 'Golos post page loads SJCL before checking whether active key is decryptable');
-assert(socialPostSlice.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Hive/Steem post page renders the promotion spoiler');
+assert(socialPostSlice.includes('renderPostPromotionForm(chain, author, permlink, promotionInfo)'), 'Hive/Steem post page renders the promotion modal source');
 assert(socialPostSlice.includes('await loadScript(chain.cryptoPath);') && socialPostSlice.indexOf('await loadScript(chain.cryptoPath);') < socialPostSlice.indexOf('fetchPostPromotionInfo'), 'Hive/Steem post page loads SJCL before checking whether active key is decryptable');
 
 console.log('v3 post promotion smoke passed');
