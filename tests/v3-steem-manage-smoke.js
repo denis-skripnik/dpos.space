@@ -43,7 +43,7 @@ for (const marker of [
   'Управление блокчейном и профилем',
   'Профиль',
   "const witnessLabelPluralTitle = validatorMode ? 'Валидаторы' : 'Делегаты'",
-  "const witnessLabel = validatorMode ? 'валидатор' : 'witness'",
+  "const witnessLabel = validatorMode ? 'валидатора' : 'witness'",
   "validatorMode ? 'Активировать валидатора' : 'Активировать делегата'",
   'manage-proxy-form',
   'manage-witness-form',

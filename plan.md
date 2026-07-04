@@ -27,31 +27,32 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — VIZ validator signing-key history survives refresh
+## Current focused pass — VIZ validator reward sharing field
 
 Root cause:
 
-- Activation-click persistence wrote the public signing key into `localStorage`, but `readManageWitnessSigningKeys()` parsed the stored JSON array through `parseJsonObject()`.
-- `parseJsonObject()` intentionally rejects arrays, so the rendered hint always saw an empty list after refresh and showed `Сохранённого ключа пока нет.` despite the key being stored.
+- VIZ manage activation still showed the inherited Graphene witness `Комиссия`/fee field even though modern VIZ validator activation is `validator_update(owner,url,block_signing_key)` and does not use that fee.
+- The new VIZ stakeholder/delegator reward share is a separate operation: `set_reward_sharing(owner, sharing_rate)`, where `sharing_rate` is basis points (`25%` → `2500`).
 
 Scope:
 
-- Read signing-key history with an array-safe JSON parser so stored public keys survive refresh and route rerender.
-- Keep the activation click/capture-submit persistence from the previous pass, but prove it with a runtime DOM/localStorage regression rather than only string smoke checks.
-- When current VIZ settings report the null-key (`VIZ111...`), the saved-key hint must offer a direct one-click button if local history contains a reusable public key; only show “сохранённого ключа пока нет” when local history is genuinely empty.
-- Preserve the rule that private WIFs and chain null/deactivation keys are never stored or suggested as activation keys.
+- Only for VIZ, replace the activation/deactivation form fee field with `Доля голосующим, %`.
+- Normalize user percent `0..100` to chain `sharing_rate` basis points.
+- Prepare VIZ activation as raw `sendOperations`: `validator_update` plus `set_reward_sharing`; deactivation sends only `validator_update` with the null signing key.
+- Keep Golos, Hive, and Steem witness fee/commission behavior unchanged.
 
 Non-goals:
 
-- No changes to transaction signing, active/owner key handling, local auth format, or validator/witness operation parameters.
-- No new duplicate account selector or separate identity field.
+- No new auth/key storage format and no automatic live broadcast in tests.
+- No changes to non-VIZ witness APIs.
+- No deployment in this pass.
 
 Validation:
 
-- Add/extend a runtime smoke test that executes `app.js` in a DOM-like environment: click `Активировать валидатора`, verify the JSON array is stored, rerender as after refresh, and verify the saved-key button/hint is visible.
-- Regression gate: `node --check v3/js/app.js`, VIZ/manage smoke tests, shared manage UX smoke, Golos/Hive/Steem manage regressions, `git diff --check`.
+- Add focused VIZ/manage smoke assertions for `Доля голосующим, %`, `normalizeVizSharingRatePercent`, raw `validator_update`, and raw `set_reward_sharing`.
+- Regression gate: `node --check v3/js/app.js`, VIZ/manage smoke, shared manage UX smoke, Golos/Hive/Steem manage smoke, browser-local render check.
 
-## Previous focused pass — VIZ validator signing-key history on activation click
+## Previous focused pass — VIZ validator signing-key history survives refresh
 
 Scope:
 
@@ -3095,9 +3096,9 @@ Matrix:
 | `config.json`, `content.php`, `index.php` | Manage landing and subpage table: profile, witnesses, witness, workers, create-account, access, reset-keys, many-invites, multisig | `chains.js` VIZ `manage` route + `renderManage(chain)` with `#viz-manage-nav` anchors for all nine legacy subpages | `tests/v3-viz-manage-smoke.js` checks route, renderer, anchors | Implemented |
 | `js/app.js::pass_gen` | Legacy secret WIF generation used `Math.random` | v3 secret/key generation uses `secureRandomLegacySeed` with `crypto.getRandomValues`; old `Math.random` helper is not used by VIZ manage secret flows | smoke checks `generateVizInviteSecret` and `generateVizResetKeys` slices contain no `Math.random` | Implemented, safer than legacy |
 | `pages/profile/content.php`, `footer.js::profile_save` | Loads `json_metadata`, edits profile fields, `viz.broadcast.accountMetadata(posting_key, viz_login, json_metadata)`; legacy Imgur upload uses external API | `manage-profile-form` prepares `accountMetadata` with static profile/social fields; no Imgur API upload | smoke checks `manage-profile-form` and `accountMetadata`; forbidden backend scan | Implemented; Imgur upload is non-goal external API |
-| `pages/witnesses/content.php`, `footer.js`, manage `proxyVote`, `oneWitnessVote`, `witnessesVote` | `accountWitnessProxy`, `accountWitnessVote`, batch raw `send({operations})`, `getWitnessesByVote`, `getAccounts` | `manage-proxy-form`, `manage-witness-form`, `manage-witnesses-batch-form`, `loadWitnessVoteList` + `DposBroadcast.prepare(..., sendOperations)` | smoke checks witness forms, ops, Vizonator unsupported behavior | Implemented static-safe |
-| `pages/witness/content.php`, `footer.js#witness_options` | `getWitnessByAccount`, `witnessUpdate(active_key, viz_login, url, blockSigningKey)` | `manage-witness-update-form`; for VIZ prepares `witnessUpdate(account,url,signingKey)` with public signing key validation | smoke checks `witnessUpdate`; syntax gate | Implemented |
-| `pages/witness/footer.js#save_props` | Builds props from current witness settings and calls `versionedChainPropertiesUpdate(active_key, viz_login, [3, props])` | `viz-witness-props-form` accepts explicit JSON and prepares `versionedChainPropertiesUpdate(account,[3,props])` with warning | smoke checks `versionedChainPropertiesUpdate` and plan evidence | Implemented static-safe explicit JSON |
+| `pages/witnesses/content.php`, `footer.js`, manage `proxyVote`, `oneWitnessVote`, `witnessesVote`; modern VIZ validator API | Legacy VIZ used witness naming; current chain uses validator operations: `account_validator_proxy`, `account_validator_vote`, `getValidatorsByVote`, while non-VIZ chains keep `account_witness_*` | `manage-proxy-form`, `manage-witness-form`, `manage-witnesses-batch-form`, `loadWitnessVoteList` branch only VIZ to validator RPC/ops and keep Golos/Hive/Steem witness behavior | smoke checks validator/witness branches and non-VIZ preservation | Implemented static-safe |
+| `pages/witness/content.php`, `footer.js#witness_options`; modern VIZ validator activation | Old form copied witness `fee/commission`; current VIZ activation is `validator_update(owner,url,block_signing_key)` and stakeholder sharing is separate `set_reward_sharing(owner, sharing_rate)` where `sharing_rate` is basis points (`25%` → `2500`) | `manage-witness-update-form` uses validator wording, keeps reusable public signing-key history, hides legacy fee/commission for VIZ, adds `Доля голосующим, %`, normalizes 0–100% to basis points, and prepares raw `validator_update` + `set_reward_sharing` through `sendOperations`; deactivate only sends `validator_update` with null signing key | smoke checks `validator_update`, `set_reward_sharing`, `normalizeVizSharingRatePercent`, signing-key history, and VIZ-only reward-sharing copy | Implemented |
+| `pages/witness/footer.js#save_props` | Builds props from current witness settings and calls `versionedChainPropertiesUpdate(active_key, viz_login, [3, props])` | `viz-witness-props-form` accepts explicit JSON and prepares `versionedChainPropertiesUpdate(account,[3,props])` with warning; VIZ validator reward sharing is intentionally not here because it is `set_reward_sharing` in activation form | smoke checks `versionedChainPropertiesUpdate` and plan evidence | Implemented static-safe explicit JSON |
 | `pages/workers/content.php`, `footer.js` | `getCommitteeRequestsList`, `getCommitteeRequest`, `getDynamicGlobalProperties`, `committeeWorkerCreateRequest(posting_key, ...)`, `committeeVoteRequest(posting_key, ...)`; Vizonator only legacy committee_vote_request bridge | `viz-committee-form` prepares `committeeWorkerCreateRequest` and `committeeVoteRequest`; broadcast has Vizonator bridge for `committeeVoteRequest` and clear unsupported error for create | smoke checks `committeeWorkerCreateRequest`, `committeeVoteRequest`, Vizonator behavior | Implemented; full list reader is later/read-only optional |
 | `pages/create-account/content.php`, `footer.js#create_account` | Generates master/active/regular/memo via `pass_gen`, checks existing account, calls `accountCreate(active_key, token_amount, shares_amount, creator, account, master, active, regular, memo, json_metadata, referrer, [])`, downloads private keys after success; Vizonator unsupported | `viz-create-account-form`; local secure key generation, public-key preview only, explicit backup confirmation, `accountCreate` via DposBroadcast; subaccount suffix supported | smoke checks form/control, `accountCreate`, crypto generation, backup download evidence | Implemented; no private WIF in preview/result |
 | `pages/access/content.php`, `dostup.js::manage_access_save` | Preload account authorities, add key/account auths, generate memo, `accountUpdate(master_key, account, master, active, regular, memo_key, json_metadata)`; legacy generated keys with `Math.random` and exposed private keys in DOM | Existing `manage-authority-form` supports public owner/active/regular/memo keys and owner/master WIF memory-only signing via `prepareWithPrivateKey`; v3 does not auto-display private WIF in DOM | smoke checks `manage-authority-form`, `accountUpdate`, WIF warning and sanitizer | Implemented static-safe minimal; dynamic auth builder is non-goal for this slice |
