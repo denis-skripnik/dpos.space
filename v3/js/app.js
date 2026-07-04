@@ -13474,6 +13474,11 @@ Memo key: ${keys.memo}`);
     return Object.keys(state || {}).some((key) => String(state[key] || '').trim() !== '');
   }
 
+  function hasChainOnlyRouteState(state) {
+    const entries = Object.entries(state || {}).filter(([, value]) => String(value || '').trim() !== '');
+    return entries.length === 1 && entries[0][0] === 'chain' && Boolean(chains[entries[0][1]]);
+  }
+
   function bytesToBase64(bytes) {
     let binary = '';
     const chunk = 0x8000;
@@ -13719,6 +13724,29 @@ Memo key: ${keys.memo}`);
     setStatus('Главная страница DPOS.space готова. Выберите блокчейн и раздел.', 'info');
   }
 
+  function renderChainOverview(chain) {
+    const appsList = chain.apps.map((app) => `
+      <li>
+        <a href="${escapeHtml(appHash({ chain: chain.id, app: app.id }))}">${escapeHtml(app.title)}</a>
+        <br><span class="muted">${escapeHtml(app.description || '')}</span>
+      </li>`).join('');
+    const endpointRows = [
+      chain.apiBase ? ['API', chain.apiBase] : null,
+      chain.explorerBase ? ['Explorer API', chain.explorerBase] : null,
+      chain.gateUrl ? ['Gate API', chain.gateUrl] : null,
+      Array.isArray(chain.nodes) && chain.nodes.length ? ['Публичные ноды', chain.nodes.join(', ')] : null
+    ].filter(Boolean);
+    appEl.innerHTML = `<section class="panel">
+      <h2>${escapeHtml(chain.title)}</h2>
+      <p>${escapeHtml(chain.description || 'Информация о блокчейне и доступных разделах DPoS Space.')}</p>
+      <p class="notice">Это обзор блокчейна. Профиль, кошелёк и история открываются только после выбора конкретного раздела и аккаунта/адреса.</p>
+      <h3>Доступные разделы</h3>
+      <ul>${appsList}</ul>
+      ${endpointRows.length ? `<h3>Публичные источники данных</h3><dl class="kv-list">${endpointRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>` : ''}
+    </section>`;
+    setStatus(`${chain.title}: обзор блокчейна готов. Выберите раздел для работы с аккаунтом или сетью.`, 'info');
+  }
+
   async function renderHistory(chain, account) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка истории</h2><p>Читаю последние операции аккаунта...</p></section>';
     setStatus(`Загружаю историю ${chain.title}: @${account}...`, 'loading');
@@ -13841,6 +13869,17 @@ Memo key: ${keys.memo}`);
       updateAccountField(app, chain);
       accountInput.value = '';
       renderDposBackupPage();
+      return;
+    }
+
+    if (hasChainOnlyRouteState(state)) {
+      const chain = chains[state.chain];
+      const navApp = chain.apps.find((item) => item.id === 'accounts') || chain.apps.find((item) => !appRequiresAccount(item)) || chain.apps[0];
+      fillChainSelect(chain.id);
+      fillAppSelect(chain, navApp.id);
+      updateAccountField({ id: 'chain-overview', accountField: false }, chain);
+      accountInput.value = '';
+      renderChainOverview(chain);
       return;
     }
 

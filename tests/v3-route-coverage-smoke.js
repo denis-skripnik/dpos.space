@@ -38,8 +38,14 @@ for (const chain of Object.values(chains)) {
 }
 
 assert(appSource.includes('function hasExplicitRouteState'), 'router detects whether hash parameters were provided');
+assert(appSource.includes('function hasChainOnlyRouteState'), 'router detects chain-only hash routes');
 assert(appSource.includes('function renderHome'), 'router has a dedicated home renderer for empty hash');
+assert(appSource.includes('function renderChainOverview'), 'router has a dedicated blockchain overview renderer for #chain=<id> routes');
 assert(appSource.includes('if (!hasExplicitRouteState(state))'), 'empty hash renders home instead of loading a default VIZ profile');
+assert(appSource.includes('if (hasChainOnlyRouteState(state))'), 'chain-only hash renders blockchain information instead of loading a default profile');
+assert(appSource.includes("updateAccountField({ id: 'chain-overview', accountField: false }, chain)"), 'chain overview hides account/address field instead of showing default account');
+assert(appSource.includes("const navApp = chain.apps.find((item) => item.id === 'accounts')"), 'chain overview navigation defaults to Accounts rather than account-required Profiles');
+assert(appSource.includes('Это обзор блокчейна'), 'chain overview explains that account pages need an explicit section/account');
 assert(appSource.includes("Главная страница DPOS.space готова"), 'home route exposes a user-visible ready status');
 assert(appSource.includes('Аккаунты по блокчейнам'), 'home route links account services by blockchain');
 assert(appSource.includes("appHash({ chain: chain.id, app: 'accounts' })"), 'home account service links are generated for every chain');
