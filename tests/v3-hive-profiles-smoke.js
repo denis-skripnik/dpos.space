@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
@@ -12,17 +13,22 @@ const broadcastSource = fs.readFileSync(path.join(root, 'v3/js/broadcast.js'), '
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const legacyRoot = path.resolve(root, '../dpos.space/blockchains/hive/apps/profiles');
-const legacyConfig = fs.readFileSync(path.join(legacyRoot, 'config.json'), 'utf8');
-const legacyContent = fs.readFileSync(path.join(legacyRoot, 'content.php'), 'utf8');
-const legacyIndex = fs.readFileSync(path.join(legacyRoot, 'index.php'), 'utf8');
-const legacyPageContent = fs.readFileSync(path.join(legacyRoot, 'page/content.php'), 'utf8');
-const legacyUserinfo = fs.readFileSync(path.join(legacyRoot, 'page/userinfo.php'), 'utf8');
-const legacyHistory = fs.readFileSync(path.join(legacyRoot, 'page/history.php'), 'utf8');
-const legacyHistoryJs = fs.readFileSync(path.join(legacyRoot, 'js/app.js'), 'utf8');
-const legacyFollowers = fs.readFileSync(path.join(legacyRoot, 'page/snippets/Get_Followers.php'), 'utf8');
-const legacyDelegations = fs.readFileSync(path.join(legacyRoot, 'page/snippets/get_vesting_delegations.php'), 'utf8');
-const legacyBlog = fs.readFileSync(path.join(legacyRoot, 'page/snippets/get_discussions_by_blog.php'), 'utf8');
-const legacyComments = fs.readFileSync(path.join(legacyRoot, 'page/snippets/GetContentReplies.php'), 'utf8');
+function readLegacyProfileFile(file) {
+  const localPath = path.join(legacyRoot, file);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:blockchains/hive/apps/profiles/${file}`], { cwd: root, encoding: 'utf8' });
+}
+const legacyConfig = readLegacyProfileFile('config.json');
+const legacyContent = readLegacyProfileFile('content.php');
+const legacyIndex = readLegacyProfileFile('index.php');
+const legacyPageContent = readLegacyProfileFile('page/content.php');
+const legacyUserinfo = readLegacyProfileFile('page/userinfo.php');
+const legacyHistory = readLegacyProfileFile('page/history.php');
+const legacyHistoryJs = readLegacyProfileFile('js/app.js');
+const legacyFollowers = readLegacyProfileFile('page/snippets/Get_Followers.php');
+const legacyDelegations = readLegacyProfileFile('page/snippets/get_vesting_delegations.php');
+const legacyBlog = readLegacyProfileFile('page/snippets/get_discussions_by_blog.php');
+const legacyComments = readLegacyProfileFile('page/snippets/GetContentReplies.php');
 
 assert(legacyConfig.includes('Просмотр профилей') && legacyConfig.includes('Hive'), 'legacy Hive profiles config inspected');
 assert(legacyContent.includes('service" value = "profiles"') && legacyContent.includes('Введите логин без @'), 'legacy Hive profiles search form inspected');

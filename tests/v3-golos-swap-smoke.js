@@ -52,11 +52,11 @@ assert(appSource.includes('loadGrapheneOrderBook') && appSource.includes("profil
 assert(appSource.includes('loadGrapheneOpenOrders') && appSource.includes("profiles.apiCall(connection, 'getOpenOrders'"), 'my-orders view uses public RPC open orders');
 assert(appSource.includes('swap-cancel-form') && appSource.includes("broadcast.prepare(chain, 'active', 'cancelOrder'"), 'cancel order form prepares active cancelOrder operation');
 assert(appSource.includes('swap-create-form') && appSource.includes("broadcast.prepare(chain, 'active', 'createLimitOrder'"), 'limit order form prepares active createLimitOrder operation');
-assert(appSource.includes('id="swap-direct-details" class="operation-details"'), 'Golos direct market exchange form is collapsed under operation details');
-assert(appSource.includes('id="swap-create-details" class="operation-details"'), 'Golos limit order form is collapsed under operation details');
-assert(appSource.includes('id="swap-cancel-details" class="operation-details"'), 'Golos cancel order form is collapsed under operation details');
+assert(appSource.includes('id="swap-direct-details" class="operation-modal-source"'), 'Golos direct market exchange form is available as modal-upgraded operation source');
+assert(appSource.includes('id="swap-create-details" class="operation-modal-source"'), 'Golos limit order form is available as modal-upgraded operation source');
+assert(appSource.includes('id="swap-cancel-details" class="operation-modal-source"'), 'Golos cancel order form is available as modal-upgraded operation source');
 assert(appSource.includes('data-swap-cancel-prefill'), 'Golos open-order rows expose a safe cancel prefill action');
-assert(appSource.includes("openSwapCancelDetails(orderId)"), 'Golos cancel prefill opens and focuses the matching cancel form');
+assert(appSource.includes("openSwapCancelDetails(button.dataset.swapCancelPrefill, button)"), 'Golos cancel prefill opens the matching cancel modal and restores focus to the opener');
 
 assert(broadcastSource.includes("if (prepared.operationName === 'sendOperations')"), 'broadcast has sendOperations execution path for DEX operation chains');
 assert(broadcastSource.includes('client.broadcast.sendOperationsAsync(prepared.params[0], key)'), 'sendOperations uses operation array plus active key without exposing key in params');

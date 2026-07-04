@@ -248,7 +248,7 @@ textarea {
   margin-bottom: 0.75rem;
 }
 
-.operation-details {
+.operation-modal-source {
   margin: 0.75rem 0;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
@@ -257,11 +257,11 @@ textarea {
   overflow: hidden;
 }
 
-.operation-details[open] {
+.operation-modal-source[open] {
   border-color: var(--accent);
 }
 
-.operation-details summary {
+.operation-modal-source summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -272,27 +272,27 @@ textarea {
   list-style-position: inside;
 }
 
-.operation-details summary:hover {
+.operation-modal-source summary:hover {
   background: rgba(37, 99, 235, 0.08);
 }
 
-.operation-details summary::after {
+.operation-modal-source summary::after {
   content: "Открыть";
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--accent);
 }
 
-.operation-details[open] summary {
+.operation-modal-source[open] summary {
   border-bottom: 1px solid var(--border);
   background: rgba(37, 99, 235, 0.08);
 }
 
-.operation-details[open] summary::after {
+.operation-modal-source[open] summary::after {
   content: "Скрыть";
 }
 
-.operation-details .stacked-form {
+.operation-modal-source .stacked-form {
   margin: 0;
   padding: 1rem;
 }
@@ -676,5 +676,110 @@ code {
 
   table {
     min-width: 38rem;
+  }
+}
+
+
+.operation-modal-entry {
+  margin: 0.75rem 0;
+}
+
+.operation-modal-trigger {
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.05);
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+}
+
+.operation-modal-trigger::after {
+  content: "Открыть окно";
+  float: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.app-modal[role="dialog"] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.app-modal[hidden] {
+  display: none;
+}
+
+.app-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.64);
+}
+
+.app-modal-panel {
+  position: relative;
+  width: min(56rem, 100%);
+  max-height: min(90vh, 48rem);
+  overflow: auto;
+  background: var(--background);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 4rem rgba(15, 23, 42, 0.35);
+}
+
+.app-modal-header,
+.app-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-modal-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.app-modal-header h3 {
+  margin: 0;
+}
+
+.app-modal-body {
+  padding: 1rem;
+}
+
+.app-modal-body .stacked-form {
+  margin: 0;
+}
+
+.app-modal-close {
+  flex: 0 0 auto;
+}
+
+body.app-modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .app-modal[role="dialog"] {
+    align-items: stretch;
+    padding: 0.5rem;
+  }
+
+  .app-modal-panel {
+    max-height: calc(100vh - 1rem);
   }
 }

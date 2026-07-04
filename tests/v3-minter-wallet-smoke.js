@@ -30,17 +30,17 @@ assert(appSource.includes('/addresses/${encodeURIComponent(address)}/delegations
 assert(appSource.includes('/addresses/${encodeURIComponent(address)}/transactions?page=1'), 'Minter wallet fetches transactions endpoint');
 
 assert(renderMinterForms.includes('minter-send-form'), 'Minter send form is present');
-assert(renderMinterForms.includes('minter-send-details'), 'Minter send operation is collapsed in details by default');
+assert(renderMinterForms.includes('minter-send-details'), 'Minter send operation is exposed through a modal-upgraded source');
 assert(renderMinterForms.includes('minter-delegate-form'), 'Minter delegate/unbond form is present');
-assert(renderMinterForms.includes('minter-delegate-details'), 'Minter stake/unbond operation is collapsed in details by default');
+assert(renderMinterForms.includes('minter-delegate-details'), 'Minter stake/unbond operation is exposed through a modal-upgraded source');
 assert(appSource.includes('minter-swap-form'), 'Minter swap form remains present');
-assert(appSource.includes('minter-swap-details'), 'Minter swap operation is collapsed in details by default');
+assert(appSource.includes('minter-swap-details'), 'Minter swap operation is exposed through a modal-upgraded source');
 assert(appSource.includes('minter-liquidity-form'), 'Minter liquidity form remains present');
-assert(appSource.includes('minter-liquidity-details'), 'Minter liquidity operation is collapsed in details by default');
+assert(appSource.includes('minter-liquidity-details'), 'Minter liquidity operation is exposed through a modal-upgraded source');
 assert(appSource.includes('minter-hub-withdraw-form'), 'Minter Hub withdraw form remains present');
-assert(appSource.includes('minter-hub-withdraw-details'), 'Minter Hub withdraw operation is collapsed in details by default');
+assert(appSource.includes('minter-hub-withdraw-details'), 'Minter Hub withdraw operation is exposed through a modal-upgraded source');
 assert(appSource.includes('minter-coin-form'), 'Minter coin/token form remains present');
-assert(appSource.includes('minter-coin-details'), 'Minter coin/token operation is collapsed in details by default');
+assert(appSource.includes('minter-coin-details'), 'Minter coin/token operation is exposed through a modal-upgraded source');
 assert(appSource.includes('data-minter-action="unbond"'), 'Minter delegation rows expose quick unbond action');
 assert(appSource.includes('data-minter-amount="${escapeHtml(amount)}" data-minter-coin'), 'Minter balance action buttons preserve the selected full balance for form maximum/prefill');
 assert(appSource.includes('bindMinterQuickActions(appEl)'), 'Minter wallet binds quick actions after rendering');

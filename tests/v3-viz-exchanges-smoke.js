@@ -1,14 +1,22 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
-const legacyConfig = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/exchanges/config.json'), 'utf8');
-const legacyContent = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/exchanges/content.php'), 'utf8');
-const legacyIndex = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/exchanges/index.php'), 'utf8');
+
+function readLegacyFile(relativePath) {
+  const localPath = path.resolve(root, '../dpos.space', relativePath);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:${relativePath}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyConfig = readLegacyFile('blockchains/viz/apps/exchanges/config.json');
+const legacyContent = readLegacyFile('blockchains/viz/apps/exchanges/content.php');
+const legacyIndex = readLegacyFile('blockchains/viz/apps/exchanges/index.php');
 
 assert(legacyConfig.includes('Купить и продать VIZ') && legacyConfig.includes('Обмен VIZ'), 'legacy exchanges config inspected');
 assert(legacyContent.includes('https://swap.viz.world/') && legacyContent.includes('рудекс') && legacyContent.includes('readdle.me'), 'legacy static exchange links inspected');

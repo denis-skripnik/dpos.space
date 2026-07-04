@@ -27,7 +27,106 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
-## Current focused pass — VIZ validator reward sharing field
+## Current focused pass — Accessible modal windows for large operation blocks
+
+Root cause:
+
+- The v3 UI currently uses many native `<details class="operation-details">` blocks for operation forms and request-list areas. Browser inspection of `#chain=viz&app=manage` found 15 such blocks on one page, including VIZ committee, invite, account, authority, validator and multisig actions.
+- Large blocks such as `#viz-committee-details` and `#manage-workers-details` mix list loading, detail view, vote form, history and create form inside one long spoiler. This is technically accessible as native HTML, but inconvenient: focus stays in the full page, users must navigate through unrelated controls, and opened blocks make the manage page very long.
+- Legacy dpos.space 2.0 used Fancybox modals for VIZ/Golos committee/worker create and request details (`master:blockchains/viz/apps/manage/pages/workers/content.php`, `footer.js`), but the old implementation relied on jQuery/Fancybox and did not provide the focus-trap and return-focus contract we need in v3.
+
+Observed current surfaces:
+
+- Shared helper: `operationDetails(title, body, open)` in `v3/js/app.js` renders generic operation spoilers.
+- Manage page: `renderManage(chain)` renders many hard-coded `<details class="operation-details">` blocks.
+- Request-list/detail code: `loadGolosWorkerRequests`, `loadGolosWorkerRequestDetail`, `loadVizCommitteeRequests`, `loadVizCommitteeRequestDetail`, `renderGolosWorkerCard`, `renderVizCommitteeCard`.
+- Styles: `.operation-details` block styling lives in `v3/css/style.css`.
+- Current smoke tests expect spoilers/details in several places; modal work must update only the tests for intentionally migrated surfaces, not weaken unrelated parity assertions.
+
+Decision:
+
+- Add a small vanilla-JS modal layer in `v3/js/app.js`, not a framework or third-party dependency.
+- Use semantic modal markup: `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, optional `aria-describedby`, visible heading, close button at the beginning and close button at the end.
+- Keep the static app framework-free and backend-free; no jQuery, no Fancybox, no build step.
+- Convert the worst large/inconvenient surfaces first, then migrate generic operation spoilers incrementally.
+
+Scope:
+
+1. Modal infrastructure:
+   - create helper(s) such as `openAppModal({ title, body, labelledBy, describedBy, opener, onClose })`, `closeTopModal()`, and `bindModalTriggers(root)`;
+   - maintain a modal stack so a child modal opened from a parent traps focus inside the child, then returns focus to the parent trigger after closing;
+   - preserve previous focus for every modal and restore it on close when the opener is still connected;
+   - trap `Tab`/`Shift+Tab` among focusable elements inside the top modal only;
+   - close with explicit buttons and `Escape`; do not rely only on clicking outside;
+   - mark the background as inert while a modal is open when supported, with an `aria-hidden`/focus-guard fallback scoped to the app shell;
+   - keep status/result blocks inside modal content with `role="status" aria-live="polite"`.
+2. Styling:
+   - add overlay, panel, header/body/footer, close button, responsive max-height/scroll styles in `v3/css/style.css`;
+   - keep strong `:focus-visible` outlines and sufficient contrast;
+   - make modal content comfortable for sighted users: centered panel, readable width, padding, visual hierarchy, mobile-safe full-width behavior.
+3. First conversion target — VIZ committee / development fund:
+   - replace `#viz-committee-details` outer spoiler with a visible section and direct buttons: “Показать заявки фонда развития”, “Создать заявку”, and list card actions;
+   - open the create form in a modal;
+   - open request details in a modal instead of `#viz-committee-detail-page` inline page;
+   - support a child vote modal from inside the request detail modal: pressing “Голосовать за эту заявку” inside details opens the vote form as a child modal, with focus trapped in the child and restored to the detail modal button after close;
+   - preserve current operation preparation paths (`committeeWorkerCreateRequest`, `committeeVoteRequest`) and Vizonator compatibility behavior.
+4. Second conversion target — Golos workers:
+   - mirror the VIZ pattern for `#manage-workers-details`: visible load/create controls, create form modal, request detail modal, child vote modal;
+   - preserve `getWorkerRequests`, `getWorkerRequestVotes`, `worker_request`, and `worker_request_vote` semantics.
+5. Full conversion targets — no postponed operation/list blocks:
+   - convert every operation form currently rendered as `<details class="operation-details">` into the modal trigger pattern, including wallet forms produced by `operationDetails()`, manage proxy/witness/batch/activation/props/authority/profile/account/reset/follow/invite/multisig forms, editor publish forms, polls/projects/custom-generator/voice-import/post-promotion forms, and other v3 operation blocks found by source search;
+   - convert large request/list containers to visible page sections plus modal actions: VIZ committee, Golos workers, and any same-class active/history request lists found during implementation;
+   - keep small read-only diagnostic disclosures such as raw JSON collapsed details only if they are not forms, not request lists, and not part of the user’s primary task flow; document each retained native `<details>` as an explicit non-form exception in the implementation report;
+   - update all focused tests that intentionally referenced “spoiler/details” wording so they now assert modal triggers/dialogs for operation forms instead of accepting old spoilers;
+   - continue bounded implementation passes until source search shows no remaining primary operation form or request-list block hidden behind `operation-details` / native details.
+
+Non-goals:
+
+- No new UI framework, bundler, npm dependency, jQuery, Fancybox or backend service.
+- No redesign of broadcast preparation/signing semantics.
+- No automatic live transactions in tests.
+- No incomplete handoff with primary operation-form spoilers left for later: use bounded passes, but continue for 2–3 hours if needed until all primary operation/list blocks are converted or a real blocker appears.
+- Do not turn small explanatory disclosures or raw JSON debug blocks into modals unless there is a concrete UX need; these are allowed exceptions only when they are not forms/request lists and not primary task flows.
+
+Acceptance criteria:
+
+- Opening any migrated modal moves focus into the modal, preferably to the first close button or first meaningful heading/control.
+- `Tab` and `Shift+Tab` cannot leave the top modal.
+- Closing by top close button, bottom close button, or `Escape` returns focus to the exact opener button/link when it still exists.
+- Child modal opened from a parent traps focus inside the child; closing it returns focus to the child opener inside the parent; parent remains open.
+- Screen readers get a named dialog (`role="dialog"`, `aria-modal="true"`, stable accessible name), understandable headings, labels, live statuses and close controls at both beginning and end.
+- Sighted users get a clear overlay/panel, readable form layout, visible close controls and no page-length jump from giant opened spoilers.
+- VIZ committee and Golos worker list/detail/create/vote flows still prepare the same operations and use the same public RPC loaders.
+- Source search and tests confirm there are no remaining primary operation forms or request-list flows exposed only through native `operation-details` spoilers.
+
+TDD / validation plan:
+
+- Add a focused static smoke test, e.g. `tests/v3-modal-accessibility-smoke.js`, that asserts modal infrastructure markers: `role="dialog"`, `aria-modal="true"`, focus-stack storage, top/bottom close buttons, `keydown` trap for Tab/Escape, return-focus logic, nested-modal stack.
+- Update `tests/v3-manage-ux-smoke.js`, `tests/v3-viz-manage-smoke.js`, and `tests/v3-golos-manage-smoke.js` only for intentionally migrated VIZ/Golos worker/committee surfaces.
+- Run syntax and smoke gate:
+  - `node --check v3/js/app.js`
+  - `node --check v3/css/style.css` is not applicable; instead run `git diff --check` for CSS whitespace.
+  - `node tests/v3-modal-accessibility-smoke.js`
+  - `node tests/v3-manage-ux-smoke.js`
+  - `node tests/v3-viz-manage-smoke.js`
+  - `node tests/v3-golos-manage-smoke.js`
+  - `for f in tests/v3-*.js; do node "$f" || exit 1; done`
+  - `git diff --check`
+- Browser verification after implementation:
+  - run `python3 -m http.server 8080` from repo root;
+  - open `http://127.0.0.1:8080/#chain=viz&app=manage` and `http://127.0.0.1:8080/#chain=golos&app=manage`;
+  - verify with real browser focus checks: opener → modal focus, repeated Tab wrap, Shift+Tab wrap, Escape/close return, child vote modal focus/return;
+  - check browser console for uncaught JS errors.
+
+Completion contract:
+
+- outcome: all primary operation forms and request/list task flows that were hidden in spoilers/details use accessible nested-capable modals. VIZ committee and Golos worker create/detail/vote flows are included, and no primary form/list spoiler is intentionally left for a later phase.
+- verification: focused smoke tests, broad v3 smoke loop, `git diff --check`, and browser focus/console verification on VIZ and Golos manage pages.
+- constraints: preserve static-only runtime, legacy localStorage auth compatibility, existing RPC/broadcast semantics, no new dependencies.
+- boundaries: in scope `v3/js/app.js`, `v3/css/style.css`, focused `tests/v3-*.js`, and this `plan.md`; out of scope deployment and unrelated app redesign.
+- stop_when: a required change would alter signing/auth storage, require a backend/service, require real transaction submission for verification, or broaden the UI redesign beyond migrated modal surfaces.
+
+## Previous focused pass — VIZ validator reward sharing field
 
 Root cause:
 

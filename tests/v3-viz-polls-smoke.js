@@ -57,8 +57,8 @@ assert(pollsSource.includes("broadcast.prepare(chain, 'active', 'transfer'"), 'c
 assert(pollsSource.includes("broadcast.prepare(chain, 'regular', 'custom'"), 'vote uses existing regular custom broadcast helper');
 assert(pollsSource.includes("bindOperationForm(chain, 'viz-polls-create-form'"), 'create form is bound through existing operation helper');
 assert(pollsSource.includes("bindOperationForm(chain, 'viz-polls-vote-form'"), 'vote form is bound through existing operation helper');
-assert(pollsSource.includes('id="viz-polls-create-details" class="operation-details"'), 'poll create operation form is separated in an accessible spoiler');
-assert(pollsSource.includes('id="viz-polls-vote-details" class="operation-details"'), 'poll vote operation form is separated in an accessible spoiler');
+assert(pollsSource.includes('id="viz-polls-create-details" class="operation-modal-source"'), 'poll create operation form is rendered as a modal-upgraded source');
+assert(pollsSource.includes('id="viz-polls-vote-details" class="operation-modal-source"'), 'poll vote operation form is rendered as a modal-upgraded source');
 assert(pollsSource.includes("appHash({ chain: chain.id, app: 'history'"), 'static replacement links to history RPC route');
 
 const vizRuntimeBundle = [chainsSource.match(/const vizApps[\s\S]*?const golosApps/)?.[0] || '', pollsSource].join('\n');

@@ -24,7 +24,7 @@ const renderSlice = sliceBetween(appSource, 'function renderMinterBroadcast(chai
 for (const marker of [
   'minter-signed-tx-form',
   'minter-signed-tx-details',
-  'class="operation-details"',
+  'class="operation-modal-source"',
   'Готовая signed TX',
   'Проверить signed TX перед отправкой',
   'Signed TX hex/base64',

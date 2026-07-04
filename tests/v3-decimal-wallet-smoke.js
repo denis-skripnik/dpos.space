@@ -29,7 +29,7 @@ assert(renderDecimalWallet.includes('renderDecimalWalletBalances'), 'Decimal wal
 assert(renderDecimalWallet.includes('renderDecimalWalletForms'), 'Decimal wallet renders dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindDecimalWalletForms'), 'Decimal wallet binds dedicated Decimal forms');
 assert(renderDecimalWallet.includes('bindMaxButtons(appEl)'), 'Decimal wallet supports legacy maximum fill buttons');
-assert(renderDecimalWallet.includes('bindDecimalQuickActions(appEl, data)'), 'Decimal wallet binds table action buttons that open the matching operation details');
+assert(renderDecimalWallet.includes('bindDecimalQuickActions(appEl, data)'), 'Decimal wallet binds table action buttons that open the matching operation modal source');
 assert(renderDecimalWallet.includes('bindDecimalConvertHelpers(appEl, chain, data)'), 'Decimal wallet binds convert token search and dynamic max helpers');
 assert(!renderDecimalWallet.includes('return renderCosmosWallet'), 'Decimal wallet is not a thin alias to generic Cosmos wallet');
 
@@ -83,8 +83,8 @@ assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalConve
 assert(bindDecimalForms.includes("broadcast.prepare(chain, 'seed', 'decimalCreateToken'"), 'Decimal token creation is prepared through broadcast guard');
 assert(bindDecimalForms.includes("form.get('mode') === 'unbond' ? 'decimalUnbondNFT' : 'decimalDelegateNFT'"), 'Decimal NFT form maps delegate/unbond operations');
 assert(!appSource.includes('<th scope="col">Адрес токена</th>'), 'Decimal stake table does not expose token address as the primary column');
-assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\')'), 'Decimal table unbond action opens stake/unbond operation spoiler');
-assert(appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\')'), 'Decimal NFT table action opens NFT stake/unbond operation spoiler');
+assert(appSource.includes('openDecimalOperationDetails(\'decimal-delegate-details\', button)'), 'Decimal table unbond action opens stake/unbond operation modal');
+assert(appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\', button)'), 'Decimal NFT table action opens NFT stake/unbond operation modal');
 assert(appSource.includes('setDecimalField(\'decimal-nft-id\', nftPick.value)'), 'Decimal NFT selector prefills NFT id from owned account NFT list');
 assert(appSource.includes('data-decimal-nft-collection'), 'Decimal NFT selector/table actions preserve collection contract needed by SDK staking methods');
 assert(appSource.includes('decimal-nft-collection'), 'Decimal NFT form exposes collection/contract address required by Decimal SDK');
@@ -103,7 +103,7 @@ assert(profilesSource.includes('EnforcedPause') && profilesSource.includes('on-c
 assert(appSource.includes('data-decimal-nft-title'), 'Decimal owned NFT table keeps a readable title for quick actions');
 assert(appSource.includes('bindDecimalNftPicker(root)'), 'Decimal wallet binds owned NFT picker after rendering forms');
 assert(appSource.includes('decimalNftOptions(data)'), 'Decimal NFT form receives account NFT options');
-assert(appSource.includes('Decimal NFT table action opens NFT stake/unbond operation spoiler') || appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\')'), 'Decimal NFT table action opens NFT stake/unbond operation spoiler');
+assert(appSource.includes('Decimal NFT table action opens NFT stake/unbond operation modal') || appSource.includes('openDecimalOperationDetails(\'decimal-nft-details\', button)'), 'Decimal NFT table action opens NFT stake/unbond operation modal');
 assert(appSource.includes('/coins/coins?limit=${limit}&offset=${offset}'), 'Decimal token search uses public coins index API');
 assert(appSource.includes('first && Array.isArray(first.coins)'), 'Decimal token search supports legacy Result[0].coins payload shape');
 assert(appSource.includes('resolveDecimalConvertAsset(chain, form.get(\'from\')'), 'Decimal convert resolves typed token tickers before broadcast');

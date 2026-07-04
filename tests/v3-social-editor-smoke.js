@@ -15,8 +15,8 @@ assert(appSource.includes("percent_hbd: chain.id === 'hive' ? payoutPercent : un
 assert(appSource.includes('Сообщество / parent_permlink') && appSource.includes('hive-179017') && appSource.includes('hive-167922'), 'Hive editor exposes legacy community/parent_permlink choices');
 assert(appSource.includes('editor-beneficiary-account') && appSource.includes("extensions: [[0, { beneficiaries }]]"), 'Steem/Hive editor exposes and sends beneficiaries extension');
 assert(appSource.includes('100% в ${escapeHtml(chain.powerTitle || \'HP\')}'), 'Steem/Hive editor exposes 100% power payout option');
-assert(appSource.includes('id="editor-operation-details" class="operation-details"'), 'Steem/Hive editor publish form is collapsed under operation details');
-assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Steem/Hive editor details summary makes preview-before-send explicit');
+assert(appSource.includes('id="editor-operation-details" class="operation-modal-source"'), 'Steem/Hive editor publish form is available as modal-upgraded operation source');
+assert(appSource.includes('<summary>Публикация поста — preview перед отправкой</summary>'), 'Steem/Hive editor modal trigger title makes preview-before-send explicit');
 assert(appSource.includes("if (chain.id !== 'golos' && !isHiveOrSteem(chain)) return '';"), 'Steem/Hive editor accepts direct author/permlink edit autoload URLs');
 assert(appSource.includes("if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit"), 'Steem/Hive editor auto-loads direct edit URLs');
 assert(appSource.includes("if (isEdit) return [commentOperation];"), 'Steem/Hive edit submit is comment-only without comment_options');

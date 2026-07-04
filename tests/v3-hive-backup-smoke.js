@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
@@ -26,9 +27,15 @@ function extractFunction(source, name) {
 }
 
 const legacyRoot = path.resolve(root, '../dpos.space/blockchains/hive/apps/backup');
-const legacyConfig = fs.readFileSync(path.join(legacyRoot, 'config.json'), 'utf8');
-const legacyContent = fs.readFileSync(path.join(legacyRoot, 'content.php'), 'utf8');
-const legacyIndex = fs.readFileSync(path.join(legacyRoot, 'index.php'), 'utf8');
+function readLegacyBackupFile(file) {
+  const localPath = path.join(legacyRoot, file);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:blockchains/hive/apps/backup/${file}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyConfig = readLegacyBackupFile('config.json');
+const legacyContent = readLegacyBackupFile('content.php');
+const legacyIndex = readLegacyBackupFile('index.php');
 
 assert(legacyConfig.includes('Бекап постов') && legacyConfig.includes('tools'), 'legacy Hive backup config inspected');
 assert(legacyContent.includes('0.5 HBD или 1 HIVE') && legacyContent.includes('posts;') && legacyContent.includes('reblogs'), 'legacy Hive payment/reblog form inspected');

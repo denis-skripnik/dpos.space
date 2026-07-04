@@ -1,18 +1,26 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
 const chainsSource = fs.readFileSync(path.join(root, 'v3/js/chains.js'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
-const legacyConfig = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/config.json'), 'utf8');
-const legacyContent = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/content.php'), 'utf8');
-const legacyIndex = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/index.php'), 'utf8');
-const legacyBlock = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/pages/block/content.php'), 'utf8');
-const legacyBlockRpc = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/pages/block/block.php'), 'utf8');
-const legacyTx = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/pages/tx/content.php'), 'utf8');
-const legacyTxRpc = fs.readFileSync(path.resolve(root, '../dpos.space/blockchains/viz/apps/explorer/pages/tx/get_transaction.php'), 'utf8');
+
+function readLegacyFile(relativePath) {
+  const localPath = path.resolve(root, '../dpos.space', relativePath);
+  if (fs.existsSync(localPath)) return fs.readFileSync(localPath, 'utf8');
+  return childProcess.execFileSync('git', ['show', `master:${relativePath}`], { cwd: root, encoding: 'utf8' });
+}
+
+const legacyConfig = readLegacyFile('blockchains/viz/apps/explorer/config.json');
+const legacyContent = readLegacyFile('blockchains/viz/apps/explorer/content.php');
+const legacyIndex = readLegacyFile('blockchains/viz/apps/explorer/index.php');
+const legacyBlock = readLegacyFile('blockchains/viz/apps/explorer/pages/block/content.php');
+const legacyBlockRpc = readLegacyFile('blockchains/viz/apps/explorer/pages/block/block.php');
+const legacyTx = readLegacyFile('blockchains/viz/apps/explorer/pages/tx/content.php');
+const legacyTxRpc = readLegacyFile('blockchains/viz/apps/explorer/pages/tx/get_transaction.php');
 
 assert(legacyConfig.includes('Блок-эксплорер') && legacyConfig.includes('Explorer'), 'legacy config inspected');
 assert(legacyContent.includes('last_irreversible_block_num') && legacyContent.includes('head_block_number') && legacyContent.includes('get_chain_properties'), 'legacy explorer overview inspected');

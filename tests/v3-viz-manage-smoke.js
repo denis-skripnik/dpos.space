@@ -50,7 +50,7 @@ assert(appSource.includes('id="viz-manage-nav"'), 'VIZ manage exposes legacy sub
   'viz-committee-details',
   'viz-multisig-authority-details',
   'viz-multisig-signed-tx-details'
-].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-details"`), `VIZ manage wraps dangerous form in details: ${marker}`));
+].forEach((marker) => assert(appSource.includes(`id="${marker}" class="operation-modal-source"`), `VIZ manage renders dangerous form as modal-upgraded source: ${marker}`));
 
 [
   'accountMetadata',
