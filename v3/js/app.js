@@ -1654,6 +1654,19 @@
     return broadcast.validateAsset(chain, value, symbols, label);
   }
 
+  function normalizeVizSharingRatePercent(value) {
+    const text = String(value ?? '').trim().replace(',', '.');
+    if (text === '') return 0;
+    if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
+      throw new Error('Доля голосующим должна быть числом от 0 до 100 процентов.');
+    }
+    const percent = Number(text);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      throw new Error('Доля голосующим должна быть от 0 до 100 процентов.');
+    }
+    return Math.round(percent * 100);
+  }
+
   function normalizeGolosTokenSymbol(value, label) {
     const symbol = String(value || '').trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9]{0,15}$/.test(symbol)) {
@@ -2065,7 +2078,8 @@
       fillFormValue(form, 'url', witness.url || '');
       const signingKey = String(witness.signing_key || witness.signingKey || '').trim();
       fillFormValue(form, 'signingKey', signingKey);
-      fillFormValue(form, 'fee', `0.000 ${chain.liquidSymbol}`);
+      if (chain.id === 'viz') fillFormValue(form, 'sharingRate', witness.sharing_rate !== undefined ? String(Number(witness.sharing_rate) / 100) : '0');
+      else fillFormValue(form, 'fee', `0.000 ${chain.liquidSymbol}`);
       const savedSigningKey = rememberManageWitnessSigningKey(chain, signingKey);
       let props = witness.props || {};
       if (!Object.keys(props).length) {
@@ -8257,12 +8271,13 @@
 
   function renderManage(chain) {
     const validatorMode = chain.id === 'viz';
-    const witnessLabel = validatorMode ? 'валидатор' : 'witness';
+    const witnessLabel = validatorMode ? 'валидатора' : 'witness';
     const witnessLabelPlural = validatorMode ? 'валидаторы' : 'делегаты';
     const witnessLabelPluralTitle = validatorMode ? 'Валидаторы' : 'Делегаты';
     const witnessVoteTitle = validatorMode ? 'Голосование за валидатора' : 'Голосование за witness';
     const witnessProxyTitle = validatorMode ? 'Validator proxy' : 'Witness proxy';
     const witnessPropsTitle = validatorMode ? 'validator props' : 'witness props';
+    const witnessSettingsLoadText = validatorMode ? 'Загрузить текущие настройки валидатора' : 'Загрузить текущие witness настройки';
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: управление</h2>
@@ -8315,12 +8330,12 @@
             <p class="muted">Если нужно изменить ключ активации, вставьте новый ключ подписи блоков в поле и нажмите «${validatorMode ? 'Активировать валидатора' : 'Активировать делегата'}». Сохранённый ключ показан под полем сокращённо и доступен кнопкой.</p>
             <div class="field"><label for="manage-witness-url">URL ${witnessLabel} / ${validatorMode ? 'пост валидатора' : 'пост делегата'}</label><input id="manage-witness-url" name="url" type="url" placeholder="если пусто — попробуем взять текущий URL ${witnessLabel}"></div>
             <div class="field"><label for="manage-witness-key">Публичный ключ подписи блоков ${witnessLabel}</label><input id="manage-witness-key" name="signingKey" type="text" list="manage-witness-key-history" autocomplete="off" placeholder="${escapeHtml(manageNullSigningKey(chain) || `${chain.id.toUpperCase()}...`)}"><datalist id="manage-witness-key-history"></datalist><p id="manage-witness-saved-key-hint" class="muted">Сохранённого ключа пока нет.</p></div>
-            <div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>
+            ${validatorMode ? `<div class="field"><label for="manage-validator-sharing-rate">Доля голосующим, %</label><input id="manage-validator-sharing-rate" name="sharingRate" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal"><p class="muted">0 = ничего, 100 = вся награда валидатора голосующим. В сеть уходит sharing_rate в сотых долях процента: 25% = 2500.</p></div>` : `<div class="field"><label for="manage-witness-fee">Комиссия</label><input id="manage-witness-fee" name="fee" type="text" required value="0.000 ${escapeHtml(chain.liquidSymbol)}" placeholder="0.000 ${escapeHtml(chain.liquidSymbol)}"></div>`}
             <div class="witness-action-buttons" aria-label="Быстрые действия ${witnessLabel}">
               <button type="submit" name="intent" value="send" data-witness-action="activate">${validatorMode ? 'Активировать валидатора' : 'Активировать делегата'}</button>
               <button type="submit" name="intent" value="send" data-witness-action="deactivate" class="danger-button">${validatorMode ? 'Остановить валидатора' : 'Остановить делегата'}</button>
             </div>
-            ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? '<button type="button" id="manage-witness-load">Загрузить текущие ${witnessLabel} настройки</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>' : ''}
+            ${(chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') ? `<button type="button" id="manage-witness-load">${witnessSettingsLoadText}</button><div id="manage-witness-prefill-result" class="operation-result" role="status" aria-live="polite"></div>` : ''}
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </fieldset>
         </form></details>
@@ -8609,7 +8624,7 @@
         signingKey = String(form.get('signingKey') || '').trim();
         if (!signingKey) throw new Error(chain.id === 'viz' ? 'Для активации нужен публичный block signing key валидатора. Приватный ключ сюда вводить нельзя.' : 'Для активации нужен публичный block signing key делегата. Приватный ключ сюда вводить нельзя.');
       }
-      const fee = normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, chain.id === 'viz' ? 'Validator fee' : 'Witness fee');
+      const fee = chain.id === 'viz' ? '' : normalizeAssetInput(chain, form.get('fee'), chain.liquidSymbol, 'Witness fee');
       let props = {};
       const rawProps = String(form.get('props') || '').trim();
       if (rawProps) {
@@ -8624,7 +8639,10 @@
         ? ['Будет установлен введённый ключ подписи блоков.']
         : (action === 'deactivate' ? [chain.id === 'viz' ? 'Валидатор будет остановлен через null-key сети.' : 'Делегат будет остановлен через null-key сети.'] : ['Проверьте введённый ключ подписи блоков.']);
       if (chain.id === 'viz') {
-        return broadcast.prepare(chain, 'active', 'validatorUpdate', [account, url, signingKey], { title: `VIZ ${actionTitle}`, warnings: ['VIZ validatorUpdate меняет url/signing_key; chain props отправляются отдельной versionedChainPropertiesUpdate формой.'].concat(actionWarnings) });
+        const sharingRate = normalizeVizSharingRatePercent(form.get('sharingRate'));
+        const ops = [['validator_update', { owner: account, url, block_signing_key: signingKey }]];
+        if (action !== 'deactivate') ops.push(['set_reward_sharing', { owner: account, sharing_rate: sharingRate }]);
+        return broadcast.prepare(chain, 'active', 'sendOperations', [ops], { title: `VIZ ${actionTitle}`, amount: `${sharingRate / 100}% голосующим`, warnings: ['VIZ validator_update меняет url/signing_key; Доля голосующим отправляется отдельной операцией set_reward_sharing.'].concat(actionWarnings) });
       }
       return broadcast.prepare(chain, 'active', 'witnessUpdate', [account, url, signingKey, props, fee], { title: actionTitle, amount: fee, warnings: ['Внимательно проверьте witness props: неверные параметры сети могут сделать настройки witness некорректными.'].concat(actionWarnings) });
     });

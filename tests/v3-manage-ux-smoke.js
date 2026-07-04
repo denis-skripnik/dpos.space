@@ -18,6 +18,7 @@ assert(appSource.includes('GLS1111111111111111111111111111111114T1Anm'), 'Golos 
 assert(appSource.includes('VIZ1111111111111111111111111111111114T1Anm'), 'VIZ null signing key is detected for inactive witnesses');
 assert(appSource.includes('Настройки witness / параметры сети'), 'witness props/settings are separated from activation');
 assert(appSource.includes('Активация или деактивация ${witnessLabel}'), 'witness/validator activation/deactivation has its own form copy');
+assert(appSource.includes('Доля голосующим, %'), 'VIZ validator activation exposes reward sharing percent instead of commission');
 assert(appSource.includes('data-witness-action="activate"'), 'witness activation exposes a direct mobile-friendly action button');
 assert(appSource.includes('data-witness-action="deactivate"'), 'witness deactivation exposes a direct stop button');
 const witnessActionCopy = appSource.slice(appSource.indexOf('id="manage-witness-update-details"'), appSource.indexOf('id="viz-witness-props-details"'));
