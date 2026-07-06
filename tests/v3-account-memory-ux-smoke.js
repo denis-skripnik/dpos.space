@@ -16,7 +16,7 @@ assert(indexSource.includes('list="recent-account-list"'), 'account input is wir
 
 assert(appSource.includes('RECENT_ACCOUNT_LIMIT = 15'), 'recent viewed account list is capped');
 assert(appSource.includes('recentAccountsKey(chain)'), 'recent viewed accounts use per-chain localStorage keys');
-assert(appSource.includes("`${chain.id}_recent_accounts`"), 'recent viewed account storage key stays separate from legacy authorized users');
+assert(appSource.includes("`${chain.id}${chain.network === 'testnet' ? '_testnet' : ''}_recent_accounts`"), 'recent viewed account storage key stays separate from legacy authorized users and is network-scoped for testnet');
 assert(appSource.includes('rememberRecentAccount(chain, typedLogin);'), 'route submit stores only the manually typed login from the account field');
 assert(appSource.includes('rememberRecentAccount(chain, account);'), 'successful read-only render stores deep-link/current account names too');
 assert(!appSource.includes('rememberRecentAccount(chain, selectedLogin);'), 'authorized account selector changes are not copied into read-only recent history');

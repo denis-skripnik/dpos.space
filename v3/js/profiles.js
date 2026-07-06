@@ -68,9 +68,10 @@
 
     let lastError = null;
 
-    const storedNode = global.localStorage.getItem(`${chainConfig.id}_node`);
+    const nodeStorageKey = `${chainConfig.id}${chainConfig.network === 'testnet' ? '_testnet' : ''}_node`;
+    const storedNode = global.localStorage.getItem(nodeStorageKey);
     const normalizedStoredNode = storedNode && storedNode.replace(/\/$/, '');
-    const shouldPreferStoredNode = chainConfig.id !== 'viz';
+    const shouldPreferStoredNode = chainConfig.id !== 'viz' || chainConfig.network === 'testnet';
     const nodes = shouldPreferStoredNode && normalizedStoredNode && chainConfig.nodes.includes(normalizedStoredNode)
       ? [normalizedStoredNode, ...chainConfig.nodes.filter((nodeUrl) => nodeUrl !== normalizedStoredNode)]
       : chainConfig.nodes;
@@ -80,7 +81,7 @@
         setNode(chain, nodeUrl);
         await callApi(chain, 'getDynamicGlobalProperties', []);
         chain.node = nodeUrl;
-        global.localStorage.setItem(`${chainConfig.id}_node`, nodeUrl);
+        global.localStorage.setItem(nodeStorageKey, nodeUrl);
         return chain;
       } catch (error) {
         lastError = error;
