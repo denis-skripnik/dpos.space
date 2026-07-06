@@ -11,10 +11,9 @@
   }
 
   function getKeys(chain) {
-    const suffix = chain && chain.network === 'testnet' ? '_testnet' : '';
     return {
-      current: `${chain.id}${suffix}_current_user`,
-      users: `${chain.id}${suffix}_users`
+      current: `${chain.id}_current_user`,
+      users: `${chain.id}_users`
     };
   }
 
