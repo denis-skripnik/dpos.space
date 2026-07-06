@@ -410,7 +410,8 @@
     const sdk = getClient(chain);
     if (!sdk.Wallet || !sdk.DecimalEVM) throw new Error('Библиотека Decimal недоступна.');
     const wallet = new sdk.Wallet(prepared.getPrivateKey());
-    const network = sdk.DecimalNetworks ? sdk.DecimalNetworks.mainnet : undefined;
+    const networkId = chain.network === 'testnet' ? 'testnet' : 'mainnet';
+    const network = sdk.DecimalNetworks ? sdk.DecimalNetworks[networkId] : undefined;
     const evm = new sdk.DecimalEVM(wallet, network);
     if (typeof evm.connect === 'function') {
       try { await evm.connect(); } catch (error) { /* optional in browser build */ }

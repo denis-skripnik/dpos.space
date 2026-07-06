@@ -9,6 +9,8 @@
   const notifications = global.DposNotifications;
   const pwa = global.DposPwa;
   const chainSelect = document.getElementById('chain-select');
+  const networkField = document.getElementById('network-field');
+  const networkSelect = document.getElementById('network-select');
   const appSelect = document.getElementById('app-select');
   const routeForm = document.getElementById('route-form');
   const accountInput = document.getElementById('account-input');
@@ -610,6 +612,55 @@
     )).join('');
   }
 
+  function hasTestnetConfig(chain) {
+    return Boolean(chain && chain.testnet && typeof chain.testnet === 'object' && Object.keys(chain.testnet).length > 0);
+  }
+
+  function networkStorageKey(chain) {
+    return `dpos_network_${chain.id}`;
+  }
+
+  function normalizeNetworkId(chain, value) {
+    return value === 'testnet' && hasTestnetConfig(chain) ? 'testnet' : 'mainnet';
+  }
+
+  function storedNetwork(chain) {
+    try {
+      return normalizeNetworkId(chain, global.localStorage.getItem(networkStorageKey(chain)) || 'mainnet');
+    } catch (error) {
+      return 'mainnet';
+    }
+  }
+
+  function selectedNetworkForState(state, chain) {
+    return normalizeNetworkId(chain, state.network || storedNetwork(chain));
+  }
+
+  function resolveChainNetwork(chain, network) {
+    const normalized = normalizeNetworkId(chain, network);
+    if (normalized === 'testnet') {
+      return Object.assign({}, chain, chain.testnet, {
+        id: chain.id,
+        title: chain.title,
+        description: chain.description,
+        apps: chain.apps,
+        testnet: chain.testnet,
+        network: 'testnet'
+      });
+    }
+    return Object.assign({}, chain, { network: 'mainnet' });
+  }
+
+  function fillNetworkSelect(chain, selectedNetwork) {
+    if (!networkField || !networkSelect) return;
+    const hasTestnet = hasTestnetConfig(chain);
+    networkField.hidden = !hasTestnet;
+    networkField.setAttribute('aria-hidden', hasTestnet ? 'false' : 'true');
+    networkSelect.disabled = !hasTestnet;
+    networkSelect.innerHTML = '<option value="mainnet">Mainnet</option>' + (hasTestnet ? '<option value="testnet">Testnet</option>' : '');
+    networkSelect.value = normalizeNetworkId(chain, selectedNetwork);
+  }
+
   function fillAppSelect(chain, selectedAppId) {
     appSelect.innerHTML = chain.apps.map((app) => (
       `<option value="${escapeHtml(app.id)}" ${app.id === selectedAppId ? 'selected' : ''}>${escapeHtml(app.title)}</option>`
@@ -649,7 +700,7 @@
   }
 
   function recentAccountsKey(chain) {
-    return `${chain.id}_recent_accounts`;
+    return `${chain.id}${chain.network === 'testnet' ? '_testnet' : ''}_recent_accounts`;
   }
 
   function normalizeRecentAccount(chain, value) {
@@ -819,7 +870,11 @@
   }
 
   function appHash(params) {
-    return `#${new URLSearchParams(params).toString()}`;
+    const clean = {};
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') clean[key] = value;
+    });
+    return `#${new URLSearchParams(clean).toString()}`;
   }
 
   function golosPostPageUrl(author, permlink) {
@@ -13476,7 +13531,7 @@ Memo key: ${keys.memo}`);
 
   function hasChainOnlyRouteState(state) {
     const entries = Object.entries(state || {}).filter(([, value]) => String(value || '').trim() !== '');
-    return entries.length === 1 && entries[0][0] === 'chain' && Boolean(chains[entries[0][1]]);
+    return entries.length > 0 && entries.every(([key]) => key === 'chain' || key === 'network') && Boolean(chains[state.chain]);
   }
 
   function bytesToBase64(bytes) {
@@ -13725,12 +13780,14 @@ Memo key: ${keys.memo}`);
   }
 
   function renderChainOverview(chain) {
+    const linkNetwork = chain.network === 'testnet' ? 'testnet' : null;
     const appsList = chain.apps.map((app) => `
       <li>
-        <a href="${escapeHtml(appHash({ chain: chain.id, app: app.id }))}">${escapeHtml(app.title)}</a>
+        <a href="${escapeHtml(appHash({ chain: chain.id, network: linkNetwork, app: app.id }))}">${escapeHtml(app.title)}</a>
         <br><span class="muted">${escapeHtml(app.description || '')}</span>
       </li>`).join('');
     const endpointRows = [
+      ['Сеть', chain.network === 'testnet' ? 'Testnet' : 'Mainnet'],
       chain.apiBase ? ['API', chain.apiBase] : null,
       chain.explorerBase ? ['Explorer API', chain.explorerBase] : null,
       chain.gateUrl ? ['Gate API', chain.gateUrl] : null,
@@ -13854,6 +13911,7 @@ Memo key: ${keys.memo}`);
       const chain = chains.golos || Object.values(chains)[0];
       const app = chain.apps[0];
       fillChainSelect(chain.id);
+      fillNetworkSelect(chain, 'mainnet');
       fillAppSelect(chain, app.id);
       updateAccountField(app, chain);
       accountInput.value = '';
@@ -13865,6 +13923,7 @@ Memo key: ${keys.memo}`);
       const chain = chains.golos || Object.values(chains)[0];
       const app = chain.apps[0];
       fillChainSelect(chain.id);
+      fillNetworkSelect(chain, 'mainnet');
       fillAppSelect(chain, app.id);
       updateAccountField(app, chain);
       accountInput.value = '';
@@ -13873,24 +13932,30 @@ Memo key: ${keys.memo}`);
     }
 
     if (hasChainOnlyRouteState(state)) {
-      const chain = chains[state.chain];
-      const navApp = chain.apps.find((item) => item.id === 'accounts') || chain.apps.find((item) => !appRequiresAccount(item)) || chain.apps[0];
-      fillChainSelect(chain.id);
-      fillAppSelect(chain, navApp.id);
+      const baseChain = chains[state.chain];
+      const network = selectedNetworkForState(state, baseChain);
+      const chain = resolveChainNetwork(baseChain, network);
+      const navApp = baseChain.apps.find((item) => item.id === 'accounts') || baseChain.apps.find((item) => !appRequiresAccount(item)) || baseChain.apps[0];
+      fillChainSelect(baseChain.id);
+      fillNetworkSelect(baseChain, network);
+      fillAppSelect(baseChain, navApp.id);
       updateAccountField({ id: 'chain-overview', accountField: false }, chain);
       accountInput.value = '';
       renderChainOverview(chain);
       return;
     }
 
-    const chain = chains[state.chain] || chains.viz;
-    const requestedAppId = legacyAppTarget(chain, state.app);
-    const app = chain.apps.find((item) => item.id === requestedAppId) || chain.apps[0];
+    const baseChain = chains[state.chain] || chains.viz;
+    const network = selectedNetworkForState(state, baseChain);
+    const chain = resolveChainNetwork(baseChain, network);
+    const requestedAppId = legacyAppTarget(baseChain, state.app);
+    const app = baseChain.apps.find((item) => item.id === requestedAppId) || baseChain.apps[0];
     const effectiveAppId = app.id;
     const account = getRouteAccount(state, chain);
 
-    fillChainSelect(chain.id);
-    fillAppSelect(chain, app.id);
+    fillChainSelect(baseChain.id);
+    fillNetworkSelect(baseChain, network);
+    fillAppSelect(baseChain, app.id);
     updateAccountField(app, chain);
     accountInput.value = account;
 
@@ -14012,22 +14077,41 @@ Memo key: ${keys.memo}`);
   }
 
   chainSelect.addEventListener('change', () => {
-    const chain = chains[chainSelect.value];
-    const app = chain.apps[0];
-    fillAppSelect(chain, app.id);
+    const baseChain = chains[chainSelect.value];
+    const network = storedNetwork(baseChain);
+    const chain = resolveChainNetwork(baseChain, network);
+    const app = baseChain.apps[0];
+    fillNetworkSelect(baseChain, network);
+    fillAppSelect(baseChain, app.id);
     updateAccountField(app, chain);
     accountInput.value = auth.getCurrentLogin(chain) || chain.defaultAccount || '';
   });
 
+  if (networkSelect) {
+    networkSelect.addEventListener('change', () => {
+      const baseChain = chains[chainSelect.value];
+      const network = normalizeNetworkId(baseChain, networkSelect.value);
+      try { global.localStorage.setItem(networkStorageKey(baseChain), network); } catch (error) { /* optional */ }
+      const chain = resolveChainNetwork(baseChain, network);
+      const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
+      updateAccountField(app, chain);
+      accountInput.value = auth.getCurrentLogin(chain) || (appRequiresAccount(app) ? chain.defaultAccount || '' : '');
+    });
+  }
+
   appSelect.addEventListener('change', () => {
-    const chain = chains[chainSelect.value];
-    const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
+    const baseChain = chains[chainSelect.value];
+    const network = networkSelect && !networkSelect.disabled ? networkSelect.value : storedNetwork(baseChain);
+    const chain = resolveChainNetwork(baseChain, network);
+    const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
     updateAccountField(app, chain);
   });
 
   if (accountSelect) {
     accountSelect.addEventListener('change', () => {
-      const chain = chains[chainSelect.value];
+      const baseChain = chains[chainSelect.value];
+      const network = networkSelect && !networkSelect.disabled ? networkSelect.value : storedNetwork(baseChain);
+      const chain = resolveChainNetwork(baseChain, network);
       const login = selectSavedAccount(chain, accountSelect.value);
       if (login && !accountInput.disabled) accountInput.value = login;
     });
@@ -14035,13 +14119,17 @@ Memo key: ${keys.memo}`);
 
   routeForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    const chain = chains[chainSelect.value];
-    const app = chain.apps.find((item) => item.id === appSelect.value) || chain.apps[0];
+    const baseChain = chains[chainSelect.value];
+    const network = networkSelect && !networkSelect.disabled ? normalizeNetworkId(baseChain, networkSelect.value) : 'mainnet';
+    try { global.localStorage.setItem(networkStorageKey(baseChain), network); } catch (error) { /* optional */ }
+    const chain = resolveChainNetwork(baseChain, network);
+    const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
     const selectedLogin = accountSelect && !accountSelect.disabled ? selectSavedAccount(chain, accountSelect.value) : '';
     const typedLogin = appRequiresAccount(app) && !accountInput.disabled ? accountInput.value.trim().replace(/^@/, '') : '';
     if (typedLogin && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, typedLogin);
     navigate({
       chain: chainSelect.value,
+      network: network === 'testnet' ? 'testnet' : null,
       app: appSelect.value,
       account: appRequiresAccount(app) || appUsesAuthorizedAccount(app) ? (selectedLogin || typedLogin || null) : null
     });

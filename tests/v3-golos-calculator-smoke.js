@@ -21,7 +21,7 @@ assert(appSource.includes('(sg / 10000) * 7'), 'Golos daily СГ reward formula 
 assert(appSource.includes('gests * totalFund / totalShares'), 'Golos GESTS to СГ converter preserves legacy calculation');
 assert(appSource.includes('role="status" aria-live="polite"'), 'Golos calculator results are exposed through accessible live regions');
 assert(appSource.includes("calc: 'calculator'"), 'legacy calc route remains aliased to calculator');
-assert(appSource.includes('const requestedAppId = legacyAppTarget(chain, state.app);'), 'router canonicalizes legacy app id before app lookup');
-assert(appSource.includes('chain.apps.find((item) => item.id === requestedAppId)'), 'router looks up apps by canonicalized legacy id');
+assert(appSource.includes('const requestedAppId = legacyAppTarget(baseChain, state.app);'), 'router canonicalizes legacy app id before app lookup');
+assert(appSource.includes('baseChain.apps.find((item) => item.id === requestedAppId)'), 'router looks up apps by canonicalized legacy id');
 
 console.log('v3 Golos calculator smoke passed');

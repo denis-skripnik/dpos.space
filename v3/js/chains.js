@@ -159,6 +159,11 @@
         'https://api.viz.world',
         'https://node.viz.cx'
       ],
+      testnet: {
+        nodes: [
+          'https://testnet.viz.world/'
+        ]
+      },
       apps: apps(vizApps)
     },
     steem: {
