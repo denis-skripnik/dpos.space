@@ -91,6 +91,12 @@ for (const evidence of [
   assert(planSource.includes(evidence), `plan.md records VIZ legacy evidence: ${evidence}`);
 }
 
+assert(appSource.includes('let walletHistoryError = \'\''), 'Graphene wallet data treats account history as optional state');
+assert(appSource.includes('walletHistoryError = profiles.formatError(error)'), 'Graphene wallet data stores history RPC failures instead of throwing');
+assert(appSource.includes('function renderWalletHistoryNotice'), 'Wallet renders an accessible notice when history is unavailable');
+assert(renderVizWallet.includes('renderWalletHistoryNotice(data)'), 'VIZ wallet shows history errors without breaking balances/forms');
+assert(appSource.includes('Балансы и формы кошелька загружены'), 'History failure notice tells users that wallet functions remain available');
+
 assert(appSource.includes('function renderGolosWallet'), 'Golos dedicated wallet remains present');
 assert(appSource.includes('renderGolosUiaDepositSection'), 'Golos UIA gateways remain present');
 
