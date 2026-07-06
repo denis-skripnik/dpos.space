@@ -540,7 +540,9 @@
 
   function parseHash() {
     const raw = global.location.hash.replace(/^#/, '');
-    return Object.fromEntries(new URLSearchParams(raw));
+    const state = Object.fromEntries(new URLSearchParams(raw));
+    delete state.network;
+    return state;
   }
 
   const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants'];
@@ -633,7 +635,7 @@
   }
 
   function selectedNetworkForState(state, chain) {
-    return normalizeNetworkId(chain, state.network || storedNetwork(chain));
+    return storedNetwork(chain);
   }
 
   function resolveChainNetwork(chain, network) {
@@ -700,7 +702,7 @@
   }
 
   function recentAccountsKey(chain) {
-    return `${chain.id}${chain.network === 'testnet' ? '_testnet' : ''}_recent_accounts`;
+    return `${chain.id}_recent_accounts`;
   }
 
   function normalizeRecentAccount(chain, value) {
@@ -13531,7 +13533,7 @@ Memo key: ${keys.memo}`);
 
   function hasChainOnlyRouteState(state) {
     const entries = Object.entries(state || {}).filter(([, value]) => String(value || '').trim() !== '');
-    return entries.length > 0 && entries.every(([key]) => key === 'chain' || key === 'network') && Boolean(chains[state.chain]);
+    return entries.length === 1 && entries[0][0] === 'chain' && Boolean(chains[entries[0][1]]);
   }
 
   function bytesToBase64(bytes) {
@@ -13780,10 +13782,9 @@ Memo key: ${keys.memo}`);
   }
 
   function renderChainOverview(chain) {
-    const linkNetwork = chain.network === 'testnet' ? 'testnet' : null;
     const appsList = chain.apps.map((app) => `
       <li>
-        <a href="${escapeHtml(appHash({ chain: chain.id, network: linkNetwork, app: app.id }))}">${escapeHtml(app.title)}</a>
+        <a href="${escapeHtml(appHash({ chain: chain.id, app: app.id }))}">${escapeHtml(app.title)}</a>
         <br><span class="muted">${escapeHtml(app.description || '')}</span>
       </li>`).join('');
     const endpointRows = [
@@ -14096,6 +14097,7 @@ Memo key: ${keys.memo}`);
       const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
       updateAccountField(app, chain);
       accountInput.value = auth.getCurrentLogin(chain) || (appRequiresAccount(app) ? chain.defaultAccount || '' : '');
+      renderRoute();
     });
   }
 
@@ -14129,7 +14131,6 @@ Memo key: ${keys.memo}`);
     if (typedLogin && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, typedLogin);
     navigate({
       chain: chainSelect.value,
-      network: network === 'testnet' ? 'testnet' : null,
       app: appSelect.value,
       account: appRequiresAccount(app) || appUsesAuthorizedAccount(app) ? (selectedLogin || typedLogin || null) : null
     });

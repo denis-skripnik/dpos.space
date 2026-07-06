@@ -1,7 +1,7 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260706-1';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20260706-2';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
