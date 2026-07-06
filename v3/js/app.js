@@ -3205,6 +3205,11 @@
     });
   }
 
+  function renderWalletHistoryNotice(data) {
+    if (!data || !data.walletHistoryError) return '';
+    return `<p class="notice" role="status">История операций сейчас недоступна на выбранной ноде: ${escapeHtml(data.walletHistoryError)}. Балансы и формы кошелька загружены, можно пользоваться функциями без блока истории.</p>`;
+  }
+
   function renderOperationSelectOptions(chain, selectedOps) {
     const selected = new Set(selectedOps || []);
     return history.operationOptions(chain).map((option) => {
@@ -3234,9 +3239,15 @@
       ? await options.loadExtraBalances(connection, account)
       : [];
     const balanceRows = profile.balances.concat(extraBalances || []);
-    const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
-    const walletItems = history.getWalletOperations(chain, items).slice(0, 50);
-    return { current, profile, balanceRows, walletItems };
+    let walletItems = [];
+    let walletHistoryError = '';
+    try {
+      const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
+      walletItems = history.getWalletOperations(chain, items).slice(0, 50);
+    } catch (error) {
+      walletHistoryError = profiles.formatError(error);
+    }
+    return { current, profile, balanceRows, walletItems, walletHistoryError };
   }
 
   function callVizApi(api, method, args) {
@@ -3325,6 +3336,7 @@
         <ul>${data.balanceRows.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>
         ${formsHtml}
         <h3>Последние финансовые операции</h3>
+        ${renderWalletHistoryNotice(data)}
         ${renderHistoryTable(data.walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
       </section>
     `;
@@ -3359,6 +3371,7 @@
         ${renderGolosWalletBalances(data.profile, data.balanceRows)}
         ${formsHtml}
         <h3>Последние финансовые операции</h3>
+        ${renderWalletHistoryNotice(data)}
         ${renderHistoryTable(data.walletItems, chain, 'Финансовые операции не найдены в последней выборке.')}
       </section>
     `;
@@ -3387,6 +3400,7 @@
         ${renderVizWalletBalances(data.profile, data.delegations)}
         ${formsHtml}
         <h3>Последние финансовые операции VIZ</h3>
+        ${renderWalletHistoryNotice(data)}
         ${renderHistoryTable(data.walletItems, chain, 'Transfer/award/reward операции не найдены в последней выборке.')}
       </section>
     `;
@@ -3415,6 +3429,7 @@
         ${renderHiveWalletBalances(data.profile, data.delegations, data.delegationsError)}
         ${formsHtml}
         <h3>Последние финансовые операции Hive</h3>
+        ${renderWalletHistoryNotice(data)}
         ${renderHistoryTable(data.walletItems, chain, 'Transfer/reward операции не найдены в последней выборке.')}
       </section>
     `;
@@ -3503,6 +3518,7 @@
         ${renderSteemWalletBalances(data.profile, data.delegations, data.delegationsError)}
         ${formsHtml}
         <h3>Последние финансовые операции Steem</h3>
+        ${renderWalletHistoryNotice(data)}
         ${renderHistoryTable(data.walletItems, chain, 'Transfer/reward операции не найдены в последней выборке.')}
       </section>
     `;
