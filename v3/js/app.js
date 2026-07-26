@@ -14288,17 +14288,8 @@ Memo key: ${keys.memo}`);
         const date = new Date().toISOString().slice(0, 10);
         const filename = `dpos-space-passkey-backup-${date}.json`;
         const backupText = JSON.stringify(backup, null, 2);
-        try {
-          await shareBackupFile(filename, backupText);
-          setOperationResult(exportForm, `Passkey-backup создан для ${keys.length} локальных записей. Системное меню отправки открыто; ручной пароль не нужен.`, 'ok');
-        } catch (shareError) {
-          if (shareError && shareError.name === 'AbortError') {
-            setOperationResult(exportForm, 'Отправка passkey-backup отменена. Файл не был скачан автоматически.', 'info');
-          } else {
-            downloadTextFile(filename, backupText);
-            setOperationResult(exportForm, `${profiles.formatError(shareError)} Passkey-backup скачан как файл: ${keys.length} локальных записей.`, 'info');
-          }
-        }
+        downloadTextFile(filename, backupText);
+        setOperationResult(exportForm, `Passkey-backup скачан как файл: ${keys.length} локальных записей. Ручной пароль не нужен; для импорта выберите этот файл и нажмите «Импортировать passkey-backup».`, 'ok');
       } catch (error) {
         setOperationResult(exportForm, profiles.formatError(error), 'error');
       }
