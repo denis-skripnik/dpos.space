@@ -106,6 +106,9 @@ async function run() {
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd'), 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd');
   assert.strictEqual(context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d');
   assert.throws(() => context.DposBroadcast.validateAddress(decimal, 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), /Decimal address/);
+  assert.strictEqual(context.DposHistory.canonicalOperationType(minter, 13), 'multisend', 'minter numeric multisend is canonicalized as operation');
+  assert.strictEqual(context.DposHistory.canonicalOperationType(minter, 'multisend_coin'), 'multisend', 'minter multisend_coin is canonicalized as operation');
+  assert.strictEqual(context.DposHistory.canonicalOperationType(decimal, '/decimal.coin.v1.MsgMultiSendCoin'), 'multisend', 'decimal MsgMultiSendCoin is canonicalized as operation');
   assert.strictEqual(context.DposHistory.operationTitle('/decimal.coin.v1.MsgSendCoin'), 'Отправка', 'decimal OpenAPI message type is readable');
   assert.strictEqual(context.DposHistory.operationTitle('COIN_SEND'), 'Отправка', 'decimal legacy uppercase send type is readable');
   assert.strictEqual(context.DposHistory.operationTitle('COIN_SELL'), 'Продажа монеты', 'decimal legacy uppercase sell type is readable');

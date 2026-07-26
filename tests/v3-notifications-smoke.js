@@ -63,6 +63,13 @@ const context = {
     }
   },
   DposHistory: {
+    canonicalOperationType(chain, type) {
+      const id = typeof chain === 'string' ? chain : chain.id;
+      const text = String(type);
+      if (id === 'minter' && ['13', 'multisend_coin', 'COIN_MULTISEND', 'coin_multisend'].includes(text)) return 'multisend';
+      if (id === 'decimal' && ['/decimal.coin.v1.MsgMultiSendCoin', 'multi_send', 'MsgMultiSendCoin'].includes(text)) return 'multisend';
+      return text;
+    },
     operationTitle(type) { return type; },
     formatDate(value) { return value; },
     fetchAccountHistory: async (chain, account, options) => {
@@ -161,14 +168,14 @@ const minterMultisend = api.toNotification({ id: 'minter', title: 'Minter' }, 'M
   type: 'multisend_coin',
   data: { from: 'Mx1111111111111111111111111111111111111111', list: [{ address: 'Mxf85ceccfe2112e88be58162c43f5ec959672ab54', value: '1', coin: 'BIP' }] }
 });
-assert(minterMultisend && minterMultisend.title === 'Мульти-отправка' && minterMultisend.url.includes('ops=multisend'), 'Minter multisend aliases become a multisend notification');
+assert(minterMultisend && minterMultisend.title === 'Мульти-отправка' && minterMultisend.url.includes('ops=multisend'), 'Minter multisend operation is normalized by the shared history operation layer');
 
 const decimalMultisend = api.toNotification({ id: 'decimal', title: 'Decimal' }, 'dx0000000000000000000000000000000000000000', {
   index: 17,
   type: '/decimal.coin.v1.MsgMultiSendCoin',
   data: { from: 'dx1111111111111111111111111111111111111111', recipients: [{ address: 'dx0000000000000000000000000000000000000000', amount: '1', denom: 'DEL' }] }
 });
-assert(decimalMultisend && decimalMultisend.title === 'Мульти-отправка' && decimalMultisend.url.includes('ops=multisend'), 'Decimal MsgMultiSendCoin becomes a multisend notification');
+assert(decimalMultisend && decimalMultisend.title === 'Мульти-отправка' && decimalMultisend.url.includes('ops=multisend'), 'Decimal multisend operation is normalized by the shared history operation layer');
 
 api.upsertNotifications([{ id: 'golos:denis-skripnik:7', account: 'denis-skripnik', chainId: 'golos', direction: 'incoming', timestamp: '2026-05-13T01:02:03' }]);
 assert.strictEqual(api.countUnread({ direction: 'incoming' }), 1, 'unread count persists');
