@@ -13,7 +13,7 @@ class DposForegroundService : Service() {
         super.onCreate()
         isRunning = true
         WorkerStore(this).appendLog("foreground service created")
-        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование пока только dry-run."))
+        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -34,7 +34,7 @@ class DposForegroundService : Service() {
                 store.appendLog("foreground service started")
             }
         }
-        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование пока только dry-run."))
+        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
         return START_STICKY
     }
 

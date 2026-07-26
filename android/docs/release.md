@@ -26,14 +26,17 @@ Manual smoke checklist before sharing an APK:
 1. Install debug APK on Android device/emulator.
 2. Launch app and verify DPoS Space WebView opens `https://dpos.blinddev.xyz/`.
 3. With TalkBack, confirm main route navigation remains usable.
-4. From WebView console/debug UI, call `getAppInfo()`, `getWorkerStatus()`, `importWorkerSettings()` with explicit non-secret Golos settings, `importSecureKey()` with a controlled test-only key on a non-production device, `startWorker()`, `checkNow()`, `stopWorker()`, `exportWorkerLogs()`.
+4. From WebView console/debug UI, call `getAppInfo()`, `getWorkerStatus()`, `importWorkerSettings()` with explicit non-secret Golos settings, `importSecureKey()` with a controlled test-only key on a non-production device, `previewAutoVote(json)` for a known harmless candidate, `startWorker()`, `checkNow()`, `stopWorker()`, `exportWorkerLogs()`.
 5. Verify `importWorkerSettings()` rejects secret-like fields and `importSecureKey()` returns only `keyRef` / `hasKey` metadata without echoing the imported secret.
-6. Verify the foreground notification is visible while running and has Open / Check now / Stop actions.
-7. Verify exported logs are redacted and do not contain private keys, seeds, WIFs, passwords, tokens or raw encrypted blobs.
-8. Reboot the device/emulator after enabling the worker and confirm boot restore either resumes the visible worker state or reports why Android restrictions prevented it.
+6. Verify `previewAutoVote(json)` returns `broadcasted: false` and never submits a transaction.
+7. Verify the foreground notification is visible while running and has Open / Check now / Stop actions.
+8. Verify exported logs are redacted and do not contain private keys, seeds, WIFs, passwords, tokens or raw encrypted blobs.
+9. Reboot the device/emulator after enabling the worker and confirm boot restore either resumes the visible worker state or reports why Android restrictions prevented it.
 
 Native signing/broadcast status:
 
-- Kotlin now has deterministic Golos vote operation fixtures and a dry-run broadcast/signing gate.
-- The automated worker remains dry-run by default and never performs mainnet broadcasts.
+- Kotlin has a real-capable Golos vote signer/broadcaster path for planned auto-upvoter actions: local WIF/secp256k1 signing via `bitcoinj-core`, Graphene vote transaction JSON construction, and JSON-RPC broadcast through configured Golos RPC.
+- Preview/check is explicit and separate: `previewAutoVote(json)` / `VoteRuntime.preview(...)` builds the signed transaction path but never broadcasts.
+- Automated tests use fake RPC/broadcaster/signers and never perform mainnet broadcasts.
+- Current native candidate-source gap: worker ticks do not yet import/collect curator/favorite event candidates for Android, so with no native candidates the worker logs “no eligible vote actions” instead of broadcasting placeholder votes.
 - Live mainnet validation, Google Play publishing, AAB signing, release keystore use, and Play service accounts require explicit Denis approval and local/CI secrets outside git.

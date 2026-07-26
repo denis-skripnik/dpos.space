@@ -26,6 +26,7 @@ Native bridge controls exposed only inside the Android WebView:
 - `window.DposAndroid.importSecureKey(json)` — dedicated secure-key import bridge. It requires `explicitConsent: true`, validates `chainId`, `account`, `authority`, and `alias`, stores the private key only through Android encrypted storage, and returns only `keyRef` / `hasKey` metadata. The bridge does not log, export, or echo the secret. Current test-safe scope is Golos posting/active key references for native worker use.
 - `window.DposAndroid.startWorker()` / `stopWorker()` — start/stop visible foreground service.
 - `window.DposAndroid.checkNow()` — enqueue a one-shot WorkManager check.
+- `window.DposAndroid.previewAutoVote(json)` — explicit preview/check action for a Golos vote candidate. It builds/checks the native signed transaction path and returns `broadcasted: false`; it never submits the transaction.
 - `window.DposAndroid.openBatterySettings()` — open Android app settings so the user can review battery restrictions.
 - `window.DposAndroid.exportWorkerLogs()` — export redacted local worker logs.
 
@@ -34,7 +35,9 @@ Current worker scope:
 - Golos notification worker supports incoming-only history checks with first-run cursor baseline.
 - Foreground service has visible persistent notification actions: open, check now, stop.
 - Boot restore starts only when the user had enabled the worker.
-- Native auto-upvoter is dry-run/planning only. It now has a test-safe vote operation/dry-run broadcast abstraction for Golos vote payloads, but the foreground worker does not perform real signing or mainnet broadcast.
+- Native auto-upvoter has a real-capable Golos vote runtime: planned vote actions are converted to Golos vote transactions, signed locally from Android encrypted posting-key storage, and submitted through the configured Golos RPC when account, key, worker, auto-upvoter and safety gates are all enabled.
+- Preview/check is separate from runtime: `previewAutoVote(json)` builds/checks the signed transaction path but never broadcasts. Automated tests use fake RPC/broadcasters and do not send mainnet transactions.
+- Current native candidate-source gap: until curator/favorite event settings are imported into the Android worker, ticks with no native candidates log “no eligible vote actions” rather than inventing placeholder votes. This is not a dry-run default.
 - Secure signing keys can be imported only through the dedicated `importSecureKey(json)` bridge and Android encrypted storage. Normal settings import rejects secret-like fields.
 
 Release signing secrets/keystores must not be committed. Use Android Studio, local untracked Gradle properties, or CI secrets later for signed release builds.

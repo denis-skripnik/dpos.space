@@ -21,6 +21,9 @@ import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.worker.DposForegroundService
 import space.dpos.android.worker.DposPeriodicWorker
+import space.dpos.android.upvoter.HttpGolosRpcClient
+import space.dpos.android.upvoter.VoteOperation
+import space.dpos.android.upvoter.VoteRuntime
 import java.util.concurrent.TimeUnit
 
 class DposAndroidBridge(private val activity: Activity, private val statusProvider: () -> JSONObject) {
@@ -88,6 +91,28 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
     fun checkNow(): String {
         WorkManager.getInstance(activity.applicationContext).enqueue(OneTimeWorkRequestBuilder<DposPeriodicWorker>().build())
         return JSONObject().put("ok", true).put("status", "queued").toString()
+    }
+
+    @JavascriptInterface
+    fun previewAutoVote(json: String?): String {
+        return try {
+            val obj = JSONObject(json.orEmpty())
+            val chain = obj.optString("chainId", "golos").trim().lowercase()
+            val account = obj.optString("voter", obj.optString("account")).trim().removePrefix("@").lowercase()
+            val op = VoteOperation(
+                chainId = chain,
+                voter = account,
+                author = obj.optString("author").trim().removePrefix("@").lowercase(),
+                permlink = obj.optString("permlink").trim(),
+                weight = obj.optInt("weight", 10000)
+            )
+            val keyRef = store.defaultPostingKeyRef(chain, account)
+            val key = store.readPostingKey(chain, account)
+            val result = VoteRuntime(HttpGolosRpcClient()).preview(op, keyRef, key)
+            result.toJson().put("broadcasted", false).toString()
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("status", "preview_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("broadcasted", false).toString()
+        }
     }
 
     @JavascriptInterface
