@@ -30,6 +30,13 @@ Native bridge controls exposed only inside the Android WebView:
 - `window.DposAndroid.openBatterySettings()` — open Android app settings so the user can review battery restrictions.
 - `window.DposAndroid.exportWorkerLogs()` — export redacted local worker logs.
 
+WebView/passkey backup support:
+
+- The WebView enables AndroidX WebKit `WEB_AUTHENTICATION_SUPPORT_FOR_APP` when the installed WebView supports it.
+- The site-level backup page can create/import optional WebAuthn PRF passkey backups. The passkey is used only as a system-protected PRF/unlock factor; the backup payload remains AES-GCM encrypted and password backup remains the fallback.
+- The current debug APK package is `space.dpos.android.debug`; `/.well-known/assetlinks.json` must be deployed with its debug signing fingerprint for WebView passkeys on `https://dpos.blinddev.xyz/`.
+- Release builds need their real release package/certificate fingerprint added to `assetlinks.json`; do not commit release keystores or private signing material.
+
 Current worker scope:
 
 - Golos notification worker supports incoming-only history checks with first-run cursor baseline.

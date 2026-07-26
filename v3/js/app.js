@@ -14034,6 +14034,153 @@ Memo key: ${keys.memo}`);
     return payload;
   }
 
+  function isPasskeyPrfBackupAvailable() {
+    return !!(global.PublicKeyCredential && global.navigator && global.navigator.credentials
+      && typeof global.navigator.credentials.create === 'function'
+      && typeof global.navigator.credentials.get === 'function');
+  }
+
+  function backupPasskeyRpId() {
+    const hostname = String((global.location && global.location.hostname) || '').trim();
+    if (!hostname) throw new Error('Passkey backup доступен только на HTTPS-домене DPoS Space.');
+    return hostname;
+  }
+
+  function randomBackupBytes(length) {
+    const bytes = new Uint8Array(length);
+    getCryptoApi().getRandomValues(bytes);
+    return bytes;
+  }
+
+  function passkeyPrfOutputFromCredential(credential) {
+    const results = credential && typeof credential.getClientExtensionResults === 'function'
+      ? credential.getClientExtensionResults()
+      : null;
+    const first = results && results.prf && results.prf.results && results.prf.results.first;
+    if (first instanceof ArrayBuffer) return new Uint8Array(first);
+    if (ArrayBuffer.isView(first)) return new Uint8Array(first.buffer, first.byteOffset, first.byteLength);
+    if (first && typeof first.byteLength === 'number') return new Uint8Array(first);
+    throw new Error('Этот passkey/WebView не вернул WebAuthn PRF output. Используйте backup с паролем или обновите Chrome/WebView.');
+  }
+
+  async function derivePasskeyBackupKey(prfOutput, salt) {
+    const cryptoApi = getCryptoApi();
+    const material = await cryptoApi.subtle.importKey('raw', prfOutput, 'HKDF', false, ['deriveKey']);
+    return cryptoApi.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt, info: new TextEncoder().encode('dpos.space passkey backup v1') },
+      material,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function getBackupPasskeyPrfOutput(credentialId, salt) {
+    if (!isPasskeyPrfBackupAvailable()) throw new Error('Passkey/WebAuthn недоступен в этом браузере или WebView.');
+    const credential = await global.navigator.credentials.get({
+      publicKey: {
+        challenge: randomBackupBytes(32),
+        rpId: backupPasskeyRpId(),
+        allowCredentials: [{ type: 'public-key', id: credentialId }],
+        userVerification: 'required',
+        timeout: 120000,
+        extensions: { prf: { eval: { first: salt } } }
+      }
+    });
+    return passkeyPrfOutputFromCredential(credential);
+  }
+
+  async function encryptDposPasskeyBackup() {
+    if (!isPasskeyPrfBackupAvailable()) throw new Error('Passkey/WebAuthn недоступен в этом браузере или WebView.');
+    const cryptoApi = getCryptoApi();
+    const salt = randomBackupBytes(32);
+    const iv = randomBackupBytes(12);
+    const rpId = backupPasskeyRpId();
+    const createdAt = new Date().toISOString();
+    const credential = await global.navigator.credentials.create({
+      publicKey: {
+        challenge: randomBackupBytes(32),
+        rp: { id: rpId, name: 'DPoS Space' },
+        user: {
+          id: randomBackupBytes(16),
+          name: 'dpos-space-backup',
+          displayName: 'DPoS Space backup'
+        },
+        pubKeyCredParams: [
+          { type: 'public-key', alg: -7 },
+          { type: 'public-key', alg: -257 }
+        ],
+        authenticatorSelection: {
+          residentKey: 'preferred',
+          userVerification: 'required'
+        },
+        attestation: 'none',
+        timeout: 120000,
+        extensions: { prf: { eval: { first: salt } } }
+      }
+    });
+    if (!credential || !credential.rawId) throw new Error('Passkey не был создан.');
+    const credentialIdBytes = new Uint8Array(credential.rawId);
+    let prfOutput;
+    try {
+      prfOutput = passkeyPrfOutputFromCredential(credential);
+    } catch (error) {
+      prfOutput = await getBackupPasskeyPrfOutput(credentialIdBytes, salt);
+    }
+    const payload = {
+      version: 1,
+      createdAt,
+      origin: global.location.origin,
+      storage: collectDposBackupStorage()
+    };
+    const key = await derivePasskeyBackupKey(prfOutput, salt);
+    const encrypted = await cryptoApi.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+    return {
+      app: 'dpos.space',
+      type: 'passkey-prf-localstorage-backup',
+      version: 1,
+      createdAt,
+      warning: 'DPoS Space support will never ask for this backup file, private keys, backup password, or passkey prompts. Do not send backup files to unknown people.',
+      passkey: {
+        name: 'WebAuthn-PRF',
+        rpId,
+        credentialId: bytesToBase64(credentialIdBytes),
+        salt: bytesToBase64(salt),
+        kdf: 'HKDF-SHA-256',
+        userVerification: 'required'
+      },
+      cipher: { name: 'AES-GCM', iv: bytesToBase64(iv) },
+      payload: bytesToBase64(new Uint8Array(encrypted))
+    };
+  }
+
+  async function decryptDposPasskeyBackup(fileText) {
+    let backup;
+    try { backup = JSON.parse(fileText); } catch (error) { throw new Error('Файл backup не похож на JSON DPoS Space.'); }
+    if (!backup || backup.app !== 'dpos.space' || backup.type !== 'passkey-prf-localstorage-backup' || !backup.payload) {
+      throw new Error('Это не passkey-backup DPoS Space.');
+    }
+    if (!backup.passkey || backup.passkey.name !== 'WebAuthn-PRF' || !backup.passkey.credentialId || !backup.passkey.salt || !backup.cipher || backup.cipher.name !== 'AES-GCM') {
+      throw new Error('Формат passkey-backup не поддерживается этой версией сайта.');
+    }
+    if (backup.passkey.rpId && backup.passkey.rpId !== backupPasskeyRpId()) {
+      throw new Error(`Этот backup привязан к домену ${backup.passkey.rpId}. Откройте импорт на этом домене.`);
+    }
+    const salt = base64ToBytes(backup.passkey.salt);
+    const credentialId = base64ToBytes(backup.passkey.credentialId);
+    const prfOutput = await getBackupPasskeyPrfOutput(credentialId, salt);
+    const key = await derivePasskeyBackupKey(prfOutput, salt);
+    let decrypted;
+    try {
+      decrypted = await getCryptoApi().subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(backup.cipher.iv) }, key, base64ToBytes(backup.payload));
+    } catch (error) {
+      throw new Error('Не удалось расшифровать passkey-backup. Проверьте файл и выбранный passkey.');
+    }
+    const payload = JSON.parse(new TextDecoder().decode(decrypted));
+    if (!payload || payload.version !== 1 || !payload.storage || typeof payload.storage !== 'object') throw new Error('Расшифрованный passkey-backup имеет неподдерживаемый формат.');
+    return payload;
+  }
+
   function importDposBackupStorage(storage) {
     if (!global.localStorage) throw new Error('localStorage недоступен в этом браузере.');
     const allowed = Object.entries(storage || {}).filter(([key]) => {
@@ -14068,6 +14215,10 @@ Memo key: ${keys.memo}`);
               <button type="submit" name="exportMode" value="share">Поделиться backup-файлом</button>
             </div>
             <p class="muted">Кнопка «Поделиться» открывает системное меню Android/iOS/браузера, если оно поддерживает отправку файлов. Пароль передавайте отдельно.</p>
+            <hr>
+            <h4>Быстрый backup через passkey</h4>
+            <p class="muted">Если Chrome/WebView поддерживает WebAuthn PRF, можно создать backup без ручного пароля: файл шифруется ключом, полученным из passkey после отпечатка, лица или PIN устройства. Если не сработает, используйте парольный backup выше.</p>
+            <button type="button" id="backup-passkey-export">Создать backup через passkey / отпечаток / PIN</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </form>
         </article>
@@ -14075,8 +14226,12 @@ Memo key: ${keys.memo}`);
           <h3>Импорт</h3>
           <form id="backup-import-form" class="stacked-form">
             <div class="field"><label for="backup-file">Backup-файл DPoS Space</label><input id="backup-file" name="file" type="file" accept="application/json,.json" required></div>
-            <div class="field"><label for="backup-import-password">Пароль backup-файла</label><input id="backup-import-password" name="password" type="password" required autocomplete="current-password"></div>
-            <button type="submit">Импортировать резервную копию</button>
+            <div class="field"><label for="backup-import-password">Пароль backup-файла</label><input id="backup-import-password" name="password" type="password" autocomplete="current-password"></div>
+            <div class="button-row">
+              <button type="submit">Импортировать резервную копию по паролю</button>
+              <button type="button" id="backup-passkey-import">Импортировать passkey-backup</button>
+            </div>
+            <p class="muted">Для обычного backup нужен пароль. Для passkey-backup пароль не вводится: Android/браузер попросит отпечаток, лицо или PIN устройства.</p>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
           </form>
         </article>
@@ -14122,6 +14277,33 @@ Memo key: ${keys.memo}`);
       }
     });
 
+    const passkeyExportButton = document.getElementById('backup-passkey-export');
+    passkeyExportButton.addEventListener('click', async () => {
+      try {
+        const keys = dposBackupStorageKeys();
+        if (!keys.length) throw new Error('В localStorage пока нет данных DPoS Space для backup-а.');
+        if (!isPasskeyPrfBackupAvailable()) throw new Error('Passkey/WebAuthn PRF недоступен в этом браузере или WebView. Используйте backup с паролем.');
+        setOperationResult(exportForm, 'Создаю passkey-backup. Подтвердите отпечатком, лицом или PIN устройства...', 'loading');
+        const backup = await encryptDposPasskeyBackup();
+        const date = new Date().toISOString().slice(0, 10);
+        const filename = `dpos-space-passkey-backup-${date}.json`;
+        const backupText = JSON.stringify(backup, null, 2);
+        try {
+          await shareBackupFile(filename, backupText);
+          setOperationResult(exportForm, `Passkey-backup создан для ${keys.length} локальных записей. Системное меню отправки открыто; ручной пароль не нужен.`, 'ok');
+        } catch (shareError) {
+          if (shareError && shareError.name === 'AbortError') {
+            setOperationResult(exportForm, 'Отправка passkey-backup отменена. Файл не был скачан автоматически.', 'info');
+          } else {
+            downloadTextFile(filename, backupText);
+            setOperationResult(exportForm, `${profiles.formatError(shareError)} Passkey-backup скачан как файл: ${keys.length} локальных записей.`, 'info');
+          }
+        }
+      } catch (error) {
+        setOperationResult(exportForm, profiles.formatError(error), 'error');
+      }
+    });
+
     const importForm = document.getElementById('backup-import-form');
     importForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -14135,6 +14317,22 @@ Memo key: ${keys.memo}`);
         const payload = await decryptDposBackup(await file.text(), password);
         const result = importDposBackupStorage(payload.storage);
         setOperationResult(importForm, `Импорт завершён: записей импортировано ${result.imported}${result.skipped ? `, пропущено ${result.skipped}` : ''}. Обновите страницу, если данные не появились сразу.`, 'ok');
+      } catch (error) {
+        setOperationResult(importForm, profiles.formatError(error), 'error');
+      }
+    });
+
+    const passkeyImportButton = document.getElementById('backup-passkey-import');
+    passkeyImportButton.addEventListener('click', async () => {
+      const data = new FormData(importForm);
+      const file = data.get('file');
+      try {
+        if (!file || typeof file.text !== 'function') throw new Error('Выберите passkey-backup файл.');
+        if (!isPasskeyPrfBackupAvailable()) throw new Error('Passkey/WebAuthn PRF недоступен в этом браузере или WebView. Используйте backup с паролем.');
+        setOperationResult(importForm, 'Расшифровываю passkey-backup. Подтвердите отпечатком, лицом или PIN устройства...', 'loading');
+        const payload = await decryptDposPasskeyBackup(await file.text());
+        const result = importDposBackupStorage(payload.storage);
+        setOperationResult(importForm, `Passkey-импорт завершён: записей импортировано ${result.imported}${result.skipped ? `, пропущено ${result.skipped}` : ''}. Обновите страницу, если данные не появились сразу.`, 'ok');
       } catch (error) {
         setOperationResult(importForm, profiles.formatError(error), 'error');
       }
@@ -14558,7 +14756,15 @@ Memo key: ${keys.memo}`);
     navigate,
     renderRoute,
     appRequiresAccount,
-    backup: Object.freeze({ validateBackupPassword, dposBackupStorageKeys, makeShareFile, canShareBackupFile }),
+    backup: Object.freeze({
+      validateBackupPassword,
+      dposBackupStorageKeys,
+      makeShareFile,
+      canShareBackupFile,
+      isPasskeyPrfBackupAvailable,
+      encryptDposPasskeyBackup,
+      decryptDposPasskeyBackup
+    }),
     transactions: Object.freeze({ summarizeMinterMultisend, renderMinterMultisendDetailsHtml }),
     long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
   });
