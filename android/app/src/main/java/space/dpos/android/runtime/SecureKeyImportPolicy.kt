@@ -2,6 +2,7 @@ package space.dpos.android.runtime
 
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
+import space.dpos.android.decimal.DecimalNativeSupport
 import space.dpos.android.minter.MinterNativeSupport
 import space.dpos.android.storage.EncryptedKeyRef
 import space.dpos.android.upvoter.GrapheneChainSpecs
@@ -23,12 +24,13 @@ data class SecureKeyImportDecision(
 )
 
 object SecureKeyImportPolicy {
-    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains + setOf(MinterNativeSupport.CHAIN_ID)
+    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains + setOf(MinterNativeSupport.CHAIN_ID, DecimalNativeSupport.CHAIN_ID)
     private val authoritiesByChain = mapOf(
         "golos" to setOf("posting", "active"),
         "hive" to setOf("posting", "active"),
         "steem" to setOf("posting", "active"),
-        "minter" to setOf("seed")
+        "minter" to setOf("seed"),
+        "decimal" to setOf("seed")
     )
     private val accountPattern = Regex("^[a-z0-9.-]{3,32}$")
     private val minterAddressPattern = Regex("^Mx[0-9a-fA-F]{40}$")
@@ -46,17 +48,25 @@ object SecureKeyImportPolicy {
         if (chain !in supportedChains) return SecureKeyImportDecision(false, "secure key import is not enabled for chain: $chain")
         if (chain == MinterNativeSupport.CHAIN_ID) {
             if (!minterAddressPattern.matches(request.account.trim())) return SecureKeyImportDecision(false, "invalid Minter address")
+        } else if (chain == DecimalNativeSupport.CHAIN_ID) {
+            if (!DecimalNativeSupport.isValidAddress(request.account.trim())) return SecureKeyImportDecision(false, "invalid Decimal address")
         } else if (!accountPattern.matches(account)) return SecureKeyImportDecision(false, "invalid account name")
         if (authority !in authoritiesByChain.getValue(chain)) return SecureKeyImportDecision(false, "invalid authority for $chain")
         if (!aliasPattern.matches(alias)) return SecureKeyImportDecision(false, "invalid key alias")
         if (chain == MinterNativeSupport.CHAIN_ID) {
             if (!MinterNativeSupport.validateSeed(secret)) return SecureKeyImportDecision(false, "invalid Minter seed phrase format")
+        } else if (chain == DecimalNativeSupport.CHAIN_ID) {
+            if (!DecimalNativeSupport.validateSeed(secret)) return SecureKeyImportDecision(false, "invalid Decimal seed phrase format")
         } else if (!wifLike.matches(secret)) return SecureKeyImportDecision(false, "invalid private key format")
 
         return SecureKeyImportDecision(
             accepted = true,
             reason = "accepted",
-            keyRef = EncryptedKeyRef(chain, if (chain == MinterNativeSupport.CHAIN_ID) request.account.trim().lowercase() else account, authority, alias),
+            keyRef = EncryptedKeyRef(chain, when (chain) {
+                MinterNativeSupport.CHAIN_ID -> request.account.trim().lowercase()
+                DecimalNativeSupport.CHAIN_ID -> DecimalNativeSupport.normalizeAddress(request.account.trim()).lowercase()
+                else -> account
+            }, authority, alias),
             secret = secret
         )
     }

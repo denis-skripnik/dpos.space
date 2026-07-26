@@ -15,6 +15,8 @@ import org.json.JSONObject
 import space.dpos.android.BuildConfig
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
+import space.dpos.android.decimal.DecimalNativeSupport
+import space.dpos.android.decimal.DecimalTransferCodec
 import space.dpos.android.minter.HttpMinterBroadcaster
 import space.dpos.android.minter.MinterNativeSupport
 import space.dpos.android.minter.MinterTransferCodec
@@ -146,6 +148,20 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
             result.toJson().put("keyRef", JSONObject().put("chainId", keyRef.chainId).put("account", keyRef.account).put("authority", keyRef.authority).put("alias", keyRef.alias)).toString()
         } catch (e: Exception) {
             JSONObject().put("ok", false).put("status", "broadcast_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("chainId", "minter").put("broadcasted", false).toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun previewDecimalTransfer(json: String?): String {
+        return try {
+            val request = DecimalTransferCodec.decode(json)
+            val from = request.from ?: throw IllegalArgumentException("from must be supplied for native Decimal preview so Android can select the matching secure seed ref")
+            val keyRef = DecimalNativeSupport.defaultSeedRef(from)
+            val seed = store.readEncryptedKey(keyRef)
+            val result = DecimalNativeSupport.previewTransfer(request.copy(from = from), seed.orEmpty())
+            result.toJson().put("keyRef", JSONObject().put("chainId", keyRef.chainId).put("account", keyRef.account).put("authority", keyRef.authority).put("alias", keyRef.alias)).toString()
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("status", "preview_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("chainId", "decimal").put("broadcasted", false).toString()
         }
     }
 
