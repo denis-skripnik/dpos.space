@@ -41,6 +41,6 @@ assert(planSource.includes('### Android parity matrix — native bridge worker c
 assert(planSource.includes('| Golos |') && planSource.includes('| VIZ |') && planSource.includes('| Hive |') && planSource.includes('| Steem |') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan matrix separates every supported web chain');
 assert(planSource.includes('WebView UI coverage') && planSource.includes('native bridge UI coverage') && planSource.includes('native background/worker/signing coverage'), 'plan matrix has required coverage columns');
 assert(planSource.includes('beeab0de00000000000000000000000000000000000000000000000000000000') && planSource.includes('Steem chain id `0000000000000000000000000000000000000000000000000000000000000000`'), 'plan records verified Hive/Steem native chain ids');
-assert(planSource.includes('Tests prevent false native worker/key import support') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan keeps VIZ/Minter/Decimal unsupported instead of claiming fake native support');
+assert(planSource.includes('VIZ auto-upvoter/signing is not claimed') && planSource.includes('native VIZ award/vote signing remains blocked') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan keeps native-only limits explicit instead of claiming fake full parity');
 
 console.log('v3 Android bridge UI smoke passed');

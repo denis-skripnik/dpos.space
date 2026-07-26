@@ -10,8 +10,12 @@ const planSource = fs.readFileSync('plan.md', 'utf8');
 assert(chainsSource.includes("{ id: 'notifications', title: 'Уведомления'") && chainsSource.includes('Локальная панель входящих VIZ-событий'), 'VIZ notifications app is registered');
 assert(notificationsSource.includes("viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award']"), 'VIZ browser notification ops are explicit');
 assert(appSource.includes("(chain.id === 'golos' || chain.id === 'viz') && effectiveAppId === 'notifications'"), 'VIZ notifications route is dispatched');
-assert(appSource.includes('data-viz-android-notifications') && appSource.includes('enableAutoUpvoter: false'), 'VIZ Android import UI is notifications-only');
-assert(appSource.includes('Native award/vote signing не заявляется'), 'VIZ UI avoids false native signing claims');
+const vizNotificationsSlice = appSource.slice(appSource.indexOf('function renderNotificationsPage'), appSource.indexOf('async function renderRoute'));
+assert(vizNotificationsSlice.includes('data-viz-android-notifications') && vizNotificationsSlice.includes('enableAutoUpvoter: false'), 'VIZ Android notifications are notifications-only');
+assert(vizNotificationsSlice.includes('В Android-приложении VIZ native notifications включаются автоматически'), 'VIZ Android notifications auto-start from the normal notifications page');
+assert(vizNotificationsSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('startWorker'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('checkNow'"), 'VIZ notifications page syncs, starts native worker, and queues check-now automatically');
+assert(!vizNotificationsSlice.includes('data-android-import-viz-notifications') && !vizNotificationsSlice.includes('data-android-start-worker') && !vizNotificationsSlice.includes('data-android-check-now'), 'VIZ notifications UI exposes no separate native import/start/check buttons');
+assert(vizNotificationsSlice.includes('Native award/vote signing не заявляется'), 'VIZ UI avoids false native signing claims');
 assert(planSource.includes('### Android native parity: VIZ notifications only') && planSource.includes('2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd'), 'plan records VIZ native evidence and limitation');
 
 const localStorageData = {};
