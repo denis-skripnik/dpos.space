@@ -38,12 +38,16 @@ class GrapheneNativeVoteSupportTest {
 
     @Test fun nativeSupportMatrixIsTruthfulAndLimitedToImplementedGrapheneVoteChains() {
         assertEquals(setOf("golos", "hive", "steem"), GrapheneChainSpecs.supportedNativeVoteChains)
+        assertEquals(setOf("golos", "hive", "steem", "viz"), GrapheneChainSpecs.supportedNativeNotificationChains)
         assertTrue(GrapheneChainSpecs.require("golos").legacyCallRpc)
         assertFalse(GrapheneChainSpecs.require("hive").legacyCallRpc)
         assertFalse(GrapheneChainSpecs.require("steem").legacyCallRpc)
         assertTrue(WorkerCommandPolicy.validateImport(AccountImportRequest("hive", "denis", enableNotifications = true, enableAutoUpvoter = true, explicitConsent = true)).accepted)
         assertTrue(WorkerCommandPolicy.validateImport(AccountImportRequest("steem", "denis", enableNotifications = true, enableAutoUpvoter = true, explicitConsent = true)).accepted)
         assertFalse(WorkerCommandPolicy.validateImport(AccountImportRequest("viz", "denis", enableNotifications = true, enableAutoUpvoter = true, explicitConsent = true)).accepted)
+        val vizNotifications = WorkerCommandPolicy.validateImport(AccountImportRequest("viz", "denis", enableNotifications = true, enableAutoUpvoter = false, explicitConsent = true))
+        assertTrue(vizNotifications.accepted)
+        assertEquals("viz", vizNotifications.chainId)
         assertFalse(WorkerCommandPolicy.validateImport(AccountImportRequest("decimal", "denis", enableNotifications = true, enableAutoUpvoter = true, explicitConsent = true)).accepted)
     }
 
@@ -63,6 +67,15 @@ class GrapheneNativeVoteSupportTest {
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("steem", "denis", "posting", "posting", wif, true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("viz", "denis", "regular", "regular", wif, true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "denis", "posting", "posting", wif, true)).accepted)
+    }
+
+    @Test fun vizSpecIsNotificationsOnlyUntilRegularAwardSigningIsImplemented() {
+        val viz = GrapheneChainSpecs.require("viz")
+        assertEquals("2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd", viz.networkChainIdHex)
+        assertTrue(viz.legacyCallRpc)
+        assertFalse(viz.nativeVoteSupported)
+        assertTrue(viz.nativeNotificationsSupported)
+        assertEquals(null, GrapheneChainSpecs.findVote("viz"))
     }
 
     @Test fun hiveAndSteemSignerBuildsSignedVoteTransactionsWithCorrectChainIdAndOperationShape() {

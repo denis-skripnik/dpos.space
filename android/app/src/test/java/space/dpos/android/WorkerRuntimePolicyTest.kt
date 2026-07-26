@@ -20,6 +20,14 @@ class WorkerRuntimePolicyTest {
         assertEquals("denis", accepted.account)
     }
 
+    @Test fun vizWorkerImportAllowsNotificationsOnlyAndRejectsAutoUpvoter() {
+        val notifications = WorkerCommandPolicy.validateImport(AccountImportRequest(chainId = "viz", account = "denis", enableNotifications = true, enableAutoUpvoter = false, explicitConsent = true))
+        assertTrue(notifications.accepted)
+        val auto = WorkerCommandPolicy.validateImport(AccountImportRequest(chainId = "viz", account = "denis", enableNotifications = false, enableAutoUpvoter = true, explicitConsent = true))
+        assertFalse(auto.accepted)
+        assertTrue(auto.reason.contains("auto-upvoter", ignoreCase = true))
+    }
+
     @Test fun jsonImportRejectsSecretLikeFields() {
         val json = """{"chainId":"golos","account":"denis","explicitConsent":true,"enableNotifications":true,"postingKey":"not-a-real-key-fixture"}"""
         val result = WorkerSettingsCodec.decodeImport(json)

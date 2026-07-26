@@ -6,7 +6,8 @@
   const DEFAULT_LIMIT = 60;
   const CHECK_INTERVAL_MS = 120000;
   const NOTIFICATION_OPS = {
-    golos: ['content_mentions', 'comment_mention', 'comment', 'custom_json', 'transfer', 'donate']
+    golos: ['content_mentions', 'comment_mention', 'comment', 'custom_json', 'transfer', 'donate'],
+    viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award']
   };
   const SUPPORTED_CHAINS = new Set(Object.keys(NOTIFICATION_OPS));
 
@@ -217,6 +218,39 @@
           title: 'Новый репост',
           text: `@${reposter || 'кто-то'} сделал репост материала @${target}`,
           url: postUrl(chain, author, repost.permlink || '')
+        });
+      }
+      return null;
+    }
+
+    if (type === 'award' || type === 'fixed_award') {
+      const from = normalizeAccount(data.initiator);
+      const to = normalizeAccount(data.receiver);
+      const amount = firstNonEmpty([data.reward_amount, data.shares, data.amount]);
+      if (to === target && from !== target) {
+        return Object.assign(base, {
+          id: notificationId(chain, target, item, type),
+          type,
+          direction: 'incoming',
+          title: type === 'fixed_award' ? 'Новая фиксированная награда VIZ' : 'Новая награда VIZ',
+          text: [`от @${from || 'неизвестно'}`, amount].filter(Boolean).join(', '),
+          url: historyUrl(chain, target, type)
+        });
+      }
+      return null;
+    }
+
+    if (type === 'receive_award' || type === 'benefactor_award') {
+      const receiver = normalizeAccount(data.receiver);
+      const benefactor = normalizeAccount(data.benefactor);
+      if (receiver === target) {
+        return Object.assign(base, {
+          id: notificationId(chain, target, item, type),
+          type,
+          direction: 'incoming',
+          title: type === 'benefactor_award' ? 'Бенефициарская награда VIZ' : 'Получена награда VIZ',
+          text: [benefactor ? `бенефициар @${benefactor}` : '', firstNonEmpty([data.shares, data.reward_amount])].filter(Boolean).join(', '),
+          url: historyUrl(chain, target, type)
         });
       }
       return null;

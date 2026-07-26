@@ -20,9 +20,11 @@ import java.util.Locale
 private const val GOLOS_CHAIN_ID = "782a3039b478c839e4cb0c941ff4eaeb7df40bdd68bd441afd444b9da763de12"
 private const val HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000"
 private const val STEEM_CHAIN_ID = "0000000000000000000000000000000000000000000000000000000000000000"
+private const val VIZ_CHAIN_ID = "2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd"
 private const val DEFAULT_GOLOS_RPC = "https://golosapi.ecurrex.ru"
 private const val DEFAULT_HIVE_RPC = "https://api.hive.blog"
 private const val DEFAULT_STEEM_RPC = "https://api.steemit.com"
+private const val DEFAULT_VIZ_RPC = "https://api.viz.world"
 
 data class GrapheneChainSpec(
     val id: String,
@@ -30,20 +32,26 @@ data class GrapheneChainSpec(
     val defaultRpcEndpoint: String,
     val voteOperationId: Int = 0,
     val postingAuthority: String = "posting",
-    val legacyCallRpc: Boolean = false
+    val legacyCallRpc: Boolean = false,
+    val nativeVoteSupported: Boolean = true,
+    val nativeNotificationsSupported: Boolean = true
 )
 
 object GrapheneChainSpecs {
     private val specs = mapOf(
         "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, legacyCallRpc = true),
         "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC),
-        "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC)
+        "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC),
+        "viz" to GrapheneChainSpec("viz", VIZ_CHAIN_ID, DEFAULT_VIZ_RPC, legacyCallRpc = true, nativeVoteSupported = false)
     )
 
-    val supportedNativeVoteChains: Set<String> = specs.keys
+    val supportedNativeVoteChains: Set<String> = specs.filterValues { it.nativeVoteSupported }.keys
+    val supportedNativeNotificationChains: Set<String> = specs.filterValues { it.nativeNotificationsSupported }.keys
 
     fun find(chainId: String): GrapheneChainSpec? = specs[chainId.trim().lowercase(Locale.ROOT)]
-    fun require(chainId: String): GrapheneChainSpec = find(chainId) ?: throw IllegalArgumentException("unsupported native vote chain: $chainId")
+    fun findVote(chainId: String): GrapheneChainSpec? = find(chainId)?.takeIf { it.nativeVoteSupported }
+    fun require(chainId: String): GrapheneChainSpec = find(chainId) ?: throw IllegalArgumentException("unsupported native Graphene chain: $chainId")
+    fun requireVote(chainId: String): GrapheneChainSpec = findVote(chainId) ?: throw IllegalArgumentException("unsupported native vote chain: $chainId")
 }
 
 data class VoteOperation(
@@ -189,7 +197,7 @@ class GrapheneVoteSigner(
     private fun ecKeyFromWif(wif: String): ECKey = DumpedPrivateKey.fromBase58(MainNetParams.get(), wif).key
 }
 
-class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.require("golos"), builder)
+class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos"), builder)
 
 class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val endpoint: String = spec.defaultRpcEndpoint) : GolosRpcClient {
     override fun getDynamicGlobalProperties(): JSONObject {
@@ -251,7 +259,7 @@ object GolosTransactionHeaderFactory {
 
 class VoteRuntime(
     private val rpcClient: GolosRpcClient,
-    private val signer: VoteSigner = GrapheneVoteSigner(GrapheneChainSpecs.require("golos")),
+    private val signer: VoteSigner = GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos")),
     private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient)
 ) {
     fun preview(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {

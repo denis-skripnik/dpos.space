@@ -6087,3 +6087,33 @@ Definition of done:
 - With saved Golos accounts, the panel checks notifications on entry and periodically while the page is open.
 - First run baselines the current top history index instead of marking historical rows as unread.
 - Users can refresh, open notification targets, and mark all read.
+
+### Android native parity: VIZ notifications only
+
+Outcome for this bounded run:
+
+- VIZ is added to native Android support only for notification scanning over public account history.
+- VIZ native vote/award signing remains intentionally blocked; no fake auto-upvoter or native award worker is claimed.
+
+Evidence inspected:
+
+- `v3/vendor/viz/viz.min.js` contains VIZ `chain_id` `2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd`, `address_prefix: "VIZ"`, RPC descriptors for `database_api.get_dynamic_global_properties`, `account_history.get_account_history`, and `network_broadcast_api.broadcast_transaction_synchronous`.
+- Live read-only probes against `https://api.viz.world` and `https://node.viz.cx` showed VIZ HTTP RPC requires legacy `call` form for `database_api/get_dynamic_global_properties` and `account_history/get_account_history`; appbase-style `account_history.get_account_history` and `database_api.get_dynamic_global_properties` returned bad-cast errors.
+- Legacy `master:blockchains/viz/js/modal-accounts.js` validates and stores `regular_authority` and `active_authority`; legacy `blockchain.js` decrypts `regularKey` and `activeKey`.
+- Legacy awards call `viz.broadcast.awardAsync(posting_key, viz_login, target, energy, custom_sequence, memo, benef_list)` and `viz.broadcast.fixedAwardAsync(...)`, where `posting_key` is actually the VIZ regular key.
+- Vendored VIZ operation ids include `award:47`, `receive_award:48`, `benefactor_award:49`, `fixed_award:60`; VIZ does not expose a legacy `vote` operation equivalent for the existing native auto-upvoter product path.
+- Legacy profile/history code uses `viz.api.getAccountHistoryAsync(account, from, limit)` rows shaped as `[index, { timestamp, op: [type, data] }]`, compatible with the existing Android history parser once VIZ uses legacy RPC call mode.
+
+Matrix:
+
+| Surface | Decision | Implementation | Tests | Status |
+| --- | --- | --- | --- | --- |
+| Native notification scanner | Safe to support for VIZ account history, transfers, awards and comments. | `GrapheneChainSpecs` has VIZ spec with legacy RPC call mode; `WorkerCommandPolicy` accepts VIZ notifications-only imports; scanner maps VIZ `award`, `fixed_award`, `receive_award`, `benefactor_award`. | `GolosNotificationScannerTest`, `GrapheneNativeVoteSupportTest`, `WorkerRuntimePolicyTest`, `tests/v3-viz-native-notifications-smoke.js`. | implemented |
+| Native auto-upvoter | Not a VIZ product path: VIZ uses awards, not Hive/Steem/Golos `vote`; adding a vote worker would be false parity. | VIZ remains outside `supportedNativeVoteChains`; worker skips auto-upvoter when `nativeVoteSupported=false`. | Android support matrix tests reject VIZ auto-upvoter. | intentionally blocked |
+| Native VIZ award signer | Exact operation ids and regular authority were found, but no existing Android worker path requires unattended awards and implementing a native award signer would add new product behavior. | No native award broadcast path added. Existing WebView VIZ award UI remains the user-confirmed path. | UI/matrix smoke asserts notifications-only and no native award/vote claim. | intentionally blocked |
+| Minter/Decimal native signer | Out of this VIZ bounded run. | unchanged | existing blocking tests/matrix | next milestone |
+
+Validation contract:
+
+- Required gate: Android `clean test assembleDebug`, JS syntax, all `tests/v3-*.js`, diff checks, staged added-line secret scan.
+- No live VIZ broadcasts; read-only RPC probes only.

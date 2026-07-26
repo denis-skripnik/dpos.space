@@ -37,7 +37,8 @@ data class ImportDecision(
 )
 
 object WorkerCommandPolicy {
-    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains
+    private val supportedNotificationChains = GrapheneChainSpecs.supportedNativeNotificationChains
+    private val supportedAutoUpvoterChains = GrapheneChainSpecs.supportedNativeVoteChains
     private val accountPattern = Regex("^[a-z0-9.-]{3,32}$")
     private val secretFieldPattern = Regex("(?i)(private|wif|seed|mnemonic|password|token|secret|key)")
 
@@ -45,9 +46,10 @@ object WorkerCommandPolicy {
         val chain = request.chainId.trim().lowercase()
         val account = request.account.trim().removePrefix("@").lowercase()
         if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
-        if (chain !in supportedChains) return ImportDecision(false, "unsupported chain for native worker: $chain")
         if (!accountPattern.matches(account)) return ImportDecision(false, "invalid account name")
         if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or auto-upvoter")
+        if (request.enableNotifications && chain !in supportedNotificationChains) return ImportDecision(false, "unsupported chain for native notifications: $chain")
+        if (request.enableAutoUpvoter && chain !in supportedAutoUpvoterChains) return ImportDecision(false, "unsupported chain for native auto-upvoter: $chain")
         return ImportDecision(
             accepted = true,
             reason = "accepted",
