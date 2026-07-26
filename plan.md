@@ -27,6 +27,426 @@
 - Не добавлять framework, bundler или npm-зависимости.
 - Не обещать полную совместимость со всеми старыми URL.
 
+## Android native app plan — Web UI + Kotlin background runtime
+
+### Goal
+
+Build and release a full Android version of DPoS Space where the existing web UI remains the primary interface, while Android-native Kotlin code provides the background runtime that browser/PWA/TMA cannot reliably provide.
+
+The intended final state is:
+
+- Web/PWA version continues to work as a static site with the current JavaScript runtime.
+- Android version installs as a normal Android app and opens the same DPoS Space UI inside an app-controlled WebView.
+- Android version has a Kotlin background runtime for notifications, auto-upvoter and long-running worker tasks.
+- Android version uses native notifications, Android foreground service, WorkManager/boot recovery, and secure key storage where needed.
+- Web and Android implementations stay easy to update through shared behavior specs, shared fixtures, and explicit parity tests.
+
+### Core decision
+
+Use a dedicated Android project under `android/` and keep Android-specific files out of `v3/js/`, `v3/vendor/`, and repository root except for intentional top-level documentation or release automation entries.
+
+Required directory boundary:
+
+```text
+android/
+  app/
+  gradle/
+  docs/
+  tests/
+  shared-fixtures/
+```
+
+Allowed non-Android paths for this initiative:
+
+- `plan.md` — planning and acceptance matrix.
+- `tests/` — optional web-side contract/smoke tests that verify JS bridge hooks or shared fixture compatibility.
+- `.github/workflows/` — only when adding Android release CI is explicitly implemented.
+- `docs/` — only if a user-facing Android install/release guide is needed.
+
+Forbidden placement:
+
+- no Kotlin, Gradle, Android manifest, native worker, Android bridge, Android test, or APK build file in `v3/js/`;
+- no Android runtime code mixed into web vendor files;
+- no Android service code in repository root;
+- no hidden backend/service introduced to make Android work.
+
+### Architecture
+
+```text
+DPoS Space web/PWA
+  - static HTML/CSS/JS
+  - existing route/UI/forms/broadcast pages
+  - browser-local fallback runtime
+
+Android app under android/
+  - Kotlin WebView shell
+  - JS bridge exposed only inside Android app
+  - native notifications
+  - native secure storage
+  - Kotlin notification worker
+  - Kotlin auto-upvoter worker
+  - foreground service for long-running mode
+  - WorkManager for periodic/recovery tasks
+  - boot receiver for restoration after reboot when user enabled it
+
+Shared behavior layer
+  - JSON fixtures for history rows/settings/energy/cursors/expected actions
+  - JS tests and Kotlin tests consume the same fixtures
+  - no “copy by memory”; Kotlin behavior must be verified against the web behavior contract
+```
+
+### Non-goals
+
+- No TWA/Bubblewrap as the main architecture for this goal; TWA may be used only as a throwaway comparison spike if needed.
+- No promise of invisible mathematically infinite background execution. Android foreground service is the supported long-running mode.
+- No automatic bypass of Android battery restrictions. The app should guide the user to disable battery optimization, but not pretend it can override OS/OEM policy.
+- No backend indexer, PHP runtime, hidden daemon, or new server just to make Android notifications work.
+- No rewrite of the whole UI in native Android unless a later explicit decision changes the product direction.
+- No immediate migration of all web localStorage keys into a new incompatible format. Migration must be staged and reversible.
+- No background signing without explicit user opt-in, visible worker state, stop control, logs, and safety limits.
+
+### Completion contract
+
+- outcome: DPoS Space Android is a releaseable APK/AAB that opens the existing DPoS Space UI and supports native background notifications plus native auto-upvoter/long-running worker mode with secure key handling and visible controls.
+- verification: Android unit tests, shared fixture parity tests, local APK install/run, TalkBack-oriented navigation smoke, foreground-service runtime smoke, WorkManager/boot recovery smoke where available, web regression gate, and release artifact checks.
+- constraints: Android files live under `android/`; web/PWA remains static and usable; no new backend dependency; no secrets in git; no real transaction broadcast in automated tests without explicit safe testnet/dry-run design.
+- boundaries: in scope Android app shell, Kotlin worker/runtime, bridge, secure storage, local notifications, background auto-upvoter, release packaging; out of scope native rewrite of every page, server push/indexer, unrelated v3 parity work.
+- stop_when: implementation requires publishing to Google Play, paid signing/service accounts, adding a backend, changing wallet/key security model beyond the accepted plan, or performing live mainnet auto-actions for validation.
+
+### Phase 0 — repository and build decision
+
+Objective: create a safe Android workspace plan before writing app code.
+
+Tasks:
+
+1. Inspect current repo state and keep `v3` web app untouched except for planned bridge hooks.
+2. Decide final Android implementation stack:
+   - preferred: Kotlin + native Android WebView;
+   - fallback only if it saves time without weakening background runtime: Capacitor shell with custom Kotlin plugins.
+3. Create Android project only under `android/`.
+4. Add `.gitignore` entries only for Android build outputs if needed, not broad source directories.
+5. Add a minimal `android/README.md` explaining folder ownership and no-root/no-js placement rule.
+6. Add first Android smoke test placeholder or Gradle test task so CI can prove the skeleton builds.
+
+Acceptance criteria:
+
+- `android/` contains all Android project files.
+- Web files are unchanged except optional documented bridge detection later.
+- `./gradlew test` or the chosen Android test command is documented and runnable from `android/`.
+
+### Phase 1 — Android WebView shell MVP
+
+Objective: produce an installable Android app that opens DPoS Space as an app, not as a Chrome tab.
+
+Tasks:
+
+1. Create Kotlin Android app skeleton in `android/`.
+2. Add WebView activity with JavaScript enabled only for the DPoS Space origin/local bundled assets.
+3. Choose first content mode:
+   - live mode: load `https://dpos.blinddev.xyz/`;
+   - bundled mode: package static web assets for offline/current-release use;
+   - keep the mode explicit in config/build flavor, not hidden.
+4. Preserve normal hash routes like `#chain=viz&app=wallet`.
+5. Preserve WebView storage/cookies/localStorage where appropriate.
+6. Add app icon/name/theme and TalkBack-friendly activity title.
+7. Add a simple diagnostics screen or hidden debug action showing app version, web URL, WebView version, and worker status placeholder.
+
+Acceptance criteria:
+
+- APK installs locally.
+- App opens DPoS Space and can navigate through major routes.
+- Local storage survives app restart.
+- No Android files are outside `android/` except allowed docs/workflow files.
+
+### Phase 2 — JavaScript bridge and native notification adapter
+
+Objective: let the web UI call Android-native capabilities while keeping browser/PWA fallback behavior.
+
+Tasks:
+
+1. Add Kotlin bridge object exposed as `window.DposAndroid` only in Android WebView.
+2. Implement safe bridge methods:
+   - `notify(title, body, tag, route)`;
+   - `getAppInfo()`;
+   - `getWorkerStatus()`;
+   - `openBatterySettings()`;
+   - `exportWorkerLogs()` placeholder.
+3. Add a minimal web-side adapter in existing JS only if needed:
+   - detect `window.DposAndroid`;
+   - use native notify in Android;
+   - fall back to current `DposPwa.notify()` in browsers.
+4. Add Android notification permission flow for Android 13+.
+5. Make notification click reopen WebView on the exact DPoS route.
+6. Add tests for payload sanitization and route allowlisting.
+
+Acceptance criteria:
+
+- Web UI can trigger a native Android notification.
+- Notification opens the app to the intended route.
+- Browser/PWA behavior remains unchanged when `window.DposAndroid` is absent.
+- Bridge rejects arbitrary external URLs and oversized/untrusted payloads.
+
+### Phase 3 — native settings and storage model
+
+Objective: define stable storage for background runtime without breaking existing web localStorage users.
+
+Tasks:
+
+1. Define Android data models under `android/` for:
+   - chain account identity;
+   - notification cursor;
+   - auto-upvoter settings;
+   - worker state;
+   - worker logs;
+   - encrypted key references.
+2. Add secure storage using Android Keystore / EncryptedSharedPreferences for private keys and sensitive worker credentials.
+3. Keep non-sensitive settings in a structured Android store, not ad-hoc files.
+4. Add bridge methods for explicit migration/import from current web account settings.
+5. Add UI flow plan for “enable Android background worker for this account” instead of silently copying keys.
+6. Add backup/export policy for Android worker settings without dumping raw private keys.
+
+Acceptance criteria:
+
+- Android worker does not depend on reading raw browser localStorage at runtime.
+- User explicitly opts into Android background use per account.
+- Private keys are not printed, logged, exported in plaintext, or committed.
+- Existing web auth remains compatible and unchanged.
+
+### Phase 4 — native notification worker MVP
+
+Objective: notifications should work even when the WebView page is not open, within Android background rules.
+
+Tasks:
+
+1. Port notification scanning logic from `v3/js/notifications.js` to Kotlin for supported chains.
+2. Start with the smallest supported useful chain set:
+   - Golos, because current JS notification support is already explicit there;
+   - add VIZ/Hive/Steem only after RPC/history behavior is verified and fixtures exist.
+3. Implement RPC client wrappers for account history with optional history-index failure handling.
+4. Store cursors per `chain:account`.
+5. Implement incoming-only notification filtering semantics.
+6. Show Android native notifications for new incoming events.
+7. Use WorkManager for periodic checks when long-running mode is off.
+8. Add a manual “check now” bridge/action.
+9. Add shared JSON fixtures covering history rows, cursors, expected notifications and ignored outgoing events.
+10. Run the same fixtures through JS tests and Kotlin tests.
+
+Acceptance criteria:
+
+- Worker can detect new incoming events for configured accounts.
+- First run establishes baseline without spamming old history.
+- Errors for one account/chain do not stop all notification checks.
+- Periodic checks work without an open WebView, subject to Android scheduling rules.
+
+### Phase 5 — foreground service runtime
+
+Objective: provide the reliable long-running mode that PWA/WebView cannot provide.
+
+Tasks:
+
+1. Add Android foreground service with a persistent notification.
+2. Add explicit Start/Stop controls in the WebView UI via bridge or Android diagnostics UI.
+3. Keep service state visible:
+   - running/stopped;
+   - active accounts;
+   - last tick;
+   - last error;
+   - next planned tick;
+   - battery optimization warning.
+4. Add notification actions: Open, Pause/Stop, Check now if safe.
+5. Add interval settings with sane minimums and clear user-facing copy.
+6. Add wake/retry behavior that respects Android restrictions.
+7. Add boot receiver to restore only user-enabled workers after device reboot.
+8. Add battery optimization guidance and direct settings intent.
+
+Acceptance criteria:
+
+- Foreground service runs with visible notification.
+- Worker continues checking while app UI is backgrounded or WebView closed.
+- User can stop it immediately.
+- Service can recover after process death/reboot when enabled, or reports why it cannot.
+- No hidden infinite background behavior without visible notification.
+
+### Phase 6 — native auto-upvoter MVP
+
+Objective: Android version must provide the same practical auto-upvoter functionality in native background mode.
+
+Tasks:
+
+1. Inventory current JS auto-upvoter behavior in `v3/js/auto-upvoter.js` and app bindings.
+2. Extract shared behavior fixtures for:
+   - settings parsing;
+   - curator/favorite source collection;
+   - duplicate avoidance;
+   - battery/energy floor;
+   - vote percent calculation;
+   - Golos donate/autodonate semantics where enabled;
+   - skip reasons.
+3. Implement Kotlin auto-upvoter planner without broadcasting first.
+4. Add tests that compare Kotlin planned actions to JS fixture expectations.
+5. Add foreground-service integration for scanner ticks.
+6. Add dry-run log output visible in Android UI/WebView status.
+7. Add explicit user opt-in per account and per chain.
+8. Add hard safety limits:
+   - min energy floor;
+   - max actions per tick/hour;
+   - duplicate action prevention;
+   - RPC failure backoff;
+   - stop on repeated signing/broadcast failures.
+
+Acceptance criteria:
+
+- Native worker can plan the same vote actions as web auto-upvoter fixtures.
+- No operation is broadcast in tests.
+- User can see why each candidate was voted/skipped.
+- Worker stops or backs off safely on repeated errors.
+
+### Phase 7 — native signing and broadcast for auto-upvoter
+
+Objective: complete Android background auto-upvoter with secure signing and broadcast.
+
+Tasks:
+
+1. Choose per-chain Kotlin signing libraries or implement minimal operation signing only for required auto-upvoter operations.
+2. Start with one chain in testnet or dry-run-safe mode where possible.
+3. Store required posting/regular keys in Android secure storage after explicit user import.
+4. Build operation payloads from the native planner.
+5. Sign operations locally in Kotlin.
+6. Broadcast through public RPC.
+7. Read back chain state/history where possible to confirm outcome.
+8. Add failure handling:
+   - expired block/ref block errors;
+   - duplicate vote/already voted;
+   - insufficient energy;
+   - RPC node failover;
+   - history-index unavailable;
+   - network offline.
+9. Add a clear “manual review required” state for repeated failures.
+10. Add tests with deterministic signed payload fixtures where safe, using public test keys only.
+
+Acceptance criteria:
+
+- Android auto-upvoter can perform real permitted auto-actions after explicit user opt-in.
+- Keys never leave Android secure storage in plaintext logs/exports.
+- Every broadcast attempt is logged with redacted payload/status.
+- User can disable background signing immediately.
+- Mainnet live validation requires explicit user approval before any real action.
+
+### Phase 8 — Android/Web parity and update workflow
+
+Objective: prevent JS and Kotlin workers from drifting apart.
+
+Tasks:
+
+1. Create `android/shared-fixtures/` or equivalent shared test fixture location under Android scope, plus mirrored web tests if needed.
+2. Define fixture schema for notification and auto-upvoter behavior.
+3. Add Kotlin unit tests consuming fixtures.
+4. Add JS tests consuming the same fixtures or a generated copy.
+5. Document a rule: every worker behavior change must update fixtures first.
+6. Add CI/local commands for:
+   - web smoke tests;
+   - Android unit tests;
+   - Android lint/build;
+   - secret scan for Android release files.
+7. Add version compatibility notes between web runtime and Android worker runtime.
+
+Acceptance criteria:
+
+- A behavior change cannot pass only on JS or only on Kotlin by accident.
+- Release notes can state which web/Android worker behavior contract version is included.
+- Android updates remain easy when web UI changes.
+
+### Phase 9 — accessibility, UX and observability
+
+Objective: make Android worker understandable and controllable, especially with TalkBack.
+
+Tasks:
+
+1. Add a worker status page/section reachable from the WebView UI.
+2. Ensure all controls have clear accessible labels:
+   - start worker;
+   - stop worker;
+   - check now;
+   - enable account;
+   - import key to Android secure storage;
+   - export logs;
+   - open battery settings.
+3. Add concise Russian copy explaining foreground notification and battery optimization.
+4. Add worker log viewer with redaction.
+5. Add share/export logs action for debugging without secrets.
+6. Add TalkBack smoke checklist for main Android flows.
+7. Add visible warnings for unsupported devices/WebView/permissions.
+
+Acceptance criteria:
+
+- Denis can start/stop/check worker with TalkBack.
+- Worker status is understandable without reading technical logs.
+- Logs never include private keys, full encrypted blobs, passwords, tokens, or raw secrets.
+
+### Phase 10 — release packaging
+
+Objective: produce installable release artifacts and a repeatable release process.
+
+Tasks:
+
+1. Add Android debug APK build instructions.
+2. Add release signing plan without committing keystore or passwords.
+3. Add GitHub Actions only after local build is green:
+   - web checks;
+   - Android unit tests;
+   - Android assemble debug/release as appropriate;
+   - artifact upload.
+4. Add release artifact naming:
+   - `dpos-space-web-<version>.zip` if needed;
+   - `dpos-space-android-<version>.apk`;
+   - `dpos-space-android-<version>.aab` if Play release is needed later.
+5. Add update notes for live-site mode vs bundled-assets mode.
+6. Add rollback instructions for Android release without reverting git history.
+7. Add checksum generation for release artifacts.
+
+Acceptance criteria:
+
+- A clean checkout can build the Android app with documented commands.
+- Release artifacts are produced without secrets in git.
+- Checksums are available.
+- Installation/update path is documented for manual APK install and optional Play/AAB path.
+
+### Phase 11 — final full-functionality acceptance
+
+Objective: declare Android version complete only after the full requested functionality works.
+
+Final Definition of Done:
+
+- Android app installs and launches DPoS Space UI.
+- Major web routes work inside Android WebView.
+- Native notifications work and open correct routes.
+- Native notification worker checks events without the WebView page being open.
+- Foreground service long-running mode works with visible notification.
+- Auto-upvoter native worker can run in foreground service mode.
+- Auto-upvoter respects energy floor, duplicate prevention, rate limits, explicit opt-in and stop controls.
+- Signing keys used by Android background actions are stored in Android secure storage.
+- Worker recovers or reports status after app restart and device reboot where permissions allow.
+- Web/PWA version still works and does not require Android code.
+- Android files remain under `android/` except explicitly allowed docs/workflows.
+- Full validation gate is green:
+  - web syntax and smoke tests;
+  - Android unit tests;
+  - Android build;
+  - shared fixture parity tests;
+  - manual Android install/run smoke;
+  - TalkBack-oriented navigation checklist;
+  - no secret scan findings.
+
+### Implementation rules for this Android initiative
+
+- Work sequentially by phase unless a phase is explicitly read-only research/review.
+- Use TDD for each native worker behavior: fixture/test first, implementation second.
+- Do not run real mainnet auto-actions as tests.
+- Use explicit user confirmation before any live broadcast validation.
+- Commit after coherent green milestones, not after speculative partial files.
+- Keep every phase reviewable with a short implementation report: changed files, tests, remaining risks, next phase.
+- If a phase reveals that a feature needs a backend or a security-model change, stop and ask before widening scope.
+
 ## Current focused pass — Accessible modal windows for large operation blocks
 
 Root cause:
