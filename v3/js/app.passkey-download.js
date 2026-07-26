@@ -6258,58 +6258,8 @@ EVM chain id: ${payload.evmChainId}`;
         </div>
         <section class="card" data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'} aria-labelledby="android-worker-heading">
           <h3 id="android-worker-heading">Android native worker</h3>
-          <p class="muted">Панель видна только внутри APK. В браузере/PWA она скрыта и обычный web-режим не меняется.</p>
-          <p class="warning"><strong>Ключи отдельно:</strong> settings import does not include keys; secret payload is sent only to importSecureKey and сохраняется в Android secure storage.</p>
-          ${nativeAutoVoteSupported ? '<p class="muted">Golos/Hive/Steem native worker может запускать реальные vote после явного импорта настроек, отдельного импорта posting-ключа и кнопки Start native worker. Preview/check ниже не отправляет транзакцию.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
+          ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start автоматически запускает native worker: настройки берутся из формы, сохранённый posting-ключ переносится в Android secure storage, отдельный импорт настроек или отдельный native start не нужен. На сайте та же кнопка запускает JS/web scanner.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
           <div id="android-worker-status" role="status" aria-live="polite">Android worker status ещё не запрошен.</div>
-          <div class="field-grid">
-            <div class="field">
-              <label><input type="checkbox" id="android-worker-enable-notifications" value="1" ${nativeAutoVoteSupported ? '' : 'disabled'}> Импортировать уведомления для выбранных аккаунтов</label>
-            </div>
-            <div class="field">
-              <label><input type="checkbox" id="android-worker-enable-upvoter" value="1" ${nativeAutoVoteSupported ? '' : 'disabled'}> Импортировать автоапвоутер для native worker</label>
-            </div>
-            <div class="field">
-              <label for="android-worker-interval">Интервал worker, минут</label>
-              <input id="android-worker-interval" type="number" min="15" step="1" value="15" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-            </div>
-          </div>
-          <div class="actions">
-            <button type="button" data-android-refresh-status>Показать native worker status</button>
-            <button type="button" data-android-import-settings ${nativeAutoVoteSupported ? '' : 'disabled'}>Импортировать настройки в Android</button>
-            <button type="button" data-android-start-worker ${nativeAutoVoteSupported ? '' : 'disabled'}>Start native worker</button>
-            <button type="button" data-android-stop-worker>Stop native worker</button>
-            <button type="button" data-android-check-now ${nativeAutoVoteSupported ? '' : 'disabled'}>Check now</button>
-          </div>
-          <details>
-            <summary>Импорт secure posting key и preview/check</summary>
-            <div class="field-grid">
-              <div class="field">
-                <label for="android-secure-account">Аккаунт для secure key / preview</label>
-                <input id="android-secure-account" type="text" autocomplete="username" placeholder="account" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-              </div>
-              <div class="field">
-                <label for="android-secure-key">Posting WIF для Android secure storage</label>
-                <input id="android-secure-key" type="password" autocomplete="off" placeholder="вставьте posting key только здесь" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-              </div>
-              <div class="field">
-                <label for="android-preview-author">Preview author</label>
-                <input id="android-preview-author" type="text" placeholder="author" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-              </div>
-              <div class="field">
-                <label for="android-preview-permlink">Preview permlink</label>
-                <input id="android-preview-permlink" type="text" placeholder="post-permlink" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-              </div>
-              <div class="field">
-                <label for="android-preview-weight">Preview weight</label>
-                <input id="android-preview-weight" type="number" min="-10000" max="10000" step="1" value="10000" ${nativeAutoVoteSupported ? '' : 'disabled'}>
-              </div>
-            </div>
-            <div class="actions">
-              <button type="button" data-android-import-secure-key ${nativeAutoVoteSupported ? '' : 'disabled'}>Импортировать secure key</button>
-              <button type="button" data-android-preview-vote ${nativeAutoVoteSupported ? '' : 'disabled'}>Preview/check vote без отправки</button>
-            </div>
-          </details>
         </section>
       </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}
       <section class="card" aria-labelledby="auto-upvoter-status-heading">
@@ -6682,12 +6632,12 @@ EVM chain id: ${payload.evmChainId}`;
       return {
         chainId: chain.id,
         account: row.account,
-        enableNotifications: Boolean(document.getElementById('android-worker-enable-notifications') && document.getElementById('android-worker-enable-notifications').checked),
-        enableAutoUpvoter: Boolean(document.getElementById('android-worker-enable-upvoter') && document.getElementById('android-worker-enable-upvoter').checked),
+        enableNotifications: true,
+        enableAutoUpvoter: true,
         explicitConsent: true,
         minEnergy: Number(row.minEnergy) || 2500,
         maxActionsPerTick: 5,
-        intervalMinutes: Number(document.getElementById('android-worker-interval') && document.getElementById('android-worker-interval').value) || 15,
+        intervalMinutes: 15,
         curators: row.curators,
         favorites: row.favorites,
         curatorCoefficient: Number(row.curatorCoefficient) || 100,
@@ -6701,68 +6651,82 @@ EVM chain id: ${payload.evmChainId}`;
       return result;
     }
 
-    async function importAndroidWorkerSettings() {
-      const rows = selectedAndroidWorkerAccounts(collectSettings());
+    function findStoredAutoUpvoterUser(account) {
+      const normalized = String(account || '').trim().replace(/^@/, '');
+      return auth.getUsers(chain).find((user) => auth.getUserLogin(user) === normalized);
+    }
+
+    async function syncAndroidWorkerFromForm(settings) {
+      if (!nativeAutoVoteSupported) throw new Error(androidNativeUnsupportedReason(chain));
+      const rows = selectedAndroidWorkerAccounts(settings);
       if (!rows.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
-      const results = rows.map((row) => callAndroidWorkerBridge('importWorkerSettings', androidImportPayload(row)));
-      const ok = results.filter((row) => row && row.ok).length;
-      updateAndroidWorkerStatus({ workerEnabled: false, running: false, activeAccounts: ok, lastError: results.find((row) => row && !row.ok)?.reason || null });
-      appendScannerFeed(`Android settings import: ${ok}/${results.length} принято. ${results.map((row) => row.reason || row.status || 'ok').join('; ')}`);
-      return results;
-    }
-
-    async function importAndroidSecureKey() {
-      const account = String(document.getElementById('android-secure-account') && document.getElementById('android-secure-account').value || '').trim().replace(/^@/, '');
-      const secretNode = document.getElementById('android-secure-key');
-      const secret = String(secretNode && secretNode.value || '').trim();
-      if (!account || !secret) throw new Error('Укажите аккаунт и posting WIF в dedicated secure-key flow.');
-      const result = callAndroidWorkerBridge('importSecureKey', { chainId: chain.id, account, authority: 'posting', alias: 'posting', secret, explicitConsent: true });
-      if (secretNode) secretNode.value = '';
-      updateAndroidWorkerStatus({ workerEnabled: false, running: false, activeAccounts: 0, lastError: result.ok ? null : result.reason });
-      appendScannerFeed(`Android secure key import: ${result.ok ? 'ключ сохранён в secure storage' : result.reason || 'ошибка'}.`);
-      return result;
-    }
-
-    async function previewAndroidAutoVote() {
-      const payload = {
-        chainId: chain.id,
-        voter: String(document.getElementById('android-secure-account') && document.getElementById('android-secure-account').value || '').trim().replace(/^@/, ''),
-        author: String(document.getElementById('android-preview-author') && document.getElementById('android-preview-author').value || '').trim().replace(/^@/, ''),
-        permlink: String(document.getElementById('android-preview-permlink') && document.getElementById('android-preview-permlink').value || '').trim(),
-        weight: Number(document.getElementById('android-preview-weight') && document.getElementById('android-preview-weight').value) || 10000
-      };
-      if (!payload.voter || !payload.author || !payload.permlink) throw new Error('Для preview нужны voter, author и permlink.');
-      const result = callAndroidWorkerBridge('previewAutoVote', payload);
-      appendScannerFeed(`Android preview/check: ${result.status || result.reason || (result.ok ? 'ok' : 'ошибка')}; broadcasted=${result.broadcasted === true ? 'true' : 'false'}.`);
-      return result;
-    }
-
-    function bindAndroidWorkerControls() {
-      const panel = appEl.querySelector('[data-android-worker-panel]');
-      if (!panel || !nativeAndroidWorkerBridge()) return;
-      const bind = (selector, handler) => {
-        const node = panel.querySelector(selector);
-        if (!node) return;
-        node.addEventListener('click', () => {
-          Promise.resolve().then(handler).then((result) => {
-            if (result && typeof result === 'object') updateAndroidWorkerStatus(result);
-          }).catch((error) => {
-            updateAndroidWorkerStatus({ workerEnabled: false, running: false, activeAccounts: 0, lastError: profiles.formatError(error) });
-            setStatus(`Android worker: ${profiles.formatError(error)}`, 'error');
+      const results = [];
+      for (const row of rows) {
+        const user = findStoredAutoUpvoterUser(row.account);
+        if (!user) throw new Error(`Аккаунт @${row.account} не найден в локальном хранилище авторизации.`);
+        const decrypted = broadcast.decryptLegacyKey(chain, user, 'posting');
+        try {
+          const keyResult = callAndroidWorkerBridge('importSecureKey', {
+            chainId: chain.id,
+            account: row.account,
+            authority: 'posting',
+            alias: 'posting',
+            secret: decrypted.privateKey,
+            explicitConsent: true
           });
+          if (!keyResult || !keyResult.ok) throw new Error(keyResult && (keyResult.reason || keyResult.status) || 'secure key import failed');
+          const settingsResult = callAndroidWorkerBridge('importWorkerSettings', androidImportPayload(row));
+          results.push(settingsResult);
+          if (!settingsResult || !settingsResult.ok) throw new Error(settingsResult && (settingsResult.reason || settingsResult.status) || 'settings import failed');
+        } finally {
+          decrypted.privateKey = '';
+        }
+      }
+      const started = callAndroidWorkerBridge('startWorker');
+      if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
+      const check = callAndroidWorkerBridge('checkNow');
+      const ok = results.filter((row) => row && row.ok).length;
+      updateAndroidWorkerStatus(Object.assign({}, started, { activeAccounts: ok }));
+      appendScannerFeed(`Android native worker запущен: ${ok}/${results.length} аккаунтов синхронизировано; check-now=${check && (check.status || check.ok) || 'queued'}.`);
+      return Object.assign({}, started, { activeAccounts: ok });
+    }
+
+    async function startAndroidAutoUpvoter(settings) {
+      const accounts = selectedAndroidWorkerAccounts(settings).map((row) => row.account);
+      if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
+      await loadAutoUpvoterBatterySummary(settings);
+      renderScannerFeed('Перед запуском Android native worker: текущая батарейка загружена.');
+      const result = await syncAndroidWorkerFromForm(settings);
+      runtime.running = true;
+      runtime.settings = settings;
+      runtime.hiddenNoticeSent = false;
+      startButton.disabled = true;
+      stopButton.disabled = false;
+      setStatus(`${chain.title} автоапвоутер запущен в Android native worker.`, 'ok');
+      if (pwa && typeof pwa.notify === 'function') {
+        pwa.notify('Автоапвоутер запущен', {
+          body: `${chain.title}: Android native worker работает для ${accounts.map((account) => `@${account}`).join(', ')}.`,
+          tag: `${chain.id}-auto-upvoter-running`
         });
-      };
-      bind('[data-android-refresh-status]', refreshAndroidWorkerStatus);
-      bind('[data-android-import-settings]', importAndroidWorkerSettings);
-      bind('[data-android-import-secure-key]', importAndroidSecureKey);
-      bind('[data-android-start-worker]', () => callAndroidWorkerBridge('startWorker'));
-      bind('[data-android-stop-worker]', () => callAndroidWorkerBridge('stopWorker'));
-      bind('[data-android-check-now]', () => callAndroidWorkerBridge('checkNow'));
-      bind('[data-android-preview-vote]', previewAndroidAutoVote);
+      }
+      return result;
+    }
+
+    async function stopAndroidAutoUpvoter() {
+      const result = callAndroidWorkerBridge('stopWorker');
+      runtime.running = false;
+      runtime.settings = null;
+      startButton.disabled = false;
+      stopButton.disabled = true;
+      updateAndroidWorkerStatus(result);
+      renderScannerFeed('Android native worker остановлен; новых отправок не будет.');
+      setStatus(`${chain.title} автоапвоутер остановлен.`, 'info');
+      return result;
+    }
+
+    if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
       refreshAndroidWorkerStatus().catch(() => {});
     }
-
-    bindAndroidWorkerControls();
 
     if (form) {
       form.addEventListener('input', persistAutoUpvoterSettings);
@@ -6790,8 +6754,12 @@ EVM chain id: ${payload.evmChainId}`;
         try {
           await loadScript(chain.libraryPath);
           await loadScript(chain.cryptoPath);
-          const availability = helper.assertBroadcastAvailable(chain);
           const settings = collectSettings();
+          if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
+            await startAndroidAutoUpvoter(settings);
+            return;
+          }
+          const availability = helper.assertBroadcastAvailable(chain);
           await loadAutoUpvoterBatterySummary(settings);
           renderScannerFeed('Перед запуском: текущая батарейка загружена.');
           runtime.runners = helper.upsertRunnerState(runtime.runners, settings);
@@ -6850,6 +6818,10 @@ EVM chain id: ${payload.evmChainId}`;
       });
       stopButton.addEventListener('click', async () => {
         await loadAutoUpvoterBatterySummary(collectSettings());
+        if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
+          await stopAndroidAutoUpvoter();
+          return;
+        }
         stopAutoUpvoter('Перед остановкой: текущая батарейка загружена. Остановлен. Local active-tab scanner очищен; новых отправок не будет.');
       });
     } else if (feed) {

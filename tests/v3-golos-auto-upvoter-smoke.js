@@ -25,7 +25,7 @@ assert(/авто/i.test(autoApp.title), 'Golos auto-upvoter title is Russian and
 assert(/posting/i.test(autoApp.description), 'Golos auto-upvoter description warns about posting key use');
 assert(/локаль/i.test(autoApp.description), 'Golos auto-upvoter description explains local browser runtime');
 assert(chainsSource.includes("id: 'auto-upvoter'"), 'Golos registry contains auto-upvoter id');
-assert(indexSource.includes('v3/js/auto-upvoter.js') && indexSource.indexOf('v3/js/auto-upvoter.js') < indexSource.indexOf('v3/js/app.passkey-download.js'), 'Auto-upvoter helper is loaded by index before app runtime');
+assert(indexSource.includes('v3/js/auto-upvoter.js') && indexSource.indexOf('v3/js/auto-upvoter.js') < indexSource.indexOf('v3/js/app.unified-native-worker.js'), 'Auto-upvoter helper is loaded by index before app runtime');
 assert(appSource.includes("effectiveAppId === 'auto-upvoter'"), 'App router has dedicated auto-upvoter route');
 assert(appSource.includes('renderGolosAutoUpvoter'), 'App has Golos auto-upvoter renderer');
 assert(appSource.includes('DposAuth.getUsers(chain)'), 'UI reads all authorized Golos accounts');
