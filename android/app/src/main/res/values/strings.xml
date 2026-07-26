@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DPoS Space</string>
+    <string name="worker_channel_name">DPoS Space runtime</string>
+</resources>

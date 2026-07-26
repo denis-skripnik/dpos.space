@@ -43,10 +43,27 @@
     return global.Notification.requestPermission();
   }
 
+  function nativeAndroidBridge() {
+    return global.DposAndroid && typeof global.DposAndroid.notify === 'function' ? global.DposAndroid : null;
+  }
+
+  function routeFromNotifyOptions(options) {
+    const data = options && options.data || {};
+    const url = data.url || (global.location && global.location.href) || '';
+    const hashIndex = String(url).indexOf('#');
+    if (hashIndex >= 0) return String(url).slice(hashIndex);
+    return global.location && global.location.hash ? global.location.hash : '#';
+  }
+
   async function notify(title, options) {
-    if (!canNotify()) return false;
     const body = options && options.body ? String(options.body) : '';
     const tag = options && options.tag ? String(options.tag) : undefined;
+    const bridge = nativeAndroidBridge();
+    if (bridge) {
+      bridge.notify(String(title || 'DPoS Space'), body, tag || 'dpos-space', routeFromNotifyOptions(options));
+      return true;
+    }
+    if (!canNotify()) return false;
     const icon = options && options.icon ? options.icon : '/v3/assets/icons/dpos-space-192.png';
     const badge = options && options.badge ? options.badge : '/v3/assets/icons/dpos-space-192.png';
     const data = Object.assign({ url: global.location && global.location.href }, options && options.data || {});

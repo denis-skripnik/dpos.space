@@ -1,0 +1,10 @@
+{
+  "account": "denis",
+  "cursor": 7,
+  "baselineDone": true,
+  "rows": [
+    { "index": 8, "type": "comment", "data": { "author": "alice", "parent_author": "denis", "permlink": "reply" } },
+    { "index": 9, "type": "transfer", "data": { "from": "denis", "to": "bob", "amount": "1 GOLOS" } }
+  ],
+  "expectedNotifications": ["golos:denis:8:comment"]
+}
