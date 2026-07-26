@@ -18,7 +18,33 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val GOLOS_CHAIN_ID = "782a3039b478c839e4cb0c941ff4eaeb7df40bdd68bd441afd444b9da763de12"
+private const val HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000"
+private const val STEEM_CHAIN_ID = "0000000000000000000000000000000000000000000000000000000000000000"
 private const val DEFAULT_GOLOS_RPC = "https://golosapi.ecurrex.ru"
+private const val DEFAULT_HIVE_RPC = "https://api.hive.blog"
+private const val DEFAULT_STEEM_RPC = "https://api.steemit.com"
+
+data class GrapheneChainSpec(
+    val id: String,
+    val networkChainIdHex: String,
+    val defaultRpcEndpoint: String,
+    val voteOperationId: Int = 0,
+    val postingAuthority: String = "posting",
+    val legacyCallRpc: Boolean = false
+)
+
+object GrapheneChainSpecs {
+    private val specs = mapOf(
+        "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, legacyCallRpc = true),
+        "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC),
+        "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC)
+    )
+
+    val supportedNativeVoteChains: Set<String> = specs.keys
+
+    fun find(chainId: String): GrapheneChainSpec? = specs[chainId.trim().lowercase(Locale.ROOT)]
+    fun require(chainId: String): GrapheneChainSpec = find(chainId) ?: throw IllegalArgumentException("unsupported native vote chain: $chainId")
+}
 
 data class VoteOperation(
     val chainId: String,
@@ -95,7 +121,7 @@ interface GolosRpcClient {
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
 }
 
-class GolosTransactionBuilder(private val chainIdHex: String = GOLOS_CHAIN_ID) : TransactionBuilder {
+class GrapheneTransactionBuilder(private val spec: GrapheneChainSpec) : TransactionBuilder {
     override fun build(operation: VoteOperation, header: BlockHeaderRef, signature: String?): JSONObject {
         val tx = JSONObject()
             .put("ref_block_num", header.refBlockNum)
@@ -113,34 +139,41 @@ class GolosTransactionBuilder(private val chainIdHex: String = GOLOS_CHAIN_ID) :
     }
 
     override fun signingBytes(operation: VoteOperation, header: BlockHeaderRef): ByteArray {
+        require(operation.chainId.trim().lowercase(Locale.ROOT) == spec.id) { "operation chain does not match ${spec.id}" }
         val txBytes = ByteArrayOutputStream().apply {
             writeUInt16LE(header.refBlockNum)
             writeUInt32LE(header.refBlockPrefix)
             writeUInt32LE(header.expirationEpochSeconds)
             writeVarUInt(1)
-            writeVarUInt(0) // Golos/Graphene vote operation id.
+            writeVarUInt(spec.voteOperationId)
             writeGrapheneString(operation.voter)
             writeGrapheneString(operation.author)
             writeGrapheneString(operation.permlink)
             writeInt16LE(operation.weight.coerceIn(-10000, 10000))
-            writeVarUInt(0) // extensions
+            writeVarUInt(0)
         }.toByteArray()
-        return hexToBytes(chainIdHex) + txBytes + ByteArray(32)
+        return hexToBytes(spec.networkChainIdHex) + txBytes + ByteArray(32)
     }
 }
 
-class GolosVoteSigner(private val builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner {
+class GolosTransactionBuilder(chainIdHex: String = GOLOS_CHAIN_ID) : TransactionBuilder by GrapheneTransactionBuilder(GrapheneChainSpec("golos", chainIdHex, DEFAULT_GOLOS_RPC, legacyCallRpc = true))
+
+class GrapheneVoteSigner(
+    private val spec: GrapheneChainSpec,
+    private val builder: TransactionBuilder = GrapheneTransactionBuilder(spec)
+) : VoteSigner {
     override fun sign(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?, header: BlockHeaderRef): VoteBroadcastResult {
+        val operationChain = operation.chainId.trim().lowercase(Locale.ROOT)
         if (keyRef == null) return VoteBroadcastResult(false, "missing_key_ref", operation, "secure key ref is absent; no signing or broadcast attempted")
         if (privateWif.isNullOrBlank()) return VoteBroadcastResult(false, "missing_private_key", operation, "secure key material is absent; no signing or broadcast attempted")
-        if (operation.chainId.lowercase(Locale.ROOT) != "golos") return VoteBroadcastResult(false, "unsupported_chain", operation, "native Android signer currently supports Golos vote only")
-        if (keyRef.chainId != "golos" || keyRef.account != operation.voter || keyRef.authority != "posting") {
-            return VoteBroadcastResult(false, "key_scope_mismatch", operation, "posting key ref does not match Golos voter account")
+        if (operationChain != spec.id) return VoteBroadcastResult(false, "unsupported_chain", operation, "native Android signer is configured for ${spec.id}, not $operationChain")
+        if (keyRef.chainId != spec.id || keyRef.account != operation.voter || keyRef.authority != spec.postingAuthority) {
+            return VoteBroadcastResult(false, "key_scope_mismatch", operation, "${spec.postingAuthority} key ref does not match ${spec.id} voter account")
         }
         val ecKey = try { ecKeyFromWif(privateWif) } catch (e: Exception) {
             return VoteBroadcastResult(false, "invalid_wif", operation, "posting key is not a valid WIF: ${PayloadSanitizer.text(e.message, 80)}")
         }
-        val digest = Sha256Hash.wrap(org.bitcoinj.core.Sha256Hash.hash(builder.signingBytes(operation, header)))
+        val digest = Sha256Hash.wrap(Sha256Hash.hash(builder.signingBytes(operation, header)))
         val signature = ecKey.sign(digest)
         val recId = (0..3).firstOrNull { candidate -> ECKey.recoverFromSignature(candidate, signature, digest, true)?.pubKeyPoint == ecKey.pubKeyPoint }
             ?: return VoteBroadcastResult(false, "signature_recovery_failed", operation, "could not derive compact recoverable signature id")
@@ -150,22 +183,33 @@ class GolosVoteSigner(private val builder: TransactionBuilder = GolosTransaction
             writePadded(signature.s)
         }.toByteArray().toHex()
         val tx = builder.build(operation, header, compact)
-        return VoteBroadcastResult(true, "signed", operation, "signed Golos vote transaction locally", SignedVotePayload(operation, keyRef, tx))
+        return VoteBroadcastResult(true, "signed", operation, "signed ${spec.id} vote transaction locally", SignedVotePayload(operation, keyRef, tx))
     }
 
     private fun ecKeyFromWif(wif: String): ECKey = DumpedPrivateKey.fromBase58(MainNetParams.get(), wif).key
 }
 
-class HttpGolosRpcClient(private val endpoint: String = DEFAULT_GOLOS_RPC) : GolosRpcClient {
+class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.require("golos"), builder)
+
+class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val endpoint: String = spec.defaultRpcEndpoint) : GolosRpcClient {
     override fun getDynamicGlobalProperties(): JSONObject {
-        val result = post("database_api.get_dynamic_global_properties", JSONArray())
+        val result = postApi("database_api", "get_dynamic_global_properties", JSONArray())
         return result.optJSONObject("result") ?: result
     }
 
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
-        post("network_broadcast_api.broadcast_transaction_synchronous", JSONArray().put(signedTransaction))
+        postApi("network_broadcast_api", "broadcast_transaction_synchronous", JSONArray().put(signedTransaction))
 
-    private fun post(method: String, params: JSONArray): JSONObject {
+    private fun postApi(api: String, methodName: String, params: JSONArray): JSONObject {
+        val body = if (spec.legacyCallRpc) {
+            JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "call").put("params", JSONArray().put(api).put(methodName).put(params))
+        } else {
+            JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "$api.$methodName").put("params", params)
+        }
+        return post(body)
+    }
+
+    private fun post(bodyJson: JSONObject): JSONObject {
         val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -173,7 +217,7 @@ class HttpGolosRpcClient(private val endpoint: String = DEFAULT_GOLOS_RPC) : Gol
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
         }
-        val body = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", method).put("params", params).toString()
+        val body = bodyJson.toString()
         conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val text = (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
         val json = JSONObject(text)
@@ -181,6 +225,8 @@ class HttpGolosRpcClient(private val endpoint: String = DEFAULT_GOLOS_RPC) : Gol
         return json
     }
 }
+
+class HttpGolosRpcClient(endpoint: String = DEFAULT_GOLOS_RPC) : GolosRpcClient by HttpGrapheneRpcClient(GrapheneChainSpecs.require("golos"), endpoint)
 
 class GolosBroadcastClient(private val rpc: GolosRpcClient) : VoteBroadcaster {
     override fun broadcast(signedTransaction: JSONObject): JSONObject = rpc.broadcastTransactionSynchronous(signedTransaction)
@@ -205,7 +251,7 @@ object GolosTransactionHeaderFactory {
 
 class VoteRuntime(
     private val rpcClient: GolosRpcClient,
-    private val signer: VoteSigner = GolosVoteSigner(),
+    private val signer: VoteSigner = GrapheneVoteSigner(GrapheneChainSpecs.require("golos")),
     private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient)
 ) {
     fun preview(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
@@ -221,7 +267,7 @@ class VoteRuntime(
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
         val response = broadcaster.broadcast(signed.payload.signedTransaction)
-        return signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured Golos RPC", rpcResponse = response)
+        return signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
     }
 }
 

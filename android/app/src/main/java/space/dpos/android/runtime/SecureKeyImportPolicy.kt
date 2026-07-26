@@ -3,6 +3,7 @@ package space.dpos.android.runtime
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
+import space.dpos.android.upvoter.GrapheneChainSpecs
 
 data class SecureKeyImportRequest(
     val chainId: String,
@@ -21,10 +22,9 @@ data class SecureKeyImportDecision(
 )
 
 object SecureKeyImportPolicy {
-    private val supportedChains = setOf("golos")
+    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains
     private val authoritiesByChain = mapOf(
         "golos" to setOf("posting", "active"),
-        "viz" to setOf("regular", "active"),
         "hive" to setOf("posting", "active"),
         "steem" to setOf("posting", "active")
     )

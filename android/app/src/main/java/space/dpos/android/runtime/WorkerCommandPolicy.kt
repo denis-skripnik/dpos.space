@@ -3,6 +3,7 @@ package space.dpos.android.runtime
 import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
+import space.dpos.android.upvoter.GrapheneChainSpecs
 
 data class AccountImportRequest(
     val chainId: String,
@@ -36,7 +37,7 @@ data class ImportDecision(
 )
 
 object WorkerCommandPolicy {
-    private val supportedChains = setOf("golos")
+    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains
     private val accountPattern = Regex("^[a-z0-9.-]{3,32}$")
     private val secretFieldPattern = Regex("(?i)(private|wif|seed|mnemonic|password|token|secret|key)")
 

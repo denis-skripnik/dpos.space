@@ -5975,13 +5975,13 @@
   }
 
   function androidNativeAutoVoteSupported(chain) {
-    return chain && chain.id === 'golos';
+    return chain && ['golos', 'hive', 'steem'].includes(chain.id);
   }
 
   function androidNativeUnsupportedReason(chain) {
     if (!chain) return 'цепочка не выбрана';
     if (chain.id === 'viz') return 'VIZ native worker/signing не включён: operation ids, chain id и authority semantics требуют отдельной проверки.';
-    if (chain.id === 'hive' || chain.id === 'steem') return 'Hive/Steem WebView UI работает, но native worker/signing пока не включены, чтобы не отправлять неверно подписанные Graphene-транзакции.';
+    if (chain.id === 'hive' || chain.id === 'steem') return 'Hive/Steem native worker/signing включены только для vote через posting authority; preview/check не отправляет транзакции.';
     if (chain.id === 'minter' || chain.id === 'decimal') return 'Minter/Decimal WebView UI работает, но native seed signer path пока не реализован и не заявляется.';
     return 'native worker для этой цепочки пока не заявлен.';
   }
@@ -6096,7 +6096,7 @@
           <h3 id="android-worker-heading">Android native worker</h3>
           <p class="muted">Панель видна только внутри APK. В браузере/PWA она скрыта и обычный web-режим не меняется.</p>
           <p class="warning"><strong>Ключи отдельно:</strong> settings import does not include keys; secret payload is sent only to importSecureKey and сохраняется в Android secure storage.</p>
-          ${nativeAutoVoteSupported ? '<p class="muted">Golos native worker может запускать реальные vote после явного импорта настроек, отдельного импорта posting-ключа и кнопки Start native worker. Preview/check ниже не отправляет транзакцию.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
+          ${nativeAutoVoteSupported ? '<p class="muted">Golos/Hive/Steem native worker может запускать реальные vote после явного импорта настроек, отдельного импорта posting-ключа и кнопки Start native worker. Preview/check ниже не отправляет транзакцию.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
           <div id="android-worker-status" role="status" aria-live="polite">Android worker status ещё не запрошен.</div>
           <div class="field-grid">
             <div class="field">

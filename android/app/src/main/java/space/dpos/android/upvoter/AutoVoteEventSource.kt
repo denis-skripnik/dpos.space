@@ -71,16 +71,21 @@ class AutoVoteEventCollector(
     }
 }
 
-class HttpGolosDiscussionClient(private val endpoint: String = "https://api.golos.id/ws") : GolosDiscussionClient {
+class HttpGrapheneDiscussionClient(private val endpoint: String, private val legacyCallRpc: Boolean = false) : GolosDiscussionClient {
     override fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow> {
         val clean = account.trim().removePrefix("@").lowercase()
         val params = JSONObject().put("select_authors", JSONArray().put(clean)).put("limit", limit.coerceIn(1, 100))
-        val body = JSONObject()
-            .put("jsonrpc", "2.0")
-            .put("id", 1)
-            .put("method", "condenser_api.get_discussions_by_blog")
-            .put("params", JSONArray().put(params))
-            .toString()
+        val rpcParams = JSONArray().put(params)
+        val body = if (legacyCallRpc) {
+            JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "call").put("params", JSONArray().put("condenser_api").put("get_discussions_by_blog").put(rpcParams)).toString()
+        } else {
+            JSONObject()
+                .put("jsonrpc", "2.0")
+                .put("id", 1)
+                .put("method", "condenser_api.get_discussions_by_blog")
+                .put("params", rpcParams)
+                .toString()
+        }
         val response = post(body)
         return parseBlogPosts(response)
     }
@@ -123,5 +128,11 @@ class HttpGolosDiscussionClient(private val endpoint: String = "https://api.golo
             }
             return rows
         }
+    }
+}
+
+class HttpGolosDiscussionClient(endpoint: String = GrapheneChainSpecs.require("golos").defaultRpcEndpoint) : GolosDiscussionClient by HttpGrapheneDiscussionClient(endpoint) {
+    companion object {
+        fun parseBlogPosts(json: String): List<FavoritePostRow> = HttpGrapheneDiscussionClient.parseBlogPosts(json)
     }
 }
