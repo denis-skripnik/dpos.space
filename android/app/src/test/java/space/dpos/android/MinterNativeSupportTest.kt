@@ -28,7 +28,7 @@ class MinterNativeSupportTest {
 
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "main", "seed", "seed", fixtureSeed, explicitConsent = true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", fixtureAddress, "posting", "posting", fixtureSeed, explicitConsent = true)).accepted)
-        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "dx0000000000000000000000000000000000000000", "seed", "seed", fixtureSeed, explicitConsent = true)).accepted)
+        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "dx0000000000000000000000000000000000000000", "posting", "posting", fixtureSeed, explicitConsent = true)).accepted)
     }
 
     @Test fun derivesMinterAddressFromDeterministicNonSecretMnemonicLikeBrowserVendorWallet() {

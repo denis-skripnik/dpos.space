@@ -5982,8 +5982,8 @@
     if (!chain) return 'цепочка не выбрана';
     if (chain.id === 'viz') return 'VIZ native worker/signing не включён: operation ids, chain id и authority semantics требуют отдельной проверки.';
     if (chain.id === 'hive' || chain.id === 'steem') return 'Hive/Steem native worker/signing включены только для vote через posting authority; preview/check не отправляет транзакции.';
-    if (chain.id === 'minter') return 'Minter native Android signer supports only offline preview/check for SEND with numeric coinId/gasCoinId; live broadcast still uses WebView SDK until native broadcaster is verified.';
-    if (chain.id === 'decimal') return 'Decimal WebView UI работает, но native seed signer path пока не реализован и не заявляется.';
+    if (chain.id === 'minter') return 'Minter native Android signer supports SEND with numeric coinId/gasCoinId, explicit preview, and confirmed execute through verified send_transaction.';
+    if (chain.id === 'decimal') return 'Decimal native Android signer supports only secure-seed import and no-broadcast DEL transfer preview/check. Execute/broadcast, token, swap, delegate and NFT signing remain WebView-only until exact endpoint/encoding support is verified.';
     return 'native worker для этой цепочки пока не заявлен.';
   }
 
@@ -6061,6 +6061,72 @@
         return;
       }
       const result = callAndroidWorkerBridge('executeMinterTransfer', payload);
+      setNativeStatus(result);
+    });
+  }
+
+  function renderAndroidDecimalNativePanel(chain, account) {
+    const hasBridge = Boolean(nativeAndroidWorkerBridge());
+    const from = String(account || '').trim();
+    return `<section class="card" data-android-decimal-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-decimal-native-heading">
+      <h3 id="android-decimal-native-heading">Android native Decimal signer</h3>
+      <p class="muted">Android native Decimal milestone is deliberately narrow: secure seed import plus Preview/check Decimal DEL transfer без broadcast. Execute/send is not exposed until endpoint, fee and response semantics are verified for the native path.</p>
+      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Эта APK-панель не подписывает Decimal NFT, delegate, swap или token операции.</p>
+      <div class="field-grid">
+        <div class="field"><label for="android-decimal-from">Decimal from address</label><input id="android-decimal-from" type="text" value="${escapeHtml(from)}" placeholder="d0..., dx... или 0x..." autocomplete="off"></div>
+        <div class="field"><label for="android-decimal-seed">Decimal seed для secure storage</label><input id="android-decimal-seed" type="password" placeholder="12-24 seed words" autocomplete="off"></div>
+        <div class="field"><label for="android-decimal-to">Preview recipient</label><input id="android-decimal-to" type="text" placeholder="d0..., dx... или 0x..."></div>
+        <div class="field"><label for="android-decimal-amount">Amount DEL</label><input id="android-decimal-amount" type="text" inputmode="decimal" placeholder="1"></div>
+        <div class="field"><label for="android-decimal-nonce">EVM nonce from Web3/API</label><input id="android-decimal-nonce" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="field"><label for="android-decimal-gas-price">Gas price, wei</label><input id="android-decimal-gas-price" type="text" inputmode="numeric" value="50000000000"></div>
+        <div class="field"><label for="android-decimal-gas-limit">Gas limit</label><input id="android-decimal-gas-limit" type="number" min="21000" step="1" value="21000"></div>
+        <div class="field"><label for="android-decimal-evm-chain-id">EVM chain id</label><input id="android-decimal-evm-chain-id" type="number" min="1" step="1" value="75"></div>
+      </div>
+      <div class="actions">
+        <button type="button" data-android-decimal-import-seed>Import Decimal seed</button>
+        <button type="button" data-android-decimal-preview-send>Preview/check Decimal DEL без broadcast</button>
+      </div>
+      <div id="android-decimal-native-status" role="status" aria-live="polite">Decimal native signer status ещё не запрошен.</div>
+    </section>`;
+  }
+
+  function bindAndroidDecimalNativePanel() {
+    const panel = appEl.querySelector('[data-android-decimal-native-panel]');
+    if (!panel) return;
+    const status = panel.querySelector('#android-decimal-native-status');
+    const setNativeStatus = (result) => {
+      if (!status) return;
+      const ok = result && result.ok;
+      status.textContent = ok ? `OK: ${result.status || 'ready'}; broadcasted=${Boolean(result.broadcasted)}` : `Ошибка: ${result && (result.reason || result.status) || 'unknown'}`;
+    };
+    const value = (selector) => {
+      const node = panel.querySelector(selector);
+      return node ? node.value.trim() : '';
+    };
+    const seedButton = panel.querySelector('[data-android-decimal-import-seed]');
+    if (seedButton) seedButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('importSecureKey', {
+        chainId: 'decimal',
+        account: value('#android-decimal-from'),
+        authority: 'seed',
+        alias: 'seed',
+        secret: value('#android-decimal-seed'),
+        explicitConsent: true
+      });
+      setNativeStatus(result);
+    });
+    const decimalTransferPayload = () => ({
+      from: value('#android-decimal-from'),
+      to: value('#android-decimal-to'),
+      amount: value('#android-decimal-amount'),
+      nonce: value('#android-decimal-nonce') || '0',
+      gasPrice: value('#android-decimal-gas-price') || '50000000000',
+      gasLimit: value('#android-decimal-gas-limit') || '21000',
+      evmChainId: value('#android-decimal-evm-chain-id') || '75'
+    });
+    const previewButton = panel.querySelector('[data-android-decimal-preview-send]');
+    if (previewButton) previewButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('previewDecimalTransfer', decimalTransferPayload());
       setNativeStatus(result);
     });
   }
@@ -12664,6 +12730,7 @@ Memo key: ${keys.memo}`);
       ${renderDecimalWalletBalances(data)}
       <h3>Операции</h3>
       ${renderDecimalWalletForms(chain, data)}
+      ${renderAndroidDecimalNativePanel(chain, data.address)}
     </section>`;
     const copyButton = document.getElementById('decimal-copy-address');
     if (copyButton) {
@@ -12677,6 +12744,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindDecimalWalletForms(chain);
+    bindAndroidDecimalNativePanel();
     bindDecimalQuickActions(appEl, data);
     bindDecimalConvertHelpers(appEl, chain, data);
     bindMaxButtons(appEl);

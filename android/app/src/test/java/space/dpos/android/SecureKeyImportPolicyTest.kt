@@ -46,5 +46,6 @@ class SecureKeyImportPolicyTest {
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("golos", "denis", "owner", "auto-upvoter", fixtureWif, true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("golos", "denis", "posting", "bad alias with spaces", fixtureWif, true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "denis", "posting", "auto-upvoter", fixtureWif, true)).accepted)
+        assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "d01npvwllfr9dqr8erajqqr6s0vxnk2ak55twavxs", "seed", "seed", "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", true)).accepted)
     }
 }
