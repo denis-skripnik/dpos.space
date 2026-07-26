@@ -5982,8 +5982,74 @@
     if (!chain) return 'цепочка не выбрана';
     if (chain.id === 'viz') return 'VIZ native worker/signing не включён: operation ids, chain id и authority semantics требуют отдельной проверки.';
     if (chain.id === 'hive' || chain.id === 'steem') return 'Hive/Steem native worker/signing включены только для vote через posting authority; preview/check не отправляет транзакции.';
-    if (chain.id === 'minter' || chain.id === 'decimal') return 'Minter/Decimal WebView UI работает, но native seed signer path пока не реализован и не заявляется.';
+    if (chain.id === 'minter') return 'Minter native Android signer supports only offline preview/check for SEND with numeric coinId/gasCoinId; live broadcast still uses WebView SDK until native broadcaster is verified.';
+    if (chain.id === 'decimal') return 'Decimal WebView UI работает, но native seed signer path пока не реализован и не заявляется.';
     return 'native worker для этой цепочки пока не заявлен.';
+  }
+
+  function renderAndroidMinterNativePanel(chain, account) {
+    const hasBridge = Boolean(nativeAndroidWorkerBridge());
+    const from = String(account || '').trim();
+    return `<section class="card" data-android-minter-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-minter-native-heading">
+      <h3 id="android-minter-native-heading">Android native Minter signer</h3>
+      <p class="muted">Реальная native-часть сейчас ограничена безопасным milestone: secure seed import и offline preview/check для Minter SEND с numeric coinId/gasCoinId. Preview не делает broadcast; обычная отправка остаётся через WebView Minter SDK.</p>
+      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Не вставляйте seed в worker settings.</p>
+      <div class="field-grid">
+        <div class="field"><label for="android-minter-from">Minter from address</label><input id="android-minter-from" type="text" value="${escapeHtml(from)}" placeholder="Mx..." autocomplete="off"></div>
+        <div class="field"><label for="android-minter-seed">Minter seed для secure storage</label><input id="android-minter-seed" type="password" placeholder="12-24 seed words" autocomplete="off"></div>
+        <div class="field"><label for="android-minter-to">Preview recipient</label><input id="android-minter-to" type="text" placeholder="Mx..."></div>
+        <div class="field"><label for="android-minter-amount">Amount</label><input id="android-minter-amount" type="text" inputmode="decimal" placeholder="1"></div>
+        <div class="field"><label for="android-minter-coin-id">coinId</label><input id="android-minter-coin-id" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="android-minter-gas-coin-id">gasCoinId</label><input id="android-minter-gas-coin-id" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="android-minter-nonce">Nonce from API</label><input id="android-minter-nonce" type="number" min="1" step="1" placeholder="1"></div>
+        <div class="field"><label for="android-minter-memo">Memo</label><input id="android-minter-memo" type="text" placeholder="optional"></div>
+      </div>
+      <div class="actions">
+        <button type="button" data-android-minter-import-seed>Import Minter seed</button>
+        <button type="button" data-android-minter-preview-send>Preview/check Minter SEND без broadcast</button>
+      </div>
+      <div id="android-minter-native-status" role="status" aria-live="polite">Minter native signer status ещё не запрошен.</div>
+    </section>`;
+  }
+
+  function bindAndroidMinterNativePanel() {
+    const panel = appEl.querySelector('[data-android-minter-native-panel]');
+    if (!panel) return;
+    const status = panel.querySelector('#android-minter-native-status');
+    const setNativeStatus = (result) => {
+      if (!status) return;
+      const ok = result && result.ok;
+      status.textContent = ok ? `OK: ${result.status || 'ready'}; broadcasted=${Boolean(result.broadcasted)}` : `Ошибка: ${result && (result.reason || result.status) || 'unknown'}`;
+    };
+    const value = (selector) => {
+      const node = panel.querySelector(selector);
+      return node ? node.value.trim() : '';
+    };
+    const seedButton = panel.querySelector('[data-android-minter-import-seed]');
+    if (seedButton) seedButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('importSecureKey', {
+        chainId: 'minter',
+        account: value('#android-minter-from'),
+        authority: 'seed',
+        alias: 'seed',
+        secret: value('#android-minter-seed'),
+        explicitConsent: true
+      });
+      setNativeStatus(result);
+    });
+    const previewButton = panel.querySelector('[data-android-minter-preview-send]');
+    if (previewButton) previewButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('previewMinterTransfer', {
+        from: value('#android-minter-from'),
+        to: value('#android-minter-to'),
+        amount: value('#android-minter-amount'),
+        coinId: value('#android-minter-coin-id') || '0',
+        gasCoinId: value('#android-minter-gas-coin-id') || '0',
+        nonce: value('#android-minter-nonce'),
+        memo: value('#android-minter-memo')
+      });
+      setNativeStatus(result);
+    });
   }
 
   function applyAutoUpvoterStoredSettings(storedSettings) {
@@ -12203,6 +12269,7 @@ Memo key: ${keys.memo}`);
       ${renderMinterWalletBalances(data)}
       <h3>Операции</h3>
       ${renderMinterWalletForms(chain)}
+      ${renderAndroidMinterNativePanel(chain, data.address)}
     </section>`;
     const copyButton = document.getElementById('minter-copy-address');
     if (copyButton) {
@@ -12216,6 +12283,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindMinterWalletForms(chain);
+    bindAndroidMinterNativePanel();
     bindMinterQuickActions(appEl);
     bindMaxButtons(appEl);
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
