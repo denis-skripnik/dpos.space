@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.upvoter.GrapheneChainSpecs
+import space.dpos.android.notifications.RestWalletNotificationSpecs
 
 data class AccountImportRequest(
     val chainId: String,
@@ -39,16 +40,18 @@ data class ImportDecision(
 )
 
 object WorkerCommandPolicy {
-    private val supportedNotificationChains = GrapheneChainSpecs.supportedNativeNotificationChains
+    private val supportedNotificationChains = GrapheneChainSpecs.supportedNativeNotificationChains + RestWalletNotificationSpecs.supportedChains
     private val supportedAutoUpvoterChains = GrapheneChainSpecs.supportedNativeVoteChains
     private val accountPattern = Regex("^[a-z0-9.-]{3,32}$")
+    private val walletAddressPattern = Regex("^((mx|dx|0x)[0-9a-f]{40}|d0[0-9a-z]{39})$")
     private val secretFieldPattern = Regex("(?i)(private|wif|seed|mnemonic|password|token|secret|key)")
 
     fun validateImport(request: AccountImportRequest): ImportDecision {
         val chain = request.chainId.trim().lowercase()
         val account = request.account.trim().removePrefix("@").lowercase()
         if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
-        if (!accountPattern.matches(account)) return ImportDecision(false, "invalid account name")
+        val isWalletNotificationChain = chain in RestWalletNotificationSpecs.supportedChains
+        if (!accountPattern.matches(account) && !(isWalletNotificationChain && walletAddressPattern.matches(account))) return ImportDecision(false, "invalid account name")
         if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or auto-upvoter")
         if (request.enableNotifications && chain !in supportedNotificationChains) return ImportDecision(false, "unsupported chain for native notifications: $chain")
         if (request.enableAutoUpvoter && chain !in supportedAutoUpvoterChains) return ImportDecision(false, "unsupported chain for native auto-upvoter: $chain")
@@ -76,7 +79,7 @@ object WorkerCommandPolicy {
         .distinct()
 
     fun normalizeOps(values: List<String>, chainId: String): List<String> {
-        val allowed = GrapheneChainSpecs.find(chainId)?.notificationOps.orEmpty()
+        val allowed = GrapheneChainSpecs.find(chainId)?.notificationOps ?: RestWalletNotificationSpecs.notificationOps[chainId].orEmpty()
         if (allowed.isEmpty()) return emptyList()
         return values.map { it.trim().lowercase() }.filter { it in allowed }.distinct().ifEmpty { allowed }
     }

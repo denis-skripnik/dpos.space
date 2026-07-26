@@ -99,6 +99,7 @@
   ]);
 
   const minterApps = [
+    { id: 'notifications', title: 'Уведомления', description: 'Локальная панель входящих Minter-событий из публичной истории адреса: переводы, делегирование, анбонд и wallet-операции без backend.', accountField: true },
     { id: 'validators', title: 'Валидаторы', description: 'Просмотр списка валидаторов и формы делегирования/анбонда.' },
     { id: 'explorer', title: 'Проводник', description: 'Просмотр адресов, транзакций и блоков через публичный API.' },
     { id: 'help', title: 'Справка', description: 'Видео-справка Minter dpos.space без PHP/backend runtime.', accountField: false },
@@ -110,6 +111,7 @@
   ];
 
   const decimalApps = [
+    { id: 'notifications', title: 'Уведомления', description: 'Локальная панель входящих Decimal-событий из публичной истории адреса: переводы, делегирование, анбонд, token/NFT wallet-операции без backend.', accountField: true },
     { id: 'validators', title: 'Валидаторы', description: 'Просмотр валидаторов и делегирование/анбонд DEL/token/NFT.' },
     { id: 'explorer', title: 'Проводник', description: 'Просмотр адресов, транзакций и блоков через Decimal API.' },
     { id: 'swap', title: 'Обмен', description: 'Конвертация токенов Decimal.' },

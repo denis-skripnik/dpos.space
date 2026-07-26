@@ -267,14 +267,16 @@
       const response = await fetch(`${chain.config.explorerBase}/addresses/${encodeURIComponent(accountName)}/transactions?page=1`);
       if (!response.ok) throw new Error(`Minter history API HTTP ${response.status}`);
       const data = await response.json();
-      return normalizeRestHistory(data.data || data.transactions || []);
+      const normalized = normalizeRestHistory(data.data || data.transactions || []);
+      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(item.type)) : normalized;
     }
     if (chain.config.id === 'decimal') {
       const offset = Number.isFinite(Number(options.offset)) ? Number(options.offset) : 0;
       const response = await fetch(`${chain.config.apiBase}/txs/txs-by-address/${encodeURIComponent(accountName)}?limit=${limit}&offset=${offset}`);
       if (!response.ok) throw new Error(`Decimal history API HTTP ${response.status}`);
       const data = await response.json();
-      return normalizeRestHistory(unwrapRestHistory(data));
+      const normalized = normalizeRestHistory(unwrapRestHistory(data));
+      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(item.type)) : normalized;
     }
 
     const raw = await callApi(chain, 'getAccountHistory', args);

@@ -6204,3 +6204,14 @@ Current implementation exposes a single notifications settings page per supporte
 - APK flow: open/save the normal notifications settings page; JS bridge imports settings with `notificationOps`, starts the foreground/WorkManager worker, and queues check-now automatically.
 - Safety: native notification worker reads account_history and shows local Android notifications only; it does not sign or broadcast blockchain operations.
 - UI boundary: no visible `data-android-import-*`, `data-android-start-worker`, or `data-android-check-now` buttons are exposed for notifications.
+
+
+### Minter/Decimal wallet notifications
+
+Minter and Decimal notifications are now supported through their existing public wallet history APIs, not through Graphene `account_history`.
+
+- Minter web/native notification source: `explorerBase /addresses/{address}/transactions?page=1`.
+- Decimal web/native notification source: `apiBase /txs/txs-by-address/{address}?limit=...&offset=0`.
+- Supported filters: Minter `send`, `delegate`, `unbond`, swap/liquidity/token wallet operations; Decimal `send`, `delegate`, `unbond`, token/NFT wallet operations.
+- Android worker support is read-only: it stores notification settings and selected `notificationOps`, polls public history, shows local notifications, and never signs or broadcasts.
+- The UI remains unified: open/save the normal Notifications page; no separate Android import/start/check buttons or Minter/Decimal signer panels are exposed.
