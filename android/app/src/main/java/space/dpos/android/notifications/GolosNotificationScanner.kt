@@ -1,9 +1,76 @@
 package space.dpos.android.notifications
 
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+
 data class HistoryEvent(val index: Long, val type: String, val data: Map<String, String>, val timestamp: String = "")
 data class DposEventNotification(val id: String, val title: String, val text: String, val route: String, val sourceIndex: Long)
 
-class GolosNotificationScanner {
+interface GolosHistoryClient {
+    fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent>
+}
+
+class HttpGolosHistoryClient(private val endpoint: String = "https://api.golos.id/ws") : GolosHistoryClient {
+    override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 12_000
+            readTimeout = 20_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+        }
+        OutputStreamWriter(connection.outputStream).use { it.write(GolosHistoryRpc.buildAccountHistoryPayload(account, from, limit)) }
+        val body = if (connection.responseCode in 200..299) connection.inputStream.bufferedReader().use { it.readText() } else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Golos RPC HTTP ${connection.responseCode}: ${body.take(120)}")
+        return GolosHistoryRpc.parseAccountHistory(body)
+    }
+}
+
+object GolosHistoryRpc {
+    fun buildAccountHistoryPayload(account: String, from: Long, limit: Int): String {
+        val clean = account.trim().removePrefix("@").lowercase()
+        val safeLimit = limit.coerceIn(1, 100)
+        val safeFrom = if (from < 0) -1 else from
+        return JSONObject()
+            .put("jsonrpc", "2.0")
+            .put("id", 1)
+            .put("method", "condenser_api.get_account_history")
+            .put("params", JSONArray().put(clean).put(safeFrom).put(safeLimit))
+            .toString()
+    }
+
+    fun parseAccountHistory(json: String): List<HistoryEvent> {
+        val root = JSONObject(json)
+        val result = root.optJSONArray("result") ?: return emptyList()
+        val rows = mutableListOf<HistoryEvent>()
+        for (i in 0 until result.length()) {
+            val pair = result.optJSONArray(i) ?: continue
+            val index = pair.optLong(0, -1L)
+            val item = pair.optJSONObject(1) ?: continue
+            val op = item.optJSONArray("op") ?: continue
+            val type = op.optString(0)
+            val dataObject = op.optJSONObject(1) ?: JSONObject()
+            val data = mutableMapOf<String, String>()
+            val keys = dataObject.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                data[key] = dataObject.opt(key)?.toString().orEmpty()
+            }
+            if (index >= 0 && type.isNotBlank()) rows += HistoryEvent(index, type, data, item.optString("timestamp"))
+        }
+        return rows
+    }
+}
+
+class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = null) {
+    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50): Pair<Long, List<DposEventNotification>> {
+        val rows = historyClient?.getAccountHistory(account, cursor ?: -1L, limit).orEmpty()
+        return scan(account, cursor, rows, baselineDone)
+    }
+
     fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean): Pair<Long, List<DposEventNotification>> {
         val target = account.trim().removePrefix("@").lowercase()
         val sorted = rows.sortedBy { it.index }

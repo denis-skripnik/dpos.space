@@ -1,0 +1,120 @@
+package space.dpos.android.runtime
+
+import org.json.JSONObject
+import space.dpos.android.core.PayloadSanitizer
+
+data class AccountImportRequest(
+    val chainId: String,
+    val account: String,
+    val enableNotifications: Boolean,
+    val enableAutoUpvoter: Boolean,
+    val explicitConsent: Boolean,
+    val minEnergy: Int = 2500,
+    val maxActionsPerTick: Int = 5,
+    val intervalMinutes: Int = 15
+)
+
+data class ImportDecision(
+    val accepted: Boolean,
+    val reason: String,
+    val chainId: String = "",
+    val account: String = "",
+    val enableNotifications: Boolean = false,
+    val enableAutoUpvoter: Boolean = false,
+    val minEnergy: Int = 2500,
+    val maxActionsPerTick: Int = 5,
+    val intervalMinutes: Int = 15
+)
+
+object WorkerCommandPolicy {
+    private val supportedChains = setOf("golos")
+    private val accountPattern = Regex("^[a-z0-9.-]{3,32}$")
+    private val secretFieldPattern = Regex("(?i)(private|wif|seed|mnemonic|password|token|secret|key)")
+
+    fun validateImport(request: AccountImportRequest): ImportDecision {
+        val chain = request.chainId.trim().lowercase()
+        val account = request.account.trim().removePrefix("@").lowercase()
+        if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
+        if (chain !in supportedChains) return ImportDecision(false, "unsupported chain for native worker: $chain")
+        if (!accountPattern.matches(account)) return ImportDecision(false, "invalid account name")
+        if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or dry-run auto-upvoter")
+        return ImportDecision(
+            accepted = true,
+            reason = "accepted",
+            chainId = chain,
+            account = account,
+            enableNotifications = request.enableNotifications,
+            enableAutoUpvoter = request.enableAutoUpvoter,
+            minEnergy = request.minEnergy.coerceIn(0, 10000),
+            maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
+            intervalMinutes = request.intervalMinutes.coerceAtLeast(15)
+        )
+    }
+
+    fun hasSecretLikeFields(json: JSONObject): Boolean {
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            if (secretFieldPattern.containsMatchIn(keys.next())) return true
+        }
+        return false
+    }
+}
+
+object WorkerSettingsCodec {
+    fun decodeImport(json: String?): ImportDecision {
+        val raw = json.orEmpty().trim()
+        if (raw.isBlank()) return ImportDecision(false, "empty import payload")
+        return try {
+            val obj = JSONObject(raw)
+            if (WorkerCommandPolicy.hasSecretLikeFields(obj)) return ImportDecision(false, "secret-like fields are not accepted by settings import; import keys only through native secure-storage flow")
+            WorkerCommandPolicy.validateImport(
+                AccountImportRequest(
+                    chainId = obj.optString("chainId"),
+                    account = obj.optString("account"),
+                    enableNotifications = obj.optBoolean("enableNotifications", false),
+                    enableAutoUpvoter = obj.optBoolean("enableAutoUpvoter", false),
+                    explicitConsent = obj.optBoolean("explicitConsent", false),
+                    minEnergy = obj.optInt("minEnergy", 2500),
+                    maxActionsPerTick = obj.optInt("maxActionsPerTick", 5),
+                    intervalMinutes = obj.optInt("intervalMinutes", 15)
+                )
+            )
+        } catch (e: Exception) {
+            ImportDecision(false, "invalid import JSON: ${PayloadSanitizer.text(e.message, 120)}")
+        }
+    }
+
+    fun decisionJson(decision: ImportDecision): String = JSONObject()
+        .put("ok", decision.accepted)
+        .put("reason", decision.reason)
+        .put("chainId", decision.chainId)
+        .put("account", decision.account)
+        .put("enableNotifications", decision.enableNotifications)
+        .put("enableAutoUpvoter", decision.enableAutoUpvoter)
+        .put("minEnergy", decision.minEnergy)
+        .put("maxActionsPerTick", decision.maxActionsPerTick)
+        .put("intervalMinutes", decision.intervalMinutes)
+        .toString()
+
+    fun statusJson(
+        running: Boolean,
+        workerEnabled: Boolean,
+        activeAccounts: Int,
+        lastTick: Long?,
+        nextTick: Long?,
+        lastError: String?,
+        logs: String
+    ): String = JSONObject()
+        .put("running", running)
+        .put("workerEnabled", workerEnabled)
+        .put("status", if (running) "running" else "stopped")
+        .put("canStart", true)
+        .put("canStop", running)
+        .put("canCheckNow", workerEnabled || activeAccounts > 0)
+        .put("activeAccounts", activeAccounts)
+        .put("lastTick", lastTick ?: JSONObject.NULL)
+        .put("nextTick", nextTick ?: JSONObject.NULL)
+        .put("lastError", PayloadSanitizer.redactLog(lastError.orEmpty()).ifBlank { JSONObject.NULL })
+        .put("logs", PayloadSanitizer.redactLog(logs).take(8000))
+        .toString()
+}

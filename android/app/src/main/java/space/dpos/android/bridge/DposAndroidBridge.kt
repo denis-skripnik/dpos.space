@@ -6,12 +6,21 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.webkit.JavascriptInterface
+import androidx.core.content.ContextCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import org.json.JSONObject
 import space.dpos.android.BuildConfig
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
+import space.dpos.android.worker.DposForegroundService
+import space.dpos.android.worker.DposPeriodicWorker
+import java.util.concurrent.TimeUnit
 
 class DposAndroidBridge(private val activity: Activity, private val statusProvider: () -> JSONObject) {
     private val store = WorkerStore(activity.applicationContext)
@@ -37,6 +46,40 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
     fun getWorkerStatus(): String = statusProvider().toString()
 
     @JavascriptInterface
+    fun importWorkerSettings(json: String?): String {
+        val decision = WorkerSettingsCodec.decodeImport(json)
+        if (decision.accepted) {
+            store.importDecision(decision)
+            schedulePeriodicChecks(decision.intervalMinutes)
+        }
+        return WorkerSettingsCodec.decisionJson(decision)
+    }
+
+    @JavascriptInterface
+    fun startWorker(): String {
+        store.setWorkerEnabled(true)
+        schedulePeriodicChecks(store.intervalMinutes())
+        val intent = Intent(activity, DposForegroundService::class.java).setAction(DposForegroundService.ACTION_START)
+        ContextCompat.startForegroundService(activity, intent)
+        return JSONObject().put("ok", true).put("status", "starting").toString()
+    }
+
+    @JavascriptInterface
+    fun stopWorker(): String {
+        store.setWorkerEnabled(false)
+        WorkManager.getInstance(activity.applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
+        val intent = Intent(activity, DposForegroundService::class.java).setAction(DposForegroundService.ACTION_STOP)
+        activity.startService(intent)
+        return JSONObject().put("ok", true).put("status", "stopping").toString()
+    }
+
+    @JavascriptInterface
+    fun checkNow(): String {
+        WorkManager.getInstance(activity.applicationContext).enqueue(OneTimeWorkRequestBuilder<DposPeriodicWorker>().build())
+        return JSONObject().put("ok", true).put("status", "queued").toString()
+    }
+
+    @JavascriptInterface
     fun openBatterySettings(): String {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))
         activity.startActivity(intent)
@@ -48,4 +91,10 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
         .put("ok", true)
         .put("logs", PayloadSanitizer.text(store.exportLogs(), 8000))
         .toString()
+
+    private fun schedulePeriodicChecks(intervalMinutes: Int) {
+        val request = PeriodicWorkRequestBuilder<DposPeriodicWorker>(intervalMinutes.coerceAtLeast(15).toLong(), TimeUnit.MINUTES).build()
+        WorkManager.getInstance(activity.applicationContext).enqueueUniquePeriodicWork(DposPeriodicWorker.UNIQUE_WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
+        store.setNextTick(System.currentTimeMillis() + intervalMinutes.coerceAtLeast(15) * 60_000L)
+    }
 }

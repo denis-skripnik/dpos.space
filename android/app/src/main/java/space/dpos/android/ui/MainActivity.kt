@@ -16,6 +16,8 @@ import space.dpos.android.BuildConfig
 import space.dpos.android.bridge.DposAndroidBridge
 import space.dpos.android.core.RoutePolicy
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.runtime.WorkerSettingsCodec
+import space.dpos.android.storage.WorkerStore
 import space.dpos.android.worker.DposForegroundService
 
 class MainActivity : Activity() {
@@ -39,7 +41,7 @@ class MainActivity : Activity() {
                 return !url.startsWith(BuildConfig.DPOS_WEB_URL)
             }
         }
-        webView.addJavascriptInterface(DposAndroidBridge(this) { workerStatusJson() }, "DposAndroid")
+        webView.addJavascriptInterface(DposAndroidBridge(this) { JSONObject(workerStatusString()) }, "DposAndroid")
         val route = intent.getStringExtra(NotificationHelper.EXTRA_ROUTE)
         webView.loadUrl(RoutePolicy.toLiveUrl(route))
     }
@@ -56,13 +58,21 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun workerStatusJson(): JSONObject = JSONObject()
-        .put("running", DposForegroundService.isRunning)
-        .put("webUrl", BuildConfig.DPOS_WEB_URL)
-        .put("permissionNotifications", NotificationHelper.canPost(this))
-        .put("status", if (DposForegroundService.isRunning) "running" else "stopped")
-        .put("activeAccounts", 0)
-        .put("lastTick", JSONObject.NULL)
-        .put("lastError", JSONObject.NULL)
-        .put("nextTick", JSONObject.NULL)
+    private fun workerStatusString(): String {
+        val store = WorkerStore(this)
+        val base = JSONObject(WorkerSettingsCodec.statusJson(
+            running = DposForegroundService.isRunning,
+            workerEnabled = store.workerEnabled(),
+            activeAccounts = store.activeAccounts().size,
+            lastTick = store.lastTick(),
+            nextTick = store.nextTick(),
+            lastError = store.lastError(),
+            logs = store.exportLogs()
+        ))
+        return base
+            .put("webUrl", BuildConfig.DPOS_WEB_URL)
+            .put("permissionNotifications", NotificationHelper.canPost(this))
+            .put("batteryOptimizationWarning", true)
+            .toString()
+    }
 }
