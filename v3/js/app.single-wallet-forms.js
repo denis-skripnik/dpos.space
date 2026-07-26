@@ -14269,36 +14269,69 @@ Memo key: ${keys.memo}`);
       setStatus(`Уведомления ${chain.title}: сервис недоступен.`, 'info');
       return;
     }
-    const items = notifications.filteredNotifications({ direction: 'all' });
-    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
+    const cleanAccount = String(account || '').trim().replace(/^@/, '').toLowerCase();
+    const allOps = notifications.defaultOps(chain);
+    const settings = notifications.getSettings(chain, cleanAccount);
+    const selectedOps = new Set(settings.ops || allOps);
+    const items = notifications.filteredNotifications({ direction: 'all' })
+      .filter((item) => !item.chainId || item.chainId === chain.id)
+      .filter((item) => !cleanAccount || !item.account || item.account === cleanAccount)
+      .filter((item) => !item.opType || selectedOps.has(item.opType));
+    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
     const nativeBridge = nativeAndroidWorkerBridge();
-    const androidNotice = nativeBridge && chain.id === 'viz'
-      ? `<section class="card" data-viz-android-notifications><h3>Android native notifications для VIZ</h3><p class="muted">В Android-приложении VIZ native notifications включаются автоматически при открытии этой страницы для выбранного аккаунта. Отдельный import/start/check не нужен. Native award/vote signing не заявляется.</p><div id="viz-android-worker-status" role="status" aria-live="polite">Синхронизация native notifications...</div></section>`
-      : '';
+    const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem'].includes(chain.id);
+    const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
+    const androidNotice = nativeSupported
+      ? `<section class="card" data-android-notifications-settings><h3>Android native notifications</h3><p class="muted">В Android-приложении native notifications используют эти же фильтры и включаются с этой страницы без отдельных import/start/check кнопок. Воркер только читает account_history и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Native notifications ещё не синхронизированы.</div></section>`
+      : `<p class="muted">Android native notifications для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного Graphene account_history scanner для этой цепочки.</p>`;
     appEl.innerHTML = `<section class="panel">
-      <h2>Все непрочитанные уведомления</h2>
-      <p>Показываются локально сохранённые входящие уведомления для ${escapeHtml(chain.title)} из account_history. VIZ включает награды/переводы/ответы; native Android worker для VIZ не отправляет операций.</p>
+      <h2>Уведомления ${escapeHtml(chain.title)}${cleanAccount ? ` для @${escapeHtml(cleanAccount)}` : ''}</h2>
+      <p>Показываются локально сохранённые входящие события из account_history. Фильтры ниже применяются и к браузерной проверке, и к Android native notifications, если они доступны.</p>
+      <form id="notifications-settings-form" class="stacked-form">
+        <fieldset>
+          <legend>Какие события отслеживать</legend>
+          ${opCheckboxes}
+        </fieldset>
+        <div class="field"><label for="notifications-interval">Интервал Android-проверки, минут</label><input id="notifications-interval" name="intervalMinutes" type="number" min="15" step="1" value="${escapeHtml(settings.intervalMinutes || 15)}"></div>
+        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative !== false ? 'checked' : ''}> В APK включать Android native notifications для этих фильтров</label>
+        <button type="submit">Сохранить настройки уведомлений</button>
+        <div class="operation-result" data-notifications-settings-result role="status" aria-live="polite"></div>
+      </form>
       ${androidNotice}
       <p><button type="button" data-notifications-page-read>Отметить всё прочитанным</button></p>
       ${rows}
     </section>`;
-    const vizStatus = appEl.querySelector('#viz-android-worker-status');
-    if (nativeBridge && chain.id === 'viz' && vizStatus) {
+    const syncAndroidNotifications = () => {
+      const status = appEl.querySelector('#android-notifications-worker-status');
+      const currentSettings = notifications.getSettings(chain, cleanAccount);
+      if (!nativeSupported || !status || !cleanAccount || currentSettings.androidNative === false) return;
       try {
-        const imported = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: 15 });
+        const imported = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account: cleanAccount, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: currentSettings.intervalMinutes || 15, notificationOps: currentSettings.ops || allOps });
         if (!imported || !imported.ok) throw new Error(imported && (imported.reason || imported.status) || 'import failed');
         const started = callAndroidWorkerBridge('startWorker');
         if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
         const checked = callAndroidWorkerBridge('checkNow');
-        vizStatus.textContent = `VIZ native notifications включены для @${account}; check-now=${checked && (checked.status || checked.ok) || 'queued'}.`;
+        status.textContent = `${chain.title} native notifications включены для @${cleanAccount}; фильтров=${(currentSettings.ops || allOps).length}; check-now=${checked && (checked.status || checked.ok) || 'queued'}.`;
       } catch (error) {
-        vizStatus.textContent = `VIZ native notifications не запущены: ${profiles.formatError(error)}`;
+        status.textContent = `${chain.title} native notifications не запущены: ${profiles.formatError(error)}`;
       }
-    }
+    };
+    const settingsForm = appEl.querySelector('#notifications-settings-form');
+    if (settingsForm) settingsForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(settingsForm);
+      const ops = form.getAll('ops').map(String).filter((op) => allOps.includes(op));
+      const saved = notifications.saveSettings(chain, cleanAccount, { ops, androidNative: form.get('androidNative') === 'on', intervalMinutes: Number(form.get('intervalMinutes')) || 15 });
+      const result = settingsForm.querySelector('[data-notifications-settings-result]');
+      if (result) result.textContent = `Настройки сохранены: ${saved.ops.length} типов событий.`;
+      syncAndroidNotifications();
+      renderNotificationsPage(chain, cleanAccount);
+    });
+    syncAndroidNotifications();
     const readButton = appEl.querySelector('[data-notifications-page-read]');
     if (readButton) readButton.addEventListener('click', () => {
       notifications.markAllRead();
-      renderNotificationsPage(chain, account);
+      renderNotificationsPage(chain, cleanAccount);
       setStatus('Все уведомления отмечены прочитанными.', 'ok');
     });
     setStatus(`Уведомления ${chain.title}: показано ${items.length}.`, 'ok');
@@ -14403,7 +14436,7 @@ Memo key: ${keys.memo}`);
         await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
-      } else if ((chain.id === 'golos' || chain.id === 'viz') && effectiveAppId === 'notifications') {
+      } else if (notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications') {
         renderNotificationsPage(chain, account);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);

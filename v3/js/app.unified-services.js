@@ -5987,168 +5987,6 @@
     return 'native worker для этой цепочки пока не заявлен.';
   }
 
-  function renderAndroidMinterNativePanel(chain, account) {
-    const hasBridge = Boolean(nativeAndroidWorkerBridge());
-    const from = String(account || '').trim();
-    return `<section class="card" data-android-minter-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-minter-native-heading">
-      <h3 id="android-minter-native-heading">Android native Minter signer</h3>
-      <p class="muted">Android native Minter SEND теперь разделён на две явные операции: preview/check подписывает и показывает проверку без broadcast, а execute/send отправляет подписанную транзакцию через публичный Minter send_transaction только после отдельного подтверждения.</p>
-      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Не вставляйте seed в worker settings. Перед execute проверьте адрес, сумму, coinId/gasCoinId и nonce.</p>
-      <div class="field-grid">
-        <div class="field"><label for="android-minter-from">Minter from address</label><input id="android-minter-from" type="text" value="${escapeHtml(from)}" placeholder="Mx..." autocomplete="off"></div>
-        <div class="field"><label for="android-minter-seed">Minter seed для secure storage</label><input id="android-minter-seed" type="password" placeholder="12-24 seed words" autocomplete="off"></div>
-        <div class="field"><label for="android-minter-to">Preview recipient</label><input id="android-minter-to" type="text" placeholder="Mx..."></div>
-        <div class="field"><label for="android-minter-amount">Amount</label><input id="android-minter-amount" type="text" inputmode="decimal" placeholder="1"></div>
-        <div class="field"><label for="android-minter-coin-id">coinId</label><input id="android-minter-coin-id" type="number" min="0" step="1" value="0"></div>
-        <div class="field"><label for="android-minter-gas-coin-id">gasCoinId</label><input id="android-minter-gas-coin-id" type="number" min="0" step="1" value="0"></div>
-        <div class="field"><label for="android-minter-nonce">Nonce from API</label><input id="android-minter-nonce" type="number" min="1" step="1" placeholder="1"></div>
-        <div class="field"><label for="android-minter-memo">Memo</label><input id="android-minter-memo" type="text" placeholder="optional"></div>
-      </div>
-      <div class="actions">
-        <button type="button" data-android-minter-import-seed>Import Minter seed</button>
-        <button type="button" data-android-minter-preview-send>Preview/check Minter SEND без broadcast</button>
-        <button type="button" data-android-minter-execute-send>Execute/send Minter SEND в сеть</button>
-      </div>
-      <div id="android-minter-native-status" role="status" aria-live="polite">Minter native signer status ещё не запрошен.</div>
-    </section>`;
-  }
-
-  function bindAndroidMinterNativePanel() {
-    const panel = appEl.querySelector('[data-android-minter-native-panel]');
-    if (!panel) return;
-    const status = panel.querySelector('#android-minter-native-status');
-    const setNativeStatus = (result) => {
-      if (!status) return;
-      const ok = result && result.ok;
-      status.textContent = ok ? `OK: ${result.status || 'ready'}; broadcasted=${Boolean(result.broadcasted)}` : `Ошибка: ${result && (result.reason || result.status) || 'unknown'}`;
-    };
-    const value = (selector) => {
-      const node = panel.querySelector(selector);
-      return node ? node.value.trim() : '';
-    };
-    const seedButton = panel.querySelector('[data-android-minter-import-seed]');
-    if (seedButton) seedButton.addEventListener('click', () => {
-      const result = callAndroidWorkerBridge('importSecureKey', {
-        chainId: 'minter',
-        account: value('#android-minter-from'),
-        authority: 'seed',
-        alias: 'seed',
-        secret: value('#android-minter-seed'),
-        explicitConsent: true
-      });
-      setNativeStatus(result);
-    });
-    const minterTransferPayload = () => ({
-      from: value('#android-minter-from'),
-      to: value('#android-minter-to'),
-      amount: value('#android-minter-amount'),
-      coinId: value('#android-minter-coin-id') || '0',
-      gasCoinId: value('#android-minter-gas-coin-id') || '0',
-      nonce: value('#android-minter-nonce'),
-      memo: value('#android-minter-memo')
-    });
-    const previewButton = panel.querySelector('[data-android-minter-preview-send]');
-    if (previewButton) previewButton.addEventListener('click', () => {
-      const result = callAndroidWorkerBridge('previewMinterTransfer', minterTransferPayload());
-      setNativeStatus(result);
-    });
-    const executeButton = panel.querySelector('[data-android-minter-execute-send]');
-    if (executeButton) executeButton.addEventListener('click', () => {
-      const payload = minterTransferPayload();
-      const ok = global.confirm ? global.confirm(`Отправить Minter SEND в сеть?\nFrom: ${payload.from}\nTo: ${payload.to}\nAmount: ${payload.amount}\nNonce: ${payload.nonce}`) : false;
-      if (!ok) {
-        setNativeStatus({ ok: false, status: 'cancelled', reason: 'Minter execute отменён пользователем до broadcast.' });
-        return;
-      }
-      const result = callAndroidWorkerBridge('executeMinterTransfer', payload);
-      setNativeStatus(result);
-    });
-  }
-
-  function renderAndroidDecimalNativePanel(chain, account) {
-    const hasBridge = Boolean(nativeAndroidWorkerBridge());
-    const from = String(account || '').trim();
-    return `<section class="card" data-android-decimal-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-decimal-native-heading">
-      <h3 id="android-decimal-native-heading">Android native Decimal signer</h3>
-      <p class="muted">Android native Decimal DEL milestone is now split into safe Preview/check without broadcast and explicit Execute/send through the verified Decimal Web3 eth_sendRawTransaction endpoint.</p>
-      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Эта APK-панель не подписывает Decimal NFT, delegate, swap или token операции.</p>
-      <div class="field-grid">
-        <div class="field"><label for="android-decimal-from">Decimal from address</label><input id="android-decimal-from" type="text" value="${escapeHtml(from)}" placeholder="d0..., dx... или 0x..." autocomplete="off"></div>
-        <div class="field"><label for="android-decimal-seed">Decimal seed для secure storage</label><input id="android-decimal-seed" type="password" placeholder="12-24 seed words" autocomplete="off"></div>
-        <div class="field"><label for="android-decimal-to">Preview recipient</label><input id="android-decimal-to" type="text" placeholder="d0..., dx... или 0x..."></div>
-        <div class="field"><label for="android-decimal-amount">Amount DEL</label><input id="android-decimal-amount" type="text" inputmode="decimal" placeholder="1"></div>
-        <div class="field"><label for="android-decimal-nonce">EVM nonce from Web3/API</label><input id="android-decimal-nonce" type="number" min="0" step="1" placeholder="0"></div>
-        <div class="field"><label for="android-decimal-gas-price">Gas price, wei</label><input id="android-decimal-gas-price" type="text" inputmode="numeric" value="50000000000"></div>
-        <div class="field"><label for="android-decimal-gas-limit">Gas limit</label><input id="android-decimal-gas-limit" type="number" min="21000" step="1" value="21000"></div>
-        <div class="field"><label for="android-decimal-evm-chain-id">EVM chain id</label><input id="android-decimal-evm-chain-id" type="number" min="1" step="1" value="75"></div>
-      </div>
-      <div class="actions">
-        <button type="button" data-android-decimal-import-seed>Import Decimal seed</button>
-        <button type="button" data-android-decimal-preview-send>Preview/check Decimal DEL без broadcast</button>
-        <button type="button" data-android-decimal-execute-send>Execute/send Decimal DEL в сеть</button>
-      </div>
-      <div id="android-decimal-native-status" role="status" aria-live="polite">Decimal native signer status ещё не запрошен.</div>
-    </section>`;
-  }
-
-  function bindAndroidDecimalNativePanel() {
-    const panel = appEl.querySelector('[data-android-decimal-native-panel]');
-    if (!panel) return;
-    const status = panel.querySelector('#android-decimal-native-status');
-    const setNativeStatus = (result) => {
-      if (!status) return;
-      const ok = result && result.ok;
-      status.textContent = ok ? `OK: ${result.status || 'ready'}; broadcasted=${Boolean(result.broadcasted)}` : `Ошибка: ${result && (result.reason || result.status) || 'unknown'}`;
-    };
-    const value = (selector) => {
-      const node = panel.querySelector(selector);
-      return node ? node.value.trim() : '';
-    };
-    const seedButton = panel.querySelector('[data-android-decimal-import-seed]');
-    if (seedButton) seedButton.addEventListener('click', () => {
-      const result = callAndroidWorkerBridge('importSecureKey', {
-        chainId: 'decimal',
-        account: value('#android-decimal-from'),
-        authority: 'seed',
-        alias: 'seed',
-        secret: value('#android-decimal-seed'),
-        explicitConsent: true
-      });
-      setNativeStatus(result);
-    });
-    const decimalTransferPayload = () => ({
-      from: value('#android-decimal-from'),
-      to: value('#android-decimal-to'),
-      amount: value('#android-decimal-amount'),
-      nonce: value('#android-decimal-nonce') || '0',
-      gasPrice: value('#android-decimal-gas-price') || '50000000000',
-      gasLimit: value('#android-decimal-gas-limit') || '21000',
-      evmChainId: value('#android-decimal-evm-chain-id') || '75'
-    });
-    const previewButton = panel.querySelector('[data-android-decimal-preview-send]');
-    if (previewButton) previewButton.addEventListener('click', () => {
-      const result = callAndroidWorkerBridge('previewDecimalTransfer', decimalTransferPayload());
-      setNativeStatus(result);
-    });
-    const executeButton = panel.querySelector('[data-android-decimal-execute-send]');
-    if (executeButton) executeButton.addEventListener('click', () => {
-      const payload = decimalTransferPayload();
-      const summary = `Send Decimal DEL now?
-From: ${payload.from}
-To: ${payload.to}
-Amount: ${payload.amount} DEL
-Nonce: ${payload.nonce}
-Gas price: ${payload.gasPrice}
-Gas limit: ${payload.gasLimit}
-EVM chain id: ${payload.evmChainId}`;
-      if (!global.confirm(summary)) {
-        setNativeStatus({ ok: false, status: 'cancelled', reason: 'Decimal execute cancelled by user before broadcast', broadcasted: false });
-        return;
-      }
-      const result = callAndroidWorkerBridge('executeDecimalTransfer', payload);
-      setNativeStatus(result);
-    });
-  }
 
   function applyAutoUpvoterStoredSettings(storedSettings) {
     const accounts = storedSettings && storedSettings.accounts && typeof storedSettings.accounts === 'object' ? storedSettings.accounts : {};
@@ -12339,7 +12177,6 @@ Memo key: ${keys.memo}`);
       ${renderMinterWalletBalances(data)}
       <h3>Операции</h3>
       ${renderMinterWalletForms(chain)}
-      ${renderAndroidMinterNativePanel(chain, data.address)}
     </section>`;
     const copyButton = document.getElementById('minter-copy-address');
     if (copyButton) {
@@ -12353,7 +12190,6 @@ Memo key: ${keys.memo}`);
       });
     }
     bindMinterWalletForms(chain);
-    bindAndroidMinterNativePanel();
     bindMinterQuickActions(appEl);
     bindMaxButtons(appEl);
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
@@ -12721,7 +12557,6 @@ Memo key: ${keys.memo}`);
       ${renderDecimalWalletBalances(data)}
       <h3>Операции</h3>
       ${renderDecimalWalletForms(chain, data)}
-      ${renderAndroidDecimalNativePanel(chain, data.address)}
     </section>`;
     const copyButton = document.getElementById('decimal-copy-address');
     if (copyButton) {
@@ -12735,7 +12570,6 @@ Memo key: ${keys.memo}`);
       });
     }
     bindDecimalWalletForms(chain);
-    bindAndroidDecimalNativePanel();
     bindDecimalQuickActions(appEl, data);
     bindDecimalConvertHelpers(appEl, chain, data);
     bindMaxButtons(appEl);
@@ -14435,36 +14269,69 @@ Memo key: ${keys.memo}`);
       setStatus(`Уведомления ${chain.title}: сервис недоступен.`, 'info');
       return;
     }
-    const items = notifications.filteredNotifications({ direction: 'all' });
-    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
+    const cleanAccount = String(account || '').trim().replace(/^@/, '').toLowerCase();
+    const allOps = notifications.defaultOps(chain);
+    const settings = notifications.getSettings(chain, cleanAccount);
+    const selectedOps = new Set(settings.ops || allOps);
+    const items = notifications.filteredNotifications({ direction: 'all' })
+      .filter((item) => !item.chainId || item.chainId === chain.id)
+      .filter((item) => !cleanAccount || !item.account || item.account === cleanAccount)
+      .filter((item) => !item.opType || selectedOps.has(item.opType));
+    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
     const nativeBridge = nativeAndroidWorkerBridge();
-    const androidNotice = nativeBridge && chain.id === 'viz'
-      ? `<section class="card" data-viz-android-notifications><h3>Android native notifications для VIZ</h3><p class="muted">В Android-приложении VIZ native notifications включаются автоматически при открытии этой страницы для выбранного аккаунта. Отдельный import/start/check не нужен. Native award/vote signing не заявляется.</p><div id="viz-android-worker-status" role="status" aria-live="polite">Синхронизация native notifications...</div></section>`
-      : '';
+    const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem'].includes(chain.id);
+    const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
+    const androidNotice = nativeSupported
+      ? `<section class="card" data-android-notifications-settings><h3>Android native notifications</h3><p class="muted">В Android-приложении native notifications используют эти же фильтры и включаются с этой страницы без отдельных import/start/check кнопок. Воркер только читает account_history и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Native notifications ещё не синхронизированы.</div></section>`
+      : `<p class="muted">Android native notifications для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного Graphene account_history scanner для этой цепочки.</p>`;
     appEl.innerHTML = `<section class="panel">
-      <h2>Все непрочитанные уведомления</h2>
-      <p>Показываются локально сохранённые входящие уведомления для ${escapeHtml(chain.title)} из account_history. VIZ включает награды/переводы/ответы; native Android worker для VIZ не отправляет операций.</p>
+      <h2>Уведомления ${escapeHtml(chain.title)}${cleanAccount ? ` для @${escapeHtml(cleanAccount)}` : ''}</h2>
+      <p>Показываются локально сохранённые входящие события из account_history. Фильтры ниже применяются и к браузерной проверке, и к Android native notifications, если они доступны.</p>
+      <form id="notifications-settings-form" class="stacked-form">
+        <fieldset>
+          <legend>Какие события отслеживать</legend>
+          ${opCheckboxes}
+        </fieldset>
+        <div class="field"><label for="notifications-interval">Интервал Android-проверки, минут</label><input id="notifications-interval" name="intervalMinutes" type="number" min="15" step="1" value="${escapeHtml(settings.intervalMinutes || 15)}"></div>
+        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative !== false ? 'checked' : ''}> В APK включать Android native notifications для этих фильтров</label>
+        <button type="submit">Сохранить настройки уведомлений</button>
+        <div class="operation-result" data-notifications-settings-result role="status" aria-live="polite"></div>
+      </form>
       ${androidNotice}
       <p><button type="button" data-notifications-page-read>Отметить всё прочитанным</button></p>
       ${rows}
     </section>`;
-    const vizStatus = appEl.querySelector('#viz-android-worker-status');
-    if (nativeBridge && chain.id === 'viz' && vizStatus) {
+    const syncAndroidNotifications = () => {
+      const status = appEl.querySelector('#android-notifications-worker-status');
+      const currentSettings = notifications.getSettings(chain, cleanAccount);
+      if (!nativeSupported || !status || !cleanAccount || currentSettings.androidNative === false) return;
       try {
-        const imported = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: 15 });
+        const imported = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account: cleanAccount, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: currentSettings.intervalMinutes || 15, notificationOps: currentSettings.ops || allOps });
         if (!imported || !imported.ok) throw new Error(imported && (imported.reason || imported.status) || 'import failed');
         const started = callAndroidWorkerBridge('startWorker');
         if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
         const checked = callAndroidWorkerBridge('checkNow');
-        vizStatus.textContent = `VIZ native notifications включены для @${account}; check-now=${checked && (checked.status || checked.ok) || 'queued'}.`;
+        status.textContent = `${chain.title} native notifications включены для @${cleanAccount}; фильтров=${(currentSettings.ops || allOps).length}; check-now=${checked && (checked.status || checked.ok) || 'queued'}.`;
       } catch (error) {
-        vizStatus.textContent = `VIZ native notifications не запущены: ${profiles.formatError(error)}`;
+        status.textContent = `${chain.title} native notifications не запущены: ${profiles.formatError(error)}`;
       }
-    }
+    };
+    const settingsForm = appEl.querySelector('#notifications-settings-form');
+    if (settingsForm) settingsForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const form = new FormData(settingsForm);
+      const ops = form.getAll('ops').map(String).filter((op) => allOps.includes(op));
+      const saved = notifications.saveSettings(chain, cleanAccount, { ops, androidNative: form.get('androidNative') === 'on', intervalMinutes: Number(form.get('intervalMinutes')) || 15 });
+      const result = settingsForm.querySelector('[data-notifications-settings-result]');
+      if (result) result.textContent = `Настройки сохранены: ${saved.ops.length} типов событий.`;
+      syncAndroidNotifications();
+      renderNotificationsPage(chain, cleanAccount);
+    });
+    syncAndroidNotifications();
     const readButton = appEl.querySelector('[data-notifications-page-read]');
     if (readButton) readButton.addEventListener('click', () => {
       notifications.markAllRead();
-      renderNotificationsPage(chain, account);
+      renderNotificationsPage(chain, cleanAccount);
       setStatus('Все уведомления отмечены прочитанными.', 'ok');
     });
     setStatus(`Уведомления ${chain.title}: показано ${items.length}.`, 'ok');
@@ -14569,7 +14436,7 @@ Memo key: ${keys.memo}`);
         await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
-      } else if ((chain.id === 'golos' || chain.id === 'viz') && effectiveAppId === 'notifications') {
+      } else if (notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications') {
         renderNotificationsPage(chain, account);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);

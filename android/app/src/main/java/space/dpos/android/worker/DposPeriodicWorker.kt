@@ -40,7 +40,7 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
             if (store.notificationEnabled(account.chainId, account.account)) {
                 try {
                     val cursor = store.readCursor(account.chainId, account.account)
-                    val (nextCursor, notifications) = GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone)
+                    val (nextCursor, notifications) = GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = store.notificationOps(account.chainId, account.account))
                     store.saveCursor(NotificationCursor(account.chainId, account.account, nextCursor, true))
                     notifications.forEach { event -> NotificationHelper.showEvent(applicationContext, event.title, event.text, event.id, event.route) }
                     store.appendLog("${spec.id} notifications checked for ${account.account}; new=${notifications.size}; cursor=$nextCursor")
