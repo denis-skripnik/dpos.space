@@ -18,6 +18,9 @@ assert(passkeySlice.includes("name: 'HKDF'"), 'passkey PRF output is passed thro
 assert(passkeySlice.includes("userVerification: 'required'"), 'passkey backup requires device user verification');
 assert(renderSlice.includes('backup-passkey-export'), 'backup UI exposes passkey export button');
 assert(renderSlice.includes('backup-passkey-import'), 'backup UI exposes passkey import button');
+assert(renderSlice.includes('Passkey-backup скачан как файл'), 'passkey backup downloads directly after PRF instead of attempting delayed navigator.share');
+assert(renderSlice.includes('Импортировать passkey-backup'), 'passkey backup success message tells users which import button to use');
+assert(!renderSlice.includes('Passkey-backup создан для') && !renderSlice.includes('Системное меню отправки открыто; ручной пароль не нужен'), 'passkey backup no longer promises delayed system share after passkey prompts');
 assert(renderSlice.includes('Используйте backup с паролем'), 'passkey backup has a password-backup fallback message');
 assert(!passkeySlice.includes('clipboard.writeText') && !passkeySlice.includes('navigator.clipboard'), 'passkey backup does not use clipboard transfer');
 
