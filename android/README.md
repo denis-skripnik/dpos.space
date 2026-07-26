@@ -37,7 +37,7 @@ Current worker scope:
 - Boot restore starts only when the user had enabled the worker.
 - Native auto-upvoter has a real-capable Golos vote runtime: planned vote actions are converted to Golos vote transactions, signed locally from Android encrypted posting-key storage, and submitted through the configured Golos RPC when account, key, worker, auto-upvoter and safety gates are all enabled.
 - Preview/check is separate from runtime: `previewAutoVote(json)` builds/checks the signed transaction path but never broadcasts. Automated tests use fake RPC/broadcasters and do not send mainnet transactions.
-- Current native candidate-source gap: until curator/favorite event settings are imported into the Android worker, ticks with no native candidates log “no eligible vote actions” rather than inventing placeholder votes. This is not a dry-run default.
+- Native auto-upvoter imports curator/favorite source settings, collects curator votes from Golos account history and favorite posts from Golos blog/discussion RPC, plans eligible vote actions, signs them locally, and broadcasts them when worker/account/key/safety gates are enabled.
 - Secure signing keys can be imported only through the dedicated `importSecureKey(json)` bridge and Android encrypted storage. Normal settings import rejects secret-like fields.
 
 Release signing secrets/keystores must not be committed. Use Android Studio, local untracked Gradle properties, or CI secrets later for signed release builds.

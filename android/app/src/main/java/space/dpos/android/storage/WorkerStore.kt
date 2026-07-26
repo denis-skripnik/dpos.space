@@ -35,6 +35,10 @@ class WorkerStore(context: Context) {
             .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
             .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
             .putInt("intervalMinutes", decision.intervalMinutes)
+            .putString("curators:${decision.chainId}:${decision.account}", JSONArray(decision.curators).toString())
+            .putString("favorites:${decision.chainId}:${decision.account}", JSONArray(decision.favorites).toString())
+            .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
+            .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
             .apply()
         appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}")
     }
@@ -57,7 +61,19 @@ class WorkerStore(context: Context) {
     fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false)
     fun minEnergy(chainId: String, account: String): Int = prefs.getInt("minEnergy:$chainId:$account", 2500)
     fun maxActions(chainId: String, account: String): Int = prefs.getInt("maxActions:$chainId:$account", 5)
+    fun curators(chainId: String, account: String): List<String> = readStringList("curators:$chainId:$account")
+    fun favorites(chainId: String, account: String): List<String> = readStringList("favorites:$chainId:$account")
+    fun curatorCoefficient(chainId: String, account: String): Int = prefs.getInt("curatorCoefficient:$chainId:$account", 100).coerceIn(0, 100)
+    fun favoritesPercent(chainId: String, account: String): Int = prefs.getInt("favoritesPercent:$chainId:$account", 100).coerceIn(0, 100)
     fun intervalMinutes(): Int = prefs.getInt("intervalMinutes", 15).coerceAtLeast(15)
+
+    private fun readStringList(key: String): List<String> {
+        val raw = prefs.getString(key, "[]").orEmpty()
+        return try {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.optString(it).trim().removePrefix("@").lowercase() }.filter { it.isNotBlank() }.distinct()
+        } catch (_: Exception) { emptyList() }
+    }
 
     fun readCursor(chainId: String, account: String): NotificationCursor {
         val prefix = "cursor:$chainId:$account"
