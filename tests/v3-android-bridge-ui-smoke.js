@@ -12,25 +12,30 @@ const requiredBridgeMethods = [
   'importSecureKey',
   'startWorker',
   'stopWorker',
-  'checkNow',
-  'previewAutoVote'
+  'checkNow'
 ];
 
+const autoUpvoterSlice = appSource.slice(appSource.indexOf('async function renderGolosAutoUpvoter'), appSource.indexOf('const GOLOS_FEEDS_SETTINGS_KEY'));
+assert(autoUpvoterSlice.length > 10000, 'auto-upvoter runtime slice is found');
+
 for (const method of requiredBridgeMethods) {
-  assert(appSource.includes(`'${method}'`) || appSource.includes(`"${method}"`) || appSource.includes(`DposAndroid.${method}`) || appSource.includes(`bridge.${method}`), `app.js references Android bridge method ${method}`);
+  assert(autoUpvoterSlice.includes(`'${method}'`) || autoUpvoterSlice.includes(`"${method}"`) || autoUpvoterSlice.includes(`DposAndroid.${method}`) || autoUpvoterSlice.includes(`bridge.${method}`), `auto-upvoter references Android bridge method ${method}`);
 }
 
-assert(appSource.includes('data-android-worker-panel'), 'auto-upvoter renders a dedicated Android native worker panel');
-assert(appSource.includes('aria-live="polite"') && appSource.includes('android-worker-status'), 'Android worker status is TalkBack-friendly');
-assert(appSource.includes('data-android-import-settings'), 'UI has an explicit settings import button');
-assert(appSource.includes('data-android-import-secure-key'), 'UI has a separate secure-key import button');
-assert(appSource.includes('data-android-start-worker') && appSource.includes('data-android-stop-worker'), 'UI has Android native start/stop controls');
-assert(appSource.includes('data-android-check-now'), 'UI has Android native check-now control');
-assert(appSource.includes('data-android-preview-vote'), 'UI has Android native preview/check vote control');
-assert(appSource.includes('secret-like fields are not accepted') || appSource.includes('settings import does not include keys') || appSource.includes('secret payload is sent only to importSecureKey'), 'normal settings import is documented as key-free');
-assert(appSource.includes('nativeAndroidWorkerBridge') && appSource.includes('global.DposAndroid') && appSource.includes("hasAndroidWorkerBridge ? '' : 'hidden'"), 'browser/PWA fallback hides Android-only controls when bridge is absent');
-assert(appSource.includes("['golos', 'hive', 'steem'].includes(chain.id)"), 'Android native auto-upvoter UI enables only implemented Graphene vote chains');
-assert(appSource.includes('Golos/Hive/Steem native worker') && appSource.includes('vote через posting authority'), 'Android worker copy truthfully limits native support to Graphene vote/posting flow');
+assert(autoUpvoterSlice.includes('data-android-worker-panel'), 'auto-upvoter renders an Android native worker status panel');
+assert(autoUpvoterSlice.includes('aria-live="polite"') && autoUpvoterSlice.includes('android-worker-status'), 'Android worker status is TalkBack-friendly');
+assert(!autoUpvoterSlice.includes('data-android-import-settings'), 'auto-upvoter UI no longer exposes a separate settings import button');
+assert(!autoUpvoterSlice.includes('data-android-import-secure-key'), 'auto-upvoter UI no longer exposes a separate secure-key import button');
+assert(!autoUpvoterSlice.includes('data-android-start-worker') && !autoUpvoterSlice.includes('Start native worker'), 'auto-upvoter UI no longer exposes separate native start controls');
+assert(!autoUpvoterSlice.includes('data-android-check-now'), 'auto-upvoter UI no longer exposes separate native check-now control');
+assert(!autoUpvoterSlice.includes('data-android-preview-vote'), 'auto-upvoter UI no longer exposes separate native preview/check controls');
+assert(autoUpvoterSlice.includes('startAndroidAutoUpvoter(settings)') && autoUpvoterSlice.includes('hasAndroidWorkerBridge && nativeAutoVoteSupported'), 'shared Start button routes to Android native worker inside APK');
+assert(autoUpvoterSlice.includes("callAndroidWorkerBridge('importSecureKey'") && autoUpvoterSlice.includes("broadcast.decryptLegacyKey(chain, user, 'posting')"), 'APK Start automatically imports stored posting key into Android secure storage');
+assert(autoUpvoterSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && autoUpvoterSlice.includes("callAndroidWorkerBridge('startWorker'") && autoUpvoterSlice.includes("callAndroidWorkerBridge('checkNow'"), 'APK Start syncs settings, starts native worker, and queues check-now');
+assert(autoUpvoterSlice.includes('stopAndroidAutoUpvoter()') && autoUpvoterSlice.includes("callAndroidWorkerBridge('stopWorker'"), 'shared Stop button routes to Android native worker inside APK');
+assert(autoUpvoterSlice.includes("data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'}") && appSource.includes('nativeAndroidWorkerBridge') && appSource.includes('global.DposAndroid'), 'browser/PWA fallback hides Android-only status when bridge is absent');
+assert(appSource.includes("['golos', 'hive', 'steem'].includes(chain.id)"), 'Android native auto-upvoter enables only implemented Graphene vote chains');
+assert(autoUpvoterSlice.includes('В Android-приложении эта же кнопка Start автоматически запускает native worker'), 'Android worker copy explains one-button native mode');
 
 assert(planSource.includes('### Android parity matrix — native bridge worker controls'), 'plan.md records Android bridge parity matrix');
 assert(planSource.includes('| Golos |') && planSource.includes('| VIZ |') && planSource.includes('| Hive |') && planSource.includes('| Steem |') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan matrix separates every supported web chain');
