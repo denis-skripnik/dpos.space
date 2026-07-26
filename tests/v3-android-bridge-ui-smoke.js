@@ -29,9 +29,13 @@ assert(appSource.includes('data-android-check-now'), 'UI has Android native chec
 assert(appSource.includes('data-android-preview-vote'), 'UI has Android native preview/check vote control');
 assert(appSource.includes('secret-like fields are not accepted') || appSource.includes('settings import does not include keys') || appSource.includes('secret payload is sent only to importSecureKey'), 'normal settings import is documented as key-free');
 assert(appSource.includes('nativeAndroidWorkerBridge') && appSource.includes('global.DposAndroid') && appSource.includes("hasAndroidWorkerBridge ? '' : 'hidden'"), 'browser/PWA fallback hides Android-only controls when bridge is absent');
+assert(appSource.includes("['golos', 'hive', 'steem'].includes(chain.id)"), 'Android native auto-upvoter UI enables only implemented Graphene vote chains');
+assert(appSource.includes('Golos/Hive/Steem native worker') && appSource.includes('vote через posting authority'), 'Android worker copy truthfully limits native support to Graphene vote/posting flow');
 
 assert(planSource.includes('### Android parity matrix — native bridge worker controls'), 'plan.md records Android bridge parity matrix');
 assert(planSource.includes('| Golos |') && planSource.includes('| VIZ |') && planSource.includes('| Hive |') && planSource.includes('| Steem |') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan matrix separates every supported web chain');
 assert(planSource.includes('WebView UI coverage') && planSource.includes('native bridge UI coverage') && planSource.includes('native background/worker/signing coverage'), 'plan matrix has required coverage columns');
+assert(planSource.includes('beeab0de00000000000000000000000000000000000000000000000000000000') && planSource.includes('Steem chain id `0000000000000000000000000000000000000000000000000000000000000000`'), 'plan records verified Hive/Steem native chain ids');
+assert(planSource.includes('Tests prevent false native worker/key import support') && planSource.includes('| Minter |') && planSource.includes('| Decimal |'), 'plan keeps VIZ/Minter/Decimal unsupported instead of claiming fake native support');
 
 console.log('v3 Android bridge UI smoke passed');

@@ -14,21 +14,26 @@ data class AutoVoteRuntimeReport(
     val results: List<VoteBroadcastResult>
 )
 
-class AutoVoteRuntime(private val voteRuntime: VoteRuntime, private val keyProvider: PostingKeyProvider) {
+class AutoVoteRuntime(
+    private val voteRuntime: VoteRuntime,
+    private val keyProvider: PostingKeyProvider,
+    private val chainId: String = "golos"
+) {
     fun preview(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = true)
     fun execute(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = false)
 
     private fun run(plan: VotePlan, previewOnly: Boolean): AutoVoteRuntimeReport {
         val skips = plan.skips.toMutableList()
         val results = mutableListOf<VoteBroadcastResult>()
+        val chain = chainId.trim().lowercase()
         for (action in plan.actions) {
-            val key = keyProvider.privateWif("golos", action.account)
+            val key = keyProvider.privateWif(chain, action.account)
             if (key.isNullOrBlank()) {
                 skips += "missing-key:${action.account}|${action.author}|${action.permlink}"
                 continue
             }
-            val operation = VoteOperation("golos", action.account, action.author, action.permlink, action.weight)
-            val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef("golos", action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef("golos", action.account), key)
+            val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
+            val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
             if (!result.ok) skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
         }
