@@ -51,6 +51,10 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
                 }
             }
             if (store.autoUpvoterEnabled(account.chainId, account.account)) {
+                if (!spec.nativeVoteSupported) {
+                    store.appendLog("auto-upvoter ${account.chainId}:${account.account} skipped: native vote signing is not implemented for this chain")
+                    continue
+                }
                 try {
                     val keyRef = store.defaultPostingKeyRef(account.chainId, account.account)
                     val key = store.readPostingKey(account.chainId, account.account)
@@ -96,7 +100,7 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
     }
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
-        val spec = GrapheneChainSpecs.require(chainId)
+        val spec = GrapheneChainSpecs.requireVote(chainId)
         return AutoVoteEventCollector(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), HttpGrapheneDiscussionClient(spec.defaultRpcEndpoint, spec.legacyCallRpc)).collect(settings)
     }
 

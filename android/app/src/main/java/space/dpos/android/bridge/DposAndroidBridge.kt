@@ -108,7 +108,7 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
                 permlink = obj.optString("permlink").trim(),
                 weight = obj.optInt("weight", 10000)
             )
-            val spec = GrapheneChainSpecs.require(chain)
+            val spec = GrapheneChainSpecs.requireVote(chain)
             val keyRef = store.defaultPostingKeyRef(chain, account)
             val key = store.readPostingKey(chain, account)
             val result = VoteRuntime(HttpGrapheneRpcClient(spec), signer = GrapheneVoteSigner(spec)).preview(op, keyRef, key)

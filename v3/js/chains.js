@@ -33,6 +33,7 @@
   ];
 
   const vizApps = [
+    { id: 'notifications', title: 'Уведомления', description: 'Локальная панель входящих VIZ-событий из account_history: награды, переводы и ответы без backend.', accountField: true },
     { id: 'award', title: 'Награды', description: 'VIZ-награды: операции award/fixedAward через regular authority.' },
     { id: 'registration', title: 'Регистрация', description: 'VIZ invite registration через explicit signer WIF input без hardcoded ключей.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор VIZ/SHARES/энергии.' },

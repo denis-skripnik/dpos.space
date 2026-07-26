@@ -14108,12 +14108,34 @@ Memo key: ${keys.memo}`);
     }
     const items = notifications.filteredNotifications({ direction: 'all' });
     const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
+    const nativeBridge = nativeAndroidWorkerBridge();
+    const androidNotice = nativeBridge && chain.id === 'viz'
+      ? `<section class="card" data-viz-android-notifications><h3>Android native worker для VIZ</h3><p class="muted">Для VIZ в APK включаются только native-уведомления по account_history. Native award/vote signing не заявляется.</p><button type="button" data-android-import-viz-notifications>Импортировать VIZ уведомления в Android</button><button type="button" data-android-start-worker>Start native worker</button><button type="button" data-android-check-now>Check now</button><div id="viz-android-worker-status" role="status" aria-live="polite"></div></section>`
+      : '';
     appEl.innerHTML = `<section class="panel">
       <h2>Все непрочитанные уведомления</h2>
-      <p>Показываются локально сохранённые уведомления для аккаунтов Golos из браузера. Награды не включены, чтобы не создавать шум.</p>
+      <p>Показываются локально сохранённые входящие уведомления для ${escapeHtml(chain.title)} из account_history. VIZ включает награды/переводы/ответы; native Android worker для VIZ не отправляет операций.</p>
+      ${androidNotice}
       <p><button type="button" data-notifications-page-read>Отметить всё прочитанным</button></p>
       ${rows}
     </section>`;
+    const vizImportButton = appEl.querySelector('[data-android-import-viz-notifications]');
+    const vizStatus = appEl.querySelector('#viz-android-worker-status');
+    if (vizImportButton) vizImportButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: 15 });
+      if (vizStatus) vizStatus.textContent = result && result.ok ? `VIZ notifications imported for @${account}.` : `Import failed: ${result && result.reason || 'unknown error'}`;
+      setStatus(result && result.ok ? `VIZ native notifications imported for @${account}.` : `Android import failed: ${result && result.reason || 'unknown error'}`, result && result.ok ? 'ok' : 'error');
+    });
+    const vizStartButton = appEl.querySelector('[data-viz-android-notifications] [data-android-start-worker]');
+    if (vizStartButton) vizStartButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('startWorker');
+      if (vizStatus) vizStatus.textContent = renderAndroidWorkerStatus(result);
+    });
+    const vizCheckButton = appEl.querySelector('[data-viz-android-notifications] [data-android-check-now]');
+    if (vizCheckButton) vizCheckButton.addEventListener('click', () => {
+      const result = callAndroidWorkerBridge('checkNow');
+      if (vizStatus) vizStatus.textContent = renderAndroidWorkerStatus(result);
+    });
     const readButton = appEl.querySelector('[data-notifications-page-read]');
     if (readButton) readButton.addEventListener('click', () => {
       notifications.markAllRead();
@@ -14222,7 +14244,7 @@ Memo key: ${keys.memo}`);
         await renderGolosAutoUpvoter(chain);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
-      } else if (chain.id === 'golos' && effectiveAppId === 'notifications') {
+      } else if ((chain.id === 'golos' || chain.id === 'viz') && effectiveAppId === 'notifications') {
         renderNotificationsPage(chain, account);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
         await renderGolosPostPage(chain, state);

@@ -106,6 +106,30 @@ class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = 
                 val author = norm(event.data["author"] ?: event.data["mentioned_by"])
                 if (author != target) DposEventNotification("$chainId:$target:${event.index}:mention", "Новое упоминание", "@$author упомянул $target", "#chain=$chainId&app=notifications&account=$target", event.index) else null
             }
+            "award", "fixed_award" -> {
+                val from = norm(event.data["initiator"])
+                val to = norm(event.data["receiver"])
+                val amount = event.data["reward_amount"] ?: event.data["shares"] ?: event.data["amount"]
+                if (to == target && from != target) DposEventNotification(
+                    "$chainId:$target:${event.index}:${event.type}",
+                    if (event.type == "fixed_award") "Новая фиксированная награда VIZ" else "Новая награда VIZ",
+                    listOf("от @$from", amount.orEmpty()).filter { it.isNotBlank() }.joinToString(", "),
+                    "#chain=$chainId&app=history&account=$target&ops=${event.type}",
+                    event.index
+                ) else null
+            }
+            "receive_award", "benefactor_award" -> {
+                val receiver = norm(event.data["receiver"])
+                val benefactor = norm(event.data["benefactor"])
+                val amount = event.data["shares"] ?: event.data["reward_amount"]
+                if (receiver == target) DposEventNotification(
+                    "$chainId:$target:${event.index}:${event.type}",
+                    if (event.type == "benefactor_award") "Бенефициарская награда VIZ" else "Получена награда VIZ",
+                    listOf(if (benefactor.isNotBlank()) "бенефициар @$benefactor" else "", amount.orEmpty()).filter { it.isNotBlank() }.joinToString(", "),
+                    "#chain=$chainId&app=history&account=$target&ops=${event.type}",
+                    event.index
+                ) else null
+            }
             "transfer", "donate" -> {
                 val from = norm(event.data["from"])
                 val to = norm(event.data["to"] ?: event.data["receiver"])
