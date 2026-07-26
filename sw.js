@@ -1,21 +1,21 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260726-passkey-backup';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20260726-passkey-cache2';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/css/style.css',
-  '/v3/js/chains.js',
-  '/v3/js/auth.js',
-  '/v3/js/broadcast.js',
-  '/v3/js/profiles.js',
-  '/v3/js/history.js',
-  '/v3/js/notifications.js',
-  '/v3/js/auto-upvoter.js',
-  '/v3/js/pwa.js',
-  '/v3/js/app.js',
+  '/v3/css/style.css?v=20260726-passkey-cache2',
+  '/v3/js/chains.js?v=20260726-passkey-cache2',
+  '/v3/js/auth.js?v=20260726-passkey-cache2',
+  '/v3/js/broadcast.js?v=20260726-passkey-cache2',
+  '/v3/js/profiles.js?v=20260726-passkey-cache2',
+  '/v3/js/history.js?v=20260726-passkey-cache2',
+  '/v3/js/notifications.js?v=20260726-passkey-cache2',
+  '/v3/js/auto-upvoter.js?v=20260726-passkey-cache2',
+  '/v3/js/pwa.js?v=20260726-passkey-cache2',
+  '/v3/js/app.js?v=20260726-passkey-cache2',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'
 ];
