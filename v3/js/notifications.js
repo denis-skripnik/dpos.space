@@ -6,8 +6,17 @@
   const DEFAULT_LIMIT = 60;
   const CHECK_INTERVAL_MS = 120000;
   const NOTIFICATION_OPS = {
-    golos: ['content_mentions', 'comment_mention', 'comment', 'custom_json', 'transfer', 'donate'],
-    viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award']
+    golos: ['content_mentions', 'comment_mention', 'comment', 'custom_json', 'transfer', 'donate', 'author_reward', 'curation_reward', 'comment_benefactor_reward'],
+    viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award'],
+    hive: ['comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'delegate_vesting_shares', 'return_vesting_delegation', 'author_reward', 'curation_reward', 'comment_benefactor_reward', 'account_witness_vote', 'proposal_create', 'proposal_update', 'proposal_delete'],
+    steem: ['comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'delegate_vesting_shares', 'return_vesting_delegation', 'author_reward', 'curation_reward', 'comment_benefactor_reward', 'account_witness_vote', 'producer_reward']
+  };
+  const OP_LABELS = {
+    content_mentions: 'Упоминания', comment_mention: 'Упоминания', comment: 'Ответы/комментарии', custom_json: 'Репосты/custom_json',
+    transfer: 'Входящие переводы', donate: 'Донаты', award: 'VIZ награды', fixed_award: 'VIZ фиксированные награды', receive_award: 'Полученные VIZ награды', benefactor_award: 'Бенефициарские VIZ награды',
+    transfer_to_vesting: 'Power up / vesting', withdraw_vesting: 'Power down', delegate_vesting_shares: 'Делегирование vesting', return_vesting_delegation: 'Возврат делегирования',
+    author_reward: 'Авторские награды', curation_reward: 'Кураторские награды', comment_benefactor_reward: 'Бенефициарские награды',
+    account_witness_vote: 'Witness/validator votes', proposal_create: 'DAO proposals create', proposal_update: 'DAO proposals update', proposal_delete: 'DAO proposals delete', producer_reward: 'Producer rewards'
   };
   const SUPPORTED_CHAINS = new Set(Object.keys(NOTIFICATION_OPS));
 
@@ -47,6 +56,45 @@
   function supportsChain(chain) {
     const chainId = chain && (chain.id || (chain.config && chain.config.id));
     return SUPPORTED_CHAINS.has(chainId);
+  }
+
+  function defaultOps(chain) {
+    const chainId = chain && (chain.id || (chain.config && chain.config.id));
+    return (NOTIFICATION_OPS[chainId] || []).slice();
+  }
+
+  function operationLabel(type) {
+    return OP_LABELS[type] || type;
+  }
+
+  function settingsKey(chain, account) {
+    return accountKey(chain.id || (chain.config && chain.config.id), account || '');
+  }
+
+  function getSettings(chain, account) {
+    const defaults = defaultOps(chain);
+    const store = readStore();
+    const settings = store.settings && store.settings[settingsKey(chain, account)] || {};
+    const selected = Array.isArray(settings.ops) ? settings.ops.filter((op) => defaults.includes(op)) : defaults;
+    return {
+      ops: selected.length ? selected : defaults,
+      androidNative: settings.androidNative !== false,
+      intervalMinutes: Number(settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
+    };
+  }
+
+  function saveSettings(chain, account, settings) {
+    const defaults = defaultOps(chain);
+    const selected = Array.isArray(settings && settings.ops) ? settings.ops.filter((op) => defaults.includes(op)) : defaults;
+    const store = readStore();
+    const key = settingsKey(chain, account);
+    store.settings[key] = {
+      ops: selected.length ? selected : defaults,
+      androidNative: settings && settings.androidNative !== false,
+      intervalMinutes: Number(settings && settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
+    };
+    writeStore(store);
+    return store.settings[key];
   }
 
   const loadingScripts = new Map();
@@ -273,6 +321,37 @@
       return null;
     }
 
+    if (['author_reward', 'curation_reward', 'comment_benefactor_reward'].includes(type)) {
+      const rewardAccount = normalizeAccount(firstNonEmpty([data.author, data.curator, data.benefactor, data.account]));
+      if (rewardAccount === target) {
+        return Object.assign(base, {
+          id: notificationId(chain, target, item, type),
+          type,
+          direction: 'incoming',
+          title: operationLabel(type),
+          text: firstNonEmpty([data.payout, data.reward, data.vesting_payout, data.hbd_payout, data.hive_payout, data.steem_payout]) || 'новое reward-событие',
+          url: historyUrl(chain, target, type)
+        });
+      }
+      return null;
+    }
+
+    if (['transfer_to_vesting', 'withdraw_vesting', 'delegate_vesting_shares', 'return_vesting_delegation', 'account_witness_vote', 'proposal_create', 'proposal_update', 'proposal_delete', 'producer_reward'].includes(type)) {
+      const actor = normalizeAccount(firstNonEmpty([data.from, data.account, data.voter, data.creator, data.owner]));
+      const to = normalizeAccount(firstNonEmpty([data.to, data.delegatee, data.author, data.receiver, data.account]));
+      if (actor === target || to === target) {
+        return Object.assign(base, {
+          id: notificationId(chain, target, item, type),
+          type,
+          direction: 'incoming',
+          title: operationLabel(type),
+          text: `${type} #${index}`,
+          url: historyUrl(chain, target, type)
+        });
+      }
+      return null;
+    }
+
     return null;
   }
 
@@ -322,7 +401,8 @@
   }
 
   async function fetchAccountRows(chain, account, limit) {
-    const ops = NOTIFICATION_OPS[chain.id] || [];
+    const settings = getSettings(chain, account);
+    const ops = settings.ops || NOTIFICATION_OPS[chain.id] || [];
     await ensureChainLibraryLoaded(chain);
     const historyChain = global.DposProfiles && typeof global.DposProfiles.connect === 'function'
       ? await global.DposProfiles.connect(chain)
@@ -477,6 +557,10 @@
     toNotification,
     upsertNotifications,
     filteredNotifications,
+    defaultOps,
+    operationLabel,
+    getSettings,
+    saveSettings,
     countUnread,
     markAllRead,
     scanAccount,

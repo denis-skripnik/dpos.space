@@ -25,7 +25,7 @@ assert(indexSource.includes('id="pwa-panel"'), 'index has accessible PWA status 
 assert(indexSource.includes('class="pwa-shell"'), 'PWA panel has a normal in-flow shell');
 assert(indexSource.indexOf('id="app"') < indexSource.indexOf('id="pwa-panel"'), 'PWA panel is rendered after main app content');
 assert(indexSource.indexOf('id="pwa-panel"') < indexSource.indexOf('<footer'), 'PWA panel stays near the end before footer');
-assert(indexSource.indexOf('v3/js/pwa.js') < indexSource.indexOf('v3/js/app.single-wallet-forms.js'), 'PWA helper loads before app runtime');
+assert(indexSource.indexOf('v3/js/pwa.js') < indexSource.indexOf('v3/js/app.native-notification-settings.js'), 'PWA helper loads before app runtime');
 assert(pwaSource.includes('data-pwa-dismiss'), 'PWA panel has a close button');
 assert(pwaSource.includes('PANEL_DISMISSED_KEY'), 'PWA close state is persisted locally');
 assert(pwaSource.includes('container.hidden = true'), 'PWA close hides only the PWA panel container');
@@ -34,8 +34,8 @@ assert(!/\.pwa-panel\s*\{[^}]*position:\s*(fixed|sticky)/.test(styleSource), 'PW
 
 assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-"), 'service worker has explicit versioned cache');
 assert(swSource.includes("'/v3/js/pwa.js?v="), 'service worker caches versioned PWA helper');
-assert(swSource.includes("'/v3/js/app.single-wallet-forms.js'"), 'service worker caches physically versioned app runtime');
-assert(indexSource.includes('v3/js/app.single-wallet-forms.js') && indexSource.includes('v3/css/style.css?v='), 'index uses a physically versioned app runtime path plus versioned CSS to bypass stale browser/WebView/CDN cache');
+assert(swSource.includes("'/v3/js/app.native-notification-settings.js'"), 'service worker caches physically versioned app runtime');
+assert(indexSource.includes('v3/js/app.native-notification-settings.js') && indexSource.includes('v3/css/style.css?v='), 'index uses a physically versioned app runtime path plus versioned CSS to bypass stale browser/WebView/CDN cache');
 assert(swSource.includes('networkFirst(request)') && swSource.includes('isRuntimeAsset(request)'), 'service worker uses network-first for runtime JS/CSS/manifest');
 assert(swSource.includes('notificationclick'), 'service worker focuses or opens app from local notifications');
 assert(!/setInterval|setTimeout\s*\(/.test(swSource), 'service worker does not pretend to run a background scanner timer');

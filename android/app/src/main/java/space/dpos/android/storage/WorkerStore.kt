@@ -31,6 +31,7 @@ class WorkerStore(context: Context) {
         prefs.edit()
             .putString("accounts", JSONArray(accounts.map { JSONObject().put("chainId", it.chainId).put("account", it.account).put("enabled", it.enabled) }).toString())
             .putBoolean("notify:${decision.chainId}:${decision.account}", decision.enableNotifications)
+            .putString("notifyOps:${decision.chainId}:${decision.account}", JSONArray(decision.notificationOps).toString())
             .putBoolean("upvoter:${decision.chainId}:${decision.account}", decision.enableAutoUpvoter)
             .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
             .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
@@ -58,6 +59,7 @@ class WorkerStore(context: Context) {
 
     fun activeAccounts(): List<AccountIdentity> = readAccounts().filter { it.enabled }
     fun notificationEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("notify:$chainId:$account", false)
+    fun notificationOps(chainId: String, account: String): List<String> = readStringList("notifyOps:$chainId:$account")
     fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false)
     fun minEnergy(chainId: String, account: String): Int = prefs.getInt("minEnergy:$chainId:$account", 2500)
     fun maxActions(chainId: String, account: String): Int = prefs.getInt("maxActions:$chainId:$account", 5)

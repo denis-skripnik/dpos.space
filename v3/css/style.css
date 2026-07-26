@@ -783,3 +783,13 @@ body.app-modal-open {
     max-height: calc(100vh - 1rem);
   }
 }
+
+.checkbox-row {
+  display: block;
+  margin: 0.45rem 0;
+  line-height: 1.5;
+}
+
+.checkbox-row input {
+  margin-right: 0.45rem;
+}

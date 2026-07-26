@@ -78,18 +78,19 @@ object GolosHistoryRpc {
 }
 
 class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = null, private val chainId: String = "golos") {
-    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50): Pair<Long, List<DposEventNotification>> {
+    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
         val rows = historyClient?.getAccountHistory(account, cursor ?: -1L, limit).orEmpty()
-        return scan(account, cursor, rows, baselineDone)
+        return scan(account, cursor, rows, baselineDone, selectedOps)
     }
 
-    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean): Pair<Long, List<DposEventNotification>> {
+    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
         val target = account.trim().removePrefix("@").lowercase()
         val sorted = rows.sortedBy { it.index }
         val newest = sorted.maxOfOrNull { it.index } ?: cursor ?: -1L
         if (!baselineDone) return newest to emptyList()
         val minIndex = cursor ?: -1L
-        val notifications = sorted.filter { it.index > minIndex }.mapNotNull { toNotification(target, it) }
+        val allowed = selectedOps.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+        val notifications = sorted.filter { it.index > minIndex }.filter { allowed.isEmpty() || it.type.lowercase() in allowed }.mapNotNull { toNotification(target, it) }
         return newest to notifications
     }
 
@@ -126,6 +127,27 @@ class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = 
                     "$chainId:$target:${event.index}:${event.type}",
                     if (event.type == "benefactor_award") "Бенефициарская награда VIZ" else "Получена награда VIZ",
                     listOf(if (benefactor.isNotBlank()) "бенефициар @$benefactor" else "", amount.orEmpty()).filter { it.isNotBlank() }.joinToString(", "),
+                    "#chain=$chainId&app=history&account=$target&ops=${event.type}",
+                    event.index
+                ) else null
+            }
+            "author_reward", "curation_reward", "comment_benefactor_reward" -> {
+                val rewardAccount = norm(event.data["author"] ?: event.data["curator"] ?: event.data["benefactor"])
+                if (rewardAccount == target) DposEventNotification(
+                    "$chainId:$target:${event.index}:${event.type}",
+                    when (event.type) { "author_reward" -> "Авторская награда"; "curation_reward" -> "Кураторская награда"; else -> "Бенефициарская награда" },
+                    listOf(event.data["payout"], event.data["vesting_payout"], event.data["reward"], event.data["hbd_payout"], event.data["hive_payout"], event.data["steem_payout"]).filter { !it.isNullOrBlank() }.joinToString(", ").ifBlank { "новое reward-событие" },
+                    "#chain=$chainId&app=history&account=$target&ops=${event.type}",
+                    event.index
+                ) else null
+            }
+            "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "account_witness_vote", "proposal_create", "proposal_update", "proposal_delete", "producer_reward" -> {
+                val actor = norm(event.data["from"] ?: event.data["account"] ?: event.data["voter"] ?: event.data["creator"] ?: event.data["owner"])
+                val to = norm(event.data["to"] ?: event.data["delegatee"] ?: event.data["author"] ?: event.data["receiver"] ?: event.data["account"])
+                if (actor == target || to == target) DposEventNotification(
+                    "$chainId:$target:${event.index}:${event.type}",
+                    "Новое blockchain-событие",
+                    "${event.type} #${event.index}",
                     "#chain=$chainId&app=history&account=$target&ops=${event.type}",
                     event.index
                 ) else null

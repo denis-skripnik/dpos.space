@@ -11,6 +11,7 @@ data class AccountImportRequest(
     val enableNotifications: Boolean,
     val enableAutoUpvoter: Boolean,
     val explicitConsent: Boolean,
+    val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
     val intervalMinutes: Int = 15,
@@ -27,6 +28,7 @@ data class ImportDecision(
     val account: String = "",
     val enableNotifications: Boolean = false,
     val enableAutoUpvoter: Boolean = false,
+    val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
     val intervalMinutes: Int = 15,
@@ -57,6 +59,7 @@ object WorkerCommandPolicy {
             account = account,
             enableNotifications = request.enableNotifications,
             enableAutoUpvoter = request.enableAutoUpvoter,
+            notificationOps = normalizeOps(request.notificationOps, chain),
             minEnergy = request.minEnergy.coerceIn(0, 10000),
             maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
             intervalMinutes = request.intervalMinutes.coerceAtLeast(15),
@@ -71,6 +74,12 @@ object WorkerCommandPolicy {
         .map { it.trim().removePrefix("@").lowercase() }
         .filter { accountPattern.matches(it) }
         .distinct()
+
+    fun normalizeOps(values: List<String>, chainId: String): List<String> {
+        val allowed = GrapheneChainSpecs.find(chainId)?.notificationOps.orEmpty()
+        if (allowed.isEmpty()) return emptyList()
+        return values.map { it.trim().lowercase() }.filter { it in allowed }.distinct().ifEmpty { allowed }
+    }
 
     fun hasSecretLikeFields(json: JSONObject): Boolean {
         val keys = json.keys()
@@ -95,6 +104,7 @@ object WorkerSettingsCodec {
                     enableNotifications = obj.optBoolean("enableNotifications", false),
                     enableAutoUpvoter = obj.optBoolean("enableAutoUpvoter", false),
                     explicitConsent = obj.optBoolean("explicitConsent", false),
+                    notificationOps = readStringList(obj.opt("notificationOps")),
                     minEnergy = obj.optInt("minEnergy", 2500),
                     maxActionsPerTick = obj.optInt("maxActionsPerTick", 5),
                     intervalMinutes = obj.optInt("intervalMinutes", 15),
@@ -116,6 +126,7 @@ object WorkerSettingsCodec {
         .put("account", decision.account)
         .put("enableNotifications", decision.enableNotifications)
         .put("enableAutoUpvoter", decision.enableAutoUpvoter)
+        .put("notificationOps", JSONArray(decision.notificationOps))
         .put("minEnergy", decision.minEnergy)
         .put("maxActionsPerTick", decision.maxActionsPerTick)
         .put("intervalMinutes", decision.intervalMinutes)
@@ -125,7 +136,9 @@ object WorkerSettingsCodec {
         .put("favoritesPercent", decision.favoritesPercent)
         .toString()
 
-    private fun readAccountList(value: Any?): List<String> {
+    private fun readAccountList(value: Any?): List<String> = readStringList(value)
+
+    private fun readStringList(value: Any?): List<String> {
         if (value is JSONArray) return (0 until value.length()).map { value.optString(it) }
         return value?.toString().orEmpty().split(Regex("[\\s,;]+"))
     }

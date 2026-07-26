@@ -13,10 +13,10 @@ const cssSource = fs.readFileSync(path.join(root, 'v3/css/style.css'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 assert(indexSource.includes('id="notifications-panel"'), 'header contains notifications panel mount');
-assert(indexSource.includes('v3/js/notifications.js') && indexSource.indexOf('v3/js/notifications.js') < indexSource.indexOf('v3/js/app.single-wallet-forms.js'), 'notifications module loads before app runtime');
-assert(chainsSource.includes("id: 'notifications'") && chainsSource.includes("title: 'Уведомления'"), 'Golos has notifications app entry for show-all link');
+assert(indexSource.includes('v3/js/notifications.js') && indexSource.indexOf('v3/js/notifications.js') < indexSource.indexOf('v3/js/app.native-notification-settings.js'), 'notifications module loads before app runtime');
+assert(chainsSource.includes("id: 'notifications'") && chainsSource.includes("title: 'Уведомления'") && chainsSource.includes('Hive/Steem-событий'), 'Golos/VIZ/Hive/Steem have notifications app entries for show-all link');
 assert(historySource.includes('content_mentions') && historySource.includes('comment_mention'), 'history operation labels include supported mention ops');
-assert(notificationsSource.includes("content_mentions") && notificationsSource.includes("comment_mention"), 'notification scanner selects mention operations');
+assert(notificationsSource.includes("content_mentions") && notificationsSource.includes("comment_mention") && notificationsSource.includes("hive: ['comment', 'transfer'") && notificationsSource.includes("steem: ['comment', 'transfer'"), 'notification scanner selects explicit ops for Golos/VIZ/Hive/Steem');
 assert(notificationsSource.includes('dpos_notifications_v1'), 'notifications persist local unread/cursors');
 assert(notificationsSource.includes('function ensureChainLibraryLoaded') && notificationsSource.includes('chain.libraryPath'), 'notifications load the chain browser library before DposProfiles.connect');
 assert(notificationsSource.includes('Библиотека ${chain.libraryGlobal} не загружена'), 'notifications preserve a clear load failure message if script loading fails');
@@ -27,7 +27,9 @@ assert(!notificationsSource.includes('data-notifications-direction') && !notific
 assert(notificationsSource.includes('MAX_PANEL_ITEMS = 10'), 'top panel is capped to ten recent notifications');
 assert(notificationsSource.includes('errors.push({ chainId: chain.id, account, error })'), 'notification background scan isolates per-account failures');
 assert(!notificationsSource.includes('setStatus(`Не удалось проверить уведомления'), 'notification failures do not overwrite the active page status');
-assert(appSource.includes("effectiveAppId === 'notifications'") && appSource.includes('renderNotificationsPage'), 'app routes notifications show-all page');
+assert(appSource.includes("notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications'") && appSource.includes('renderNotificationsPage'), 'app routes notifications page for every supported notification chain');
+assert(appSource.includes('data-android-notifications-settings') && appSource.includes('notificationOps: currentSettings.ops'), 'notifications page syncs selected filters into Android native settings without separate controls');
+assert(!appSource.includes('data-android-import-viz-notifications') && !appSource.includes('data-android-start-worker') && !appSource.includes('data-android-check-now'), 'notification native UI exposes no separate import/start/check controls');
 assert(cssSource.includes('.notifications-panel') && cssSource.includes('.notifications-popover'), 'notifications panel styles exist');
 assert(planSource.includes('верхняя панель уведомлений'), 'plan documents notifications scope');
 
@@ -65,7 +67,7 @@ const context = {
     fetchAccountHistory: async (chain, account, options) => {
       assert(chain && chain.config && chain.config.id === 'golos', 'notifications scan passes connected chain to history fetcher');
       assert(account === 'denis-skripnik', 'notifications scan fetches saved account');
-      assert(options && Array.isArray(options.ops) && options.ops.includes('content_mentions'), 'notifications scan requests selected notification ops');
+      assert(options && Array.isArray(options.ops) && options.ops.length === 1 && options.ops.includes('transfer'), 'notifications scan requests selected per-account notification ops');
       return [];
     }
   }
@@ -76,6 +78,11 @@ vm.runInContext(notificationsSource, context);
 
 const api = context.DposNotifications;
 assert(api.supportsChain(context.DposChains.golos), 'Golos notifications are supported');
+assert(api.supportsChain({ id: 'hive', title: 'Hive' }), 'Hive notifications are supported');
+assert(api.supportsChain({ id: 'steem', title: 'Steem' }), 'Steem notifications are supported');
+assert(!api.supportsChain({ id: 'minter', title: 'Minter' }), 'Minter notifications are not falsely claimed');
+api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: ['transfer'], androidNative: true, intervalMinutes: 20 });
+assert.strictEqual(Array.from(api.getSettings(context.DposChains.golos, 'denis-skripnik').ops).join(','), 'transfer', 'notification operation filters persist per chain/account');
 const tracked = api.getTrackedAccounts(context.DposChains.golos);
 assert.strictEqual(tracked.length, 1, 'one saved Golos account is tracked');
 assert.strictEqual(tracked[0], 'denis-skripnik', 'saved Golos account login is normalized');
@@ -123,6 +130,13 @@ const outgoingTransfer = api.toNotification(context.DposChains.golos, 'denis-skr
   data: { from: 'denis-skripnik', to: 'alice', amount: '1.000 GOLOS' }
 });
 assert.strictEqual(outgoingTransfer, null, 'own outgoing transfer is not a notification');
+
+const hiveReward = api.toNotification({ id: 'hive', title: 'Hive' }, 'denis', {
+  index: 13,
+  type: 'author_reward',
+  data: { author: 'denis', hive_payout: '1.000 HIVE' }
+});
+assert(hiveReward && hiveReward.title === 'Авторские награды' && hiveReward.url.includes('chain=hive'), 'Hive author_reward becomes a filtered local notification');
 
 api.upsertNotifications([{ id: 'golos:denis-skripnik:7', account: 'denis-skripnik', chainId: 'golos', direction: 'incoming', timestamp: '2026-05-13T01:02:03' }]);
 assert.strictEqual(api.countUnread({ direction: 'incoming' }), 1, 'unread count persists');
