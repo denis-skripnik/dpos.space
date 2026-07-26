@@ -16,6 +16,7 @@ import space.dpos.android.BuildConfig
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.runtime.SecureKeyImportCodec
 import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.worker.DposForegroundService
@@ -53,6 +54,16 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
             schedulePeriodicChecks(decision.intervalMinutes)
         }
         return WorkerSettingsCodec.decisionJson(decision)
+    }
+
+    @JavascriptInterface
+    fun importSecureKey(json: String?): String {
+        val decision = SecureKeyImportCodec.decode(json)
+        val ref = decision.keyRef
+        if (decision.accepted && ref != null) {
+            store.saveEncryptedKeyRef(ref, decision.secret)
+        }
+        return SecureKeyImportCodec.resultJson(decision, hasKey = ref?.let { store.hasEncryptedKey(it) } ?: false)
     }
 
     @JavascriptInterface

@@ -472,6 +472,27 @@ Remaining explicit blockers/non-goals:
 - No Google Play publishing, paid signing/service accounts, or committed release keystore.
 - Manual install/TalkBack/foreground-service runtime smoke still requires an Android device or emulator session.
 
+### Android milestone 3 — secure key import bridge and dry-run signing gate
+
+Status: implemented in the continuation after commit `4f14a29944fb2f701443aa93856f9ed0cc1c9867`.
+
+Scope covered:
+
+- Phase 3/7: added dedicated Android bridge method `importSecureKey(json)`. Normal worker settings import still rejects secret-like fields; secure key import requires `explicitConsent: true`, validates chain/account/authority/alias and WIF-like key format, stores only through Android encrypted storage, and returns only `keyRef` plus `hasKey` metadata.
+- Phase 7: added test-safe native auto-upvoter signing/broadcast abstraction: `VoteOperation`, `SignedVotePayload`, `DryRunBroadcastResult`, `VoteSigner`, `DisabledVoteSigner`, and deterministic Golos vote fixtures. Automated worker signing remains disabled unless future explicit approval adds a real signer; current worker logs dry-run signing-gate status only.
+- Phase 8/10: updated Android README/release docs with secure-key bridge policy, checksum/build commands, no-secrets signing plan, manual install/TalkBack/foreground/reboot checklist, and live-validation blockers.
+
+Verification evidence for this milestone:
+
+- Unit policy coverage added for settings-import secret rejection, dedicated secure key metadata validation, no-secret result JSON, deterministic Golos vote operation JSON, and disabled signing gates.
+- Final gate for this milestone must include `cd android && ./gradlew test assembleDebug`, APK checksum, `git diff --check`, `git diff --cached --check`, and added-line secret scan before commit.
+
+Remaining explicit blockers/non-goals:
+
+- Live mainnet signing/broadcast validation still requires explicit Denis approval and controlled real-key/device setup.
+- EncryptedSharedPreferences storage itself requires manual device/emulator instrumentation to prove Android Keystore behavior; local unit tests cover the pure import policy and bridge result contract.
+- Google Play/AAB signed release requires external keystore/service-account secrets and is intentionally not implemented in git.
+
 ## Current focused pass — Accessible modal windows for large operation blocks
 
 Root cause:
