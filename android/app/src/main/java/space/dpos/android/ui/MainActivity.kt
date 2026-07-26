@@ -14,6 +14,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
@@ -28,6 +29,8 @@ import space.dpos.android.worker.DposForegroundService
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var runtimeCacheRefreshPending = false
+    private var runtimeCacheRefreshInjected = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +39,8 @@ class MainActivity : Activity() {
         NotificationHelper.ensureChannels(this)
         requestNotificationsIfNeeded()
         webView = WebView(this)
+        runtimeCacheRefreshPending = shouldRefreshRuntimeCache()
+        if (runtimeCacheRefreshPending) webView.clearCache(true)
         setContentView(webView)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -75,6 +80,11 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
                 return !url.startsWith(BuildConfig.DPOS_WEB_URL)
             }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                refreshRuntimeCachesAfterAppUpdate(view, url)
+            }
         }
         webView.addJavascriptInterface(DposAndroidBridge(this) { JSONObject(workerStatusString()) }, "DposAndroid")
         val route = intent.getStringExtra(NotificationHelper.EXTRA_ROUTE)
@@ -101,6 +111,51 @@ class MainActivity : Activity() {
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
         super.onDestroy()
+    }
+
+    private fun shouldRefreshRuntimeCache(): Boolean {
+        val prefs = getSharedPreferences("dpos_android_runtime", MODE_PRIVATE)
+        val seenVersion = prefs.getInt("runtime_cache_version", -1)
+        val currentVersion = BuildConfig.VERSION_CODE
+        if (seenVersion == currentVersion) return false
+        prefs.edit().putInt("runtime_cache_version", currentVersion).apply()
+        return true
+    }
+
+    private fun refreshRuntimeCachesAfterAppUpdate(view: WebView, url: String) {
+        if (!runtimeCacheRefreshPending || runtimeCacheRefreshInjected) return
+        if (!url.startsWith(BuildConfig.DPOS_WEB_URL)) return
+        runtimeCacheRefreshInjected = true
+        Toast.makeText(this, "DPoS Space обновляет кэш страницы", Toast.LENGTH_SHORT).show()
+        view.evaluateJavascript(
+            """
+            (function() {
+              var done = function() {
+                var target = location.pathname + '?android-cache-bust=' + Date.now() + location.hash;
+                location.replace(target);
+              };
+              var clearCaches = (window.caches && caches.keys)
+                ? caches.keys().then(function(keys) {
+                    return Promise.all(keys.filter(function(key) {
+                      return key.indexOf('dpos-space-v3-') === 0;
+                    }).map(function(key) { return caches.delete(key); }));
+                  })
+                : Promise.resolve();
+              var updateServiceWorkers = (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
+                ? navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    return Promise.all(registrations.map(function(registration) {
+                      return registration.update().catch(function() {}).then(function() {
+                        return registration.unregister().catch(function() {});
+                      });
+                    }));
+                  })
+                : Promise.resolve();
+              Promise.all([clearCaches, updateServiceWorkers]).then(done, done);
+            })();
+            """.trimIndent(),
+            null
+        )
+        runtimeCacheRefreshPending = false
     }
 
     private fun requestNotificationsIfNeeded() {
