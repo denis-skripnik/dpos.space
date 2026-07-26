@@ -47,4 +47,25 @@ class RestWalletNotificationScannerTest {
         assertTrue(cursor > 0L)
         assertTrue(notifications.isEmpty())
     }
+
+
+    @Test fun minterAndDecimalMultisendAliasesBecomeCanonicalNotifications() {
+        val minterClient = RestWalletHistoryClient("minter")
+        val minterRows = minterClient.parseTransactions("""
+            {"data":[{"hash":"Mt13","type":"multisend_coin","timestamp":"2026-07-26T10:02:00Z","data":{"from":"Mx1111111111111111111111111111111111111111","list":[{"address":"Mxf85ceccfe2112e88be58162c43f5ec959672ab54","value":"1","coin":"BIP"}]}}]}
+        """.trimIndent())
+        val (_, minterNotifications) = RestWalletNotificationScanner("minter", minterClient).scan("Mxf85ceccfe2112e88be58162c43f5ec959672ab54", 0L, minterRows, baselineDone = true, selectedOps = listOf("multisend"))
+        assertEquals(1, minterNotifications.size)
+        assertEquals("Мульти-отправка", minterNotifications[0].title)
+        assertTrue(minterNotifications[0].route.contains("ops=multisend"))
+
+        val decimalClient = RestWalletHistoryClient("decimal")
+        val decimalRows = decimalClient.parseTransactions("""
+            {"result":{"txs":[{"hash":"DxMulti","type":"/decimal.coin.v1.MsgMultiSendCoin","timestamp":"2026-07-26T10:03:00Z","data":{"from":"dx1111111111111111111111111111111111111111","recipients":[{"address":"dx0000000000000000000000000000000000000000","amount":"1","denom":"DEL"}]}}]}}
+        """.trimIndent())
+        val (_, decimalNotifications) = RestWalletNotificationScanner("decimal", decimalClient).scan("dx0000000000000000000000000000000000000000", 0L, decimalRows, baselineDone = true, selectedOps = listOf("multisend"))
+        assertEquals(1, decimalNotifications.size)
+        assertEquals("Мульти-отправка", decimalNotifications[0].title)
+        assertTrue(decimalNotifications[0].route.contains("ops=multisend"))
+    }
 }

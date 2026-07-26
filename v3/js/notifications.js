@@ -10,8 +10,8 @@
     viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award'],
     hive: ['comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'delegate_vesting_shares', 'return_vesting_delegation', 'author_reward', 'curation_reward', 'comment_benefactor_reward', 'account_witness_vote', 'proposal_create', 'proposal_update', 'proposal_delete'],
     steem: ['comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'delegate_vesting_shares', 'return_vesting_delegation', 'author_reward', 'curation_reward', 'comment_benefactor_reward', 'account_witness_vote', 'producer_reward'],
-    minter: ['send', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token'],
-    decimal: ['send', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft']
+    minter: ['send', 'multisend', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token'],
+    decimal: ['send', 'multisend', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft']
   };
   const OP_LABELS = {
     content_mentions: 'Упоминания', comment_mention: 'Упоминания', comment: 'Ответы/комментарии', custom_json: 'Репосты/custom_json',
@@ -19,7 +19,7 @@
     transfer_to_vesting: 'Power up / vesting', withdraw_vesting: 'Power down', delegate_vesting_shares: 'Делегирование vesting', return_vesting_delegation: 'Возврат делегирования',
     author_reward: 'Авторские награды', curation_reward: 'Кураторские награды', comment_benefactor_reward: 'Бенефициарские награды',
     account_witness_vote: 'Witness/validator votes', proposal_create: 'DAO proposals create', proposal_update: 'DAO proposals update', proposal_delete: 'DAO proposals delete', producer_reward: 'Producer rewards',
-    send: 'Переводы', delegate: 'Делегирование', unbond: 'Анбонд', sell: 'Продажа/обмен', sell_swap_pool: 'Swap-pool продажа', add_liquidity: 'Добавление ликвидности', remove_liquidity: 'Удаление ликвидности', create_coin: 'Создание монеты', mint_token: 'Выпуск токена', burn_token: 'Сжигание токена', create_token: 'Создание токена', transfer_token: 'Передача token/NFT', nft: 'NFT операции'
+    send: 'Переводы', multisend: 'Мульти-отправка', delegate: 'Делегирование', unbond: 'Анбонд', sell: 'Продажа/обмен', sell_swap_pool: 'Swap-pool продажа', add_liquidity: 'Добавление ликвидности', remove_liquidity: 'Удаление ликвидности', create_coin: 'Создание монеты', mint_token: 'Выпуск токена', burn_token: 'Сжигание токена', create_token: 'Создание токена', transfer_token: 'Передача token/NFT', nft: 'NFT операции'
   };
   const SUPPORTED_CHAINS = new Set(Object.keys(NOTIFICATION_OPS));
 
@@ -208,11 +208,21 @@
     return payload[1];
   }
 
+
+  function normalizeOperationType(chainId, type) {
+    const raw = String(type || 'unknown');
+    const lower = raw.toLowerCase();
+    if (chainId === 'minter' && ['multisend', 'multisend_coin', 'coin_multisend', 'coin_multisend_data', '13'].includes(lower)) return 'multisend';
+    if (chainId === 'decimal' && ['multisend', 'multi_send', '/decimal.coin.v1.msgmultisendcoin', 'msgmultisendcoin'].includes(lower)) return 'multisend';
+    return raw;
+  }
+
   function toNotification(chain, account, item) {
     if (!supportsChain(chain) || !item) return null;
     const target = normalizeAccount(account);
     const data = item.data || {};
-    const type = item.type || 'unknown';
+    const rawType = item.type || 'unknown';
+    const type = normalizeOperationType(chain.id, rawType);
     const index = historyIndex(item);
     const timestamp = item.timestamp || '';
     const base = {
@@ -220,7 +230,7 @@
       chainTitle: chain.title || chain.id,
       account: target,
       sourceIndex: index,
-      opType: type,
+      opType: rawType,
       timestamp,
       read: false
     };
@@ -327,9 +337,10 @@
     if (chain.id === 'minter' || chain.id === 'decimal') {
       const from = normalizeAccount(firstNonEmpty([data.from, data.sender, data.address, data.delegator, data.owner, data.account, data.creator, data['sender.address']]));
       const to = normalizeAccount(firstNonEmpty([data.to, data.recipient, data.receiver, data.target, data.validator, data.public_key, data.coin_to_buy, data.delegatee]));
+      const listText = JSON.stringify(data.list || data.recipients || data.outputs || data.items || data.messages || data.coins || data['list.address'] || '');
       const amount = firstNonEmpty([data.amount, data.value, data.stake, data.volume, data.sell, data.min_to_receive, data.value_to_sell, data.value_to_buy, data.initial_amount, data.initSupply, data.volume0]);
       const coin = firstNonEmpty([data.coin && data.coin.symbol, data.coin, data.denom, data.symbol, data.ticker, data.amount && data.amount.coin, data.coin_to_sell && data.coin_to_sell.symbol, data.coin_to_buy && data.coin_to_buy.symbol, data.sellCoin && data.sellCoin.symbol, data.buyCoin && data.buyCoin.symbol]);
-      const involvesTarget = from === target || to === target || String(data.hash || data.tx_hash || data.id || '').toLowerCase() === target;
+      const involvesTarget = from === target || to === target || listText.toLowerCase().includes(target) || String(data.hash || data.tx_hash || data.id || '').toLowerCase() === target;
       if (involvesTarget) {
         const incoming = to === target && from !== target;
         return Object.assign(base, {
@@ -337,7 +348,7 @@
           type,
           direction: 'incoming',
           title: operationLabel(type),
-          text: [incoming && from ? `от ${from}` : (from ? `адрес ${from}` : ''), amount, coin].filter(Boolean).join(', ') || `${type} #${index}`,
+          text: [incoming && from ? `от ${from}` : (from ? `адрес ${from}` : ''), amount, coin, listText && (type === 'multisend') ? 'список получателей' : ''].filter(Boolean).join(', ') || `${type} #${index}`,
           url: historyUrl(chain, target, type)
         });
       }
