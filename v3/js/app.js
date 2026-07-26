@@ -6070,7 +6070,7 @@
     const from = String(account || '').trim();
     return `<section class="card" data-android-decimal-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-decimal-native-heading">
       <h3 id="android-decimal-native-heading">Android native Decimal signer</h3>
-      <p class="muted">Android native Decimal milestone is deliberately narrow: secure seed import plus Preview/check Decimal DEL transfer без broadcast. Execute/send is not exposed until endpoint, fee and response semantics are verified for the native path.</p>
+      <p class="muted">Android native Decimal DEL milestone is now split into safe Preview/check without broadcast and explicit Execute/send through the verified Decimal Web3 eth_sendRawTransaction endpoint.</p>
       <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Эта APK-панель не подписывает Decimal NFT, delegate, swap или token операции.</p>
       <div class="field-grid">
         <div class="field"><label for="android-decimal-from">Decimal from address</label><input id="android-decimal-from" type="text" value="${escapeHtml(from)}" placeholder="d0..., dx... или 0x..." autocomplete="off"></div>
@@ -6085,6 +6085,7 @@
       <div class="actions">
         <button type="button" data-android-decimal-import-seed>Import Decimal seed</button>
         <button type="button" data-android-decimal-preview-send>Preview/check Decimal DEL без broadcast</button>
+        <button type="button" data-android-decimal-execute-send>Execute/send Decimal DEL в сеть</button>
       </div>
       <div id="android-decimal-native-status" role="status" aria-live="polite">Decimal native signer status ещё не запрошен.</div>
     </section>`;
@@ -6127,6 +6128,24 @@
     const previewButton = panel.querySelector('[data-android-decimal-preview-send]');
     if (previewButton) previewButton.addEventListener('click', () => {
       const result = callAndroidWorkerBridge('previewDecimalTransfer', decimalTransferPayload());
+      setNativeStatus(result);
+    });
+    const executeButton = panel.querySelector('[data-android-decimal-execute-send]');
+    if (executeButton) executeButton.addEventListener('click', () => {
+      const payload = decimalTransferPayload();
+      const summary = `Send Decimal DEL now?
+From: ${payload.from}
+To: ${payload.to}
+Amount: ${payload.amount} DEL
+Nonce: ${payload.nonce}
+Gas price: ${payload.gasPrice}
+Gas limit: ${payload.gasLimit}
+EVM chain id: ${payload.evmChainId}`;
+      if (!global.confirm(summary)) {
+        setNativeStatus({ ok: false, status: 'cancelled', reason: 'Decimal execute cancelled by user before broadcast', broadcasted: false });
+        return;
+      }
+      const result = callAndroidWorkerBridge('executeDecimalTransfer', payload);
       setNativeStatus(result);
     });
   }
