@@ -7,13 +7,11 @@ const minterSource = fs.readFileSync('android/app/src/main/java/space/dpos/andro
 const secureImportSource = fs.readFileSync('android/app/src/main/java/space/dpos/android/runtime/SecureKeyImportPolicy.kt', 'utf8');
 const planSource = fs.readFileSync('plan.md', 'utf8');
 
-assert(appSource.includes('data-android-minter-native-panel'), 'Minter wallet exposes a dedicated Android native signer panel');
-assert(appSource.includes('previewMinterTransfer'), 'Minter Android UI calls previewMinterTransfer bridge method');
-assert(appSource.includes("chainId: 'minter'") && appSource.includes("authority: 'seed'"), 'Minter seed import is explicit and separate from worker settings');
-assert(appSource.includes('Android native Minter SEND теперь разделён') && appSource.includes('send_transaction'), 'Minter native UI separates preview/check from explicit network execute');
-assert(appSource.includes('Preview/check Minter SEND без broadcast') && appSource.includes('Execute/send Minter SEND в сеть') && appSource.includes('global.confirm'), 'Minter native UI has no-broadcast preview and a separate confirmed execute button');
-assert(appSource.includes('data-android-decimal-native-panel'), 'Decimal wallet exposes a dedicated Android native preview panel');
-assert(appSource.includes('Decimal native Android signer supports only secure-seed import and no-broadcast DEL transfer preview/check'), 'Decimal native support is truthfully limited to no-broadcast preview');
+assert(!appSource.includes('data-android-minter-native-panel'), 'Minter wallet does not expose a separate APK native signer panel');
+assert(!appSource.includes('data-android-minter-import-seed') && !appSource.includes('Import Minter seed'), 'Minter UI does not expose separate native seed import');
+assert(!appSource.includes('data-android-minter-preview-send') && !appSource.includes('data-android-minter-execute-send'), 'Minter UI does not expose duplicate native preview/execute buttons');
+assert(appSource.includes('id="minter-send-form"') && appSource.includes('Проверить перевод') && appSource.includes('Отправить перевод в сеть'), 'Minter SEND uses the normal wallet preview/send form');
+assert(!appSource.includes('data-android-decimal-native-panel'), 'Decimal wallet does not expose a separate APK native signer panel');
 
 assert(bridgeSource.includes('fun previewMinterTransfer') && bridgeSource.includes('fun executeMinterTransfer'), 'Android bridge exposes Minter preview and execute methods');
 assert(bridgeSource.includes('HttpMinterBroadcaster()') && minterSource.includes('send_transaction') && minterSource.includes('MinterBroadcastRequestBody.fromSignedTx'), 'Android bridge uses verified native Minter send_transaction broadcaster');

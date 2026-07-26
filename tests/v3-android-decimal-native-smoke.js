@@ -7,11 +7,10 @@ const decimalSource = fs.readFileSync('android/app/src/main/java/space/dpos/andr
 const secureImportSource = fs.readFileSync('android/app/src/main/java/space/dpos/android/runtime/SecureKeyImportPolicy.kt', 'utf8');
 const planSource = fs.readFileSync('plan.md', 'utf8');
 
-assert(appSource.includes('data-android-decimal-native-panel'), 'Decimal wallet exposes APK-only native signer panel');
-assert(appSource.includes('previewDecimalTransfer'), 'Decimal Android UI calls previewDecimalTransfer bridge method');
-assert(appSource.includes("chainId: 'decimal'") && appSource.includes("authority: 'seed'"), 'Decimal seed import is explicit and separate from worker settings');
-assert(appSource.includes('Preview/check Decimal DEL без broadcast') && appSource.includes('Execute/send Decimal DEL в сеть') && appSource.includes('global.confirm'), 'Decimal UI exposes no-broadcast preview and separate confirmed execute');
-assert(appSource.includes('executeDecimalTransfer'), 'Decimal execute/broadcast is exposed only after endpoint/body/response semantics were verified');
+assert(!appSource.includes('data-android-decimal-native-panel'), 'Decimal wallet does not expose a separate APK native signer panel');
+assert(!appSource.includes('data-android-decimal-import-seed') && !appSource.includes('Import Decimal seed'), 'Decimal UI does not expose separate native seed import');
+assert(!appSource.includes('data-android-decimal-preview-send') && !appSource.includes('data-android-decimal-execute-send'), 'Decimal UI does not expose duplicate native preview/execute buttons');
+assert(appSource.includes('id="decimal-send-form"') && appSource.includes('Проверить перевод') && appSource.includes('Отправить перевод в сеть'), 'Decimal SEND uses the normal wallet preview/send form');
 
 assert(bridgeSource.includes('fun previewDecimalTransfer') && bridgeSource.includes('fun executeDecimalTransfer'), 'Android bridge exposes Decimal preview and execute methods');
 assert(bridgeSource.includes('HttpDecimalBroadcaster()') && decimalSource.includes('eth_sendRawTransaction') && decimalSource.includes('DecimalBroadcastRequestBody.fromSignedTx'), 'Android bridge uses verified Decimal Web3 eth_sendRawTransaction broadcaster');
