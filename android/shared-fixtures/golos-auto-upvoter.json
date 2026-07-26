@@ -1,0 +1,5 @@
+{
+  "settings": [{ "account": "denis", "enabled": true, "curators": ["curator"], "minEnergy": 8000, "currentEnergy": 9000 }],
+  "events": [{ "kind": "curator_vote", "voter": "curator", "author": "alice", "permlink": "post", "weight": 10000 }],
+  "expectedActions": [{ "account": "denis", "author": "alice", "permlink": "post", "weight": 10000 }]
+}

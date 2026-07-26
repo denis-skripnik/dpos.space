@@ -55,6 +55,23 @@ assert(context.DposPwa, 'DposPwa helper is exposed');
 assert.strictEqual(context.DposPwa.notificationPermission(), 'granted', 'PWA helper reads notification permission');
 assert(context.DposPwa.foregroundRuntimeMessage('Автоапвоутер').includes('Автоапвоутер'), 'foreground runtime message includes active feature label');
 
+let bridgeCall = null;
+const androidContext = {
+  window: null,
+  navigator: {},
+  location: { href: 'https://dpos.blinddev.xyz/#chain=golos&app=notifications', hash: '#chain=golos&app=notifications' },
+  isSecureContext: true,
+  matchMedia: () => ({ matches: false }),
+  addEventListener: () => {},
+  document: { addEventListener: () => {}, visibilityState: 'visible' },
+  DposAndroid: { notify: (title, body, tag, route) => { bridgeCall = { title, body, tag, route }; } }
+};
+androidContext.window = androidContext;
+vm.createContext(androidContext);
+vm.runInContext(pwaSource, androidContext, { filename: 'v3/js/pwa.js' });
+androidContext.DposPwa.notify('Android native', { body: 'Bridge body', tag: 'bridge', data: { url: 'https://dpos.blinddev.xyz/#chain=golos&app=wallet' } });
+assert.deepStrictEqual(bridgeCall, { title: 'Android native', body: 'Bridge body', tag: 'bridge', route: '#chain=golos&app=wallet' }, 'PWA notify routes to Android bridge when present');
+
 assert(appSource.includes('const pwa = global.DposPwa'), 'app.js wires PWA helper');
 assert(appSource.includes('pwa.init(pwaPanel)'), 'app.js initializes PWA panel');
 assert(appSource.includes("pwa.notify('Автоапвоутер запущен'"), 'auto-upvoter start sends local notification when allowed');
