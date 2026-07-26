@@ -15,7 +15,7 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/notifications.js?v=20260726-passkey-download',
   '/v3/js/auto-upvoter.js?v=20260726-passkey-download',
   '/v3/js/pwa.js?v=20260726-passkey-download',
-  '/v3/js/app.js?v=20260726-passkey-download',
+  '/v3/js/app.passkey-download.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'
 ];
