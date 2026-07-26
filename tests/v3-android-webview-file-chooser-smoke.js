@@ -16,5 +16,7 @@ assert(mainActivitySource.includes('Intent.CATEGORY_OPENABLE'), 'Android file ch
 assert(mainActivitySource.includes('startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)'), 'Android file chooser launches a system picker');
 assert(mainActivitySource.includes('WebChromeClient.FileChooserParams.parseResult(resultCode, data)'), 'Android file chooser returns picked URI(s) to WebView');
 assert(mainActivitySource.includes('fileChooserCallback?.onReceiveValue(null)'), 'Android file chooser cancels stale callbacks safely');
+assert(mainActivitySource.includes('WebViewFeature.WEB_AUTHENTICATION'), 'Android WebView checks passkey/WebAuthn support for passkey backups');
+assert(mainActivitySource.includes('WebSettingsCompat.setWebAuthenticationSupport'), 'Android WebView enables WebAuthentication support when available');
 
 console.log('v3 Android WebView file chooser smoke passed');

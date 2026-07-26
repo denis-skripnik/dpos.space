@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "space.dpos.android.debug",
+      "sha256_cert_fingerprints": [
+        "86:B5:1E:10:C6:66:CF:9C:2C:4E:CD:EA:84:07:EC:06:83:80:FB:24:2A:DB:2F:AE:5D:23:73:51:76:8F:3B:27"
+      ]
+    }
+  }
+]

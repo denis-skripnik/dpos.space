@@ -108,6 +108,9 @@ assert(!keys.includes('unrelated_analytics_key'), 'backup excludes unrelated loc
 assert(appSource.includes('Поделиться backup-файлом'), 'backup export offers accessible share-file action');
 assert(appSource.includes('navigator.share({') && appSource.includes('navigator.canShare({ files: [file] })'), 'backup share uses Web Share API file feature detection');
 assert(appSource.includes('Пароль backup-а передайте отдельно'), 'backup share warns that password must be sent separately');
+assert(appSource.includes('backup-passkey-export') && appSource.includes('backup-passkey-import'), 'backup page offers optional passkey PRF export/import beside password fallback');
+assert(appSource.includes('passkey-prf-localstorage-backup'), 'backup page supports a distinct passkey-encrypted backup format');
+assert(appSource.includes('Импортировать резервную копию по паролю'), 'password backup import remains available as fallback');
 assert(appSource.includes('Backup скачан как файл'), 'backup share has download fallback when file sharing is unsupported');
 const shareFile = backup.makeShareFile('backup.json', '{"ok":true}');
 assert.strictEqual(shareFile.name, 'backup.json', 'share helper preserves backup filename');
