@@ -15,6 +15,8 @@ import org.json.JSONObject
 import space.dpos.android.BuildConfig
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
+import space.dpos.android.minter.MinterNativeSupport
+import space.dpos.android.minter.MinterTransferCodec
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.runtime.SecureKeyImportCodec
 import space.dpos.android.runtime.WorkerSettingsCodec
@@ -117,6 +119,29 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
             JSONObject().put("ok", false).put("status", "preview_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("broadcasted", false).toString()
         }
     }
+
+    @JavascriptInterface
+    fun previewMinterTransfer(json: String?): String {
+        return try {
+            val request = MinterTransferCodec.decode(json)
+            val from = request.from ?: throw IllegalArgumentException("from must be supplied for native Minter preview so Android can select the matching secure seed ref")
+            val keyRef = MinterNativeSupport.defaultSeedRef(from)
+            val seed = store.readEncryptedKey(keyRef)
+            val result = MinterNativeSupport.signTransfer(request.copy(from = from), seed.orEmpty(), previewOnly = true)
+            result.toJson().put("keyRef", JSONObject().put("chainId", keyRef.chainId).put("account", keyRef.account).put("authority", keyRef.authority).put("alias", keyRef.alias)).toString()
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("status", "preview_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("chainId", "minter").put("broadcasted", false).toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun executeMinterTransfer(json: String?): String = JSONObject()
+        .put("ok", false)
+        .put("status", "broadcast_not_enabled")
+        .put("reason", "native Minter signer is implemented for offline preview/check only; live Minter broadcast stays in the WebView SDK path until the native broadcaster endpoint is verified")
+        .put("chainId", "minter")
+        .put("broadcasted", false)
+        .toString()
 
     @JavascriptInterface
     fun openBatterySettings(): String {

@@ -66,7 +66,7 @@ class GrapheneNativeVoteSupportTest {
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("hive", "denis", "posting", "posting", wif, true)).accepted)
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("steem", "denis", "posting", "posting", wif, true)).accepted)
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("viz", "denis", "regular", "regular", wif, true)).accepted)
-        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "denis", "posting", "posting", wif, true)).accepted)
+        assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "Mx9858effd232b4033e47d90003d41ec34ecaeda94", "seed", "seed", "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", true)).accepted)
     }
 
     @Test fun vizSpecIsNotificationsOnlyUntilRegularAwardSigningIsImplemented() {
