@@ -5992,8 +5992,8 @@
     const from = String(account || '').trim();
     return `<section class="card" data-android-minter-native-panel ${hasBridge ? '' : 'hidden'} aria-labelledby="android-minter-native-heading">
       <h3 id="android-minter-native-heading">Android native Minter signer</h3>
-      <p class="muted">Реальная native-часть сейчас ограничена безопасным milestone: secure seed import и offline preview/check для Minter SEND с numeric coinId/gasCoinId. Preview не делает broadcast; обычная отправка остаётся через WebView Minter SDK.</p>
-      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Не вставляйте seed в worker settings.</p>
+      <p class="muted">Android native Minter SEND теперь разделён на две явные операции: preview/check подписывает и показывает проверку без broadcast, а execute/send отправляет подписанную транзакцию через публичный Minter send_transaction только после отдельного подтверждения.</p>
+      <p class="warning">Seed импортируется отдельно через importSecureKey и хранится в Android secure storage. Не вставляйте seed в worker settings. Перед execute проверьте адрес, сумму, coinId/gasCoinId и nonce.</p>
       <div class="field-grid">
         <div class="field"><label for="android-minter-from">Minter from address</label><input id="android-minter-from" type="text" value="${escapeHtml(from)}" placeholder="Mx..." autocomplete="off"></div>
         <div class="field"><label for="android-minter-seed">Minter seed для secure storage</label><input id="android-minter-seed" type="password" placeholder="12-24 seed words" autocomplete="off"></div>
@@ -6007,6 +6007,7 @@
       <div class="actions">
         <button type="button" data-android-minter-import-seed>Import Minter seed</button>
         <button type="button" data-android-minter-preview-send>Preview/check Minter SEND без broadcast</button>
+        <button type="button" data-android-minter-execute-send>Execute/send Minter SEND в сеть</button>
       </div>
       <div id="android-minter-native-status" role="status" aria-live="polite">Minter native signer status ещё не запрошен.</div>
     </section>`;
@@ -6037,17 +6038,29 @@
       });
       setNativeStatus(result);
     });
+    const minterTransferPayload = () => ({
+      from: value('#android-minter-from'),
+      to: value('#android-minter-to'),
+      amount: value('#android-minter-amount'),
+      coinId: value('#android-minter-coin-id') || '0',
+      gasCoinId: value('#android-minter-gas-coin-id') || '0',
+      nonce: value('#android-minter-nonce'),
+      memo: value('#android-minter-memo')
+    });
     const previewButton = panel.querySelector('[data-android-minter-preview-send]');
     if (previewButton) previewButton.addEventListener('click', () => {
-      const result = callAndroidWorkerBridge('previewMinterTransfer', {
-        from: value('#android-minter-from'),
-        to: value('#android-minter-to'),
-        amount: value('#android-minter-amount'),
-        coinId: value('#android-minter-coin-id') || '0',
-        gasCoinId: value('#android-minter-gas-coin-id') || '0',
-        nonce: value('#android-minter-nonce'),
-        memo: value('#android-minter-memo')
-      });
+      const result = callAndroidWorkerBridge('previewMinterTransfer', minterTransferPayload());
+      setNativeStatus(result);
+    });
+    const executeButton = panel.querySelector('[data-android-minter-execute-send]');
+    if (executeButton) executeButton.addEventListener('click', () => {
+      const payload = minterTransferPayload();
+      const ok = global.confirm ? global.confirm(`Отправить Minter SEND в сеть?\nFrom: ${payload.from}\nTo: ${payload.to}\nAmount: ${payload.amount}\nNonce: ${payload.nonce}`) : false;
+      if (!ok) {
+        setNativeStatus({ ok: false, status: 'cancelled', reason: 'Minter execute отменён пользователем до broadcast.' });
+        return;
+      }
+      const result = callAndroidWorkerBridge('executeMinterTransfer', payload);
       setNativeStatus(result);
     });
   }

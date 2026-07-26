@@ -13,6 +13,8 @@ import space.dpos.android.storage.EncryptedKeyRef
 import java.io.ByteArrayOutputStream
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
 
@@ -47,6 +49,17 @@ object MinterNativeSupport {
         return MinterTransferResult(true, if (previewOnly) "preview_ready" else "signed", if (previewOnly) "signed Minter transfer preview; not broadcast" else "signed Minter transfer ready for broadcaster", request.copy(from = from), from = from, signedTx = signedTx, previewOnly = previewOnly)
     }
 
+    fun executeTransfer(request: MinterTransferRequest, seedPhrase: String, broadcaster: MinterBroadcaster): MinterTransferResult {
+        val signed = signTransfer(request, seedPhrase, previewOnly = false)
+        if (!signed.ok || signed.signedTx.isNullOrBlank()) return signed
+        return try {
+            val response = broadcaster.broadcast(signed.signedTx)
+            signed.copy(status = "broadcast_sent", reason = "native Minter SEND transaction was submitted through verified send_transaction broadcaster", previewOnly = false, broadcastResponse = response)
+        } catch (error: Exception) {
+            signed.copy(ok = false, status = "broadcast_error", reason = error.message ?: "native Minter broadcast failed", previewOnly = false)
+        }
+    }
+
     private fun privateKeyFromMnemonic(seedPhrase: String): ECKey {
         val normalized = Normalizer.normalize(seedPhrase.trim().lowercase(Locale.ROOT), Normalizer.Form.NFKD)
         val seed = MnemonicCode.toSeed(normalized.split(Regex("\\s+")).filter { it.isNotBlank() }, "")
@@ -63,6 +76,62 @@ object MinterNativeSupport {
     }
 
     internal fun privateKeyForTest(seedPhrase: String): ECKey = privateKeyFromMnemonic(seedPhrase)
+}
+
+
+interface MinterBroadcaster {
+    fun broadcast(signedTx: String): JSONObject
+}
+
+object MinterBroadcastRequestBody {
+    fun fromSignedTx(signedTx: String): String = JSONObject().put("tx", signedTx).toString()
+}
+
+object MinterBroadcastResponseParser {
+    fun parse(rawJson: String): JSONObject {
+        val root = JSONObject(rawJson.ifBlank { "{}" })
+        val data = root.optJSONObject("data") ?: root
+        val tx = data.optJSONObject("transaction")
+        if (tx != null) {
+            val code = tx.optInt("code", 0)
+            if (code > 0) {
+                val log = tx.optString("log", "")
+                throw IllegalStateException("Transaction included in the block with error code $code${if (log.isBlank()) "" else ": $log"}")
+            }
+            return tx
+        }
+        if (data.has("hash")) return JSONObject().put("hash", data.optString("hash"))
+        return data
+    }
+}
+
+class HttpMinterBroadcaster(private val apiBase: String = "https://api.minter.one/v2") : MinterBroadcaster {
+    override fun broadcast(signedTx: String): JSONObject {
+        require(signedTx.startsWith("0x")) { "signed Minter transaction must be a 0x-prefixed hex string" }
+        val url = URL("${apiBase.trimEnd('/')}/send_transaction")
+        val body = MinterBroadcastRequestBody.fromSignedTx(signedTx).toByteArray(Charsets.UTF_8)
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+        }
+        connection.outputStream.use { it.write(body) }
+        val responseCode = connection.responseCode
+        val responseText = try {
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        } finally {
+            connection.disconnect()
+        }
+        if (responseCode !in 200..299) {
+            val reason = PayloadSanitizer.text(responseText.ifBlank { "HTTP $responseCode" }, 300)
+            throw IllegalStateException("Minter send_transaction HTTP $responseCode: $reason")
+        }
+        return MinterBroadcastResponseParser.parse(responseText)
+    }
 }
 
 data class MinterTransferRequest(
