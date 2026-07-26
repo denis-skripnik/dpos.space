@@ -6212,8 +6212,8 @@ Minter and Decimal notifications are now supported through their existing public
 
 - Minter web/native notification source: `explorerBase /addresses/{address}/transactions?page=1`.
 - Decimal web/native notification source: `apiBase /txs/txs-by-address/{address}?limit=...&offset=0`.
-- Supported filters: Minter `send`, `multisend`, `delegate`, `unbond`, swap/liquidity/token wallet operations; Decimal `send`, `multisend`, `delegate`, `unbond`, token/NFT wallet operations. Raw API aliases such as Minter `multisend_coin`/`COIN_MULTISEND` and Decimal `/decimal.coin.v1.MsgMultiSendCoin` are normalized to the single user-facing `multisend` filter.
+- Supported filters: Minter `send`, `multisend`, `delegate`, `unbond`, swap/liquidity/token wallet operations; Decimal `send`, `multisend`, `delegate`, `unbond`, token/NFT wallet operations. `multisend` is a normal wallet operation in the shared operation catalog used by history, notifications, and Android worker filtering.
 - Android worker support is read-only: it stores notification settings and selected `notificationOps`, polls public history, shows local notifications, and never signs or broadcasts.
 - The UI remains unified: open/save the normal Notifications page; no separate Android import/start/check buttons or Minter/Decimal signer panels are exposed.
 
-- 2026-07-26 follow-up: Minter/Decimal notification filters include a single user-facing `multisend` operation. API/raw aliases (`multisend_coin`, `COIN_MULTISEND`, `multi_send`, `/decimal.coin.v1.MsgMultiSendCoin`) are normalized before web/native filtering so users do not need to know technical type names.
+- 2026-07-26 follow-up: Minter/Decimal notification filters include `multisend` as a normal shared wallet operation. Raw API/message names are handled by the operation catalog before filtering, not by notification-specific hardcode.

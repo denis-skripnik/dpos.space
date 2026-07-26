@@ -209,20 +209,12 @@
   }
 
 
-  function normalizeOperationType(chainId, type) {
-    const raw = String(type || 'unknown');
-    const lower = raw.toLowerCase();
-    if (chainId === 'minter' && ['multisend', 'multisend_coin', 'coin_multisend', 'coin_multisend_data', '13'].includes(lower)) return 'multisend';
-    if (chainId === 'decimal' && ['multisend', 'multi_send', '/decimal.coin.v1.msgmultisendcoin', 'msgmultisendcoin'].includes(lower)) return 'multisend';
-    return raw;
-  }
-
   function toNotification(chain, account, item) {
     if (!supportsChain(chain) || !item) return null;
     const target = normalizeAccount(account);
     const data = item.data || {};
     const rawType = item.type || 'unknown';
-    const type = normalizeOperationType(chain.id, rawType);
+    const type = global.DposHistory && typeof global.DposHistory.canonicalOperationType === 'function' ? global.DposHistory.canonicalOperationType(chain, rawType) : rawType;
     const index = historyIndex(item);
     const timestamp = item.timestamp || '';
     const base = {

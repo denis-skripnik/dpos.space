@@ -6,8 +6,8 @@
     golos: ['vote', 'comment', 'content_mentions', 'comment_mention', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'break_free_referral', 'delegate_vesting_shares_with_interest', 'reject_vesting_shares_delegation', 'transit_to_cyberway', 'worker_request', 'worker_request_delete', 'worker_request_vote', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'comment_payout_update', 'comment_benefactor_reward', 'return_vesting_delegation', 'producer_reward', 'delegation_reward', 'auction_window_reward'],
     viz: ['transfer', 'transfer_to_vesting', 'withdraw_vesting', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'set_withdraw_vesting_route', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'delegate_vesting_shares', 'account_create', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'fill_vesting_withdraw', 'shutdown_witness', 'return_vesting_delegation', 'committee_worker_create_request', 'committee_worker_cancel_request', 'committee_vote_request', 'committee_cancel_request', 'committee_approve_request', 'committee_payout_request', 'committee_pay_request', 'witness_reward', 'create_invite', 'claim_invite_balance', 'invite_registration', 'versioned_chain_properties_update', 'award', 'fixed_award', 'receive_award', 'benefactor_award', 'set_paid_subscription', 'paid_subscribe', 'paid_subscription_action', 'cancel_paid_subscription', 'set_account_price', 'set_subaccount_price', 'buy_account', 'account_sale', 'use_invite_balance', 'expire_escrow_ratification', 'target_account_sale', 'bid', 'outbid'],
     steem: ['vote', 'comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'producer_reward'],
-    minter: ['send', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token'],
-    decimal: ['send', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft'],
+    minter: ['send', 'multisend', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token'],
+    decimal: ['send', 'multisend', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft'],
     hive: ['vote', 'comment', 'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'limit_order_create', 'limit_order_cancel', 'feed_publish', 'convert', 'account_create', 'account_update', 'witness_update', 'account_witness_vote', 'account_witness_proxy', 'custom', 'delete_comment', 'custom_json', 'comment_options', 'set_withdraw_vesting_route', 'limit_order_create2', 'request_account_recovery', 'recover_account', 'change_recovery_account', 'escrow_transfer', 'escrow_dispute', 'escrow_release', 'escrow_approve', 'transfer_to_savings', 'transfer_from_savings', 'cancel_transfer_from_savings', 'custom_binary', 'decline_voting_rights', 'reset_account', 'set_reset_account', 'delegate_vesting_shares', 'account_create_with_delegation', 'account_metadata', 'proposal_create', 'proposal_update', 'proposal_delete', 'chain_properties_update', 'fill_convert_request', 'author_reward', 'curation_reward', 'comment_reward', 'interest', 'fill_vesting_withdraw', 'fill_order', 'shutdown_witness', 'fill_transfer_from_savings', 'hardfork', 'producer_reward']
   };
 
@@ -23,6 +23,44 @@
     }
   };
 
+
+  const operationAliases = {
+    minter: {
+      13: 'multisend',
+      '0x0d': 'multisend',
+      multisend_coin: 'multisend',
+      coin_multisend: 'multisend',
+      COIN_MULTISEND: 'multisend'
+    },
+    decimal: {
+      multi_send: 'multisend',
+      '/decimal.coin.v1.MsgMultiSendCoin': 'multisend',
+      '/decimal.coin.v1.msgmultisendcoin': 'multisend',
+      MsgMultiSendCoin: 'multisend',
+      msgmultisendcoin: 'multisend'
+    }
+  };
+
+  function chainIdOf(chain) {
+    return typeof chain === 'string' ? chain : (chain && (chain.id || (chain.config && chain.config.id))) || '';
+  }
+
+  function canonicalOperationType(chain, type) {
+    if (type === null || typeof type === 'undefined' || type === '') return '';
+    const chainId = chainIdOf(chain);
+    const aliases = operationAliases[chainId] || {};
+    if (Object.prototype.hasOwnProperty.call(aliases, type)) return aliases[type];
+    const text = String(type);
+    if (Object.prototype.hasOwnProperty.call(aliases, text)) return aliases[text];
+    const lower = text.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(aliases, lower)) return aliases[lower];
+    if (/^0x[0-9a-f]+$/i.test(text)) {
+      const hex = `0x${Number.parseInt(text, 16).toString(16).padStart(2, '0')}`;
+      if (Object.prototype.hasOwnProperty.call(aliases, hex)) return aliases[hex];
+    }
+    return text;
+  }
+
   const walletOps = {
     golos: new Set([
       'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'transfer_from_tip', 'transfer_to_tip', 'donate', 'claim',
@@ -37,8 +75,8 @@
       'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'curation_reward', 'author_reward',
       'comment_benefactor_reward', 'producer_reward', 'fill_order'
     ]),
-    minter: new Set(['send', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token']),
-    decimal: new Set(['send', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft']),
+    minter: new Set(['send', 'multisend', 'delegate', 'unbond', 'sell', 'sell_swap_pool', 'add_liquidity', 'remove_liquidity', 'create_coin', 'mint_token', 'burn_token']),
+    decimal: new Set(['send', 'multisend', 'delegate', 'unbond', 'create_token', 'transfer_token', 'nft']),
     hive: new Set([
       'transfer', 'transfer_to_vesting', 'withdraw_vesting', 'curation_reward', 'author_reward',
       'comment_benefactor_reward', 'producer_reward', 'fill_order'
@@ -81,6 +119,7 @@
     CHECK_ISSUE: 'Создание чека',
     mint_nft: 'Создание NFT',
     NFT_MINT: 'Создание NFT',
+    multisend: 'Мультисенд (мульти-отправка)',
     multisend_coin: 'Мультисенд (мульти-отправка)',
     COIN_MULTISEND: 'Мультисенд (мульти-отправка)',
     receive_award: 'Получение награды',
@@ -268,7 +307,7 @@
       if (!response.ok) throw new Error(`Minter history API HTTP ${response.status}`);
       const data = await response.json();
       const normalized = normalizeRestHistory(data.data || data.transactions || []);
-      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(item.type)) : normalized;
+      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(canonicalOperationType(chain.config.id, item.type))) : normalized;
     }
     if (chain.config.id === 'decimal') {
       const offset = Number.isFinite(Number(options.offset)) ? Number(options.offset) : 0;
@@ -276,14 +315,14 @@
       if (!response.ok) throw new Error(`Decimal history API HTTP ${response.status}`);
       const data = await response.json();
       const normalized = normalizeRestHistory(unwrapRestHistory(data));
-      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(item.type)) : normalized;
+      return selectedOps.length ? normalized.filter((item) => selectedOps.includes(canonicalOperationType(chain.config.id, item.type))) : normalized;
     }
 
     const raw = await callApi(chain, 'getAccountHistory', args);
     const normalized = normalizeHistory(raw);
 
     return selectedOps.length > 0 && chain.config.id !== 'golos'
-      ? normalized.filter((item) => selectedOps.includes(item.type))
+      ? normalized.filter((item) => selectedOps.includes(canonicalOperationType(chain.config.id, item.type)))
       : normalized;
   }
 
@@ -348,7 +387,7 @@
   function isWalletOperation(chain, item) {
     const set = walletOps[chain.id] || new Set(['transfer']);
     const data = item.data || {};
-    return set.has(item.type) || Boolean(data.from && data.to && data.amount);
+    return set.has(canonicalOperationType(chain, item.type)) || Boolean(data.from && data.to && data.amount);
   }
 
   function getWalletOperations(chain, items) {
@@ -423,6 +462,7 @@
     normalizeRestHistory,
     getWalletOperations,
     operationOptions,
-    operationTitle
+    operationTitle,
+    canonicalOperationType
   });
 })(window);

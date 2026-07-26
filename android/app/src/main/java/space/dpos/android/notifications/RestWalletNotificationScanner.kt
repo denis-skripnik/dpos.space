@@ -17,6 +17,18 @@ object RestWalletNotificationSpecs {
         "decimal" to listOf("send", "multisend", "delegate", "unbond", "create_token", "transfer_token", "nft")
     )
 
+    private val operationAliases: Map<String, Map<String, String>> = mapOf(
+        "minter" to mapOf("13" to "multisend", "0x0d" to "multisend", "multisend_coin" to "multisend", "coin_multisend" to "multisend", "COIN_MULTISEND" to "multisend"),
+        "decimal" to mapOf("multi_send" to "multisend", "/decimal.coin.v1.MsgMultiSendCoin" to "multisend", "/decimal.coin.v1.msgmultisendcoin" to "multisend", "MsgMultiSendCoin" to "multisend", "msgmultisendcoin" to "multisend")
+    )
+
+    fun canonicalType(chainId: String, type: String): String {
+        val aliases = operationAliases[chainId].orEmpty()
+        aliases[type]?.let { return it }
+        aliases[type.lowercase()]?.let { return it }
+        return type
+    }
+
     fun urlFor(chainId: String, account: String, limit: Int): String = when (chainId) {
         "minter" -> "$MINTER_EXPLORER/addresses/${account}/transactions?page=1"
         "decimal" -> "$DECIMAL_API/txs/txs-by-address/${account}?limit=${limit.coerceIn(1, 100)}&offset=0"
@@ -45,7 +57,7 @@ class RestWalletHistoryClient(private val chainId: String) {
         for (i in 0 until rows.length()) {
             val obj = rows.optJSONObject(i) ?: continue
             val data = obj.optJSONObject("data") ?: obj.optJSONObject("message") ?: obj.optJSONObject("payload") ?: obj
-            val type = normalizeType(firstNonBlank(obj.optString("type"), obj.optString("tx_type"), obj.optString("transaction_type"), obj.optString("message_type"), data.optString("type"), data.optString("@type"), data.optString("msg_type"), "transaction"))
+            val type = RestWalletNotificationSpecs.canonicalType(chainId, firstNonBlank(obj.optString("type"), obj.optString("tx_type"), obj.optString("transaction_type"), obj.optString("message_type"), data.optString("type"), data.optString("@type"), data.optString("msg_type"), "transaction"))
             val index = sourceIndex(obj, data, fallback = i.toLong())
             val map = mutableMapOf<String, String>()
             flatten(data, map)
@@ -58,13 +70,6 @@ class RestWalletHistoryClient(private val chainId: String) {
         return result
     }
 
-
-    private fun normalizeType(type: String): String {
-        val lower = type.trim().lowercase()
-        if (chainId == "minter" && lower in setOf("multisend", "multisend_coin", "coin_multisend", "coin_multisend_data", "13")) return "multisend"
-        if (chainId == "decimal" && lower in setOf("multisend", "multi_send", "/decimal.coin.v1.msgmultisendcoin", "msgmultisendcoin")) return "multisend"
-        return type
-    }
 
     private fun unwrapRows(root: JSONObject): JSONArray {
         val candidates = listOf(
