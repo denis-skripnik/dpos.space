@@ -36,7 +36,7 @@ Manual smoke checklist before sharing an APK:
 Native signing/broadcast status:
 
 - Kotlin has a real-capable Golos vote signer/broadcaster path for planned auto-upvoter actions: local WIF/secp256k1 signing via `bitcoinj-core`, Graphene vote transaction JSON construction, and JSON-RPC broadcast through configured Golos RPC.
+- Android worker imports curator/favorite settings, scans curator account history plus favorite blog posts via Golos RPC, plans vote actions, then uses the real signer/broadcaster path when account/key/worker/auto-upvoter settings are enabled.
 - Preview/check is explicit and separate: `previewAutoVote(json)` / `VoteRuntime.preview(...)` builds the signed transaction path but never broadcasts.
 - Automated tests use fake RPC/broadcaster/signers and never perform mainnet broadcasts.
-- Current native candidate-source gap: worker ticks do not yet import/collect curator/favorite event candidates for Android, so with no native candidates the worker logs “no eligible vote actions” instead of broadcasting placeholder votes.
 - Live mainnet validation, Google Play publishing, AAB signing, release keystore use, and Play service accounts require explicit Denis approval and local/CI secrets outside git.

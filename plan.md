@@ -511,9 +511,21 @@ Validation boundaries:
 - Unit coverage proves: enabled account+key does not require an extra dry-run-off flag, preview does not broadcast, normal runtime branch calls fake real signer+broadcaster when key exists, missing key skips clearly, Golos header/transaction JSON/signature shape is deterministic enough for fixture checks, and fake broadcaster receives signed tx JSON.
 - Real-device/live smoke remains manual and requires Denis approval before any mainnet vote: install APK, import a low-risk Golos posting key, enable worker+auto-upvoter, verify foreground notification/logs, run explicit preview/check first, then approve a controlled live vote and read back chain/history.
 
-Known remaining gap:
+Known completed follow-up:
 
-- The worker now has a real signing/broadcast path for planned Golos vote actions, but current native event-source import still does not feed curator/favorite candidates into `collectAutoVoteEvents(...)`; until that follow-up is completed, normal production ticks with no imported native candidates log “no eligible vote actions” instead of inventing placeholder votes. This is a candidate-source completion gap, not a dry-run signing/broadcast blocker.
+- Android worker now imports curator/favorite source settings, scans curator account history and favorite blog posts through Golos RPC, maps those rows into native `VoteEvent`s, plans actions with the same curator/favorite semantics, and then uses the real signing/broadcast path when account/key/worker/auto-upvoter gates are enabled.
+
+### Android milestone 5 — native candidate source collection for auto-upvoter
+
+Status: implemented after commit `563267ad78aa9a9df41bee65ce5a3c3934433fb0`.
+
+Scope covered:
+
+- Phase 4/6/7: `importWorkerSettings(json)` now accepts non-secret auto-upvoter sources and vote settings: `curators`, `favorites`, `curatorCoefficient`, `favoritesPercent`, `minEnergy`, `maxActionsPerTick`.
+- `WorkerStore` persists those source settings per `chain:account`.
+- Added native Golos event source layer: `AutoVoteEventCollector`, `AutoVoteEventMapper`, `GolosDiscussionClient`, `HttpGolosDiscussionClient`, and favorite-post row parsing.
+- `DposPeriodicWorker` no longer calls an empty event stub; it collects curator votes from account history and favorite posts from blog/discussion RPC, plans eligible votes, then executes the real signer/broadcaster path when configured.
+- Unit coverage proves settings import carries sources, collector fetches curator/favorite events, collected events feed the planner into vote actions, and blog active-vote rows parse correctly.
 
 Remaining explicit blockers/non-goals:
 

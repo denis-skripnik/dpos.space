@@ -11,8 +11,10 @@ import space.dpos.android.storage.NotificationCursor
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.AccountSettings
 import space.dpos.android.upvoter.AutoUpvoterPlanner
+import space.dpos.android.upvoter.AutoVoteEventCollector
 import space.dpos.android.upvoter.AutoVoteRuntime
 import space.dpos.android.upvoter.GolosBroadcastClient
+import space.dpos.android.upvoter.HttpGolosDiscussionClient
 import space.dpos.android.upvoter.HttpGolosRpcClient
 import space.dpos.android.upvoter.PostingKeyProvider
 import space.dpos.android.upvoter.VoteEvent
@@ -46,9 +48,19 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
                         store.appendLog("auto-upvoter ${account.chainId}:${account.account} skipped: missing posting key")
                         continue
                     }
+                    val settings = AccountSettings(
+                        account.account,
+                        enabled = true,
+                        curators = store.curators(account.chainId, account.account),
+                        favorites = store.favorites(account.chainId, account.account),
+                        minEnergy = store.minEnergy(account.chainId, account.account),
+                        curatorCoefficient = store.curatorCoefficient(account.chainId, account.account),
+                        favoritesPercent = store.favoritesPercent(account.chainId, account.account),
+                        maxActionsPerTick = store.maxActions(account.chainId, account.account)
+                    )
                     val plan = AutoUpvoterPlanner().plan(
-                        listOf(AccountSettings(account.account, enabled = true, minEnergy = store.minEnergy(account.chainId, account.account), maxActionsPerTick = store.maxActions(account.chainId, account.account))),
-                        collectAutoVoteEvents(account.account)
+                        listOf(settings),
+                        collectAutoVoteEvents(listOf(settings))
                     )
                     if (plan.actions.isEmpty()) {
                         store.appendLog("auto-upvoter ${account.chainId}:${account.account}: no eligible vote actions; skips=${plan.skips.size}")
@@ -73,10 +85,8 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
         return if (hadError) Result.retry() else Result.success()
     }
 
-    private fun collectAutoVoteEvents(account: String): List<VoteEvent> {
-        // Real event collection is intentionally separated from preview/check and signing.
-        // Until shared event-source settings are imported, the worker has no eligible candidates and will not invent placeholder votes.
-        return emptyList()
+    private fun collectAutoVoteEvents(settings: List<AccountSettings>): List<VoteEvent> {
+        return AutoVoteEventCollector(HttpGolosHistoryClient(), HttpGolosDiscussionClient()).collect(settings)
     }
 
     companion object {

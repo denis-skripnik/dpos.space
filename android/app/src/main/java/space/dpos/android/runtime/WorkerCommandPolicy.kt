@@ -1,5 +1,6 @@
 package space.dpos.android.runtime
 
+import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
 
@@ -11,7 +12,11 @@ data class AccountImportRequest(
     val explicitConsent: Boolean,
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
-    val intervalMinutes: Int = 15
+    val intervalMinutes: Int = 15,
+    val curators: List<String> = emptyList(),
+    val favorites: List<String> = emptyList(),
+    val curatorCoefficient: Int = 100,
+    val favoritesPercent: Int = 100
 )
 
 data class ImportDecision(
@@ -23,7 +28,11 @@ data class ImportDecision(
     val enableAutoUpvoter: Boolean = false,
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
-    val intervalMinutes: Int = 15
+    val intervalMinutes: Int = 15,
+    val curators: List<String> = emptyList(),
+    val favorites: List<String> = emptyList(),
+    val curatorCoefficient: Int = 100,
+    val favoritesPercent: Int = 100
 )
 
 object WorkerCommandPolicy {
@@ -47,9 +56,18 @@ object WorkerCommandPolicy {
             enableAutoUpvoter = request.enableAutoUpvoter,
             minEnergy = request.minEnergy.coerceIn(0, 10000),
             maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
-            intervalMinutes = request.intervalMinutes.coerceAtLeast(15)
+            intervalMinutes = request.intervalMinutes.coerceAtLeast(15),
+            curators = normalizeAccounts(request.curators),
+            favorites = normalizeAccounts(request.favorites),
+            curatorCoefficient = request.curatorCoefficient.coerceIn(0, 100),
+            favoritesPercent = request.favoritesPercent.coerceIn(0, 100)
         )
     }
+
+    fun normalizeAccounts(values: List<String>): List<String> = values
+        .map { it.trim().removePrefix("@").lowercase() }
+        .filter { accountPattern.matches(it) }
+        .distinct()
 
     fun hasSecretLikeFields(json: JSONObject): Boolean {
         val keys = json.keys()
@@ -76,7 +94,11 @@ object WorkerSettingsCodec {
                     explicitConsent = obj.optBoolean("explicitConsent", false),
                     minEnergy = obj.optInt("minEnergy", 2500),
                     maxActionsPerTick = obj.optInt("maxActionsPerTick", 5),
-                    intervalMinutes = obj.optInt("intervalMinutes", 15)
+                    intervalMinutes = obj.optInt("intervalMinutes", 15),
+                    curators = readAccountList(obj.opt("curators")),
+                    favorites = readAccountList(obj.opt("favorites")),
+                    curatorCoefficient = obj.optInt("curatorCoefficient", 100),
+                    favoritesPercent = obj.optInt("favoritesPercent", 100)
                 )
             )
         } catch (e: Exception) {
@@ -94,7 +116,16 @@ object WorkerSettingsCodec {
         .put("minEnergy", decision.minEnergy)
         .put("maxActionsPerTick", decision.maxActionsPerTick)
         .put("intervalMinutes", decision.intervalMinutes)
+        .put("curators", JSONArray(decision.curators))
+        .put("favorites", JSONArray(decision.favorites))
+        .put("curatorCoefficient", decision.curatorCoefficient)
+        .put("favoritesPercent", decision.favoritesPercent)
         .toString()
+
+    private fun readAccountList(value: Any?): List<String> {
+        if (value is JSONArray) return (0 until value.length()).map { value.optString(it) }
+        return value?.toString().orEmpty().split(Regex("[\\s,;]+"))
+    }
 
     fun statusJson(
         running: Boolean,
