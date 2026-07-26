@@ -8,7 +8,9 @@ import space.dpos.android.notifications.HttpGolosHistoryClient
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.storage.NotificationCursor
 import space.dpos.android.storage.WorkerStore
+import space.dpos.android.upvoter.DisabledVoteSigner
 import space.dpos.android.upvoter.DryRunVoteLog
+import space.dpos.android.upvoter.VoteOperationFixture
 import space.dpos.android.upvoter.VotePlan
 
 class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
@@ -32,7 +34,12 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
                 }
             }
             if (account.chainId == "golos" && store.autoUpvoterEnabled(account.chainId, account.account)) {
-                val dryRun = DryRunVoteLog.render(VotePlan(emptyList(), listOf("dry-run: native event collection not enabled without live signing approval")))
+                val operation = VoteOperationFixture.golosFavoriteVote(account = account.account, author = "fixture-author", permlink = "dry-run-placeholder", weight = 10000)
+                val signingGate = DisabledVoteSigner().sign(operation, null, manualRuntimeConfirmation = false)
+                val dryRun = DryRunVoteLog.render(
+                    VotePlan(emptyList(), listOf("dry-run: native event collection not enabled without live signing approval", "signing:${signingGate.status}")),
+                    signingGate.toJson().toString()
+                )
                 store.appendLog("auto-upvoter ${account.chainId}:${account.account}\n$dryRun")
             }
         }

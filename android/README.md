@@ -22,7 +22,8 @@ Native bridge controls exposed only inside the Android WebView:
 
 - `window.DposAndroid.getAppInfo()` — app/web/runtime metadata.
 - `window.DposAndroid.getWorkerStatus()` — foreground/runtime status, account count, last/next tick, redacted logs.
-- `window.DposAndroid.importWorkerSettings(json)` — explicit opt-in import of non-secret worker settings. The JSON must include `explicitConsent: true`; secret-like fields such as private keys, WIFs, seeds, mnemonic, password, token or key are rejected. Key import is intentionally reserved for native secure-storage UI/flow.
+- `window.DposAndroid.importWorkerSettings(json)` — explicit opt-in import of non-secret worker settings. The JSON must include `explicitConsent: true`; secret-like fields such as private keys, WIFs, seeds, mnemonic, password, token or key are rejected. Key import is intentionally separated from normal settings import.
+- `window.DposAndroid.importSecureKey(json)` — dedicated secure-key import bridge. It requires `explicitConsent: true`, validates `chainId`, `account`, `authority`, and `alias`, stores the private key only through Android encrypted storage, and returns only `keyRef` / `hasKey` metadata. The bridge does not log, export, or echo the secret. Current test-safe scope is Golos posting/active key references for native worker use.
 - `window.DposAndroid.startWorker()` / `stopWorker()` — start/stop visible foreground service.
 - `window.DposAndroid.checkNow()` — enqueue a one-shot WorkManager check.
 - `window.DposAndroid.openBatterySettings()` — open Android app settings so the user can review battery restrictions.
@@ -33,6 +34,7 @@ Current worker scope:
 - Golos notification worker supports incoming-only history checks with first-run cursor baseline.
 - Foreground service has visible persistent notification actions: open, check now, stop.
 - Boot restore starts only when the user had enabled the worker.
-- Native auto-upvoter is dry-run/planning only. No mainnet vote/broadcast is performed by automated tests or background worker in this milestone.
+- Native auto-upvoter is dry-run/planning only. It now has a test-safe vote operation/dry-run broadcast abstraction for Golos vote payloads, but the foreground worker does not perform real signing or mainnet broadcast.
+- Secure signing keys can be imported only through the dedicated `importSecureKey(json)` bridge and Android encrypted storage. Normal settings import rejects secret-like fields.
 
 Release signing secrets/keystores must not be committed. Use Android Studio, local untracked Gradle properties, or CI secrets later for signed release builds.
