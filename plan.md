@@ -136,7 +136,7 @@ Acceptance checks for this matrix:
 
 ### Android native parity: Minter SEND signer
 
-This bounded run moved Minter from pure WebView-only to a narrow real native signer milestone. Decimal remains WebView-only/native TODO.
+This bounded run moved Minter from pure WebView-only to a narrow real native signer milestone. Later Android milestones added Decimal DEL preview and then Decimal DEL execute/broadcast; non-DEL Decimal operations remain native TODO.
 
 | Item | Truthful status |
 | --- | --- |
@@ -163,7 +163,7 @@ This bounded run verified native Minter broadcast semantics from the vendored Mi
 | Native SEND execute | Implemented for the same numeric SEND payload after secure seed import and explicit user confirmation in the Android WebView panel. Kotlin uses `HttpMinterBroadcaster` to `POST ${apiBase}/send_transaction` with exact JSON body `{ "tx": "0x..." }` and parses Minter response/error semantics. |
 | Automated safety | Unit tests inject a fake `MinterBroadcaster`; no test calls the live Minter mainnet endpoint. Tests assert exact request body and response parsing for `data.hash`, `data.transaction`, and `transaction.code > 0` errors. |
 | UI safety | Android panel separates `Preview/check Minter SEND без broadcast` from `Execute/send Minter SEND в сеть`, and execute uses a browser confirm dialog with from/to/amount/nonce before calling the bridge. |
-| Decimal | Decimal now has a separate bounded no-broadcast preview milestone below. Native execute/broadcast remains disabled; token/swap/delegate/NFT signer support still needs exact SDK/endpoint verification before any implementation. |
+| Decimal | Decimal now has separate bounded preview and execute milestones below for plain native DEL only. Token/swap/delegate/NFT signer support still needs exact SDK/encoding verification before any implementation. |
 
 Acceptance checks:
 
@@ -180,13 +180,13 @@ This bounded run implemented the first safe Decimal native milestone only after 
 | Decimal address derivation | Vendor bundle shows `createDecimalWalletFromMnemonic` using prefix `d0`, path `m/44'/60'/0'/0/0`, `encodeEvmAccountAddress(publicKey)` and `encodeCosmosAccountAddress(evmAddress, "d0")`. Kotlin mirrors this with BIP39 seed, secp256k1 public key, Keccak EVM address, and local Bech32 `d0` encoding. Public fixture `abandon ... about` derives `d01npvwllfr9dqr8erajqqr6s0vxnk2ak55twavxs` / `0x9858effd232b4033e47d90003d41ec34ecaeda94`. |
 | Chain id / transaction scope | Read-only Web3 probe to `https://node.decimalchain.com/web3/` returned `eth_chainId = 0x4b`, so the milestone uses EVM chain id `75` for legacy DEL transfer preview. It signs only a plain native-coin EVM transfer with supplied nonce/gas; no Decimal SDK token/delegate/swap/NFT message is implemented. |
 | Android secure import | `importSecureKey` now accepts `chainId=decimal`, `authority=seed`, explicit consent, valid Decimal `d0`/`dx`/`0x` address scope, and a 12-24 word seed phrase. Normal worker settings still reject secret-like fields and do not turn Decimal into a background worker. |
-| APK UI | Decimal wallet renders `data-android-decimal-native-panel` only when the Android bridge exists. Buttons are `Import Decimal seed` and `Preview/check Decimal DEL без broadcast`; there is deliberately no `executeDecimalTransfer` UI or bridge method. |
-| Safety / non-goals | execute/broadcast remains disabled; No NFT signer, native token/swap/delegate signer, or live mainnet broadcast in tests. Broadcast can be considered only after exact endpoint/body/fee/response semantics are verified and tested with a fake broadcaster first. |
+| APK UI at this preview milestone | Decimal wallet rendered `data-android-decimal-native-panel` only when the Android bridge existed, with `Import Decimal seed` and `Preview/check Decimal DEL без broadcast`; execute was deliberately absent until the later verified broadcast milestone below. |
+| Safety / non-goals at this preview milestone | Execute/broadcast was still disabled here; No NFT signer, native token/swap/delegate signer, or live mainnet broadcast in tests. The later execute milestone below verifies endpoint/body/response semantics first and keeps token/swap/delegate/NFT unsupported. |
 
 Acceptance checks:
 
 - `android/app/src/test/java/space/dpos/android/DecimalNativeSupportTest.kt` covers Decimal seed import policy, fixture address derivation, deterministic unsigned/signed DEL transfer preview, no seed leakage, codec validation, and no broadcaster/live-network path.
-- `tests/v3-android-decimal-native-smoke.js` asserts Decimal has an APK-only no-broadcast preview panel and that no `executeDecimalTransfer` exists.
+- Historical acceptance for this preview milestone was superseded by `### Android native parity: Decimal DEL execute signer`; current `tests/v3-android-decimal-native-smoke.js` asserts both preview and confirmed execute for plain DEL only.
 
 
 ### Android native parity: Decimal DEL execute signer
