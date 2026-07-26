@@ -6,6 +6,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.dpos.android.minter.MinterNativeSupport
+import space.dpos.android.minter.MinterBroadcastRequestBody
+import space.dpos.android.minter.MinterBroadcastResponseParser
+import space.dpos.android.minter.MinterBroadcaster
 import space.dpos.android.minter.MinterTransferCodec
 import space.dpos.android.minter.MinterTransferRequest
 import space.dpos.android.minter.MinterTransferSigner
@@ -84,5 +87,52 @@ class MinterNativeSupportTest {
 
         val rejected = runCatching { MinterTransferCodec.decode("""{"from":"$fixtureAddress","to":"Mx0000000000000000000000000000000000000001","amount":"1","coin":"BIP","nonce":1}""") }
         assertTrue(rejected.isFailure)
+    }
+
+    @Test fun executeSignsAndBroadcastsThroughInjectedFakeBroadcasterWithoutMainnetCall() {
+        val request = MinterTransferRequest(
+            from = fixtureAddress,
+            to = "Mx0000000000000000000000000000000000000001",
+            amount = "1",
+            coinId = 0,
+            gasCoinId = 0,
+            nonce = 1,
+            memo = "native send"
+        )
+        val broadcaster = RecordingMinterBroadcaster()
+        val result = MinterNativeSupport.executeTransfer(request, fixtureSeed, broadcaster)
+
+        assertTrue(result.ok)
+        assertEquals("broadcast_sent", result.status)
+        assertFalse(result.previewOnly)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertTrue(broadcaster.lastSignedTx!!.startsWith("0x"))
+        assertEquals("fake-hash", result.broadcastResponse!!.getString("hash"))
+        assertFalse(result.toJson().toString().contains(fixtureSeed))
+    }
+
+    @Test fun minterBroadcastRequestAndResponseParsingMatchesVendorSendTransactionSemantics() {
+        val body = MinterBroadcastRequestBody.fromSignedTx("0xfake")
+        assertEquals("0xfake", JSONObject(body).getString("tx"))
+
+        val parsedHash = MinterBroadcastResponseParser.parse(JSONObject().put("data", JSONObject().put("hash", "Mtdead")).toString())
+        assertEquals("Mtdead", parsedHash.getString("hash"))
+
+        val parsedTx = MinterBroadcastResponseParser.parse(JSONObject().put("data", JSONObject().put("transaction", JSONObject().put("hash", "Mtok").put("code", 0))).toString())
+        assertEquals("Mtok", parsedTx.getString("hash"))
+
+        val failed = runCatching { MinterBroadcastResponseParser.parse(JSONObject().put("data", JSONObject().put("transaction", JSONObject().put("code", 42).put("log", "bad tx"))).toString()) }
+        assertTrue(failed.isFailure)
+        assertTrue(failed.exceptionOrNull()!!.message!!.contains("error code 42"))
+    }
+
+    private class RecordingMinterBroadcaster : MinterBroadcaster {
+        var broadcastCount = 0
+        var lastSignedTx: String? = null
+        override fun broadcast(signedTx: String): JSONObject {
+            broadcastCount += 1
+            lastSignedTx = signedTx
+            return JSONObject().put("hash", "fake-hash")
+        }
     }
 }
