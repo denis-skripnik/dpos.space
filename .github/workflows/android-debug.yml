@@ -1,0 +1,40 @@
+name: Android debug build
+
+on:
+  push:
+    branches: [v3]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-debug.yml'
+  pull_request:
+    branches: [v3]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-debug.yml'
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Unit tests
+        run: ./gradlew test
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug
+      - name: Checksum
+        run: sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/app-debug.apk.sha256
+      - name: Upload debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpos-space-android-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/app-debug.apk.sha256

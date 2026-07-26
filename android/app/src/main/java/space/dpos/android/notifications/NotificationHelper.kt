@@ -15,6 +15,8 @@ import space.dpos.android.R
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
 import space.dpos.android.ui.MainActivity
+import space.dpos.android.worker.DposForegroundService
+import space.dpos.android.worker.DposPeriodicWorker
 
 object NotificationHelper {
     const val CHANNEL_WORKER = "dpos_worker"
@@ -38,6 +40,11 @@ object NotificationHelper {
         return PendingIntent.getActivity(context, RoutePolicy.sanitizeRoute(route).hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
+    fun serviceIntent(context: Context, action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(context, DposForegroundService::class.java).setAction(action)
+        return PendingIntent.getService(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
     fun showEvent(context: Context, title: String?, body: String?, tag: String?, route: String?) {
         ensureChannels(context)
         if (!canPost(context)) return
@@ -57,7 +64,11 @@ object NotificationHelper {
         .setSmallIcon(R.mipmap.ic_launcher)
         .setContentTitle("DPoS Space worker")
         .setContentText(PayloadSanitizer.text(status, 120))
+        .setStyle(NotificationCompat.BigTextStyle().bigText(PayloadSanitizer.text(status, 600)))
         .setOngoing(true)
         .setContentIntent(contentIntent(context, "#app=notifications"))
+        .addAction(R.mipmap.ic_launcher, "Открыть", contentIntent(context, "#app=notifications"))
+        .addAction(R.mipmap.ic_launcher, "Проверить", serviceIntent(context, DposForegroundService.ACTION_CHECK_NOW, 4202))
+        .addAction(R.mipmap.ic_launcher, "Остановить", serviceIntent(context, DposForegroundService.ACTION_STOP, 4203))
         .build()
 }

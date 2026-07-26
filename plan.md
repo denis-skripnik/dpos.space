@@ -447,6 +447,31 @@ Final Definition of Done:
 - Keep every phase reviewable with a short implementation report: changed files, tests, remaining risks, next phase.
 - If a phase reveals that a feature needs a backend or a security-model change, stop and ask before widening scope.
 
+### Android milestone 2 — native worker controls, Golos RPC worker, dry-run auto-upvoter and CI
+
+Status: implemented in the continuation after commit `ae657786bb60ecaa2c1d1ec5f647ab570932f31d`.
+
+Scope covered:
+
+- Phase 3: added explicit non-secret Android worker settings import policy/codec. Import requires `explicitConsent: true`, supports only scoped Golos worker settings for now, rejects secret-like fields, stores settings/cursors/log state in structured Android preferences, and keeps private key import reserved for native secure-storage flow.
+- Phase 4: added Golos RPC wrapper abstraction (`GolosHistoryClient`, `HttpGolosHistoryClient`, `GolosHistoryRpc`) with account-history payload/parser tests; integrated incoming-only notification scan into `DposPeriodicWorker`; cursors are stored per `chain:account`; first run remains a baseline without old-event spam.
+- Phase 5: added bridge methods `importWorkerSettings`, `startWorker`, `stopWorker`, `checkNow`, richer `getWorkerStatus`; foreground notification now has Open / Check now / Stop actions; WorkManager periodic scheduling is set from accepted settings; boot restore remains gated by `workerEnabled()`.
+- Phase 6: native auto-upvoter remains dry-run only, with planner limit/energy/duplicate tests and redacted visible dry-run logs; no background vote broadcast is performed.
+- Phase 7: live signing/broadcast is intentionally not implemented in this milestone. Mainnet validation remains a hard stop requiring explicit Denis approval.
+- Phase 8-10: added Android debug GitHub Actions workflow, updated Android README/release notes, and continued unsigned debug APK checksum generation.
+
+Verification evidence for this milestone:
+
+- RED step: `./gradlew testDebugUnitTest --continue` failed before implementation on missing `WorkerCommandPolicy`, `WorkerSettingsCodec`, `GolosHistoryRpc`, and `DryRunVoteLog`.
+- GREEN gate: `./gradlew test assembleDebug` passed after implementation.
+- Debug APK checksum after this milestone: `c2f5e3608b494f9d7aeb8206764aeb27c729a6c3d9e46d12ef2f8f01abf40e63 android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Remaining explicit blockers/non-goals:
+
+- No live mainnet auto-actions or signing/broadcast validation without explicit approval.
+- No Google Play publishing, paid signing/service accounts, or committed release keystore.
+- Manual install/TalkBack/foreground-service runtime smoke still requires an Android device or emulator session.
+
 ## Current focused pass — Accessible modal windows for large operation blocks
 
 Root cause:

@@ -1,5 +1,6 @@
 package space.dpos.android.upvoter
 
+import space.dpos.android.core.PayloadSanitizer
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
@@ -11,14 +12,31 @@ data class VoteEvent(val kind: String, val voter: String = "", val author: Strin
 data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?)
 data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>)
 
+object DryRunVoteLog {
+    fun render(plan: VotePlan, context: String = ""): String {
+        val lines = mutableListOf<String>()
+        lines += "DRY-RUN auto-upvoter plan: actions=${plan.actions.size}, skips=${plan.skips.size}"
+        plan.actions.forEach { action ->
+            lines += "DRY-RUN vote @${action.account} -> @${action.author}/${action.permlink}, weight=${action.weight}, reason=${action.reason}, projectedEnergy=${action.projectedEnergy ?: "unknown"}"
+        }
+        plan.skips.forEach { lines += "DRY-RUN skip $it" }
+        if (context.isNotBlank()) lines += PayloadSanitizer.redactLog(context)
+        return lines.joinToString("\n")
+    }
+}
+
 class AutoUpvoterPlanner {
     fun plan(settings: List<AccountSettings>, events: List<VoteEvent>, seen: Set<String> = emptySet()): VotePlan {
         val actions = mutableListOf<PlannedVote>()
         val skips = mutableListOf<String>()
         val energy = settings.associate { it.account to it.currentEnergy }.toMutableMap()
+        val actionCounts = mutableMapOf<String, Int>()
         for (event in events) {
             for (account in settings.filter { it.enabled }) {
-                if (actions.count { it.account == account.account } >= account.maxActionsPerTick) continue
+                if ((actionCounts[account.account] ?: 0) >= account.maxActionsPerTick) {
+                    skips += "limit:${account.account}|${event.author}|${event.permlink}"
+                    continue
+                }
                 val matched = when (event.kind) {
                     "curator_vote" -> account.curators.any { it.equals(event.voter, true) }
                     "favorite_post" -> account.favorites.any { it.equals(event.author, true) }
@@ -32,6 +50,7 @@ class AutoUpvoterPlanner {
                 val projected = current?.let { estimateEnergyAfter(it, weight) }
                 if (current != null && (current < account.minEnergy || (projected != null && projected < account.minEnergy))) { skips += "energy:$key"; continue }
                 if (projected != null) energy[account.account] = projected
+                actionCounts[account.account] = (actionCounts[account.account] ?: 0) + 1
                 actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected)
             }
         }
