@@ -113,6 +113,27 @@ Shared behavior layer
 - boundaries: in scope Android app shell, Kotlin worker/runtime, bridge, secure storage, local notifications, background auto-upvoter, release packaging; out of scope native rewrite of every page, server push/indexer, unrelated v3 parity work.
 - stop_when: implementation requires publishing to Google Play, paid signing/service accounts, adding a backend, changing wallet/key security model beyond the accepted plan, or performing live mainnet auto-actions for validation.
 
+
+### Android parity matrix — native bridge worker controls
+
+Bounded run scope: make the APK WebView UI expose the already-existing native bridge worker methods and record truthful native runtime coverage before wider signing work.
+
+| Chain | WebView UI coverage | native bridge UI coverage | native background/worker/signing coverage | unsupported/native-non-goal items |
+| --- | --- | --- | --- | --- |
+| Golos | JS pages include accounts, profiles, wallet, history, feeds, post, notifications, editor, broadcast and auto-upvoter. Browser auto-upvoter can run while the page stays alive. | Auto-upvoter page now shows an APK-only Android native worker panel when `window.DposAndroid` exists: status, key-free settings import, dedicated secure posting-key import, start, stop, check-now, and preview/check vote without broadcast. Hidden in browser/PWA fallback. | Native Kotlin currently has Golos worker settings import, secure WIF storage, notification scan, vote planning, preview signing and real enabled worker broadcast path through the configured Golos RPC. Automated tests must not broadcast live mainnet. | Golos native donate parity is still browser-side only in this matrix; Android worker vote path is the first real native signing path. |
+| VIZ | WebView UI covers VIZ profile/account/wallet/history/editor/manage/custom-generator style static flows where implemented. | Android worker panel is visible as unsupported copy only; import/start/check/preview controls are disabled for VIZ. | Not claimed. VIZ operation ids, chain id, and regular/active authority semantics must be verified before enabling native signing/worker. | Do not guess VIZ transaction encoding or map it to Golos vote ids. |
+| Hive | WebView UI covers Hive Graphene pages including feeds/post/auto-upvoter-style browser runtime. | Android worker panel is visible as unsupported copy only; native import/start/check/preview controls are disabled. | Not claimed in this bounded milestone. Existing Kotlin signing client is Golos-specific and must not be reused for Hive until chain id, RPC methods, transaction serialization, prefixes and tests are added. | No false native worker import for Hive until safe tested Graphene differences are implemented. |
+| Steem | WebView UI covers Steem Graphene pages including feeds/post/auto-upvoter-style browser runtime. | Android worker panel is visible as unsupported copy only; native import/start/check/preview controls are disabled. | Not claimed in this bounded milestone. Existing Kotlin signing client is Golos-specific and must not be reused for Steem until chain id, RPC methods, transaction serialization, prefixes and tests are added. | No false native worker import for Steem until safe tested Graphene differences are implemented. |
+| Minter | WebView UI covers static/browser Minter routes and client-side flows where implemented. | No native worker/signing import is exposed from auto-upvoter; matrix records WebView-only status. | Not claimed. There is no tested Android native seed signer path yet. | Do not fake native seed support. |
+| Decimal | WebView UI covers static/browser Decimal routes and client-side flows where implemented. | No native worker/signing import is exposed from auto-upvoter; matrix records WebView-only status. | Not claimed. There is no tested Android native seed signer path yet. | Do not fake native seed support. |
+
+Acceptance checks for this matrix:
+
+- `tests/v3-android-bridge-ui-smoke.js` asserts JS references `getWorkerStatus`, `importWorkerSettings`, `importSecureKey`, `startWorker`, `stopWorker`, `checkNow`, and `previewAutoVote`.
+- Kotlin policy tests continue to reject unsupported native worker/key imports instead of letting WebView coverage look like native background parity.
+- Normal Android settings import remains key-free; secure key import is the only UI path that sends key material to `DposAndroid.importSecureKey`.
+- Preview/check calls `DposAndroid.previewAutoVote` and records `broadcasted=false` semantics; normal enabled worker runtime remains the real branch after settings/key/import/start.
+
 ### Phase 0 — repository and build decision
 
 Objective: create a safe Android workspace plan before writing app code.
