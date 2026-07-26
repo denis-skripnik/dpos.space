@@ -125,14 +125,14 @@ Bounded run scope: make the APK WebView UI expose the already-existing native br
 | Hive | WebView UI covers Hive Graphene pages including feeds/post/auto-upvoter-style browser runtime. | Android worker panel can import key-free settings and secure posting WIF, start/stop worker, check-now, and preview/check vote without broadcast when running in APK. | Native Kotlin now has verified Hive chain id `beeab0de00000000000000000000000000000000000000000000000000000000`, vote operation id `0`, `database_api.get_dynamic_global_properties`, `condenser_api.get_account_history`, `condenser_api.get_discussions_by_blog`, posting-authority key scope, signed vote preview and fake-broadcaster execute tests. Normal enabled worker runtime is real-capable and submits only through configured public Hive RPC outside tests. | No native donate/transfer/comment broadcasting in this milestone. |
 | Steem | WebView UI covers Steem Graphene pages including feeds/post/auto-upvoter-style browser runtime. | Android worker panel can import key-free settings and secure posting WIF, start/stop worker, check-now, and preview/check vote without broadcast when running in APK. | Native Kotlin now has verified Steem chain id `0000000000000000000000000000000000000000000000000000000000000000`, vote operation id `0`, `condenser_api.get_config`/public Steem RPC, `condenser_api.get_account_history`, `condenser_api.get_discussions_by_blog`, posting-authority key scope, signed vote preview and fake-broadcaster execute tests. Normal enabled worker runtime is real-capable and submits only through configured public Steem RPC outside tests. | No native transfer/comment/custom broadcasting in this milestone. |
 | Minter | WebView UI covers static/browser Minter routes and client-side flows where implemented, including SDK-based live send/delegate/swap/token operations while the WebView is open. | Minter wallet page shows an APK-only Android native SEND panel when `window.DposAndroid` exists: separate secure seed import, preview/check without broadcast, and a distinct execute/send button with explicit confirmation for `from`, `to`, amount, numeric `coinId`, numeric `gasCoinId`, nonce, and memo. Hidden in browser/PWA fallback. | Native Kotlin now has a tested Minter SEND signer and broadcaster milestone: seed phrase validation, BIP44/Ethereum path `m/44'/60'/0'/0/0` address derivation, Keccak-256 address/signing hash, RLP transaction/data/signature encoding, fixture parity against `minterjs-sdk.prepareSignedTx`, and verified vendor `send_transaction` semantics (`POST /v2/send_transaction` body `{tx}`; parse `data.transaction`/`data.hash`; reject `transaction.code > 0`). Automated tests use injected fake broadcasters and never live-broadcast mainnet. | No native worker/notifications for Minter; no native symbol-to-coin-id lookup (`replaceCoinSymbol` remains WebView SDK); no native delegate/swap/token operations yet. Do not present this as full native Minter parity. |
-| Decimal | WebView UI covers static/browser Decimal routes and client-side flows where implemented. | Decimal wallet page shows an APK-only Android native panel when `window.DposAndroid` exists: separate secure seed import and no-broadcast DEL transfer preview/check for `from`, `to`, amount, EVM nonce, gas price, gas limit, and verified EVM chain id 75. Hidden in browser/PWA fallback. | Native Kotlin now has a narrow tested Decimal preview signer milestone: seed phrase validation, vendor Decimal wallet path `m/44'/60'/0'/0/0`, d0 Bech32 + EVM address derivation, verified `eth_chainId` `0x4b`/75 from `https://node.decimalchain.com/web3/`, and deterministic EIP-155 legacy EVM DEL-transfer signing. Automated tests never live-broadcast mainnet. | No native Decimal execute/broadcast yet; no token/swap/delegate/NFT signer; fee/broadcast endpoint and response semantics must be verified before exposing execute. Do not present this as full native Decimal parity. |
+| Decimal | WebView UI covers static/browser Decimal routes and client-side flows where implemented. | Decimal wallet page shows an APK-only Android native panel when `window.DposAndroid` exists: separate secure seed import, no-broadcast DEL transfer preview/check, and a distinct execute/send button with explicit confirmation for `from`, `to`, amount, EVM nonce, gas price, gas limit, and verified EVM chain id 75. Hidden in browser/PWA fallback. | Native Kotlin now has a tested Decimal native DEL transfer signer and broadcaster milestone: seed phrase validation, vendor Decimal wallet path `m/44'/60'/0'/0/0`, d0 Bech32 + EVM address derivation, verified `eth_chainId` `0x4b`/75, deterministic EIP-155 legacy EVM DEL-transfer signing, and verified Web3 JSON-RPC broadcast semantics at `https://node.decimalchain.com/web3/` using `eth_sendRawTransaction`. Automated tests use injected fake broadcasters and never live-broadcast mainnet. | No native token/swap/delegate/NFT signer; no background Decimal worker/notifications. Do not present this as full native Decimal parity. |
 
 Acceptance checks for this matrix:
 
 - `tests/v3-android-bridge-ui-smoke.js` asserts JS references `getWorkerStatus`, `importWorkerSettings`, `importSecureKey`, `startWorker`, `stopWorker`, `checkNow`, and `previewAutoVote`.
 - Kotlin policy tests continue to reject unsupported native worker/key imports instead of letting WebView coverage look like native background parity.
 - Normal Android settings import remains key-free; secure key import is the only UI path that sends key material to `DposAndroid.importSecureKey`.
-- `tests/v3-android-minter-native-smoke.js` asserts the Minter wallet exposes the implemented APK native milestone (`previewMinterTransfer`, secure seed import, numeric coin ids, and confirmed execute). `tests/v3-android-decimal-native-smoke.js` asserts Decimal exposes only the new no-broadcast DEL preview milestone.
+- `tests/v3-android-minter-native-smoke.js` asserts the Minter wallet exposes the implemented APK native milestone (`previewMinterTransfer`, secure seed import, numeric coin ids, and confirmed execute). `tests/v3-android-decimal-native-smoke.js` asserts Decimal exposes the implemented APK native DEL milestone (`previewDecimalTransfer`, `executeDecimalTransfer`, secure seed import, Web3 `eth_sendRawTransaction`, and confirmed execute).
 
 ### Android native parity: Minter SEND signer
 
@@ -144,7 +144,7 @@ This bounded run moved Minter from pure WebView-only to a narrow real native sig
 | Minter address derivation | Implemented in Kotlin from seed phrase using BIP39 seed and BIP44/Ethereum path `m/44'/60'/0'/0/0`; fixture derives `Mx9858effd232b4033e47d90003d41ec34ecaeda94`. |
 | Minter SEND preview | Implemented for numeric `coinId`/`gasCoinId`, nonce supplied by the UI/API, amount, recipient, and memo. It signs an RLP/Keccak Minter transaction and returns `broadcasted=false`; no live mainnet call is made by preview. |
 | Minter native execute/broadcast | Enabled in the later `Minter SEND live broadcast` milestone after SDK endpoint semantics were verified. |
-| Decimal native signer | Implemented only as a later no-broadcast DEL preview milestone: secure seed import, address derivation, and deterministic signed preview. Execute/broadcast and NFT signer are still not enabled. |
+| Decimal native signer | Implemented first as no-broadcast DEL preview and now as a bounded DEL execute/broadcast milestone through verified Web3 `eth_sendRawTransaction`. NFT/token/swap/delegate signer support is still not enabled. |
 
 Acceptance checks:
 
@@ -172,7 +172,7 @@ Acceptance checks:
 
 ### Android native parity: Decimal DEL preview signer
 
-This bounded run implemented the first safe Decimal native milestone only after inspecting the current Decimal web/vendor/runtime paths. It intentionally stops at preview/check because the native broadcast endpoint/body/fee/response semantics were not fully verified for an autonomous no-mainnet-broadcast run.
+This bounded run implemented the first safe Decimal native milestone only after inspecting the current Decimal web/vendor/runtime paths. It intentionally stopped at preview/check until the native broadcast endpoint/body/fee/response semantics could be verified for an autonomous no-mainnet-broadcast run.
 
 | Item | Truthful status |
 | --- | --- |
@@ -187,6 +187,26 @@ Acceptance checks:
 
 - `android/app/src/test/java/space/dpos/android/DecimalNativeSupportTest.kt` covers Decimal seed import policy, fixture address derivation, deterministic unsigned/signed DEL transfer preview, no seed leakage, codec validation, and no broadcaster/live-network path.
 - `tests/v3-android-decimal-native-smoke.js` asserts Decimal has an APK-only no-broadcast preview panel and that no `executeDecimalTransfer` exists.
+
+
+### Android native parity: Decimal DEL execute signer
+
+This bounded run verified Decimal's EVM/Web3 broadcast path from the current vendor bundle and live read-only/invalid-raw JSON-RPC probes, then enabled only the already-implemented plain native DEL transfer signer to submit through the same public Web3 endpoint pattern.
+
+| Item | Truthful status |
+| --- | --- |
+| Source inspected | `v3/js/app.js` Decimal wallet/native panel and Decimal route handling; `v3/js/chains.js` Decimal config (`apiBase`, `gateUrl`, vendor bundle path); `v3/vendor/decimal/decimal-sdk-web.js` for `DecimalNetworks` Web3 hosts and provider mapping; existing `tests/v3-decimal-*.js`; Android `DecimalNative.kt`, `DposAndroidBridge.kt`, and Decimal native tests. |
+| Endpoint semantics verified | Vendor bundle maps provider `sendTransaction` to JSON-RPC `eth_sendRawTransaction` with params `[signedTransaction]`. `DecimalNetworks.MAINNET` includes `https://node.decimalchain.com/web3/`. Read-only probes returned `eth_chainId = 0x4b`, `eth_gasPrice` hex result, and `eth_getTransactionCount` hex nonce result. A deliberately invalid raw `eth_sendRawTransaction` returned HTTP 200 with JSON-RPC `error.code=-32000` and sanitized message, confirming error shape without broadcasting a real transaction. |
+| Native DEL preview | Still no-broadcast. `previewDecimalTransfer` signs/checks only and returns `broadcasted=false` with the signed transaction included only in the preview response for inspection. |
+| Native DEL execute | Implemented for the same plain EVM native-coin DEL payload after secure seed import and explicit user confirmation in the Android WebView panel. Kotlin uses `HttpDecimalBroadcaster` to `POST https://node.decimalchain.com/web3/` with exact JSON-RPC body `{"jsonrpc":"2.0","id":1,"method":"eth_sendRawTransaction","params":["0x..."]}` and parses `result` as transaction hash or sanitized `error.code/message`. |
+| Automated safety | Unit tests inject a fake `DecimalBroadcaster`; no test calls live Decimal mainnet broadcast with a valid signed transaction. Tests assert preview does not broadcast, execute signs then calls the fake broadcaster, exact request body shape, response parsing, sanitized JSON-RPC errors, and no seed leakage. |
+| UI safety | Android panel separates `Preview/check Decimal DEL без broadcast` from `Execute/send Decimal DEL в сеть`, and execute uses a browser confirm dialog with from/to/amount/nonce/gas/chain-id before calling the bridge. |
+| Remaining non-goals | No native Decimal token/swap/delegate/NFT signer; no Decimal background worker/notifications; no symbol/contract-specific SDK operation signing. Those require separate exact SDK encoding verification and fake-broadcaster tests before exposure. |
+
+Acceptance checks:
+
+- `android/app/src/test/java/space/dpos/android/DecimalNativeSupportTest.kt` covers fake-broadcaster execute, exact `eth_sendRawTransaction` body, JSON-RPC result/error parsing, no-broadcast preview, codec validation, and no seed leakage.
+- `tests/v3-android-decimal-native-smoke.js` asserts the Decimal APK-only panel has both preview and confirmed execute while plan text still names token/swap/delegate/NFT as unsupported.
 
 ### Phase 0 — repository and build decision
 

@@ -12,6 +12,8 @@ import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
 
@@ -22,7 +24,7 @@ object DecimalNativeSupport {
     const val CHAIN_ID = "decimal"
     const val AUTHORITY = "seed"
     const val DEFAULT_EVM_CHAIN_ID = 75L
-    val supportedOperations: Set<String> = setOf("sendDELPreview")
+    val supportedOperations: Set<String> = setOf("sendDELPreview", "sendDEL")
 
     fun defaultSeedRef(address: String): EncryptedKeyRef = EncryptedKeyRef(CHAIN_ID, normalizeAddress(address), AUTHORITY, AUTHORITY)
 
@@ -51,16 +53,29 @@ object DecimalNativeSupport {
         return DecimalWallet(address = Bech32.encode("d0", evm.removePrefix("0x").hexToBytes()), evmAddress = evm)
     }
 
-    fun previewTransfer(request: DecimalTransferRequest, seedPhrase: String): DecimalTransferResult {
+    fun previewTransfer(request: DecimalTransferRequest, seedPhrase: String): DecimalTransferResult = signTransfer(request, seedPhrase, previewOnly = true)
+
+    fun executeTransfer(request: DecimalTransferRequest, seedPhrase: String, broadcaster: DecimalBroadcaster): DecimalTransferResult {
+        val signed = signTransfer(request, seedPhrase, previewOnly = false)
+        if (!signed.ok || signed.signedTx.isNullOrBlank()) return signed
+        return try {
+            val response = broadcaster.broadcast(signed.signedTx)
+            signed.copy(status = "broadcast_sent", reason = "native Decimal DEL transaction was submitted through verified eth_sendRawTransaction broadcaster", previewOnly = false, broadcastResponse = response)
+        } catch (error: Exception) {
+            signed.copy(ok = false, status = "broadcast_error", reason = PayloadSanitizer.text(error.message, 300), previewOnly = false)
+        }
+    }
+
+    private fun signTransfer(request: DecimalTransferRequest, seedPhrase: String, previewOnly: Boolean): DecimalTransferResult {
         if (!validateSeed(seedPhrase)) return DecimalTransferResult(false, "invalid_seed", "Decimal seed phrase must contain 12-24 words; no signing attempted", request)
         val wallet = deriveWallet(seedPhrase)
         val from = request.from?.let { normalizeAddress(it) }
         if (from != null && !wallet.matches(from)) {
-            return DecimalTransferResult(false, "seed_address_mismatch", "seed-derived Decimal address does not match requested sender; no signing attempted", request, wallet = wallet)
+            return DecimalTransferResult(false, "seed_address_mismatch", "seed-derived Decimal address does not match requested sender; no signing attempted", request, wallet = wallet, previewOnly = previewOnly)
         }
         val checked = request.copy(from = wallet.address, to = normalizeAddress(request.to))
         val signedTx = DecimalTransferSigner.sign(checked, seedPhrase)
-        return DecimalTransferResult(true, "preview_ready", "signed Decimal DEL transfer preview; not broadcast", checked, wallet = wallet, signedTx = signedTx, previewOnly = true)
+        return DecimalTransferResult(true, if (previewOnly) "preview_ready" else "signed", if (previewOnly) "signed Decimal DEL transfer preview; not broadcast" else "signed Decimal DEL transfer ready for broadcaster", checked, wallet = wallet, signedTx = signedTx, previewOnly = previewOnly)
     }
 
     internal fun privateKeyForTest(seedPhrase: String): ECKey = privateKeyFromMnemonic(seedPhrase)
@@ -122,20 +137,81 @@ data class DecimalTransferResult(
     val request: DecimalTransferRequest,
     val wallet: DecimalWallet? = null,
     val signedTx: String? = null,
-    val previewOnly: Boolean = true
+    val previewOnly: Boolean = true,
+    val broadcastResponse: JSONObject? = null
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("ok", ok)
         .put("status", status)
         .put("reason", PayloadSanitizer.text(reason, 300))
         .put("chainId", "decimal")
-        .put("nativeSupport", "sendDELPreview")
+        .put("nativeSupport", if (previewOnly) "sendDELPreview" else "sendDEL")
         .put("previewOnly", previewOnly)
-        .put("broadcasted", false)
+        .put("broadcasted", broadcastResponse != null)
         .put("wallet", wallet?.toJson() ?: JSONObject.NULL)
         .put("from", wallet?.address ?: JSONObject.NULL)
         .put("evmFrom", wallet?.evmAddress ?: JSONObject.NULL)
-        .put("request", request.sanitizedJson(signedTx))
+        .put("request", request.sanitizedJson(if (previewOnly) signedTx else null))
+        .put("signedTx", if (!previewOnly && !signedTx.isNullOrBlank()) signedTx else JSONObject.NULL)
+        .put("broadcastResponse", broadcastResponse ?: JSONObject.NULL)
+}
+
+interface DecimalBroadcaster {
+    fun broadcast(signedTx: String): JSONObject
+}
+
+object DecimalBroadcastRequestBody {
+    fun fromSignedTx(signedTx: String): String = JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("id", 1)
+        .put("method", "eth_sendRawTransaction")
+        .put("params", listOf(signedTx))
+        .toString()
+}
+
+object DecimalBroadcastResponseParser {
+    fun parse(rawJson: String): JSONObject {
+        val root = JSONObject(rawJson.ifBlank { "{}" })
+        val error = root.optJSONObject("error")
+        if (error != null) {
+            val code = if (error.has("code")) " ${error.optInt("code")}" else ""
+            val message = PayloadSanitizer.text(error.optString("message", "unknown Decimal JSON-RPC error"), 240)
+            throw IllegalStateException("Decimal eth_sendRawTransaction error$code: $message")
+        }
+        val result = root.optString("result", "").trim()
+        if (!Regex("^0x[0-9a-fA-F]{64}$").matches(result)) {
+            throw IllegalStateException("Decimal eth_sendRawTransaction response did not include a 32-byte hex transaction hash")
+        }
+        return JSONObject().put("method", "eth_sendRawTransaction").put("hash", result)
+    }
+}
+
+class HttpDecimalBroadcaster(private val web3Url: String = "https://node.decimalchain.com/web3/") : DecimalBroadcaster {
+    override fun broadcast(signedTx: String): JSONObject {
+        require(signedTx.startsWith("0x")) { "signed Decimal transaction must be a 0x-prefixed hex string" }
+        val body = DecimalBroadcastRequestBody.fromSignedTx(signedTx).toByteArray(Charsets.UTF_8)
+        val connection = (URL(web3Url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+        }
+        connection.outputStream.use { it.write(body) }
+        val responseCode = connection.responseCode
+        val responseText = try {
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        } finally {
+            connection.disconnect()
+        }
+        if (responseCode !in 200..299) {
+            val reason = PayloadSanitizer.text(responseText.ifBlank { "HTTP $responseCode" }, 300)
+            throw IllegalStateException("Decimal eth_sendRawTransaction HTTP $responseCode: $reason")
+        }
+        return DecimalBroadcastResponseParser.parse(responseText)
+    }
 }
 
 object DecimalTransferCodec {
