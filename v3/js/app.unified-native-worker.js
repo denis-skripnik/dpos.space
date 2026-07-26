@@ -14279,14 +14279,14 @@ Memo key: ${keys.memo}`);
       .filter((item) => !item.opType || selectedOps.has(item.opType));
     const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
     const nativeBridge = nativeAndroidWorkerBridge();
-    const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem'].includes(chain.id);
+    const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem', 'minter', 'decimal'].includes(chain.id);
     const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
     const androidNotice = nativeSupported
-      ? `<section class="card" data-android-notifications-settings><h3>Android native notifications</h3><p class="muted">В Android-приложении native notifications используют эти же фильтры и включаются с этой страницы без отдельных import/start/check кнопок. Воркер только читает account_history и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Native notifications ещё не синхронизированы.</div></section>`
-      : `<p class="muted">Android native notifications для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного Graphene account_history scanner для этой цепочки.</p>`;
+      ? `<section class="card" data-android-notifications-settings><h3>Android native notifications</h3><p class="muted">В Android-приложении native notifications используют эти же фильтры и включаются с этой страницы без отдельных import/start/check кнопок. Воркер только читает публичную историю аккаунта/адреса и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Native notifications ещё не синхронизированы.</div></section>`
+      : `<p class="muted">Android native notifications для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного публичного history scanner для этой цепочки.</p>`;
     appEl.innerHTML = `<section class="panel">
       <h2>Уведомления ${escapeHtml(chain.title)}${cleanAccount ? ` для @${escapeHtml(cleanAccount)}` : ''}</h2>
-      <p>Показываются локально сохранённые входящие события из account_history. Фильтры ниже применяются и к браузерной проверке, и к Android native notifications, если они доступны.</p>
+      <p>Показываются локально сохранённые события из публичной истории аккаунта/адреса. Фильтры ниже применяются и к браузерной проверке, и к Android native notifications, если они доступны.</p>
       <form id="notifications-settings-form" class="stacked-form">
         <fieldset>
           <legend>Какие события отслеживать</legend>

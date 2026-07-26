@@ -28,6 +28,19 @@ class WorkerRuntimePolicyTest {
         assertTrue(auto.reason.contains("auto-upvoter", ignoreCase = true))
     }
 
+    @Test fun minterDecimalWorkerImportAllowsNotificationsOnlyAndNormalizesOps() {
+        val minter = WorkerCommandPolicy.validateImport(AccountImportRequest(chainId = "minter", account = "Mxf85ceccfe2112e88be58162c43f5ec959672ab54", enableNotifications = true, enableAutoUpvoter = false, explicitConsent = true, notificationOps = listOf("send", "delegate", "privateKey")))
+        assertTrue(minter.accepted)
+        assertEquals(listOf("send", "delegate"), minter.notificationOps)
+        val minterAuto = WorkerCommandPolicy.validateImport(AccountImportRequest(chainId = "minter", account = "Mxf85ceccfe2112e88be58162c43f5ec959672ab54", enableNotifications = false, enableAutoUpvoter = true, explicitConsent = true))
+        assertFalse(minterAuto.accepted)
+        assertTrue(minterAuto.reason.contains("auto-upvoter", ignoreCase = true))
+
+        val decimal = WorkerCommandPolicy.validateImport(AccountImportRequest(chainId = "decimal", account = "dx0000000000000000000000000000000000000000", enableNotifications = true, enableAutoUpvoter = false, explicitConsent = true, notificationOps = listOf("send", "delegate", "nft")))
+        assertTrue(decimal.accepted)
+        assertEquals(listOf("send", "delegate", "nft"), decimal.notificationOps)
+    }
+
     @Test fun jsonImportRejectsSecretLikeFields() {
         val json = """{"chainId":"golos","account":"denis","explicitConsent":true,"enableNotifications":true,"postingKey":"not-a-real-key-fixture"}"""
         val result = WorkerSettingsCodec.decodeImport(json)

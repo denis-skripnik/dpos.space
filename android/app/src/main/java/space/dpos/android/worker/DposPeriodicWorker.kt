@@ -19,6 +19,8 @@ import space.dpos.android.upvoter.GrapheneVoteSigner
 import space.dpos.android.upvoter.HttpGrapheneDiscussionClient
 import space.dpos.android.upvoter.HttpGrapheneRpcClient
 import space.dpos.android.notifications.HttpGrapheneHistoryClient
+import space.dpos.android.notifications.RestWalletNotificationSpecs
+import space.dpos.android.notifications.RestWalletNotificationScanner
 import space.dpos.android.upvoter.HttpGolosDiscussionClient
 import space.dpos.android.upvoter.HttpGolosRpcClient
 import space.dpos.android.upvoter.PostingKeyProvider
@@ -33,25 +35,29 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
         var hadError = false
         for (account in store.activeAccounts()) {
             val spec = GrapheneChainSpecs.find(account.chainId)
-            if (spec == null) {
-                store.appendLog("native worker skipped unsupported chain ${account.chainId}:${account.account}")
-                continue
-            }
             if (store.notificationEnabled(account.chainId, account.account)) {
                 try {
                     val cursor = store.readCursor(account.chainId, account.account)
-                    val (nextCursor, notifications) = GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = store.notificationOps(account.chainId, account.account))
+                    val selectedOps = store.notificationOps(account.chainId, account.account)
+                    val (nextCursor, notifications) = if (spec != null) {
+                        GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
+                    } else if (account.chainId in RestWalletNotificationSpecs.supportedChains) {
+                        RestWalletNotificationScanner(account.chainId).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
+                    } else {
+                        store.appendLog("native notifications skipped unsupported chain ${account.chainId}:${account.account}")
+                        cursor.lastIndex to emptyList()
+                    }
                     store.saveCursor(NotificationCursor(account.chainId, account.account, nextCursor, true))
                     notifications.forEach { event -> NotificationHelper.showEvent(applicationContext, event.title, event.text, event.id, event.route) }
-                    store.appendLog("${spec.id} notifications checked for ${account.account}; new=${notifications.size}; cursor=$nextCursor")
+                    store.appendLog("${account.chainId} notifications checked for ${account.account}; new=${notifications.size}; cursor=$nextCursor")
                 } catch (e: Exception) {
                     hadError = true
                     store.setLastError(e.message)
-                    store.appendLog("${spec.id} notifications error for ${account.account}: ${e.message}", "error")
+                    store.appendLog("${account.chainId} notifications error for ${account.account}: ${e.message}", "error")
                 }
             }
             if (store.autoUpvoterEnabled(account.chainId, account.account)) {
-                if (!spec.nativeVoteSupported) {
+                if (spec == null || !spec.nativeVoteSupported) {
                     store.appendLog("auto-upvoter ${account.chainId}:${account.account} skipped: native vote signing is not implemented for this chain")
                     continue
                 }
