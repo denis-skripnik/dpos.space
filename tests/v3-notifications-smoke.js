@@ -83,6 +83,8 @@ assert(api.supportsChain({ id: 'hive', title: 'Hive' }), 'Hive notifications are
 assert(api.supportsChain({ id: 'steem', title: 'Steem' }), 'Steem notifications are supported');
 assert(api.supportsChain({ id: 'minter', title: 'Minter' }), 'Minter wallet notifications are supported through public history API');
 assert(api.supportsChain({ id: 'decimal', title: 'Decimal' }), 'Decimal wallet notifications are supported through public history API');
+assert(api.defaultOps({ id: 'minter' }).includes('multisend'), 'Minter notification filters include multisend');
+assert(api.defaultOps({ id: 'decimal' }).includes('multisend'), 'Decimal notification filters include multisend');
 api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: ['transfer'], androidNative: true, intervalMinutes: 20 });
 assert.strictEqual(Array.from(api.getSettings(context.DposChains.golos, 'denis-skripnik').ops).join(','), 'transfer', 'notification operation filters persist per chain/account');
 const tracked = api.getTrackedAccounts(context.DposChains.golos);
@@ -153,6 +155,20 @@ const decimalDelegate = api.toNotification({ id: 'decimal', title: 'Decimal' }, 
   data: { delegator: 'dx0000000000000000000000000000000000000000', validator: 'dx1111111111111111111111111111111111111111', stake: '5000000000000000000', denom: 'DEL' }
 });
 assert(decimalDelegate && decimalDelegate.title === 'Делегирование' && decimalDelegate.url.includes('chain=decimal'), 'Decimal delegate involving the address becomes a wallet notification');
+
+const minterMultisend = api.toNotification({ id: 'minter', title: 'Minter' }, 'Mxf85ceccfe2112e88be58162c43f5ec959672ab54', {
+  index: 16,
+  type: 'multisend_coin',
+  data: { from: 'Mx1111111111111111111111111111111111111111', list: [{ address: 'Mxf85ceccfe2112e88be58162c43f5ec959672ab54', value: '1', coin: 'BIP' }] }
+});
+assert(minterMultisend && minterMultisend.title === 'Мульти-отправка' && minterMultisend.url.includes('ops=multisend'), 'Minter multisend aliases become a multisend notification');
+
+const decimalMultisend = api.toNotification({ id: 'decimal', title: 'Decimal' }, 'dx0000000000000000000000000000000000000000', {
+  index: 17,
+  type: '/decimal.coin.v1.MsgMultiSendCoin',
+  data: { from: 'dx1111111111111111111111111111111111111111', recipients: [{ address: 'dx0000000000000000000000000000000000000000', amount: '1', denom: 'DEL' }] }
+});
+assert(decimalMultisend && decimalMultisend.title === 'Мульти-отправка' && decimalMultisend.url.includes('ops=multisend'), 'Decimal MsgMultiSendCoin becomes a multisend notification');
 
 api.upsertNotifications([{ id: 'golos:denis-skripnik:7', account: 'denis-skripnik', chainId: 'golos', direction: 'incoming', timestamp: '2026-05-13T01:02:03' }]);
 assert.strictEqual(api.countUnread({ direction: 'incoming' }), 1, 'unread count persists');

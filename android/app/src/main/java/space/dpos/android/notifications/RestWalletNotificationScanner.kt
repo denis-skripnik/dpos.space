@@ -13,8 +13,8 @@ object RestWalletNotificationSpecs {
 
     val supportedChains: Set<String> = setOf("minter", "decimal")
     val notificationOps: Map<String, List<String>> = mapOf(
-        "minter" to listOf("send", "delegate", "unbond", "sell", "sell_swap_pool", "add_liquidity", "remove_liquidity", "create_coin", "mint_token", "burn_token"),
-        "decimal" to listOf("send", "delegate", "unbond", "create_token", "transfer_token", "nft")
+        "minter" to listOf("send", "multisend", "delegate", "unbond", "sell", "sell_swap_pool", "add_liquidity", "remove_liquidity", "create_coin", "mint_token", "burn_token"),
+        "decimal" to listOf("send", "multisend", "delegate", "unbond", "create_token", "transfer_token", "nft")
     )
 
     fun urlFor(chainId: String, account: String, limit: Int): String = when (chainId) {
@@ -45,7 +45,7 @@ class RestWalletHistoryClient(private val chainId: String) {
         for (i in 0 until rows.length()) {
             val obj = rows.optJSONObject(i) ?: continue
             val data = obj.optJSONObject("data") ?: obj.optJSONObject("message") ?: obj.optJSONObject("payload") ?: obj
-            val type = firstNonBlank(obj.optString("type"), obj.optString("tx_type"), obj.optString("transaction_type"), obj.optString("message_type"), data.optString("type"), "transaction")
+            val type = normalizeType(firstNonBlank(obj.optString("type"), obj.optString("tx_type"), obj.optString("transaction_type"), obj.optString("message_type"), data.optString("type"), data.optString("@type"), data.optString("msg_type"), "transaction"))
             val index = sourceIndex(obj, data, fallback = i.toLong())
             val map = mutableMapOf<String, String>()
             flatten(data, map)
@@ -56,6 +56,14 @@ class RestWalletHistoryClient(private val chainId: String) {
             result += HistoryEvent(index, type, map, firstNonBlank(obj.optString("timestamp"), obj.optString("time"), obj.optString("created_at")))
         }
         return result
+    }
+
+
+    private fun normalizeType(type: String): String {
+        val lower = type.trim().lowercase()
+        if (chainId == "minter" && lower in setOf("multisend", "multisend_coin", "coin_multisend", "coin_multisend_data", "13")) return "multisend"
+        if (chainId == "decimal" && lower in setOf("multisend", "multi_send", "/decimal.coin.v1.msgmultisendcoin", "msgmultisendcoin")) return "multisend"
+        return type
     }
 
     private fun unwrapRows(root: JSONObject): JSONArray {
@@ -127,11 +135,13 @@ class RestWalletNotificationScanner(private val chainId: String, private val cli
         val data = event.data
         val from = norm(data["from"] ?: data["sender"] ?: data["address"] ?: data["delegator"] ?: data["owner"] ?: data["account"] ?: data["creator"] ?: data["sender.address"])
         val to = norm(data["to"] ?: data["recipient"] ?: data["receiver"] ?: data["target"] ?: data["validator"] ?: data["public_key"] ?: data["coin_to_buy"] ?: data["delegatee"])
-        if (from != target && to != target && !target.equals(norm(data["hash"]), ignoreCase = true)) return null
+        val listText = (data["list"] ?: data["recipients"] ?: data["outputs"] ?: data["items"] ?: data["messages"] ?: data["coins"] ?: data["list.address"]).orEmpty().lowercase()
+        if (from != target && to != target && !listText.contains(target) && !target.equals(norm(data["hash"]), ignoreCase = true)) return null
         val amount = data["amount"] ?: data["value"] ?: data["stake"] ?: data["volume"] ?: data["sell"] ?: data["min_to_receive"] ?: data["value_to_sell"] ?: data["value_to_buy"] ?: data["initial_amount"] ?: data["initSupply"] ?: data["volume0"]
         val coin = data["coin.symbol"] ?: data["coin"] ?: data["denom"] ?: data["symbol"] ?: data["ticker"] ?: data["amount.coin"] ?: data["coin_to_sell.symbol"] ?: data["coin_to_buy.symbol"]
         val label = when (event.type) {
             "send" -> "Перевод"
+            "multisend" -> "Мульти-отправка"
             "delegate" -> "Делегирование"
             "unbond" -> "Анбонд"
             "sell", "sell_swap_pool" -> "Обмен"
