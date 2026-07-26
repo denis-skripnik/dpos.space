@@ -487,6 +487,34 @@ Verification evidence for this milestone:
 - Unit policy coverage added for settings-import secret rejection, dedicated secure key metadata validation, no-secret result JSON, deterministic Golos vote operation JSON, and disabled signing gates.
 - Final gate for this milestone must include `cd android && ./gradlew test assembleDebug`, APK checksum, `git diff --check`, `git diff --cached --check`, and added-line secret scan before commit.
 
+### Android milestone 4 — real-capable Golos vote signing/broadcast runtime
+
+Status: implemented in the continuation after commit `f93d90cf463266e4f6056f344e112b64603d5131`.
+
+Product correction applied:
+
+- Android auto-upvoter runtime is not dry-run by default. If a user explicitly imports/enables account settings, imports a posting key into Android secure storage, enables the worker and enables auto-upvoter, the normal worker path is allowed to sign and submit eligible Golos vote operations when safety gates pass.
+- Dry-run/preview is only an explicit check action (`previewAutoVote(json)` / runtime `preview(...)`) and automated test mode. It must not be the implicit runtime state.
+- No extra hidden “manual runtime confirmation” flag is required beyond account/key/worker/auto-upvoter enablement. Stop controls, foreground notification and redacted logs remain required.
+
+Implemented architecture:
+
+- `VoteOperation`, `TransactionBuilder`, `VoteSigner`, `VoteBroadcaster`, `GolosRpcClient`, `GolosTransactionBuilder`, `GolosVoteSigner`, `GolosBroadcastClient`, `VoteRuntime`, `AutoVoteRuntime`.
+- Minimal native Golos vote transaction construction uses the vendored Golos chain id (`782a3039...de12`), dynamic global properties for block refs, Graphene vote operation id `0`, local WIF/secp256k1 signing via `bitcoinj-core`, and JSON-RPC `network_broadcast_api.broadcast_transaction_synchronous` for submission.
+- Worker settings import and secure key import remain separate: normal settings reject secret-like fields, secure import stores WIF only in Android encrypted storage, and runtime reads the default posting key ref without logging the key.
+- Foreground notification/copy no longer says auto-upvoter is dry-run-only.
+- `previewAutoVote(json)` builds/checks a signed transaction without broadcasting and reports `broadcasted: false`.
+
+Validation boundaries:
+
+- Automated tests use fake RPC/broadcaster/signers and never hit mainnet or broadcast live transactions.
+- Unit coverage proves: enabled account+key does not require an extra dry-run-off flag, preview does not broadcast, normal runtime branch calls fake real signer+broadcaster when key exists, missing key skips clearly, Golos header/transaction JSON/signature shape is deterministic enough for fixture checks, and fake broadcaster receives signed tx JSON.
+- Real-device/live smoke remains manual and requires Denis approval before any mainnet vote: install APK, import a low-risk Golos posting key, enable worker+auto-upvoter, verify foreground notification/logs, run explicit preview/check first, then approve a controlled live vote and read back chain/history.
+
+Known remaining gap:
+
+- The worker now has a real signing/broadcast path for planned Golos vote actions, but current native event-source import still does not feed curator/favorite candidates into `collectAutoVoteEvents(...)`; until that follow-up is completed, normal production ticks with no imported native candidates log “no eligible vote actions” instead of inventing placeholder votes. This is a candidate-source completion gap, not a dry-run signing/broadcast blocker.
+
 Remaining explicit blockers/non-goals:
 
 - Live mainnet signing/broadcast validation still requires explicit Denis approval and controlled real-key/device setup.

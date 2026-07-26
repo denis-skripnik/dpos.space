@@ -36,7 +36,7 @@ class WorkerStore(context: Context) {
             .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
             .putInt("intervalMinutes", decision.intervalMinutes)
             .apply()
-        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; dryRunUpvoter=${decision.enableAutoUpvoter}")
+        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}")
     }
 
     fun readAccounts(): List<AccountIdentity> {
@@ -96,4 +96,8 @@ class WorkerStore(context: Context) {
         secure.edit().putString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", secret).apply()
     }
     fun hasEncryptedKey(ref: EncryptedKeyRef): Boolean = secure.contains("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}")
+    fun readEncryptedKey(ref: EncryptedKeyRef): String? = secure.getString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", null)
+    fun defaultPostingKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
+    fun hasPostingKey(chainId: String, account: String): Boolean = hasEncryptedKey(defaultPostingKeyRef(chainId, account))
+    fun readPostingKey(chainId: String, account: String): String? = readEncryptedKey(defaultPostingKeyRef(chainId, account))
 }

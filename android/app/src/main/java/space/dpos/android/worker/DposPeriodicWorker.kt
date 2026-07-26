@@ -6,12 +6,17 @@ import androidx.work.WorkerParameters
 import space.dpos.android.notifications.GolosNotificationScanner
 import space.dpos.android.notifications.HttpGolosHistoryClient
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.storage.EncryptedKeyRef
 import space.dpos.android.storage.NotificationCursor
 import space.dpos.android.storage.WorkerStore
-import space.dpos.android.upvoter.DisabledVoteSigner
-import space.dpos.android.upvoter.DryRunVoteLog
-import space.dpos.android.upvoter.VoteOperationFixture
-import space.dpos.android.upvoter.VotePlan
+import space.dpos.android.upvoter.AccountSettings
+import space.dpos.android.upvoter.AutoUpvoterPlanner
+import space.dpos.android.upvoter.AutoVoteRuntime
+import space.dpos.android.upvoter.GolosBroadcastClient
+import space.dpos.android.upvoter.HttpGolosRpcClient
+import space.dpos.android.upvoter.PostingKeyProvider
+import space.dpos.android.upvoter.VoteEvent
+import space.dpos.android.upvoter.VoteRuntime
 
 class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
@@ -34,17 +39,44 @@ class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : Corout
                 }
             }
             if (account.chainId == "golos" && store.autoUpvoterEnabled(account.chainId, account.account)) {
-                val operation = VoteOperationFixture.golosFavoriteVote(account = account.account, author = "fixture-author", permlink = "dry-run-placeholder", weight = 10000)
-                val signingGate = DisabledVoteSigner().sign(operation, null, manualRuntimeConfirmation = false)
-                val dryRun = DryRunVoteLog.render(
-                    VotePlan(emptyList(), listOf("dry-run: native event collection not enabled without live signing approval", "signing:${signingGate.status}")),
-                    signingGate.toJson().toString()
-                )
-                store.appendLog("auto-upvoter ${account.chainId}:${account.account}\n$dryRun")
+                try {
+                    val keyRef = store.defaultPostingKeyRef(account.chainId, account.account)
+                    val key = store.readPostingKey(account.chainId, account.account)
+                    if (key.isNullOrBlank()) {
+                        store.appendLog("auto-upvoter ${account.chainId}:${account.account} skipped: missing posting key")
+                        continue
+                    }
+                    val plan = AutoUpvoterPlanner().plan(
+                        listOf(AccountSettings(account.account, enabled = true, minEnergy = store.minEnergy(account.chainId, account.account), maxActionsPerTick = store.maxActions(account.chainId, account.account))),
+                        collectAutoVoteEvents(account.account)
+                    )
+                    if (plan.actions.isEmpty()) {
+                        store.appendLog("auto-upvoter ${account.chainId}:${account.account}: no eligible vote actions; skips=${plan.skips.size}")
+                        continue
+                    }
+                    val rpc = HttpGolosRpcClient()
+                    val runtime = AutoVoteRuntime(VoteRuntime(rpc, broadcaster = GolosBroadcastClient(rpc)), object : PostingKeyProvider {
+                        override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
+                        override fun privateWif(chainId: String, account: String): String? = key
+                    })
+                    val report = runtime.execute(plan)
+                    store.appendLog("auto-upvoter ${account.chainId}:${account.account}: attempted=${report.attempted}; broadcasted=${report.broadcasted}; skipped=${report.skipped.size}")
+                    if (report.results.any { !it.ok }) hadError = true
+                } catch (e: Exception) {
+                    hadError = true
+                    store.setLastError(e.message)
+                    store.appendLog("golos auto-upvoter error for ${account.account}: ${e.message}", "error")
+                }
             }
         }
         store.setNextTick(System.currentTimeMillis() + store.intervalMinutes() * 60_000L)
         return if (hadError) Result.retry() else Result.success()
+    }
+
+    private fun collectAutoVoteEvents(account: String): List<VoteEvent> {
+        // Real event collection is intentionally separated from preview/check and signing.
+        // Until shared event-source settings are imported, the worker has no eligible candidates and will not invent placeholder votes.
+        return emptyList()
     }
 
     companion object {

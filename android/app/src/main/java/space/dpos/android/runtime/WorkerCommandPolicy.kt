@@ -37,7 +37,7 @@ object WorkerCommandPolicy {
         if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
         if (chain !in supportedChains) return ImportDecision(false, "unsupported chain for native worker: $chain")
         if (!accountPattern.matches(account)) return ImportDecision(false, "invalid account name")
-        if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or dry-run auto-upvoter")
+        if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or auto-upvoter")
         return ImportDecision(
             accepted = true,
             reason = "accepted",

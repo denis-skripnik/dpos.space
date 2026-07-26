@@ -12,17 +12,22 @@ data class VoteEvent(val kind: String, val voter: String = "", val author: Strin
 data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?)
 data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>)
 
-object DryRunVoteLog {
+object PreviewVoteLog {
     fun render(plan: VotePlan, context: String = ""): String {
         val lines = mutableListOf<String>()
-        lines += "DRY-RUN auto-upvoter plan: actions=${plan.actions.size}, skips=${plan.skips.size}"
+        lines += "PREVIEW auto-upvoter plan: actions=${plan.actions.size}, skips=${plan.skips.size}"
         plan.actions.forEach { action ->
-            lines += "DRY-RUN vote @${action.account} -> @${action.author}/${action.permlink}, weight=${action.weight}, reason=${action.reason}, projectedEnergy=${action.projectedEnergy ?: "unknown"}"
+            lines += "PREVIEW vote @${action.account} -> @${action.author}/${action.permlink}, weight=${action.weight}, reason=${action.reason}, projectedEnergy=${action.projectedEnergy ?: "unknown"}"
         }
-        plan.skips.forEach { lines += "DRY-RUN skip $it" }
+        plan.skips.forEach { lines += "PREVIEW skip $it" }
         if (context.isNotBlank()) lines += PayloadSanitizer.redactLog(context)
         return lines.joinToString("\n")
     }
+}
+
+@Deprecated("Use PreviewVoteLog for explicit check/preview actions; normal worker runtime is real-capable when configured.")
+object DryRunVoteLog {
+    fun render(plan: VotePlan, context: String = ""): String = PreviewVoteLog.render(plan, context)
 }
 
 class AutoUpvoterPlanner {
