@@ -352,8 +352,30 @@ class VoteRuntime(
         if (authorityCheck != null) return authorityCheck
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
-        val response = broadcaster.broadcast(signed.payload.signedTransaction)
-        return signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+        return try {
+            val response = broadcaster.broadcast(signed.payload.signedTransaction)
+            signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+        } catch (e: Exception) {
+            classifyBroadcastFailure(operation, signed, e)
+        }
+    }
+
+    private fun classifyBroadcastFailure(operation: VoteOperation, signed: VoteBroadcastResult, error: Exception): VoteBroadcastResult {
+        val message = error.message.orEmpty()
+        if (message.contains("You have already voted in a similar way", ignoreCase = true)) {
+            return signed.copy(
+                ok = true,
+                status = "already_voted",
+                reason = "@${operation.voter} already voted this way for @${operation.author}/${operation.permlink}; auto-upvoter skipped duplicate as success",
+                rpcResponse = JSONObject().put("classified", "already_voted").put("error", PayloadSanitizer.text(message, 500))
+            )
+        }
+        return signed.copy(
+            ok = false,
+            status = "broadcast_error",
+            reason = PayloadSanitizer.text(message.ifBlank { "native vote broadcast failed" }, 300),
+            rpcResponse = JSONObject().put("error", PayloadSanitizer.text(message, 500))
+        )
     }
 
     private fun verifyPostingAuthority(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult? {
