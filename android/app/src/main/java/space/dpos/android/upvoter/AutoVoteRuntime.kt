@@ -27,6 +27,7 @@ class AutoVoteRuntime(
         val results = mutableListOf<VoteBroadcastResult>()
         val chain = chainId.trim().lowercase()
         val sentCounts = mutableMapOf<String, Int>()
+        var attempted = 0
         for (action in plan.actions) {
             if ((sentCounts[action.account] ?: 0) >= action.maxBroadcastsPerTick) {
                 skips += "limit:${action.account}|${action.author}|${action.permlink}"
@@ -34,9 +35,11 @@ class AutoVoteRuntime(
             }
             val key = keyProvider.privateWif(chain, action.account)
             if (key.isNullOrBlank()) {
+                attempted += 1
                 skips += "missing-key:${action.account}|${action.author}|${action.permlink}"
                 continue
             }
+            attempted += 1
             val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
             val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
@@ -44,7 +47,7 @@ class AutoVoteRuntime(
             if (!result.ok) skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
         }
         return AutoVoteRuntimeReport(
-            attempted = plan.actions.size,
+            attempted = attempted,
             broadcasted = if (previewOnly) 0 else results.count { it.status == "broadcast_sent" && it.ok },
             skipped = skips,
             results = results
