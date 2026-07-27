@@ -72,11 +72,44 @@ class AutoVoteRuntimePolicyTest {
         )
         assertTrue("planner keeps fallback candidates beyond the one-new-vote limit", plan.actions.size >= 2)
         val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
-        assertEquals(3, report.attempted)
+        assertEquals(2, report.attempted)
         assertEquals(1, report.broadcasted)
         assertEquals(2, broadcaster.broadcastCount)
         assertEquals(listOf("already_voted", "broadcast_sent"), report.results.map { it.status })
         assertTrue(report.skipped.any { it.startsWith("limit:denis|alice|third") })
+    }
+
+    @Test fun fatalBroadcastFailureIsRecordedButDoesNotStopNextCandidateLikeJsRuntime() {
+        val broadcaster = FatalThenSuccessBroadcaster()
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 2)),
+            listOf(
+                VoteEvent("favorite_post", author = "alice", permlink = "bad"),
+                VoteEvent("favorite_post", author = "alice", permlink = "good")
+            )
+        )
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
+        assertEquals(2, report.attempted)
+        assertEquals(1, report.broadcasted)
+        assertEquals(2, broadcaster.broadcastCount)
+        assertEquals(listOf("broadcast_error", "broadcast_sent"), report.results.map { it.status })
+        assertTrue(report.skipped.any { it.startsWith("broadcast_error:denis|alice|bad") })
+    }
+
+    @Test fun limitSkippedCandidateIsNotCountedAsAttempted() {
+        val broadcaster = RecordingBroadcaster()
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 1)),
+            listOf(
+                VoteEvent("favorite_post", author = "alice", permlink = "first"),
+                VoteEvent("favorite_post", author = "alice", permlink = "second")
+            )
+        )
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
+        assertEquals(1, report.attempted)
+        assertEquals(1, report.broadcasted)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertTrue(report.skipped.any { it.startsWith("limit:denis|alice|second") })
     }
 
     private fun planWithOneAction() = AutoUpvoterPlanner().plan(
@@ -122,6 +155,15 @@ class AutoVoteRuntimePolicyTest {
         override fun broadcast(signedTransaction: JSONObject): JSONObject {
             broadcastCount += 1
             if (broadcastCount == 1) throw IllegalStateException("You have already voted in a similar way.")
+            return JSONObject().put("ok", true).put("id", "sent-$broadcastCount")
+        }
+    }
+
+    private class FatalThenSuccessBroadcaster : VoteBroadcaster {
+        var broadcastCount = 0
+        override fun broadcast(signedTransaction: JSONObject): JSONObject {
+            broadcastCount += 1
+            if (broadcastCount == 1) throw IllegalStateException("temporary rpc failure")
             return JSONObject().put("ok", true).put("id", "sent-$broadcastCount")
         }
     }

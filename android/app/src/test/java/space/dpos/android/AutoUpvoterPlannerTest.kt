@@ -23,4 +23,29 @@ class AutoUpvoterPlannerTest {
         val lowEnergy = planner.plan(listOf(AccountSettings("denis", true, favorites = listOf("alice"), minEnergy = 9000, currentEnergy = 9001)), listOf(VoteEvent("favorite_post", author = "alice", permlink = "p")))
         assertTrue(lowEnergy.skips.any { it.startsWith("energy") })
     }
+
+    @Test fun activeVoteDuplicateDoesNotConsumeActionLimit() {
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 1)),
+            listOf(
+                VoteEvent("favorite_post", author = "alice", permlink = "already", activeVotes = listOf("denis")),
+                VoteEvent("favorite_post", author = "alice", permlink = "fresh")
+            )
+        )
+        assertEquals(1, plan.actions.size)
+        assertEquals("fresh", plan.actions.single().permlink)
+        assertTrue(plan.skips.any { it.startsWith("duplicate:denis|alice|already") })
+    }
+
+    @Test fun curatorAndFavoriteSourcesArePlannedTogetherWithConfiguredWeights() {
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", true, curators = listOf("curator"), favorites = listOf("alice"), curatorCoefficient = 50, favoritesPercent = 80, currentEnergy = 10000, maxActionsPerTick = 5)),
+            listOf(
+                VoteEvent(kind = "curator_vote", voter = "curator", author = "bob", permlink = "curated", weight = 6000),
+                VoteEvent(kind = "favorite_post", author = "alice", permlink = "favorite")
+            )
+        )
+        assertEquals(listOf("curated", "favorite"), plan.actions.map { it.permlink })
+        assertEquals(listOf(3000, 8000), plan.actions.map { it.weight })
+    }
 }
