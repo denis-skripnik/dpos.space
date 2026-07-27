@@ -59,6 +59,7 @@ class VoteBroadcastPolicyTest {
         assertNotNull(tx)
         assertEquals(1, tx!!.getJSONArray("signatures").length())
         assertEquals(130, tx.getJSONArray("signatures").getString(0).length)
+        assertTrue(isCanonicalCompactSignature(tx.getJSONArray("signatures").getString(0)))
     }
 
     @Test fun transactionBuilderUsesGolosVoteOperationShape() {
@@ -140,6 +141,15 @@ class VoteBroadcastPolicyTest {
     private fun deterministicGolosJsStyleWif(): String {
         val privateBytes = ECKey.fromPrivate(BigInteger("2"), true).privKeyBytes
         return Base58.encodeChecked(0x80, privateBytes)
+    }
+
+    private fun isCanonicalCompactSignature(hex: String): Boolean {
+        val signature = ByteArray(hex.length / 2) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+        return signature.size == 65 &&
+            (signature[1].toInt() and 0x80) == 0 &&
+            !(signature[1].toInt() == 0 && (signature[2].toInt() and 0x80) == 0) &&
+            (signature[33].toInt() and 0x80) == 0 &&
+            !(signature[33].toInt() == 0 && (signature[34].toInt() and 0x80) == 0)
     }
 
     private class FakeRpc(private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get()))) : GolosRpcClient {

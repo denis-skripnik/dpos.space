@@ -8,12 +8,18 @@ import org.bitcoinj.params.MainNetParams
 import org.json.JSONArray
 import org.json.JSONObject
 import org.bouncycastle.crypto.digests.RIPEMD160Digest
+import org.bouncycastle.crypto.ec.CustomNamedCurves
+import org.bouncycastle.crypto.params.ECDomainParameters
+import org.bouncycastle.crypto.params.ECPrivateKeyParameters
+import org.bouncycastle.crypto.signers.ECDSASigner
+import org.bouncycastle.crypto.signers.RandomDSAKCalculator
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.SecureRandom
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -214,19 +220,50 @@ class GrapheneVoteSigner(
             return VoteBroadcastResult(false, "invalid_wif", operation, "posting key is not a valid WIF: ${PayloadSanitizer.text(e.message, 80)}")
         }
         val digest = Sha256Hash.wrap(Sha256Hash.hash(builder.signingBytes(operation, header)))
-        val signature = ecKey.sign(digest)
-        val recId = (0..3).firstOrNull { candidate -> ECKey.recoverFromSignature(candidate, signature, digest, true)?.pubKeyPoint == ecKey.pubKeyPoint }
-            ?: return VoteBroadcastResult(false, "signature_recovery_failed", operation, "could not derive compact recoverable signature id")
-        val compact = ByteArrayOutputStream().apply {
-            write(recId + 27 + 4)
-            writePadded(signature.r)
-            writePadded(signature.s)
-        }.toByteArray().toHex()
+        val compact = canonicalCompactSignatureHex(ecKey, digest)
+            ?: return VoteBroadcastResult(false, "signature_recovery_failed", operation, "could not produce canonical compact recoverable signature")
         val tx = builder.build(operation, header, compact)
         return VoteBroadcastResult(true, "signed", operation, "signed ${spec.id} vote transaction locally", SignedVotePayload(operation, keyRef, tx))
     }
 
-    private fun ecKeyFromWif(wif: String): ECKey = DumpedPrivateKey.fromBase58(MainNetParams.get(), wif).key
+    private fun ecKeyFromWif(wif: String): ECKey {
+        val decoded = Base58.decodeChecked(wif)
+        require(decoded.size == 33 || decoded.size == 34) { "invalid WIF payload length" }
+        require(decoded[0] == 0x80.toByte()) { "invalid WIF version" }
+        return ECKey.fromPrivate(decoded.copyOfRange(1, 33), true)
+    }
+
+    private fun canonicalCompactSignatureHex(ecKey: ECKey, digest: Sha256Hash): String? {
+        repeat(100) {
+            val signature = randomEcdsaSignature(ecKey, digest).toCanonicalised()
+            val recId = (0..3).firstOrNull { candidate -> ECKey.recoverFromSignature(candidate, signature, digest, true)?.pubKeyPoint == ecKey.pubKeyPoint }
+                ?: return@repeat
+            val compact = ByteArrayOutputStream().apply {
+                write(recId + 27 + 4)
+                writePadded(signature.r)
+                writePadded(signature.s)
+            }.toByteArray()
+            if (isCanonicalCompactSignature(compact)) return compact.toHex()
+        }
+        return null
+    }
+
+    private fun randomEcdsaSignature(ecKey: ECKey, digest: Sha256Hash): ECKey.ECDSASignature {
+        val curve = CustomNamedCurves.getByName("secp256k1")
+        val domain = ECDomainParameters(curve.curve, curve.g, curve.n, curve.h)
+        val signer = ECDSASigner(RandomDSAKCalculator())
+        signer.init(true, ECPrivateKeyParameters(ecKey.privKey, domain))
+        val components = signer.generateSignature(digest.bytes)
+        return ECKey.ECDSASignature(components[0], components[1])
+    }
+
+    private fun isCanonicalCompactSignature(signature: ByteArray): Boolean {
+        if (signature.size != 65) return false
+        return (signature[1].toInt() and 0x80) == 0 &&
+            !(signature[1].toInt() == 0 && (signature[2].toInt() and 0x80) == 0) &&
+            (signature[33].toInt() and 0x80) == 0 &&
+            !(signature[33].toInt() == 0 && (signature[34].toInt() and 0x80) == 0)
+    }
 }
 
 class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos"), builder)
