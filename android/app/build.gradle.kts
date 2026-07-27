@@ -15,8 +15,8 @@ android {
         applicationId = "space.dpos.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.1.16"
+        versionCode = 18
+        versionName = "0.1.17"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DPOS_WEB_URL", "\"https://dpos.blinddev.xyz/\"")
     }
@@ -52,4 +52,6 @@ dependencies {
     implementation("org.bitcoinj:bitcoinj-core:0.16.3")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("org.robolectric:robolectric:4.13")
 }
