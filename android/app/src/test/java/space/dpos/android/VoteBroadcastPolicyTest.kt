@@ -71,6 +71,13 @@ class VoteBroadcastPolicyTest {
         assertEquals(1, tx.getJSONArray("signatures").length())
     }
 
+    @Test fun signingBytesMatchGolosJsWithoutTrailingZeroDigestSuffix() {
+        val op = VoteOperation("golos", "denis", "alice", "post", 7500)
+        val bytes = GolosTransactionBuilder().signingBytes(op, header)
+        assertEquals(64, bytes.size)
+        assertFalse(bytes.takeLast(32).all { it == 0.toByte() })
+    }
+
     @Test fun headerFactoryParsesGrapheneHeadBlockPrefix() {
         val props = JSONObject()
             .put("head_block_number", 123)

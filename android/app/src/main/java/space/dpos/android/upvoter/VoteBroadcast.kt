@@ -167,7 +167,7 @@ class GrapheneTransactionBuilder(private val spec: GrapheneChainSpec) : Transact
             writeInt16LE(operation.weight.coerceIn(-10000, 10000))
             writeVarUInt(0)
         }.toByteArray()
-        return hexToBytes(spec.networkChainIdHex) + txBytes + ByteArray(32)
+        return hexToBytes(spec.networkChainIdHex) + txBytes
     }
 }
 
