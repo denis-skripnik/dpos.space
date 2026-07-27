@@ -1,0 +1,15 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const bridge = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/bridge/DposAndroidBridge.kt'), 'utf8');
+const worker = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposPeriodicWorker.kt'), 'utf8');
+const runner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposWorkerRunner.kt'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8');
+const checkNow = bridge.slice(bridge.indexOf('fun checkNow()'), bridge.indexOf('@JavascriptInterface', bridge.indexOf('fun checkNow()') + 1));
+assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'checkNow runs the real worker runner immediately');
+assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
+assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
+assert(runner.includes('notificationChecks') && runner.includes('autoUpvoterChecks') && runner.includes('autoUpvoterAttempted') && runner.includes('messages'), 'runner returns visible evidence counters');
+assert(app.includes('renderAndroidCheckSummary(check, ok)') && app.includes('Проверка Android выполнена'), 'WebView UI renders real check counters after Start');
+console.log('v3 Android worker real check smoke passed');

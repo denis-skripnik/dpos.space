@@ -8,7 +8,6 @@ import android.provider.Settings
 import android.webkit.JavascriptInterface
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import org.json.JSONObject
@@ -27,6 +26,7 @@ import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.worker.DposForegroundService
 import space.dpos.android.worker.DposPeriodicWorker
+import space.dpos.android.worker.DposWorkerRunner
 import space.dpos.android.upvoter.GrapheneChainSpecs
 import space.dpos.android.upvoter.GrapheneVoteSigner
 import space.dpos.android.upvoter.HttpGrapheneRpcClient
@@ -97,8 +97,17 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
 
     @JavascriptInterface
     fun checkNow(): String {
-        WorkManager.getInstance(activity.applicationContext).enqueue(OneTimeWorkRequestBuilder<DposPeriodicWorker>().build())
-        return JSONObject().put("ok", true).put("status", "queued").toString()
+        return try {
+            DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual").toJson().toString()
+        } catch (e: Exception) {
+            store.setLastError(e.message)
+            store.appendLog("manual check error: ${e.message}", "error")
+            JSONObject()
+                .put("ok", false)
+                .put("status", "check_error")
+                .put("reason", PayloadSanitizer.text(e.message, 300))
+                .toString()
+        }
     }
 
     @JavascriptInterface
