@@ -175,7 +175,11 @@ class GolosTransactionBuilder(chainIdHex: String = GOLOS_CHAIN_ID) : Transaction
 
 object GraphenePublicKey {
     fun fromWif(wif: String, prefix: String = "GLS"): String {
-        val key = DumpedPrivateKey.fromBase58(MainNetParams.get(), wif).key
+        val decoded = Base58.decodeChecked(wif)
+        require(decoded.size == 33 || decoded.size == 34) { "invalid WIF payload length" }
+        require(decoded[0] == 0x80.toByte()) { "invalid WIF version" }
+        val privateKeyBytes = decoded.copyOfRange(1, 33)
+        val key = ECKey.fromPrivate(privateKeyBytes, true)
         val pub = key.pubKey
         val digest = RIPEMD160Digest()
         digest.update(pub, 0, pub.size)

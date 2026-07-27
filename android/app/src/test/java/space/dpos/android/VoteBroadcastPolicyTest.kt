@@ -1,5 +1,6 @@
 package space.dpos.android
 
+import org.bitcoinj.core.Base58
 import org.bitcoinj.core.ECKey
 import org.bitcoinj.params.MainNetParams
 import org.json.JSONObject
@@ -129,7 +130,17 @@ class VoteBroadcastPolicyTest {
         assertEquals(1, broadcaster.broadcastCount)
     }
 
+    @Test fun graphenPublicKeyUsesCompressedPubkeyForGolosJsStyleWif() {
+        val golosJsStyleWif = deterministicGolosJsStyleWif()
+        val expectedCompressedPublic = GraphenePublicKey.fromWif(deterministicNonSecretWif())
+        assertEquals(expectedCompressedPublic, GraphenePublicKey.fromWif(golosJsStyleWif))
+    }
+
     private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
+    private fun deterministicGolosJsStyleWif(): String {
+        val privateBytes = ECKey.fromPrivate(BigInteger("2"), true).privKeyBytes
+        return Base58.encodeChecked(0x80, privateBytes)
+    }
 
     private class FakeRpc(private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get()))) : GolosRpcClient {
         override fun getDynamicGlobalProperties(): JSONObject = JSONObject()
