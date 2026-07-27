@@ -31,6 +31,7 @@ assert(appSource.includes("notifications && notifications.supportsChain(chain) &
 assert(appSource.includes('data-android-notifications-settings') && appSource.includes('notificationOps: currentSettings.ops'), 'notifications page syncs selected filters into Android settings without separate controls');
 assert(appSource.includes("'minter', 'decimal'") && appSource.includes('публичную историю аккаунта/адреса'), 'Minter/Decimal use the same Android notification settings UX through public wallet history');
 assert(!appSource.includes('Android native worker') && !appSource.includes('posting-ключ переносится') && !appSource.includes('check-now='), 'runtime avoids user-facing native worker/key/check-now jargon');
+assert(appSource.includes('renderAndroidCheckSummary(checked, 1)') && appSource.includes('Проверка Android выполнена'), 'notification Android status reports actual check result');
 assert(!appSource.includes('data-android-import-viz-notifications') && !appSource.includes('data-android-start-worker') && !appSource.includes('data-android-check-now'), 'notification native UI exposes no separate import/start/check controls');
 assert(cssSource.includes('.notifications-panel') && cssSource.includes('.notifications-popover'), 'notifications panel styles exist');
 assert(planSource.includes('верхняя панель уведомлений'), 'plan documents notifications scope');

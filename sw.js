@@ -1,20 +1,20 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260726-human-worker-copy';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20260726-real-worker-check';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/css/style.css?v=20260726-human-worker-copy',
-  '/v3/js/chains.js?v=20260726-human-worker-copy',
-  '/v3/js/auth.js?v=20260726-human-worker-copy',
-  '/v3/js/broadcast.js?v=20260726-human-worker-copy',
-  '/v3/js/profiles.js?v=20260726-human-worker-copy',
-  '/v3/js/history.js?v=20260726-human-worker-copy',
-  '/v3/js/notifications.js?v=20260726-human-worker-copy',
-  '/v3/js/auto-upvoter.js?v=20260726-human-worker-copy',
-  '/v3/js/pwa.js?v=20260726-human-worker-copy',
+  '/v3/css/style.css?v=20260726-real-worker-check',
+  '/v3/js/chains.js?v=20260726-real-worker-check',
+  '/v3/js/auth.js?v=20260726-real-worker-check',
+  '/v3/js/broadcast.js?v=20260726-real-worker-check',
+  '/v3/js/profiles.js?v=20260726-real-worker-check',
+  '/v3/js/history.js?v=20260726-real-worker-check',
+  '/v3/js/notifications.js?v=20260726-real-worker-check',
+  '/v3/js/auto-upvoter.js?v=20260726-real-worker-check',
+  '/v3/js/pwa.js?v=20260726-real-worker-check',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'

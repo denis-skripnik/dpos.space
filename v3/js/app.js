@@ -5970,8 +5970,27 @@
     const enabled = result.workerEnabled ? 'включена' : 'выключена';
     const running = result.running ? 'сейчас работает' : 'сейчас остановлена';
     const accounts = Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0;
+    const lastTick = result.lastTick ? ` Последняя проверка: ${new Date(Number(result.lastTick)).toLocaleString()}.` : ' Проверок ещё не было.';
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
-    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${error}`;
+    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${lastTick}${error}`;
+  }
+
+  function renderAndroidCheckSummary(result, fallbackAccounts) {
+    if (!result || typeof result !== 'object') return 'Фактический результат проверки не получен.';
+    if (result.ok === false) {
+      const reason = result.reason || (Array.isArray(result.errors) && result.errors[0]) || 'неизвестная ошибка';
+      return `Проверка Android не выполнена: ${reason}`;
+    }
+    const accounts = Number.isFinite(Number(result.accountsChecked)) ? Number(result.accountsChecked) : fallbackAccounts;
+    const notificationChecks = Number.isFinite(Number(result.notificationChecks)) ? Number(result.notificationChecks) : 0;
+    const notificationsShown = Number.isFinite(Number(result.notificationsShown)) ? Number(result.notificationsShown) : 0;
+    const autoChecks = Number.isFinite(Number(result.autoUpvoterChecks)) ? Number(result.autoUpvoterChecks) : 0;
+    const attempted = Number.isFinite(Number(result.autoUpvoterAttempted)) ? Number(result.autoUpvoterAttempted) : 0;
+    const broadcasted = Number.isFinite(Number(result.autoUpvoterBroadcasted)) ? Number(result.autoUpvoterBroadcasted) : 0;
+    const skipped = Number.isFinite(Number(result.skipped)) ? Number(result.skipped) : 0;
+    const errors = Array.isArray(result.errors) ? result.errors.length : 0;
+    const details = Array.isArray(result.messages) && result.messages.length ? ` ${result.messages.slice(-2).join(' ')}` : '';
+    return `Проверка Android выполнена: аккаунтов ${accounts}, проверок уведомлений ${notificationChecks}, новых уведомлений ${notificationsShown}, проверок ленты ${autoChecks}, действий найдено ${attempted}, отправлено ${broadcasted}, пропущено ${skipped}, ошибок ${errors}.${details}`;
   }
 
   function androidNativeAutoVoteSupported(chain) {
@@ -6522,11 +6541,13 @@
       }
       const started = callAndroidWorkerBridge('startWorker');
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
-      const check = callAndroidWorkerBridge('checkNow');
       const ok = results.filter((row) => row && row.ok).length;
-      updateAndroidWorkerStatus(Object.assign({}, started, { activeAccounts: ok }));
-      appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${results.length} аккаунтов синхронизировано. Первая проверка поставлена в очередь.`);
-      return Object.assign({}, started, { activeAccounts: ok });
+      const check = callAndroidWorkerBridge('checkNow');
+      if (!check || check.ok === false) throw new Error(check && (check.reason || (Array.isArray(check.errors) && check.errors[0]) || check.status) || 'проверка Android не выполнена');
+      const merged = Object.assign({}, started, check, { activeAccounts: ok, workerEnabled: true, running: true });
+      updateAndroidWorkerStatus(merged);
+      appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${results.length} аккаунтов синхронизировано. ${renderAndroidCheckSummary(check, ok)}`);
+      return merged;
     }
 
     async function startAndroidAutoUpvoter(settings) {
@@ -14311,7 +14332,8 @@ Memo key: ${keys.memo}`);
         const started = callAndroidWorkerBridge('startWorker');
         if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
         const checked = callAndroidWorkerBridge('checkNow');
-        status.textContent = `${chain.title}: уведомления Android включены для @${cleanAccount}; выбрано типов событий: ${(currentSettings.ops || allOps).length}. Первая проверка поставлена в очередь.`;
+        if (!checked || checked.ok === false) throw new Error(checked && (checked.reason || (Array.isArray(checked.errors) && checked.errors[0]) || checked.status) || 'проверка Android не выполнена');
+        status.textContent = `${chain.title}: уведомления Android включены для @${cleanAccount}; выбрано типов событий: ${(currentSettings.ops || allOps).length}. ${renderAndroidCheckSummary(checked, 1)}`;
       } catch (error) {
         status.textContent = `${chain.title}: уведомления Android не включены: ${profiles.formatError(error)}`;
       }
