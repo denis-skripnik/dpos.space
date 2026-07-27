@@ -6522,6 +6522,11 @@
         const user = findStoredAutoUpvoterUser(row.account);
         if (!user) throw new Error(`Аккаунт @${row.account} не найден в локальном хранилище авторизации.`);
         const decrypted = broadcast.decryptLegacyKey(chain, user, 'posting');
+        const accountInfo = await fetchChainAccount(chain, row.account);
+        const client = global[chain.libraryGlobal];
+        if (!keyMatchesAuthority(client, decrypted.privateKey, authorityObjectFor(chain, accountInfo, 'posting'))) {
+          throw new Error(`Сохранённый posting-ключ @${row.account} не найден в posting authority аккаунта. Обновите ключ в разделе «Аккаунты» перед запуском Android автоапвоутера.`);
+        }
         try {
           const keyResult = callAndroidWorkerBridge('importSecureKey', {
             chainId: chain.id,

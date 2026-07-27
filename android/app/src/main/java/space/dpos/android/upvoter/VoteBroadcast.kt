@@ -1,11 +1,13 @@
 package space.dpos.android.upvoter
 
+import org.bitcoinj.core.Base58
 import org.bitcoinj.core.DumpedPrivateKey
 import org.bitcoinj.core.ECKey
 import org.bitcoinj.core.Sha256Hash
 import org.bitcoinj.params.MainNetParams
 import org.json.JSONArray
 import org.json.JSONObject
+import org.bouncycastle.crypto.digests.RIPEMD160Digest
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
 import java.io.ByteArrayOutputStream
@@ -30,6 +32,7 @@ data class GrapheneChainSpec(
     val id: String,
     val networkChainIdHex: String,
     val defaultRpcEndpoint: String,
+    val publicKeyPrefix: String = "GLS",
     val voteOperationId: Int = 0,
     val postingAuthority: String = "posting",
     val legacyCallRpc: Boolean = false,
@@ -43,9 +46,9 @@ data class GrapheneChainSpec(
 object GrapheneChainSpecs {
     private val specs = mapOf(
         "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, legacyCallRpc = true, historyApiName = "account_history", discussionApiName = "tags", notificationOps = listOf("content_mentions", "comment_mention", "comment", "custom_json", "transfer", "donate", "author_reward", "curation_reward", "comment_benefactor_reward")),
-        "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC, notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "proposal_create", "proposal_update", "proposal_delete")),
-        "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC, notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "producer_reward")),
-        "viz" to GrapheneChainSpec("viz", VIZ_CHAIN_ID, DEFAULT_VIZ_RPC, legacyCallRpc = true, historyApiName = "account_history", nativeVoteSupported = false, notificationOps = listOf("comment", "transfer", "award", "fixed_award", "receive_award", "benefactor_award"))
+        "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "proposal_create", "proposal_update", "proposal_delete")),
+        "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "producer_reward")),
+        "viz" to GrapheneChainSpec("viz", VIZ_CHAIN_ID, DEFAULT_VIZ_RPC, publicKeyPrefix = "VIZ", legacyCallRpc = true, historyApiName = "account_history", nativeVoteSupported = false, notificationOps = listOf("comment", "transfer", "award", "fixed_award", "receive_award", "benefactor_award"))
     )
 
     val supportedNativeVoteChains: Set<String> = specs.filterValues { it.nativeVoteSupported }.keys
@@ -129,6 +132,7 @@ interface VoteBroadcaster {
 
 interface GolosRpcClient {
     fun getDynamicGlobalProperties(): JSONObject
+    fun getAccount(account: String): JSONObject?
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
 }
 
@@ -169,6 +173,27 @@ class GrapheneTransactionBuilder(private val spec: GrapheneChainSpec) : Transact
 
 class GolosTransactionBuilder(chainIdHex: String = GOLOS_CHAIN_ID) : TransactionBuilder by GrapheneTransactionBuilder(GrapheneChainSpec("golos", chainIdHex, DEFAULT_GOLOS_RPC, legacyCallRpc = true))
 
+object GraphenePublicKey {
+    fun fromWif(wif: String, prefix: String = "GLS"): String {
+        val key = DumpedPrivateKey.fromBase58(MainNetParams.get(), wif).key
+        val pub = key.pubKey
+        val digest = RIPEMD160Digest()
+        digest.update(pub, 0, pub.size)
+        val checksum = ByteArray(20)
+        digest.doFinal(checksum, 0)
+        return prefix + Base58.encode(pub + checksum.copyOfRange(0, 4))
+    }
+
+    fun matchesAuthority(publicKey: String, authority: JSONObject?): Boolean {
+        val keys = authority?.optJSONArray("key_auths") ?: return false
+        for (i in 0 until keys.length()) {
+            val row = keys.optJSONArray(i) ?: continue
+            if (row.optString(0) == publicKey && row.optInt(1, 0) > 0) return true
+        }
+        return false
+    }
+}
+
 class GrapheneVoteSigner(
     private val spec: GrapheneChainSpec,
     private val builder: TransactionBuilder = GrapheneTransactionBuilder(spec)
@@ -206,6 +231,13 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
     override fun getDynamicGlobalProperties(): JSONObject {
         val result = postApi("database_api", "get_dynamic_global_properties", JSONArray())
         return result.optJSONObject("result") ?: result
+    }
+
+    override fun getAccount(account: String): JSONObject? {
+        val clean = account.trim().removePrefix("@").lowercase(Locale.ROOT)
+        val result = postApi("database_api", "get_accounts", JSONArray().put(JSONArray().put(clean)))
+        val rows = result.optJSONArray("result") ?: return null
+        return rows.optJSONObject(0)
     }
 
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
@@ -275,10 +307,27 @@ class VoteRuntime(
 
     fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
         val header = GolosTransactionHeaderFactory.fromDynamicGlobalProperties(rpcClient.getDynamicGlobalProperties())
+        val authorityCheck = verifyPostingAuthority(operation, keyRef, privateWif)
+        if (authorityCheck != null) return authorityCheck
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
         val response = broadcaster.broadcast(signed.payload.signedTransaction)
         return signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+    }
+
+    private fun verifyPostingAuthority(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult? {
+        if (keyRef == null || privateWif.isNullOrBlank()) return null
+        val spec = GrapheneChainSpecs.requireVote(operation.chainId)
+        val publicKey = try { GraphenePublicKey.fromWif(privateWif, spec.publicKeyPrefix) } catch (e: Exception) {
+            return VoteBroadcastResult(false, "invalid_wif", operation, "posting key is not a valid WIF: ${PayloadSanitizer.text(e.message, 80)}")
+        }
+        val account = try { rpcClient.getAccount(operation.voter) } catch (e: Exception) {
+            return VoteBroadcastResult(false, "authority_check_failed", operation, "could not verify posting authority for @${operation.voter}: ${PayloadSanitizer.text(e.message, 160)}")
+        } ?: return VoteBroadcastResult(false, "authority_check_failed", operation, "could not verify posting authority for @${operation.voter}: account not found")
+        if (!GraphenePublicKey.matchesAuthority(publicKey, account.optJSONObject(spec.postingAuthority))) {
+            return VoteBroadcastResult(false, "posting_key_mismatch", operation, "saved key is not listed in ${spec.postingAuthority} authority for @${operation.voter}; update the saved posting key before enabling Android auto-upvoter")
+        }
+        return null
     }
 }
 
