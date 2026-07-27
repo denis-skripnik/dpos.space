@@ -113,6 +113,12 @@ class WorkerStore(context: Context) {
     fun saveEncryptedKeyRef(ref: EncryptedKeyRef, secret: String) {
         secure.edit().putString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", secret).apply()
     }
+    fun removeEncryptedKeyRef(ref: EncryptedKeyRef) {
+        secure.edit().remove("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}").apply()
+    }
+    fun disableAutoUpvoter(chainId: String, account: String) {
+        prefs.edit().putBoolean("upvoter:$chainId:$account", false).apply()
+    }
     fun hasEncryptedKey(ref: EncryptedKeyRef): Boolean = secure.contains("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}")
     fun readEncryptedKey(ref: EncryptedKeyRef): String? = secure.getString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", null)
     fun defaultPostingKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
