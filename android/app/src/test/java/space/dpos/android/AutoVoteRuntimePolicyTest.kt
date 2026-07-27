@@ -50,6 +50,16 @@ class AutoVoteRuntimePolicyTest {
         assertEquals("broadcast_sent", report.results.single().status)
     }
 
+    @Test fun duplicateVoteIsReportedAsAlreadyVotedWithoutErrorSkip() {
+        val broadcaster = ThrowingBroadcaster("You have already voted in a similar way.")
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(planWithOneAction())
+        assertEquals(1, report.attempted)
+        assertEquals(0, report.broadcasted)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertEquals("already_voted", report.results.single().status)
+        assertEquals(0, report.skipped.size)
+    }
+
     private fun planWithOneAction() = AutoUpvoterPlanner().plan(
         listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000)),
         listOf(VoteEvent("favorite_post", author = "alice", permlink = "post"))
@@ -77,6 +87,14 @@ class AutoVoteRuntimePolicyTest {
         override fun broadcast(signedTransaction: JSONObject): JSONObject {
             broadcastCount += 1
             return JSONObject().put("ok", true)
+        }
+    }
+
+    private class ThrowingBroadcaster(private val message: String) : VoteBroadcaster {
+        var broadcastCount = 0
+        override fun broadcast(signedTransaction: JSONObject): JSONObject {
+            broadcastCount += 1
+            throw IllegalStateException(message)
         }
     }
 

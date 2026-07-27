@@ -130,6 +130,27 @@ class VoteBroadcastPolicyTest {
         assertEquals("broadcast_sent", result.status)
         assertEquals(1, broadcaster.broadcastCount)
     }
+    @Test fun executeTreatsDuplicateGolosVoteAsAlreadyVotedSkip() {
+        val rpc = FakeRpc(postingPublicKey = GraphenePublicKey.fromWif(deterministicNonSecretWif()))
+        val broadcaster = ThrowingBroadcaster("""{"code":-32005,"message":"invalid operation in transaction (3010000)\nInvalid operation 0 in transaction: business logic error (2030000)\nYou have already voted in a similar way."}""")
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertTrue(result.ok)
+        assertEquals("already_voted", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertTrue(result.reason.contains("skipped duplicate"))
+    }
+
+    @Test fun executeReturnsBroadcastErrorForNonDuplicateRpcFailure() {
+        val rpc = FakeRpc(postingPublicKey = GraphenePublicKey.fromWif(deterministicNonSecretWif()))
+        val broadcaster = ThrowingBroadcaster("node rejected for another reason")
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_error", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
+
 
     @Test fun graphenPublicKeyUsesCompressedPubkeyForGolosJsStyleWif() {
         val golosJsStyleWif = deterministicGolosJsStyleWif()
@@ -159,6 +180,14 @@ class VoteBroadcastPolicyTest {
             .put("time", "2024-01-01T00:00:00")
         override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(postingPublicKey).put(1))))
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
+    }
+
+    private class ThrowingBroadcaster(private val message: String) : VoteBroadcaster {
+        var broadcastCount = 0
+        override fun broadcast(signedTransaction: JSONObject): JSONObject {
+            broadcastCount += 1
+            throw IllegalStateException(message)
+        }
     }
 
     private class RecordingBroadcaster : VoteBroadcaster {
