@@ -129,6 +129,7 @@ class DposWorkerRunner(private val context: Context) {
                         curators = store.curators(account.chainId, account.account),
                         favorites = store.favorites(account.chainId, account.account),
                         minEnergy = store.minEnergy(account.chainId, account.account),
+                        curatorMode = store.curatorMode(account.chainId, account.account),
                         curatorCoefficient = store.curatorCoefficient(account.chainId, account.account),
                         favoritesPercent = store.favoritesPercent(account.chainId, account.account),
                         maxActionsPerTick = store.maxActions(account.chainId, account.account)
