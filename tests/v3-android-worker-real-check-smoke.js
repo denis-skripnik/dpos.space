@@ -17,5 +17,6 @@ const scanner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space
 const voteBroadcast = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/upvoter/VoteBroadcast.kt'), 'utf8');
 assert(voteBroadcast.includes('historyApiName = "account_history"') && voteBroadcast.includes('discussionApiName = "tags"'), 'Golos native worker uses real Golos history/feed API names');
 assert(scanner.includes('optJSONObject("error")') && scanner.includes('Graphene RPC response has no result array'), 'Graphene history parser exposes RPC errors instead of returning empty history');
+assert(app.includes('keyMatchesAuthority(client, decrypted.privateKey') && app.includes('Обновите ключ в разделе «Аккаунты»'), 'WebView verifies posting authority before importing a key into Android');
 assert(app.includes('renderAndroidCheckSummary(check, ok)') && app.includes('Проверка Android выполнена'), 'WebView UI renders real check counters after Start');
 console.log('v3 Android worker real check smoke passed');

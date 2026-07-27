@@ -19,6 +19,7 @@ import space.dpos.android.upvoter.VoteOperation
 import space.dpos.android.upvoter.VoteOperationFixture
 import space.dpos.android.upvoter.VoteRuntime
 import space.dpos.android.upvoter.GolosRpcClient
+import space.dpos.android.upvoter.GraphenePublicKey
 import java.math.BigInteger
 
 class VoteBroadcastPolicyTest {
@@ -100,13 +101,35 @@ class VoteBroadcastPolicyTest {
         assertEquals(1, broadcaster.lastTx!!.getJSONArray("signatures").length())
     }
 
+
+    @Test fun executeStopsBeforeBroadcastWhenStoredKeyIsNotPostingAuthority() {
+        val rpc = FakeRpc(postingPublicKey = "GLS1111111111111111111111111111111114T1Anm")
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("posting_key_mismatch", result.status)
+        assertEquals(0, broadcaster.broadcastCount)
+    }
+
+    @Test fun executeBroadcastsOnlyAfterPostingAuthorityPreflightMatches() {
+        val rpc = FakeRpc(postingPublicKey = GraphenePublicKey.fromWif(deterministicNonSecretWif()))
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertTrue(result.ok)
+        assertEquals("broadcast_sent", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
+
     private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
 
-    private class FakeRpc : GolosRpcClient {
+    private class FakeRpc(private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get()))) : GolosRpcClient {
         override fun getDynamicGlobalProperties(): JSONObject = JSONObject()
             .put("head_block_number", 123)
             .put("head_block_id", "0000007b01020304000000000000000000000000000000000000000000000000")
             .put("time", "2024-01-01T00:00:00")
+        override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(postingPublicKey).put(1))))
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 

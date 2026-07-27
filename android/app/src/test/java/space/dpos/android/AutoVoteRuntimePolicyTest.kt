@@ -1,5 +1,7 @@
 package space.dpos.android
 
+import org.bitcoinj.core.ECKey
+import org.bitcoinj.params.MainNetParams
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -10,6 +12,7 @@ import space.dpos.android.upvoter.AutoUpvoterPlanner
 import space.dpos.android.upvoter.AutoVoteRuntime
 import space.dpos.android.upvoter.BlockHeaderRef
 import space.dpos.android.upvoter.GolosRpcClient
+import space.dpos.android.upvoter.GraphenePublicKey
 import space.dpos.android.upvoter.PostingKeyProvider
 import space.dpos.android.upvoter.VoteBroadcastResult
 import space.dpos.android.upvoter.VoteBroadcaster
@@ -17,6 +20,7 @@ import space.dpos.android.upvoter.VoteEvent
 import space.dpos.android.upvoter.VoteOperation
 import space.dpos.android.upvoter.VoteRuntime
 import space.dpos.android.upvoter.VoteSigner
+import java.math.BigInteger
 
 class AutoVoteRuntimePolicyTest {
     @Test fun missingKeySkipsClearlyWithoutBroadcast() {
@@ -56,6 +60,7 @@ class AutoVoteRuntimePolicyTest {
             .put("head_block_number", 123)
             .put("head_block_id", "0000007b01020304000000000000000000000000000000000000000000000000")
             .put("time", "2024-01-01T00:00:00")
+        override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(GraphenePublicKey.fromWif(deterministicNonSecretWif())).put(1))))
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 
@@ -77,11 +82,15 @@ class AutoVoteRuntimePolicyTest {
 
     private class FakeKeyProvider : PostingKeyProvider {
         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
-        override fun privateWif(chainId: String, account: String): String = "non-secret-placeholder-used-by-fake-signer"
+        override fun privateWif(chainId: String, account: String): String = deterministicNonSecretWif()
     }
 
     private class MissingKeyProvider : PostingKeyProvider {
         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
         override fun privateWif(chainId: String, account: String): String? = null
+    }
+
+    companion object {
+        private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
     }
 }
