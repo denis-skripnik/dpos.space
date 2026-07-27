@@ -9,7 +9,7 @@ import kotlin.math.roundToInt
 
 data class AccountSettings(val account: String, val enabled: Boolean, val curators: List<String> = emptyList(), val favorites: List<String> = emptyList(), val minEnergy: Int = 2500, val curatorCoefficient: Int = 100, val favoritesPercent: Int = 100, val currentEnergy: Int? = null, val maxActionsPerTick: Int = 5)
 data class VoteEvent(val kind: String, val voter: String = "", val author: String, val permlink: String, val weight: Int = 10000, val activeVotes: List<String> = emptyList())
-data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?)
+data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?, val maxBroadcastsPerTick: Int = Int.MAX_VALUE)
 data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>)
 
 object PreviewVoteLog {
@@ -38,7 +38,8 @@ class AutoUpvoterPlanner {
         val actionCounts = mutableMapOf<String, Int>()
         for (event in events) {
             for (account in settings.filter { it.enabled }) {
-                if ((actionCounts[account.account] ?: 0) >= account.maxActionsPerTick) {
+                val planLimit = (account.maxActionsPerTick + max(3, account.maxActionsPerTick * 2)).coerceAtLeast(account.maxActionsPerTick)
+                if ((actionCounts[account.account] ?: 0) >= planLimit) {
                     skips += "limit:${account.account}|${event.author}|${event.permlink}"
                     continue
                 }
@@ -56,7 +57,7 @@ class AutoUpvoterPlanner {
                 if (current != null && (current < account.minEnergy || (projected != null && projected < account.minEnergy))) { skips += "energy:$key"; continue }
                 if (projected != null) energy[account.account] = projected
                 actionCounts[account.account] = (actionCounts[account.account] ?: 0) + 1
-                actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected)
+                actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected, account.maxActionsPerTick.coerceAtLeast(0))
             }
         }
         return VotePlan(actions, skips)

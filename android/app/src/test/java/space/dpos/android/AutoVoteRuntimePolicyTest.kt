@@ -60,6 +60,25 @@ class AutoVoteRuntimePolicyTest {
         assertEquals(0, report.skipped.size)
     }
 
+    @Test fun alreadyVotedDoesNotConsumeBroadcastLimitAndRuntimeContinuesToNextCandidate() {
+        val broadcaster = DuplicateThenSuccessBroadcaster()
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 1)),
+            listOf(
+                VoteEvent("favorite_post", author = "alice", permlink = "already"),
+                VoteEvent("favorite_post", author = "alice", permlink = "next"),
+                VoteEvent("favorite_post", author = "alice", permlink = "third")
+            )
+        )
+        assertTrue("planner keeps fallback candidates beyond the one-new-vote limit", plan.actions.size >= 2)
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
+        assertEquals(3, report.attempted)
+        assertEquals(1, report.broadcasted)
+        assertEquals(2, broadcaster.broadcastCount)
+        assertEquals(listOf("already_voted", "broadcast_sent"), report.results.map { it.status })
+        assertTrue(report.skipped.any { it.startsWith("limit:denis|alice|third") })
+    }
+
     private fun planWithOneAction() = AutoUpvoterPlanner().plan(
         listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000)),
         listOf(VoteEvent("favorite_post", author = "alice", permlink = "post"))
@@ -95,6 +114,15 @@ class AutoVoteRuntimePolicyTest {
         override fun broadcast(signedTransaction: JSONObject): JSONObject {
             broadcastCount += 1
             throw IllegalStateException(message)
+        }
+    }
+
+    private class DuplicateThenSuccessBroadcaster : VoteBroadcaster {
+        var broadcastCount = 0
+        override fun broadcast(signedTransaction: JSONObject): JSONObject {
+            broadcastCount += 1
+            if (broadcastCount == 1) throw IllegalStateException("You have already voted in a similar way.")
+            return JSONObject().put("ok", true).put("id", "sent-$broadcastCount")
         }
     }
 
