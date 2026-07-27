@@ -11,6 +11,7 @@ assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(
 assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
 assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
 assert(runner.includes('notificationChecks') && runner.includes('autoUpvoterChecks') && runner.includes('autoUpvoterAttempted') && runner.includes('messages'), 'runner returns visible evidence counters');
+assert(runner.includes('кураторов=${settings.curators.size}') && runner.includes('любимых=${settings.favorites.size}') && runner.includes('событий=${events.size}'), 'runner log explains which auto-upvoter sources were actually scanned');
 assert(bridge.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'bridge checkNow returns a real run summary');
 const scanner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/notifications/GolosNotificationScanner.kt'), 'utf8');
 const voteBroadcast = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/upvoter/VoteBroadcast.kt'), 'utf8');
