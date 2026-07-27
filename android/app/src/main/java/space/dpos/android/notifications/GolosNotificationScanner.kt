@@ -14,7 +14,7 @@ interface GolosHistoryClient {
     fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent>
 }
 
-class HttpGrapheneHistoryClient(private val endpoint: String, private val legacyCallRpc: Boolean = false) : GolosHistoryClient {
+class HttpGrapheneHistoryClient(private val endpoint: String, private val legacyCallRpc: Boolean = false, private val apiName: String = "condenser_api") : GolosHistoryClient {
     override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -23,17 +23,17 @@ class HttpGrapheneHistoryClient(private val endpoint: String, private val legacy
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
         }
-        OutputStreamWriter(connection.outputStream).use { it.write(GolosHistoryRpc.buildAccountHistoryPayload(account, from, limit, legacyCallRpc)) }
+        OutputStreamWriter(connection.outputStream).use { it.write(GolosHistoryRpc.buildAccountHistoryPayload(account, from, limit, legacyCallRpc, apiName)) }
         val body = if (connection.responseCode in 200..299) connection.inputStream.bufferedReader().use { it.readText() } else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
         if (connection.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${connection.responseCode}: ${body.take(120)}")
         return GolosHistoryRpc.parseAccountHistory(body)
     }
 }
 
-class HttpGolosHistoryClient(endpoint: String = GrapheneChainSpecs.require("golos").defaultRpcEndpoint) : GolosHistoryClient by HttpGrapheneHistoryClient(endpoint)
+class HttpGolosHistoryClient(endpoint: String = GrapheneChainSpecs.require("golos").defaultRpcEndpoint) : GolosHistoryClient by HttpGrapheneHistoryClient(endpoint, legacyCallRpc = true, apiName = "account_history")
 
 object GolosHistoryRpc {
-    fun buildAccountHistoryPayload(account: String, from: Long, limit: Int, legacyCallRpc: Boolean = false): String {
+    fun buildAccountHistoryPayload(account: String, from: Long, limit: Int, legacyCallRpc: Boolean = false, apiName: String = "condenser_api"): String {
         val clean = account.trim().removePrefix("@").lowercase()
         val safeLimit = limit.coerceIn(1, 100)
         val safeFrom = if (from < 0) -1 else from
@@ -43,20 +43,22 @@ object GolosHistoryRpc {
                 .put("jsonrpc", "2.0")
                 .put("id", 1)
                 .put("method", "call")
-                .put("params", JSONArray().put("condenser_api").put("get_account_history").put(params))
+                .put("params", JSONArray().put(apiName).put("get_account_history").put(params))
                 .toString()
         }
         return JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", 1)
-            .put("method", "condenser_api.get_account_history")
+            .put("method", "$apiName.get_account_history")
             .put("params", params)
             .toString()
     }
 
     fun parseAccountHistory(json: String): List<HistoryEvent> {
         val root = JSONObject(json)
-        val result = root.optJSONArray("result") ?: return emptyList()
+        val error = root.optJSONObject("error")
+        if (error != null) throw IllegalStateException(error.optString("message", "Graphene RPC error"))
+        val result = root.optJSONArray("result") ?: throw IllegalStateException("Graphene RPC response has no result array")
         val rows = mutableListOf<HistoryEvent>()
         for (i in 0 until result.length()) {
             val pair = result.optJSONArray(i) ?: continue

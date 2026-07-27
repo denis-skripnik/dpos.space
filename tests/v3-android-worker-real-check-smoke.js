@@ -11,5 +11,10 @@ assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(
 assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
 assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
 assert(runner.includes('notificationChecks') && runner.includes('autoUpvoterChecks') && runner.includes('autoUpvoterAttempted') && runner.includes('messages'), 'runner returns visible evidence counters');
+assert(bridge.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'bridge checkNow returns a real run summary');
+const scanner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/notifications/GolosNotificationScanner.kt'), 'utf8');
+const voteBroadcast = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/upvoter/VoteBroadcast.kt'), 'utf8');
+assert(voteBroadcast.includes('historyApiName = "account_history"') && voteBroadcast.includes('discussionApiName = "tags"'), 'Golos native worker uses real Golos history/feed API names');
+assert(scanner.includes('optJSONObject("error")') && scanner.includes('Graphene RPC response has no result array'), 'Graphene history parser exposes RPC errors instead of returning empty history');
 assert(app.includes('renderAndroidCheckSummary(check, ok)') && app.includes('Проверка Android выполнена'), 'WebView UI renders real check counters after Start');
 console.log('v3 Android worker real check smoke passed');
