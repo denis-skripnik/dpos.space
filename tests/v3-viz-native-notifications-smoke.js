@@ -12,11 +12,12 @@ assert(notificationsSource.includes("viz: ['comment', 'transfer', 'award', 'fixe
 assert(appSource.includes("notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications'"), 'notifications route is dispatched by helper support, not VIZ-only hardcode');
 const vizNotificationsSlice = appSource.slice(appSource.indexOf('function renderNotificationsPage'), appSource.indexOf('async function renderRoute'));
 assert(vizNotificationsSlice.includes('data-android-notifications-settings') && vizNotificationsSlice.includes('enableAutoUpvoter: false') && vizNotificationsSlice.includes('notificationOps: currentSettings.ops'), 'Android notifications are notifications-only and receive selected op filters');
-assert(vizNotificationsSlice.includes('native notifications используют эти же фильтры'), 'Android notifications auto-start from the normal notifications page with the same filters');
-assert(vizNotificationsSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('startWorker'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('checkNow'"), 'VIZ notifications page syncs, starts native worker, and queues check-now automatically');
+assert(vizNotificationsSlice.includes('уведомления используют эти же фильтры'), 'Android notifications use the normal notifications page with the same filters');
+assert(vizNotificationsSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('startWorker'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('checkNow'"), 'VIZ notifications page syncs and starts Android notifications internally');
 assert(!vizNotificationsSlice.includes('data-android-import-viz-notifications') && !vizNotificationsSlice.includes('data-android-start-worker') && !vizNotificationsSlice.includes('data-android-check-now'), 'VIZ notifications UI exposes no separate native import/start/check buttons');
-assert(vizNotificationsSlice.includes('операции не отправляет'), 'notification UI avoids false native signing/broadcast claims');
-assert(planSource.includes('Android native parity') || planSource.includes('native notifications'), 'plan records native notification scope');
+assert(vizNotificationsSlice.includes('операции не отправляет'), 'notification UI avoids false signing/broadcast claims');
+assert(!vizNotificationsSlice.includes('native notifications') && !vizNotificationsSlice.includes('check-now='), 'notification UI avoids technical native/check-now jargon');
+assert(planSource.includes('Android native parity') || planSource.includes('native notifications'), 'plan records Android notification scope');
 
 const localStorageData = {};
 const context = {

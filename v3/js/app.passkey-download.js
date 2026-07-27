@@ -5966,12 +5966,12 @@
   }
 
   function renderAndroidWorkerStatus(result) {
-    if (!result || typeof result !== 'object') return 'Статус Android worker недоступен.';
-    const enabled = result.workerEnabled ? 'включён' : 'выключен';
-    const running = result.running ? 'foreground service запущен' : 'foreground service остановлен';
+    if (!result || typeof result !== 'object') return 'Статус фоновой проверки в Android пока недоступен.';
+    const enabled = result.workerEnabled ? 'включена' : 'выключена';
+    const running = result.running ? 'сейчас работает' : 'сейчас остановлена';
     const accounts = Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0;
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
-    return `Android worker: ${enabled}, ${running}, аккаунтов: ${accounts}.${error}`;
+    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${error}`;
   }
 
   function androidNativeAutoVoteSupported(chain) {
@@ -5980,11 +5980,11 @@
 
   function androidNativeUnsupportedReason(chain) {
     if (!chain) return 'цепочка не выбрана';
-    if (chain.id === 'viz') return 'VIZ native worker/signing не включён: operation ids, chain id и authority semantics требуют отдельной проверки.';
-    if (chain.id === 'hive' || chain.id === 'steem') return 'Hive/Steem native worker/signing включены только для vote через posting authority; preview/check не отправляет транзакции.';
-    if (chain.id === 'minter') return 'Minter native Android signer supports SEND with numeric coinId/gasCoinId, explicit preview, and confirmed execute through verified send_transaction.';
-    if (chain.id === 'decimal') return 'Decimal native Android signer supports only secure-seed import and no-broadcast DEL transfer preview/check. Execute/broadcast, token, swap, delegate and NFT signing remain WebView-only until exact endpoint/encoding support is verified.';
-    return 'native worker для этой цепочки пока не заявлен.';
+    if (chain.id === 'viz') return 'Фоновый автоапвоутер VIZ пока не включён: нужно отдельно проверить типы операций и права аккаунта.';
+    if (chain.id === 'hive' || chain.id === 'steem') return 'Фоновая проверка Hive/Steem поддерживает только голосование через posting-права; предварительная проверка не отправляет транзакции.';
+    if (chain.id === 'minter') return 'Для Minter фоновые уведомления доступны, а отправка переводов остаётся в обычной форме кошелька.';
+    if (chain.id === 'decimal') return 'Для Decimal фоновые уведомления доступны, а отправка операций остаётся в обычной форме кошелька.';
+    return 'Фоновая проверка для этой цепочки пока не заявлена.';
   }
 
 
@@ -6095,9 +6095,9 @@
           <button type="button" id="auto-upvoter-stop" class="secondary" disabled>Остановить Stop</button>
         </div>
         <section class="card" data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'} aria-labelledby="android-worker-heading">
-          <h3 id="android-worker-heading">Android native worker</h3>
-          ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start автоматически запускает native worker: настройки берутся из формы, сохранённый posting-ключ переносится в Android secure storage, отдельный импорт настроек или отдельный native start не нужен. На сайте та же кнопка запускает JS/web scanner.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
-          <div id="android-worker-status" role="status" aria-live="polite">Android worker status ещё не запрошен.</div>
+          <h3 id="android-worker-heading">Фоновая проверка в Android</h3>
+          ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start включает фоновую проверку по выбранным настройкам. На сайте Start работает только пока открыта страница.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
+          <div id="android-worker-status" role="status" aria-live="polite">Статус фоновой проверки ещё не запрошен.</div>
         </section>
       </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}
       <section class="card" aria-labelledby="auto-upvoter-status-heading">
@@ -6525,7 +6525,7 @@
       const check = callAndroidWorkerBridge('checkNow');
       const ok = results.filter((row) => row && row.ok).length;
       updateAndroidWorkerStatus(Object.assign({}, started, { activeAccounts: ok }));
-      appendScannerFeed(`Android native worker запущен: ${ok}/${results.length} аккаунтов синхронизировано; check-now=${check && (check.status || check.ok) || 'queued'}.`);
+      appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${results.length} аккаунтов синхронизировано. Первая проверка поставлена в очередь.`);
       return Object.assign({}, started, { activeAccounts: ok });
     }
 
@@ -6533,17 +6533,17 @@
       const accounts = selectedAndroidWorkerAccounts(settings).map((row) => row.account);
       if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
       await loadAutoUpvoterBatterySummary(settings);
-      renderScannerFeed('Перед запуском Android native worker: текущая батарейка загружена.');
+      renderScannerFeed('Перед запуском фоновой проверки: текущая батарейка загружена.');
       const result = await syncAndroidWorkerFromForm(settings);
       runtime.running = true;
       runtime.settings = settings;
       runtime.hiddenNoticeSent = false;
       startButton.disabled = true;
       stopButton.disabled = false;
-      setStatus(`${chain.title} автоапвоутер запущен в Android native worker.`, 'ok');
+      setStatus(`${chain.title} автоапвоутер запущен в фоновой проверке Android.`, 'ok');
       if (pwa && typeof pwa.notify === 'function') {
         pwa.notify('Автоапвоутер запущен', {
-          body: `${chain.title}: Android native worker работает для ${accounts.map((account) => `@${account}`).join(', ')}.`,
+          body: `${chain.title}: фоновая проверка Android работает для ${accounts.map((account) => `@${account}`).join(', ')}.`,
           tag: `${chain.id}-auto-upvoter-running`
         });
       }
@@ -6557,7 +6557,7 @@
       startButton.disabled = false;
       stopButton.disabled = true;
       updateAndroidWorkerStatus(result);
-      renderScannerFeed('Android native worker остановлен; новых отправок не будет.');
+      renderScannerFeed('Фоновая проверка Android остановлена; новых отправок не будет.');
       setStatus(`${chain.title} автоапвоутер остановлен.`, 'info');
       return result;
     }
@@ -14282,18 +14282,18 @@ Memo key: ${keys.memo}`);
     const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem', 'minter', 'decimal'].includes(chain.id);
     const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
     const androidNotice = nativeSupported
-      ? `<section class="card" data-android-notifications-settings><h3>Android native notifications</h3><p class="muted">В Android-приложении native notifications используют эти же фильтры и включаются с этой страницы без отдельных import/start/check кнопок. Воркер только читает публичную историю аккаунта/адреса и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Native notifications ещё не синхронизированы.</div></section>`
-      : `<p class="muted">Android native notifications для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного публичного history scanner для этой цепочки.</p>`;
+      ? `<section class="card" data-android-notifications-settings><h3>Уведомления в Android</h3><p class="muted">В Android-приложении уведомления используют эти же фильтры. Приложение проверяет публичную историю аккаунта/адреса и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Уведомления Android ещё не синхронизированы.</div></section>`
+      : `<p class="muted">Уведомления Android для ${escapeHtml(chain.title)} пока не заявлены: нет проверенного публичного сканера истории для этой цепочки.</p>`;
     appEl.innerHTML = `<section class="panel">
       <h2>Уведомления ${escapeHtml(chain.title)}${cleanAccount ? ` для @${escapeHtml(cleanAccount)}` : ''}</h2>
-      <p>Показываются локально сохранённые события из публичной истории аккаунта/адреса. Фильтры ниже применяются и к браузерной проверке, и к Android native notifications, если они доступны.</p>
+      <p>Показываются локально сохранённые события из публичной истории аккаунта/адреса. Фильтры ниже применяются и к браузерной проверке, и к уведомлениям Android, если они доступны.</p>
       <form id="notifications-settings-form" class="stacked-form">
         <fieldset>
           <legend>Какие события отслеживать</legend>
           ${opCheckboxes}
         </fieldset>
         <div class="field"><label for="notifications-interval">Интервал Android-проверки, минут</label><input id="notifications-interval" name="intervalMinutes" type="number" min="15" step="1" value="${escapeHtml(settings.intervalMinutes || 15)}"></div>
-        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative !== false ? 'checked' : ''}> В APK включать Android native notifications для этих фильтров</label>
+        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative !== false ? 'checked' : ''}> В APK включать уведомления Android для этих фильтров</label>
         <button type="submit">Сохранить настройки уведомлений</button>
         <div class="operation-result" data-notifications-settings-result role="status" aria-live="polite"></div>
       </form>
@@ -14311,9 +14311,9 @@ Memo key: ${keys.memo}`);
         const started = callAndroidWorkerBridge('startWorker');
         if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
         const checked = callAndroidWorkerBridge('checkNow');
-        status.textContent = `${chain.title} native notifications включены для @${cleanAccount}; фильтров=${(currentSettings.ops || allOps).length}; check-now=${checked && (checked.status || checked.ok) || 'queued'}.`;
+        status.textContent = `${chain.title}: уведомления Android включены для @${cleanAccount}; выбрано типов событий: ${(currentSettings.ops || allOps).length}. Первая проверка поставлена в очередь.`;
       } catch (error) {
-        status.textContent = `${chain.title} native notifications не запущены: ${profiles.formatError(error)}`;
+        status.textContent = `${chain.title}: уведомления Android не включены: ${profiles.formatError(error)}`;
       }
     };
     const settingsForm = appEl.querySelector('#notifications-settings-form');
