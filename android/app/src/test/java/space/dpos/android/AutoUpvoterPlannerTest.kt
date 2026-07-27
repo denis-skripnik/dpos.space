@@ -37,6 +37,15 @@ class AutoUpvoterPlannerTest {
         assertTrue(plan.skips.any { it.startsWith("duplicate:denis|alice|already") })
     }
 
+    @Test fun curatorFullModeMatchesJsFullVoteBehavior() {
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", true, curators = listOf("curator"), curatorMode = "full", curatorCoefficient = 25, currentEnergy = 10000)),
+            listOf(VoteEvent(kind = "curator_vote", voter = "curator", author = "alice", permlink = "post", weight = 1234))
+        )
+        assertEquals(1, plan.actions.size)
+        assertEquals(10000, plan.actions.single().weight)
+    }
+
     @Test fun curatorAndFavoriteSourcesArePlannedTogetherWithConfiguredWeights() {
         val plan = AutoUpvoterPlanner().plan(
             listOf(AccountSettings("denis", true, curators = listOf("curator"), favorites = listOf("alice"), curatorCoefficient = 50, favoritesPercent = 80, currentEnergy = 10000, maxActionsPerTick = 5)),

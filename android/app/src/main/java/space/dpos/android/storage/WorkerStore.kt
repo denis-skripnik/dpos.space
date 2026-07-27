@@ -41,6 +41,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
             .putInt("intervalMinutes", decision.intervalMinutes)
             .putString("curators:${decision.chainId}:${decision.account}", JSONArray(decision.curators).toString())
             .putString("favorites:${decision.chainId}:${decision.account}", JSONArray(decision.favorites).toString())
+            .putString("curatorMode:${decision.chainId}:${decision.account}", decision.curatorMode)
             .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
             .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
             .apply()
@@ -68,6 +69,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun maxActions(chainId: String, account: String): Int = prefs.getInt("maxActions:$chainId:$account", 5)
     fun curators(chainId: String, account: String): List<String> = readStringList("curators:$chainId:$account")
     fun favorites(chainId: String, account: String): List<String> = readStringList("favorites:$chainId:$account")
+    fun curatorMode(chainId: String, account: String): String = if (prefs.getString("curatorMode:$chainId:$account", "repeat") == "full") "full" else "repeat"
     fun curatorCoefficient(chainId: String, account: String): Int = prefs.getInt("curatorCoefficient:$chainId:$account", 100).coerceIn(0, 100)
     fun favoritesPercent(chainId: String, account: String): Int = prefs.getInt("favoritesPercent:$chainId:$account", 100).coerceIn(0, 100)
     fun intervalMinutes(): Int = prefs.getInt("intervalMinutes", 15).coerceAtLeast(15)

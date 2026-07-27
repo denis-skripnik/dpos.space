@@ -6492,11 +6492,12 @@
         enableNotifications: true,
         enableAutoUpvoter: true,
         explicitConsent: true,
-        minEnergy: Number(row.minEnergy) || 2500,
+        minEnergy: helper && typeof helper.normalizeAccountSettings === 'function' ? helper.normalizeAccountSettings(row).minEnergy : (Number(row.minEnergy) || 2500),
         maxActionsPerTick: 5,
         intervalMinutes: 15,
         curators: row.curators,
         favorites: row.favorites,
+        curatorMode: row.curatorMode === 'full' ? 'full' : 'repeat',
         curatorCoefficient: Number(row.curatorCoefficient) || 100,
         favoritesPercent: Number(row.favoritesPercent) || 100
       };

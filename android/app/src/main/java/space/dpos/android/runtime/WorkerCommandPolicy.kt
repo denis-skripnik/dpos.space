@@ -18,6 +18,7 @@ data class AccountImportRequest(
     val intervalMinutes: Int = 15,
     val curators: List<String> = emptyList(),
     val favorites: List<String> = emptyList(),
+    val curatorMode: String = "repeat",
     val curatorCoefficient: Int = 100,
     val favoritesPercent: Int = 100
 )
@@ -35,6 +36,7 @@ data class ImportDecision(
     val intervalMinutes: Int = 15,
     val curators: List<String> = emptyList(),
     val favorites: List<String> = emptyList(),
+    val curatorMode: String = "repeat",
     val curatorCoefficient: Int = 100,
     val favoritesPercent: Int = 100
 )
@@ -63,11 +65,12 @@ object WorkerCommandPolicy {
             enableNotifications = request.enableNotifications,
             enableAutoUpvoter = request.enableAutoUpvoter,
             notificationOps = normalizeOps(request.notificationOps, chain),
-            minEnergy = request.minEnergy.coerceIn(0, 10000),
+            minEnergy = normalizeEnergyThreshold(request.minEnergy),
             maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
             intervalMinutes = request.intervalMinutes.coerceAtLeast(15),
             curators = normalizeAccounts(request.curators),
             favorites = normalizeAccounts(request.favorites),
+            curatorMode = normalizeCuratorMode(request.curatorMode),
             curatorCoefficient = request.curatorCoefficient.coerceIn(0, 100),
             favoritesPercent = request.favoritesPercent.coerceIn(0, 100)
         )
@@ -77,6 +80,13 @@ object WorkerCommandPolicy {
         .map { it.trim().removePrefix("@").lowercase() }
         .filter { accountPattern.matches(it) }
         .distinct()
+
+    fun normalizeEnergyThreshold(value: Int): Int {
+        val normalized = if (value > 0 && value <= 100) value * 100 else value
+        return normalized.coerceIn(0, 10000)
+    }
+
+    fun normalizeCuratorMode(value: String): String = if (value.trim().lowercase() == "full") "full" else "repeat"
 
     fun normalizeOps(values: List<String>, chainId: String): List<String> {
         val allowed = GrapheneChainSpecs.find(chainId)?.notificationOps ?: RestWalletNotificationSpecs.notificationOps[chainId].orEmpty()
@@ -113,6 +123,7 @@ object WorkerSettingsCodec {
                     intervalMinutes = obj.optInt("intervalMinutes", 15),
                     curators = readAccountList(obj.opt("curators")),
                     favorites = readAccountList(obj.opt("favorites")),
+                    curatorMode = obj.optString("curatorMode", "repeat"),
                     curatorCoefficient = obj.optInt("curatorCoefficient", 100),
                     favoritesPercent = obj.optInt("favoritesPercent", 100)
                 )
@@ -135,6 +146,7 @@ object WorkerSettingsCodec {
         .put("intervalMinutes", decision.intervalMinutes)
         .put("curators", JSONArray(decision.curators))
         .put("favorites", JSONArray(decision.favorites))
+        .put("curatorMode", decision.curatorMode)
         .put("curatorCoefficient", decision.curatorCoefficient)
         .put("favoritesPercent", decision.favoritesPercent)
         .toString()

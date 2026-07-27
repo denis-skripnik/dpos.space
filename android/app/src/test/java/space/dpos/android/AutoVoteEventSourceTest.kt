@@ -15,10 +15,12 @@ import space.dpos.android.upvoter.HttpGolosDiscussionClient
 
 class AutoVoteEventSourceTest {
     @Test fun settingsImportCarriesCuratorsAndFavoritesIntoDecision() {
-        val decision = WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","explicitConsent":true,"enableAutoUpvoter":true,"curators":["@alice","bad account","alice","bob"],"favorites":"carol; @dan","curatorCoefficient":50,"favoritesPercent":75}""")
+        val decision = WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","explicitConsent":true,"enableAutoUpvoter":true,"curators":["@alice","bad account","alice","bob"],"favorites":"carol; @dan","minEnergy":80,"curatorMode":"full","curatorCoefficient":50,"favoritesPercent":75}""")
         assertTrue(decision.accepted)
         assertEquals(listOf("alice", "bob"), decision.curators)
         assertEquals(listOf("carol", "dan"), decision.favorites)
+        assertEquals(8000, decision.minEnergy)
+        assertEquals("full", decision.curatorMode)
         assertEquals(50, decision.curatorCoefficient)
         assertEquals(75, decision.favoritesPercent)
     }
