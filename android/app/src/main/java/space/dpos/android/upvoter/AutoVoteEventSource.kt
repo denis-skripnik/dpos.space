@@ -71,18 +71,18 @@ class AutoVoteEventCollector(
     }
 }
 
-class HttpGrapheneDiscussionClient(private val endpoint: String, private val legacyCallRpc: Boolean = false) : GolosDiscussionClient {
+class HttpGrapheneDiscussionClient(private val endpoint: String, private val legacyCallRpc: Boolean = false, private val apiName: String = "condenser_api") : GolosDiscussionClient {
     override fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow> {
         val clean = account.trim().removePrefix("@").lowercase()
         val params = JSONObject().put("select_authors", JSONArray().put(clean)).put("limit", limit.coerceIn(1, 100))
         val rpcParams = JSONArray().put(params)
         val body = if (legacyCallRpc) {
-            JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "call").put("params", JSONArray().put("condenser_api").put("get_discussions_by_blog").put(rpcParams)).toString()
+            JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "call").put("params", JSONArray().put(apiName).put("get_discussions_by_blog").put(rpcParams)).toString()
         } else {
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 1)
-                .put("method", "condenser_api.get_discussions_by_blog")
+                .put("method", "$apiName.get_discussions_by_blog")
                 .put("params", rpcParams)
                 .toString()
         }
@@ -106,7 +106,10 @@ class HttpGrapheneDiscussionClient(private val endpoint: String, private val leg
 
     companion object {
         fun parseBlogPosts(json: String): List<FavoritePostRow> {
-            val result = JSONObject(json).optJSONArray("result") ?: return emptyList()
+            val root = JSONObject(json)
+            val error = root.optJSONObject("error")
+            if (error != null) throw IllegalStateException(error.optString("message", "Graphene discussion RPC error"))
+            val result = root.optJSONArray("result") ?: throw IllegalStateException("Graphene discussion RPC response has no result array")
             val rows = mutableListOf<FavoritePostRow>()
             for (i in 0 until result.length()) {
                 val post = result.optJSONObject(i) ?: continue
@@ -131,7 +134,7 @@ class HttpGrapheneDiscussionClient(private val endpoint: String, private val leg
     }
 }
 
-class HttpGolosDiscussionClient(endpoint: String = GrapheneChainSpecs.require("golos").defaultRpcEndpoint) : GolosDiscussionClient by HttpGrapheneDiscussionClient(endpoint) {
+class HttpGolosDiscussionClient(endpoint: String = GrapheneChainSpecs.require("golos").defaultRpcEndpoint) : GolosDiscussionClient by HttpGrapheneDiscussionClient(endpoint, legacyCallRpc = true, apiName = "tags") {
     companion object {
         fun parseBlogPosts(json: String): List<FavoritePostRow> = HttpGrapheneDiscussionClient.parseBlogPosts(json)
     }

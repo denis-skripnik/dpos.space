@@ -81,7 +81,7 @@ class DposWorkerRunner(private val context: Context) {
                     val cursor = store.readCursor(account.chainId, account.account)
                     val selectedOps = store.notificationOps(account.chainId, account.account)
                     val (nextCursor, notifications) = if (spec != null) {
-                        GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
+                        GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.historyApiName), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
                     } else if (account.chainId in RestWalletNotificationSpecs.supportedChains) {
                         RestWalletNotificationScanner(account.chainId).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
                     } else {
@@ -173,6 +173,6 @@ class DposWorkerRunner(private val context: Context) {
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
         val spec = GrapheneChainSpecs.requireVote(chainId)
-        return AutoVoteEventCollector(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc), HttpGrapheneDiscussionClient(spec.defaultRpcEndpoint, spec.legacyCallRpc)).collect(settings)
+        return AutoVoteEventCollector(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.historyApiName), HttpGrapheneDiscussionClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.discussionApiName)).collect(settings)
     }
 }

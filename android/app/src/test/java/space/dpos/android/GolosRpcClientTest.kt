@@ -27,4 +27,22 @@ class GolosRpcClientTest {
         assertTrue(payload.contains("100"))
         assertTrue(payload.contains("50"))
     }
+
+    @Test fun buildsGolosAccountHistoryPayloadForLegacyGolosApi() {
+        val payload = GolosHistoryRpc.buildAccountHistoryPayload("@denis-skripnik", from = -1, limit = 50, legacyCallRpc = true, apiName = "account_history")
+        assertTrue(payload.contains("\"method\":\"call\""))
+        assertTrue(payload.contains("\"account_history\""))
+        assertTrue(payload.contains("\"get_account_history\""))
+        assertTrue(payload.contains("\"denis-skripnik\""))
+    }
+
+    @Test fun rpcErrorIsNotSilentlyTreatedAsEmptyHistory() {
+        val json = """{"jsonrpc":"2.0","error":{"code":-32601,"message":"Could not find API condenser_api"},"id":1}"""
+        try {
+            GolosHistoryRpc.parseAccountHistory(json)
+            throw AssertionError("expected parser to reject RPC error")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("Could not find API"))
+        }
+    }
 }

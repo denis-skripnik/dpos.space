@@ -50,6 +50,16 @@ class AutoVoteEventSourceTest {
         assertEquals(listOf("denis", "alice"), rows[0].activeVotes)
     }
 
+    @Test fun discussionRpcErrorIsNotSilentlyTreatedAsEmptyFeed() {
+        val json = """{"jsonrpc":"2.0","error":{"code":-32601,"message":"Could not find API condenser_api"},"id":1}"""
+        try {
+            HttpGolosDiscussionClient.parseBlogPosts(json)
+            throw AssertionError("expected discussion parser to reject RPC error")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("Could not find API"))
+        }
+    }
+
     private class FakeHistory : GolosHistoryClient {
         override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
             HistoryEvent(1, "vote", mapOf("voter" to account, "author" to "target", "permlink" to "post", "weight" to "10000"))
