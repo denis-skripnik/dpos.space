@@ -133,9 +133,13 @@ class DposWorkerRunner(private val context: Context) {
                         favoritesPercent = store.favoritesPercent(account.chainId, account.account),
                         maxActionsPerTick = store.maxActions(account.chainId, account.account)
                     )
-                    val plan = AutoUpvoterPlanner().plan(listOf(settings), collectAutoVoteEvents(spec.id, listOf(settings)))
+                    val events = collectAutoVoteEvents(spec.id, listOf(settings))
+                    val curatorEvents = events.count { it.kind == "curator_vote" }
+                    val favoriteEvents = events.count { it.kind == "favorite_post" }
+                    val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
+                    val plan = AutoUpvoterPlanner().plan(listOf(settings), events)
                     if (plan.actions.isEmpty()) {
-                        val msg = "${account.chainId}:${account.account}: лента проверена, подходящих действий нет, skip=${plan.skips.size}"
+                        val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
                         store.appendLog(msg)
                         messages += msg
                         skipped += plan.skips.size
@@ -150,7 +154,7 @@ class DposWorkerRunner(private val context: Context) {
                     autoUpvoterAttempted += report.attempted
                     autoUpvoterBroadcasted += report.broadcasted
                     skipped += report.skipped.size
-                    val msg = "${account.chainId}:${account.account}: лента проверена, попыток ${report.attempted}, отправлено ${report.broadcasted}, skip=${report.skipped.size}"
+                    val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), попыток ${report.attempted}, отправлено ${report.broadcasted}, skip=${report.skipped.size}"
                     store.appendLog(msg)
                     messages += msg
                     report.results.filter { !it.ok }.forEach { errors += "${account.chainId}:${account.account}: ${it.status}" }
