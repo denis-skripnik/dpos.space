@@ -28,8 +28,9 @@ assert(notificationsSource.includes('MAX_PANEL_ITEMS = 10'), 'top panel is cappe
 assert(notificationsSource.includes('errors.push({ chainId: chain.id, account, error })'), 'notification background scan isolates per-account failures');
 assert(!notificationsSource.includes('setStatus(`Не удалось проверить уведомления'), 'notification failures do not overwrite the active page status');
 assert(appSource.includes("notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications'") && appSource.includes('renderNotificationsPage'), 'app routes notifications page for every supported notification chain');
-assert(appSource.includes('data-android-notifications-settings') && appSource.includes('notificationOps: currentSettings.ops'), 'notifications page syncs selected filters into Android native settings without separate controls');
-assert(appSource.includes("'minter', 'decimal'") && appSource.includes('публичную историю аккаунта/адреса'), 'Minter/Decimal use the same Android native notification settings UX through public wallet history');
+assert(appSource.includes('data-android-notifications-settings') && appSource.includes('notificationOps: currentSettings.ops'), 'notifications page syncs selected filters into Android settings without separate controls');
+assert(appSource.includes("'minter', 'decimal'") && appSource.includes('публичную историю аккаунта/адреса'), 'Minter/Decimal use the same Android notification settings UX through public wallet history');
+assert(!appSource.includes('Android native worker') && !appSource.includes('posting-ключ переносится') && !appSource.includes('check-now='), 'runtime avoids user-facing native worker/key/check-now jargon');
 assert(!appSource.includes('data-android-import-viz-notifications') && !appSource.includes('data-android-start-worker') && !appSource.includes('data-android-check-now'), 'notification native UI exposes no separate import/start/check controls');
 assert(cssSource.includes('.notifications-panel') && cssSource.includes('.notifications-popover'), 'notifications panel styles exist');
 assert(planSource.includes('верхняя панель уведомлений'), 'plan documents notifications scope');
