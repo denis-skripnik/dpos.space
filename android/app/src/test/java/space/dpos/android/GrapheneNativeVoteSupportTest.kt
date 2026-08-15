@@ -62,15 +62,16 @@ class GrapheneNativeVoteSupportTest {
         assertEquals("condenser_api.get_account_history", appbase.getString("method"))
     }
 
-    @Test fun securePostingKeyImportAcceptsOnlyImplementedNativeVoteChains() {
+    @Test fun secureKeyImportKeepsVoteChainsPostingOnlyAndAllowsVizRegularSelfAward() {
         val wif = deterministicNonSecretWif()
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("hive", "denis", "posting", "posting", wif, true)).accepted)
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("steem", "denis", "posting", "posting", wif, true)).accepted)
-        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("viz", "denis", "regular", "regular", wif, true)).accepted)
+        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("viz", "denis", "posting", "posting", wif, true)).accepted)
+        assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("viz", "denis", "regular", "regular", wif, true)).accepted)
         assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "Mx9858effd232b4033e47d90003d41ec34ecaeda94", "seed", "seed", "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", true)).accepted)
     }
 
-    @Test fun vizSpecIsNotificationsOnlyUntilRegularAwardSigningIsImplemented() {
+    @Test fun vizSpecIsNotificationsAndRegularSelfAwardButNotVoteAutoUpvoter() {
         val viz = GrapheneChainSpecs.require("viz")
         assertEquals("2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd", viz.networkChainIdHex)
         assertTrue(viz.legacyCallRpc)

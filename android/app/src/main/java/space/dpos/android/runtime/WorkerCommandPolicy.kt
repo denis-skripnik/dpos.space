@@ -11,6 +11,7 @@ data class AccountImportRequest(
     val account: String,
     val enableNotifications: Boolean,
     val enableAutoUpvoter: Boolean,
+    val enableVizSelfAward: Boolean = false,
     val explicitConsent: Boolean,
     val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
@@ -30,6 +31,7 @@ data class ImportDecision(
     val account: String = "",
     val enableNotifications: Boolean = false,
     val enableAutoUpvoter: Boolean = false,
+    val enableVizSelfAward: Boolean = false,
     val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
@@ -54,9 +56,10 @@ object WorkerCommandPolicy {
         if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
         val isWalletNotificationChain = chain in RestWalletNotificationSpecs.supportedChains
         if (!accountPattern.matches(account) && !(isWalletNotificationChain && walletAddressPattern.matches(account))) return ImportDecision(false, "invalid account name")
-        if (!request.enableNotifications && !request.enableAutoUpvoter) return ImportDecision(false, "nothing enabled; choose notifications or auto-upvoter")
+        if (!request.enableNotifications && !request.enableAutoUpvoter && !request.enableVizSelfAward) return ImportDecision(false, "nothing enabled; choose notifications, auto-upvoter, or VIZ self-award")
         if (request.enableNotifications && chain !in supportedNotificationChains) return ImportDecision(false, "unsupported chain for native notifications: $chain")
         if (request.enableAutoUpvoter && chain !in supportedAutoUpvoterChains) return ImportDecision(false, "unsupported chain for native auto-upvoter: $chain")
+        if (request.enableVizSelfAward && chain != "viz") return ImportDecision(false, "VIZ self-award is supported only for viz")
         return ImportDecision(
             accepted = true,
             reason = "accepted",
@@ -64,6 +67,7 @@ object WorkerCommandPolicy {
             account = account,
             enableNotifications = request.enableNotifications,
             enableAutoUpvoter = request.enableAutoUpvoter,
+            enableVizSelfAward = request.enableVizSelfAward,
             notificationOps = normalizeOps(request.notificationOps, chain),
             minEnergy = normalizeEnergyThreshold(request.minEnergy),
             maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
@@ -116,6 +120,7 @@ object WorkerSettingsCodec {
                     account = obj.optString("account"),
                     enableNotifications = obj.optBoolean("enableNotifications", false),
                     enableAutoUpvoter = obj.optBoolean("enableAutoUpvoter", false),
+                    enableVizSelfAward = obj.optBoolean("enableVizSelfAward", false),
                     explicitConsent = obj.optBoolean("explicitConsent", false),
                     notificationOps = readStringList(obj.opt("notificationOps")),
                     minEnergy = obj.optInt("minEnergy", 2500),
@@ -140,6 +145,7 @@ object WorkerSettingsCodec {
         .put("account", decision.account)
         .put("enableNotifications", decision.enableNotifications)
         .put("enableAutoUpvoter", decision.enableAutoUpvoter)
+        .put("enableVizSelfAward", decision.enableVizSelfAward)
         .put("notificationOps", JSONArray(decision.notificationOps))
         .put("minEnergy", decision.minEnergy)
         .put("maxActionsPerTick", decision.maxActionsPerTick)

@@ -678,7 +678,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'post', 'notifications', 'swap', 'my-coin', 'auto-upvoter'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'post', 'notifications', 'swap', 'my-coin', 'auto-upvoter', 'viz-self-award'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
@@ -5859,6 +5859,324 @@
     if (state.token) params.set('token', state.token);
     if (state.amount) params.set('amount', state.amount);
     return `${global.location.origin}${global.location.pathname}#${params.toString()}`;
+  }
+
+  const VIZ_SELF_AWARD_SETTINGS_KEY = 'dpos_viz_self_award_settings';
+  const VIZ_SELF_AWARD_REGENERATION_SECONDS = 432000;
+  const VIZ_SELF_AWARD_TICK_MS = 432000;
+  const VIZ_SELF_AWARD_MAX_SPEND = 10;
+  const VIZ_SELF_AWARD_MEMO = 'dpos.space: VIZ self-award';
+
+  function normalizeVizSelfAwardMinEnergy(value) {
+    const numeric = Number(String(value || '').replace(',', '.'));
+    if (!Number.isFinite(numeric)) return 9500;
+    const basis = numeric > 0 && numeric <= 100 ? Math.trunc(numeric * 100) : Math.trunc(numeric);
+    return Math.max(0, Math.min(9999, basis));
+  }
+
+  function currentVizEnergy(account, nowMs) {
+    if (!account) return NaN;
+    const base = Number(account.energy);
+    if (!Number.isFinite(base)) return NaN;
+    const last = Date.parse(account.last_vote_time || account.last_account_update || account.created || '');
+    if (!Number.isFinite(last)) return Math.max(0, Math.min(10000, Math.trunc(base)));
+    const deltaSeconds = Math.max(0, ((Number.isFinite(nowMs) ? nowMs : Date.now()) - last) / 1000);
+    return Math.min(10000, Math.trunc(base + (deltaSeconds * 10000 / VIZ_SELF_AWARD_REGENERATION_SECONDS)));
+  }
+
+  function vizSelfAwardSpend(currentEnergy, minEnergy) {
+    const current = Math.trunc(Number(currentEnergy));
+    const minimum = normalizeVizSelfAwardMinEnergy(minEnergy);
+    if (!Number.isFinite(current) || current <= minimum) return 0;
+    return Math.max(0, Math.min(VIZ_SELF_AWARD_MAX_SPEND, current - minimum));
+  }
+
+  function readVizSelfAwardSettings() {
+    if (!global.localStorage) return { accounts: {} };
+    try {
+      const parsed = JSON.parse(global.localStorage.getItem(VIZ_SELF_AWARD_SETTINGS_KEY) || '{}');
+      return { accounts: parsed && typeof parsed.accounts === 'object' ? parsed.accounts : {} };
+    } catch (error) {
+      return { accounts: {} };
+    }
+  }
+
+  function writeVizSelfAwardSettings(rows) {
+    if (!global.localStorage) return;
+    const accounts = {};
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const account = String(row && row.account || '').trim().replace(/^@/, '');
+      if (!account) return;
+      accounts[account] = {
+        enabled: Boolean(row.enabled),
+        minEnergy: String(normalizeVizSelfAwardMinEnergy(row.minEnergy))
+      };
+    });
+    global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify({ accounts }));
+  }
+
+  function getVizSelfAwardRuntime() {
+    if (!global.__dposVizSelfAwardRuntime || typeof global.__dposVizSelfAwardRuntime !== 'object') {
+      global.__dposVizSelfAwardRuntime = { running: false, interval: null, feed: [], settings: [] };
+    }
+    if (!Array.isArray(global.__dposVizSelfAwardRuntime.feed)) global.__dposVizSelfAwardRuntime.feed = [];
+    return global.__dposVizSelfAwardRuntime;
+  }
+
+  async function renderVizSelfAward(chain) {
+    await loadScript(chain.cryptoPath);
+    const users = auth.getUsers(chain);
+    const hasAndroidWorkerBridge = Boolean(nativeAndroidWorkerBridge());
+    const stored = readVizSelfAwardSettings();
+    const runtime = getVizSelfAwardRuntime();
+    const accountCards = users.map((user, index) => {
+      const login = auth.getUserLogin(user);
+      const type = auth.getUserType(user);
+      const saved = stored.accounts[login] || {};
+      const keyStatus = broadcast && typeof broadcast.getAvailableKeys === 'function' ? broadcast.getAvailableKeys(chain, user) : null;
+      const inputId = `viz-self-award-min-energy-${index}`;
+      const checkboxId = `viz-self-award-enabled-${index}`;
+      return `<fieldset class="card" data-viz-self-award-account="${escapeHtml(login)}">
+        <legend>@${escapeHtml(login)}${type && type !== 'standard' ? ` (${escapeHtml(type)})` : ''}</legend>
+        <label><input id="${checkboxId}" type="checkbox" name="enabled" value="1" ${saved.enabled ? 'checked' : ''}> Включить автонаграду для этого аккаунта</label>
+        <p class="muted">Regular-ключ: ${keyStatus && keyStatus.regularOrPosting ? 'сохранён' : 'не найден или недоступен'}.</p>
+        <div class="field">
+          <label for="${inputId}">Минимальная энергия, % или шкала 0–10000</label>
+          <input id="${inputId}" name="minEnergy" type="number" min="0" max="10000" step="1" value="${escapeHtml(saved.minEnergy || '9500')}">
+        </div>
+      </fieldset>`;
+    }).join('');
+
+    appEl.innerHTML = `<section class="panel" aria-labelledby="viz-self-award-heading">
+      <h2 id="viz-self-award-heading">VIZ: автонаграда себе</h2>
+      <p>Сервис не даёт энергии простаивать на 100%: выбранные сохранённые аккаунты периодически награждают сами себя, если энергия выше заданного минимума.</p>
+      <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические VIZ award без подтверждения каждой награды. Используется regular-ключ, сохранённый в разделе «Аккаунты».</p>
+      <p class="muted">Точный параметр сети: 100% энергии восстанавливается за 432000 секунд. Поэтому 0.1% восстанавливается за 7 минут 12 секунд. ${hasAndroidWorkerBridge ? 'В Android-приложении Start включает native foreground worker; на сайте работает active-tab режим.' : 'Web-версия работает, пока открыта страница/PWA; фоновая Android-версия доступна в APK.'}</p>
+      ${users.length ? `<form id="viz-self-award-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="viz-self-award-apply-value">Значение для всех аккаунтов</label>
+            <input id="viz-self-award-apply-value" type="number" min="0" max="10000" step="1" value="9500">
+          </div>
+          <div class="field actions"><button type="button" id="viz-self-award-apply-all">Скопировать минимум на все аккаунты</button></div>
+        </div>
+        ${accountCards}
+        <div class="actions">
+          <button type="button" id="viz-self-award-start">Запустить Start</button>
+          <button type="button" id="viz-self-award-stop" class="secondary" disabled>Остановить Stop</button>
+        </div>
+      </form>` : '<p class="muted">Нет сохранённых VIZ-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с regular-ключом.</p>'}
+      <section class="card" aria-labelledby="viz-self-award-status-heading">
+        <h3 id="viz-self-award-status-heading">Статус и лента</h3>
+        <div id="viz-self-award-feed" role="status" aria-live="polite">Остановлено. Реальных наград без кнопки Start нет.</div>
+      </section>
+    </section>`;
+
+    const form = document.getElementById('viz-self-award-form');
+    const startButton = document.getElementById('viz-self-award-start');
+    const stopButton = document.getElementById('viz-self-award-stop');
+    const feed = document.getElementById('viz-self-award-feed');
+    const applyAll = document.getElementById('viz-self-award-apply-all');
+    const applyValue = document.getElementById('viz-self-award-apply-value');
+
+    function renderFeed(prefix) {
+      if (!feed) return;
+      const rows = [];
+      if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
+      runtime.feed.slice(-30).reverse().forEach((entry) => rows.push(`<div>${escapeHtml(entry)}</div>`));
+      feed.innerHTML = rows.length ? rows.join('') : 'Остановлено. Реальных наград без кнопки Start нет.';
+    }
+
+    function appendFeed(message) {
+      runtime.feed.push(`${new Date().toLocaleTimeString()}: ${message}`);
+      renderFeed();
+    }
+
+    function collectSettings() {
+      if (!form) return [];
+      const rows = Array.from(form.querySelectorAll('[data-viz-self-award-account]')).map((card) => ({
+        account: card.dataset.vizSelfAwardAccount,
+        enabled: Boolean(card.querySelector('[name="enabled"]') && card.querySelector('[name="enabled"]').checked),
+        minEnergy: normalizeVizSelfAwardMinEnergy(card.querySelector('[name="minEnergy"]') && card.querySelector('[name="minEnergy"]').value)
+      }));
+      writeVizSelfAwardSettings(rows);
+      return rows;
+    }
+
+    function findUser(account) {
+      const normalized = String(account || '').trim().replace(/^@/, '');
+      return auth.getUsers(chain).find((user) => auth.getUserLogin(user) === normalized);
+    }
+
+    async function startAndroidVizSelfAward(settings) {
+      const selected = (Array.isArray(settings) ? settings : []).filter((row) => row.enabled && row.account);
+      if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
+      await loadScript(chain.libraryPath);
+      await loadScript(chain.cryptoPath);
+      for (const row of selected) {
+        const user = findUser(row.account);
+        if (!user) throw new Error(`Аккаунт @${row.account} не найден в сохранённых аккаунтах.`);
+        const decrypted = broadcast.decryptLegacyKey(chain, user, 'regular');
+        const accountInfo = await fetchChainAccount(chain, row.account);
+        const client = global[chain.libraryGlobal];
+        if (!keyMatchesAuthority(client, decrypted.privateKey, authorityObjectFor(chain, accountInfo, 'regular'))) {
+          throw new Error(`Сохранённый regular-ключ @${row.account} не найден в regular authority аккаунта. Обновите ключ в разделе «Аккаунты».`);
+        }
+        try {
+          const keyResult = callAndroidWorkerBridge('importSecureKey', {
+            chainId: 'viz',
+            account: row.account,
+            authority: 'regular',
+            alias: 'regular',
+            secret: decrypted.privateKey,
+            explicitConsent: true
+          });
+          if (!keyResult || !keyResult.ok) throw new Error(keyResult && (keyResult.reason || keyResult.status) || 'secure key import failed');
+          const settingsResult = callAndroidWorkerBridge('importWorkerSettings', {
+            chainId: 'viz',
+            account: row.account,
+            enableNotifications: false,
+            enableAutoUpvoter: false,
+            enableVizSelfAward: true,
+            explicitConsent: true,
+            minEnergy: row.minEnergy,
+            intervalMinutes: 8
+          });
+          if (!settingsResult || !settingsResult.ok) throw new Error(settingsResult && (settingsResult.reason || settingsResult.status) || 'settings import failed');
+        } finally {
+          decrypted.privateKey = '';
+        }
+      }
+      const started = callAndroidWorkerBridge('startWorker');
+      if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
+      const check = callAndroidWorkerBridge('checkNow');
+      appendFeed(`Android native VIZ self-award включён: ${selected.length} аккаунтов. ${renderAndroidCheckSummary(check, selected.length)}`);
+      return Object.assign({}, started, check, { workerEnabled: true, running: true });
+    }
+
+    async function fetchVizAccounts(accounts) {
+      const connection = await getConnection(chain);
+      const rows = await profiles.apiCall(connection, 'getAccounts', [accounts]);
+      return new Map((Array.isArray(rows) ? rows : []).map((row) => [String(row && row.name || '').trim().replace(/^@/, ''), row]));
+    }
+
+    async function runTick(settings) {
+      const selected = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row.enabled && row.account);
+      if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
+      await loadScript(chain.libraryPath);
+      await loadScript(chain.cryptoPath);
+      await profiles.connect(chain);
+      const accountMap = await fetchVizAccounts(selected.map((row) => row.account));
+      let sent = 0;
+      for (const row of selected) {
+        try {
+          const account = accountMap.get(row.account);
+          const liveEnergy = currentVizEnergy(account);
+          if (!Number.isFinite(liveEnergy)) {
+            appendFeed(`SKIP @${row.account}: не удалось определить энергию.`);
+            continue;
+          }
+          const minEnergy = normalizeVizSelfAwardMinEnergy(row.minEnergy);
+          const spend = vizSelfAwardSpend(liveEnergy, minEnergy);
+          if (spend <= 0) {
+            appendFeed(`SKIP @${row.account}: энергия ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
+            continue;
+          }
+          const user = findUser(row.account);
+          if (!user) throw new Error(`аккаунт @${row.account} не найден в сохранённых аккаунтах`);
+          const prepared = broadcast.prepareForUser(chain, user, 'regular', 'award', [row.account, row.account, spend, 0, VIZ_SELF_AWARD_MEMO, []], {
+            title: 'VIZ self-award',
+            feature: 'viz-self-award',
+            to: row.account,
+            energy: spend,
+            warnings: ['Автоматическая self-award операция VIZ: initiator и receiver совпадают.']
+          });
+          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: false, autoConsent: 'viz-self-award-start' });
+          sent += 1;
+          appendFeed(`OK @${row.account}: self-award ${(spend / 100).toFixed(2)}%, энергия была ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
+        } catch (error) {
+          appendFeed(`ERROR @${row.account}: ${profiles.formatError(error)}`);
+        }
+      }
+      renderFeed(`Проверка VIZ self-award завершена: аккаунтов ${selected.length}, наград отправлено ${sent}. Следующая проверка через 7 минут 12 секунд.`);
+    }
+
+    function stop(message) {
+      if (runtime.interval) clearInterval(runtime.interval);
+      runtime.interval = null;
+      runtime.running = false;
+      runtime.settings = [];
+      if (startButton) startButton.disabled = false;
+      if (stopButton) stopButton.disabled = true;
+      renderFeed(message || 'Остановлено. Новых автонаград не будет.');
+      setStatus('VIZ автонаграда себе остановлена.', 'info');
+    }
+
+    if (form) {
+      form.addEventListener('input', collectSettings);
+      form.addEventListener('change', collectSettings);
+    }
+    if (applyAll && applyValue && form) {
+      applyAll.addEventListener('click', () => {
+        const value = normalizeVizSelfAwardMinEnergy(applyValue.value);
+        form.querySelectorAll('[name="minEnergy"]').forEach((input) => { input.value = String(value); });
+        collectSettings();
+        setStatus(`Минимальная энергия ${(value / 100).toFixed(2)}% скопирована на все VIZ-аккаунты.`, 'ok');
+      });
+    }
+    if (startButton && stopButton && form) {
+      startButton.addEventListener('click', async () => {
+        try {
+          const settings = collectSettings();
+          const selected = settings.filter((row) => row.enabled && row.account);
+          if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
+          runtime.running = true;
+          runtime.settings = settings;
+          startButton.disabled = true;
+          stopButton.disabled = false;
+          appendFeed(`Запуск VIZ self-award для ${selected.map((row) => `@${row.account}`).join(', ')}. Memo: ${VIZ_SELF_AWARD_MEMO}`);
+          if (hasAndroidWorkerBridge) {
+            await startAndroidVizSelfAward(settings);
+            runtime.running = true;
+            runtime.settings = settings;
+            setStatus('VIZ автонаграда себе запущена в Android native foreground worker.', 'ok');
+            return;
+          }
+          await runTick(settings);
+          if (runtime.interval) clearInterval(runtime.interval);
+          runtime.interval = setInterval(() => {
+            runTick(runtime.settings).catch((error) => {
+              appendFeed(`Ошибка проверки: ${profiles.formatError(error)}`);
+              setStatus(`Ошибка VIZ автонаграды: ${profiles.formatError(error)}`, 'error');
+            });
+          }, VIZ_SELF_AWARD_TICK_MS);
+          setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
+        } catch (error) {
+          runtime.running = false;
+          startButton.disabled = false;
+          stopButton.disabled = true;
+          if (feed) feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
+          setStatus(`Ошибка VIZ автонаграды: ${profiles.formatError(error)}`, 'error');
+        }
+      });
+      stopButton.addEventListener('click', () => {
+        if (hasAndroidWorkerBridge) {
+          const result = callAndroidWorkerBridge('stopWorker');
+          appendFeed(`Android native worker остановлен: ${result && result.status ? result.status : 'ok'}`);
+        }
+        stop('Остановлено пользователем. Новых автонаград не будет.');
+      });
+    }
+
+    if (runtime.running && startButton && stopButton) {
+      startButton.disabled = true;
+      stopButton.disabled = false;
+      renderFeed('VIZ автонаграда уже запущена в этой вкладке.');
+      setStatus('VIZ автонаграда себе уже запущена.', 'ok');
+    } else {
+      renderFeed();
+      setStatus('VIZ автонаграда себе готова к настройке.', 'info');
+    }
   }
 
   const GOLOS_AUTO_UPVOTER_SETTINGS_KEY = 'dpos_golos_auto_upvoter_settings';
@@ -14470,6 +14788,8 @@ Memo key: ${keys.memo}`);
         await renderBroadcast(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'award') {
         renderVizAward(chain, state);
+      } else if (chain.id === 'viz' && effectiveAppId === 'viz-self-award') {
+        await renderVizSelfAward(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'analytics') {
         renderVizAnalytics(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'polls') {

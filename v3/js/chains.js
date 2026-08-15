@@ -35,6 +35,7 @@
   const vizApps = [
     { id: 'notifications', title: 'Уведомления', description: 'Локальная панель входящих VIZ-событий из account_history: награды, переводы и ответы без backend.', accountField: true },
     { id: 'award', title: 'Награды', description: 'VIZ-награды: операции award/fixedAward через regular authority.' },
+    { id: 'viz-self-award', title: 'Автонаграда себе', description: 'VIZ self-award: выбранные сохранённые аккаунты периодически награждают себя, если энергия выше заданного минимума.', accountField: false },
     { id: 'registration', title: 'Регистрация', description: 'VIZ invite registration через explicit signer WIF input без hardcoded ключей.' },
     { id: 'calculator', title: 'Калькулятор', description: 'Калькулятор VIZ/SHARES/энергии.' },
     { id: 'analytics', title: 'Аналитика', description: 'Read-only VIZ analytics dashboards by inov8 via public Yandex DataLens embeds/links.' },

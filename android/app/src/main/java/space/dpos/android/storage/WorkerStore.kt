@@ -30,12 +30,13 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun importDecision(decision: ImportDecision) {
         if (!decision.accepted) return
         val accounts = readAccounts().filterNot { it.chainId == decision.chainId && it.account == decision.account }.toMutableList()
-        accounts += AccountIdentity(decision.chainId, decision.account, enabled = decision.enableNotifications || decision.enableAutoUpvoter)
+        accounts += AccountIdentity(decision.chainId, decision.account, enabled = decision.enableNotifications || decision.enableAutoUpvoter || decision.enableVizSelfAward)
         prefs.edit()
             .putString("accounts", JSONArray(accounts.map { JSONObject().put("chainId", it.chainId).put("account", it.account).put("enabled", it.enabled) }).toString())
             .putBoolean("notify:${decision.chainId}:${decision.account}", decision.enableNotifications)
             .putString("notifyOps:${decision.chainId}:${decision.account}", JSONArray(decision.notificationOps).toString())
             .putBoolean("upvoter:${decision.chainId}:${decision.account}", decision.enableAutoUpvoter)
+            .putBoolean("vizSelfAward:${decision.chainId}:${decision.account}", decision.enableVizSelfAward)
             .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
             .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
             .putInt("intervalMinutes", decision.intervalMinutes)
@@ -45,7 +46,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
             .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
             .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
             .apply()
-        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}")
+        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}; vizSelfAward=${decision.enableVizSelfAward}")
     }
 
     fun readAccounts(): List<AccountIdentity> {
@@ -65,6 +66,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun notificationEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("notify:$chainId:$account", false)
     fun notificationOps(chainId: String, account: String): List<String> = readStringList("notifyOps:$chainId:$account")
     fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false)
+    fun vizSelfAwardEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("vizSelfAward:$chainId:$account", false)
     fun minEnergy(chainId: String, account: String): Int = prefs.getInt("minEnergy:$chainId:$account", 2500)
     fun maxActions(chainId: String, account: String): Int = prefs.getInt("maxActions:$chainId:$account", 5)
     fun curators(chainId: String, account: String): List<String> = readStringList("curators:$chainId:$account")
@@ -127,6 +129,8 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun hasEncryptedKey(ref: EncryptedKeyRef): Boolean = secure.contains("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}")
     fun readEncryptedKey(ref: EncryptedKeyRef): String? = secure.getString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", null)
     fun defaultPostingKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
+    fun defaultRegularKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "regular", "regular")
     fun hasPostingKey(chainId: String, account: String): Boolean = hasEncryptedKey(defaultPostingKeyRef(chainId, account))
     fun readPostingKey(chainId: String, account: String): String? = readEncryptedKey(defaultPostingKeyRef(chainId, account))
+    fun readRegularKey(chainId: String, account: String): String? = readEncryptedKey(defaultRegularKeyRef(chainId, account))
 }
