@@ -201,7 +201,7 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
     @JavascriptInterface
     fun exportWorkerLogs(): String = JSONObject()
         .put("ok", true)
-        .put("logs", PayloadSanitizer.text(store.exportLogs(), 8000))
+        .put("logs", PayloadSanitizer.redactLog(store.exportLogs()).takeLast(8000))
         .toString()
 
     private fun schedulePeriodicChecks(intervalMinutes: Int) {

@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
+const runtimePolicy = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/runtime/WorkerCommandPolicy.kt'), 'utf8');
 const bridge = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/bridge/DposAndroidBridge.kt'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposPeriodicWorker.kt'), 'utf8');
 const application = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/DposApplication.kt'), 'utf8');
@@ -16,6 +17,7 @@ assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(
 assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
 assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
 assert(application.includes('markAppVersion(version)') && application.includes('clearLogs()') && foregroundService.includes('foreground service started; apk='), 'APK upgrades clear stale worker logs and mark new service starts with build version');
+assert(runtimePolicy.includes('takeLast(8000)') && bridge.includes('takeLast(8000)') && !runtimePolicy.includes('redactLog(logs).take(8000)'), 'worker status/export returns newest log tail instead of stale first 8000 chars');
 assert(runner.includes('store.saveAutoUpvoterFeed(autoUpvoterFeed)'), 'runner persists last Android auto-upvoter feed for status screen after app-open autostart');
 assert(store.includes('fun saveAutoUpvoterFeed') && store.includes('fun exportAutoUpvoterFeed'), 'worker store can persist/export last native auto-upvoter feed');
 assert(mainActivity.includes('.put("autoUpvoterFeed", store.exportAutoUpvoterFeed())') && mainActivity.includes('appVersionName') && mainActivity.includes('vizBroadcastMethod'), 'native worker status exposes persisted auto-upvoter feed, APK version, and VIZ broadcast method to WebView');
