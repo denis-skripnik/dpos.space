@@ -115,10 +115,17 @@ class VizSelfAwardRuntime(
             val confirmation = confirmSelfAward(clean, spend)
             if (confirmation != null) {
                 signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award confirmed in history: @${clean} spent ${spend} energy bp at #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp))
-            } else if (spec.asyncBroadcastOnly) {
-                signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ RPC accepted async broadcast but self-award was not found in account history after verification; transaction may have been rejected", rpcResponse = response)
             } else {
-                signed.copy(status = "broadcast_sent", reason = "VIZ self-award submitted: @${clean} spent ${spend} energy bp", rpcResponse = response)
+                val syncResult = response.optJSONObject("result")
+                val syncId = syncResult?.optString("id").orEmpty()
+                val blockNum = syncResult?.optLong("block_num", -1L) ?: -1L
+                val trxNum = syncResult?.optInt("trx_num", -1) ?: -1
+                val expired = syncResult?.optBoolean("expired", false) ?: false
+                if (expired || trxNum < 0) {
+                    signed.copy(ok = false, status = "broadcast_rejected", reason = "VIZ synchronous broadcast did not include transaction: id=${PayloadSanitizer.text(syncId, 64)}, block=$blockNum, trx_num=$trxNum, expired=$expired", rpcResponse = response)
+                } else {
+                    signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ synchronous broadcast returned id=$syncId block=$blockNum trx_num=$trxNum, but self-award was not found in account history after verification", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("syncBroadcastId", syncId).put("syncBlockNum", blockNum).put("syncTrxNum", trxNum))
+                }
             }
         } catch (e: Exception) {
             signed.copy(ok = false, status = "broadcast_error", reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native VIZ self-award broadcast failed" }, 300), rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500)))

@@ -72,7 +72,7 @@ class VizSelfAwardPolicyTest {
         assertTrue(spec.rpcEndpoints.contains("https://api.viz.world"))
         assertTrue(spec.rpcEndpoints.contains("https://node.viz.cx"))
         assertTrue(spec.rpcEndpoints.size >= 2)
-        assertTrue(spec.asyncBroadcastOnly)
+        assertFalse(spec.asyncBroadcastOnly)
     }
 
     @Test fun lowEnergySkipsWithoutBroadcast() {
@@ -97,12 +97,21 @@ class VizSelfAwardPolicyTest {
         assertEquals(10, op.getInt("energy"))
     }
 
-    @Test fun asyncVizBroadcastWithoutHistoryConfirmationIsNotCountedAsSuccess() {
-        val broadcaster = RecordingBroadcaster()
+    @Test fun synchronousVizBroadcastWithoutHistoryConfirmationIsNotCountedAsSuccess() {
+        val broadcaster = RecordingBroadcaster(JSONObject().put("result", JSONObject().put("id", "abc").put("block_num", 1234).put("trx_num", 0).put("expired", false)))
         val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster, historyClient = ConfirmingHistory("other", 10), confirmationRetries = 1, confirmationDelayMs = 0)
         val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
         assertFalse(result.ok)
         assertEquals("broadcast_unconfirmed", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
+
+    @Test fun synchronousVizBroadcastExpiredOrNegativeTrxIsRejected() {
+        val broadcaster = RecordingBroadcaster(JSONObject().put("result", JSONObject().put("id", "expired").put("block_num", 1234).put("trx_num", -1).put("expired", true)))
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster, historyClient = ConfirmingHistory("other", 10), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_rejected", result.status)
         assertEquals(1, broadcaster.broadcastCount)
     }
 
@@ -132,13 +141,13 @@ class VizSelfAwardPolicyTest {
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 
-    private class RecordingBroadcaster : VoteBroadcaster {
+    private class RecordingBroadcaster(private val response: JSONObject = JSONObject().put("result", JSONObject().put("id", "fake-viz-self-award").put("block_num", 1).put("trx_num", 0).put("expired", false))) : VoteBroadcaster {
         var broadcastCount = 0
         var lastTx: JSONObject? = null
         override fun broadcast(signedTransaction: JSONObject): JSONObject {
             broadcastCount += 1
             lastTx = signedTransaction
-            return JSONObject().put("id", "fake-viz-self-award")
+            return response
         }
     }
 
