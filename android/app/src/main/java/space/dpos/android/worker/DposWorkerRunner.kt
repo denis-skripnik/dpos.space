@@ -91,9 +91,12 @@ class DposWorkerRunner(private val context: Context) {
         val errors = mutableListOf<String>()
         val messages = mutableListOf<String>()
         val autoUpvoterFeed = mutableListOf<JSONObject>()
+        val activeAccounts = store.activeAccounts()
+        store.appendLog("accounts loaded; count=${activeAccounts.size}")
 
-        for (account in store.activeAccounts()) {
+        for (account in activeAccounts) {
             accountsChecked += 1
+            store.appendLog("account started; ${account.chainId}:${account.account}; notifications=${store.notificationEnabled(account.chainId, account.account)}; autoUpvoter=${store.autoUpvoterEnabled(account.chainId, account.account)}; vizSelfAward=${store.vizSelfAwardEnabled(account.chainId, account.account)}")
             val spec = GrapheneChainSpecs.find(account.chainId)
             if (store.notificationEnabled(account.chainId, account.account)) {
                 notificationChecks += 1
@@ -204,6 +207,7 @@ class DposWorkerRunner(private val context: Context) {
                     continue
                 }
                 try {
+                    store.appendLog("viz:${account.account}: self-award preparing; method=${if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"}")
                     val keyRef = store.defaultRegularKeyRef("viz", account.account)
                     val key = store.readRegularKey("viz", account.account)
                     if (key.isNullOrBlank()) {
@@ -213,6 +217,7 @@ class DposWorkerRunner(private val context: Context) {
                         skipped += 1
                         continue
                     }
+                    store.appendLog("viz:${account.account}: self-award submitting with bounded worker")
                     val result = runVizSelfAwardWithTimeout(account.account, keyRef, key)
                     if (result.ok && result.status == "broadcast_confirmed") vizSelfAwardBroadcasted += 1
                     if (result.ok && result.status == "low_energy_skip") skipped += 1

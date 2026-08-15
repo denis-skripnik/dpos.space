@@ -115,6 +115,8 @@ class VizSelfAwardRuntime(
             val confirmation = confirmSelfAward(clean, spend)
             if (confirmation != null) {
                 signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award confirmed in history: @${clean} spent ${spend} energy bp at #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp))
+            } else if (spec.asyncBroadcastOnly) {
+                signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ async broadcast returned from RPC, but self-award was not found in account history after verification; foreground worker stays non-blocking", rpcResponse = response)
             } else {
                 val syncResult = response.optJSONObject("result")
                 val syncId = syncResult?.optString("id").orEmpty()
