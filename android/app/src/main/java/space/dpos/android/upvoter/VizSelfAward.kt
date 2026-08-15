@@ -10,6 +10,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
+import space.dpos.android.notifications.GolosHistoryClient
+import space.dpos.android.notifications.HistoryEvent
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.security.MessageDigest
@@ -83,7 +85,10 @@ object VizSelfAwardPolicy {
 
 class VizSelfAwardRuntime(
     private val rpcClient: GolosRpcClient,
-    private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient)
+    private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient),
+    private val historyClient: GolosHistoryClient? = null,
+    private val confirmationRetries: Int = 3,
+    private val confirmationDelayMs: Long = 1_500L
 ) {
     private val spec = GrapheneChainSpecs.require("viz")
     private val builder = VizAwardTransactionBuilder(spec)
@@ -107,10 +112,33 @@ class VizSelfAwardRuntime(
         if (!signed.ok || signed.signedTransaction == null) return signed
         return try {
             val response = broadcaster.broadcast(signed.signedTransaction)
-            signed.copy(status = "broadcast_sent", reason = "VIZ self-award submitted: @${clean} spent ${spend} energy bp", rpcResponse = response)
+            val confirmation = confirmSelfAward(clean, spend)
+            if (confirmation != null) {
+                signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award confirmed in history: @${clean} spent ${spend} energy bp at #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp))
+            } else if (spec.asyncBroadcastOnly) {
+                signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ RPC accepted async broadcast but self-award was not found in account history after verification; transaction may have been rejected", rpcResponse = response)
+            } else {
+                signed.copy(status = "broadcast_sent", reason = "VIZ self-award submitted: @${clean} spent ${spend} energy bp", rpcResponse = response)
+            }
         } catch (e: Exception) {
             signed.copy(ok = false, status = "broadcast_error", reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native VIZ self-award broadcast failed" }, 300), rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500)))
         }
+    }
+
+    private fun confirmSelfAward(account: String, energy: Int): HistoryEvent? {
+        val history = historyClient ?: return null
+        repeat(confirmationRetries.coerceAtLeast(1)) { attempt ->
+            if (attempt > 0 && confirmationDelayMs > 0) Thread.sleep(confirmationDelayMs)
+            val rows = history.getAccountHistory(account, -1, 30)
+            val found = rows.asReversed().firstOrNull { event ->
+                event.type == "award" &&
+                    event.data["initiator"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == account &&
+                    event.data["receiver"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == account &&
+                    event.data["energy"].orEmpty().toIntOrNull() == energy
+            }
+            if (found != null) return found
+        }
+        return null
     }
 
     private fun buildHeaderLikeGolosJs(): BlockHeaderRef {
