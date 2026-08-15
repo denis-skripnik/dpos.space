@@ -61,8 +61,9 @@ class WorkerRuntimePolicyTest {
 
     @Test fun workerSummaryCarriesAndroidAutoUpvoterFeedForWebViewRendering() {
         val feedEntry = JSONObject()
-            .put("message", "OK @denis voted @alice/post")
+            .put("message", "ERROR @denis @alice/post: broadcast_error: node rejected transaction")
             .put("action", JSONObject().put("account", "denis").put("author", "alice").put("permlink", "post"))
+            .put("result", JSONObject().put("status", "broadcast_error").put("ok", false).put("reason", "node rejected transaction"))
         val json = WorkerRunSummary(
             ok = true,
             status = "checked",
@@ -79,6 +80,8 @@ class WorkerRuntimePolicyTest {
             autoUpvoterFeed = listOf(feedEntry)
         ).toJson()
         assertEquals(1, json.getJSONArray("autoUpvoterFeed").length())
-        assertTrue(json.getJSONArray("autoUpvoterFeed").getJSONObject(0).getString("message").contains("voted"))
+        val row = json.getJSONArray("autoUpvoterFeed").getJSONObject(0)
+        assertTrue(row.getString("message").contains("node rejected transaction"))
+        assertEquals("node rejected transaction", row.getJSONObject("result").getString("reason"))
     }
 }

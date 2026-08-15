@@ -167,7 +167,7 @@ class DposWorkerRunner(private val context: Context) {
                     store.appendLog(msg)
                     messages += msg
                     report.results.filter { !it.ok }.forEach { result ->
-                        errors += "${account.chainId}:${account.account}: ${result.status}"
+                        errors += "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
                         if (result.status == "posting_key_mismatch") {
                             store.removeEncryptedKeyRef(keyRef)
                             store.disableAutoUpvoter(account.chainId, account.account)
@@ -203,7 +203,7 @@ class DposWorkerRunner(private val context: Context) {
         }
         val message = when (type) {
             "success" -> "OK @${operation.voter} voted @${operation.author}/${operation.permlink}"
-            "error" -> "ERROR @${operation.voter} @${operation.author}/${operation.permlink}: ${result.status}"
+            "error" -> "ERROR @${operation.voter} @${operation.author}/${operation.permlink}: ${result.status}: ${PayloadSanitizer.text(result.reason, 160)}"
             else -> "@${operation.voter} @${operation.author}/${operation.permlink}: ${result.status}"
         }
         return JSONObject()
@@ -218,7 +218,8 @@ class DposWorkerRunner(private val context: Context) {
                 .put("source", "android-native"))
             .put("result", JSONObject()
                 .put("status", result.status)
-                .put("ok", result.ok))
+                .put("ok", result.ok)
+                .put("reason", PayloadSanitizer.text(result.reason, 300)))
     }
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
