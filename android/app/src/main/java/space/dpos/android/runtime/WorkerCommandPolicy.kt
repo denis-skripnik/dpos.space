@@ -188,6 +188,6 @@ object WorkerSettingsCodec {
         .put("lastTick", lastTick ?: JSONObject.NULL)
         .put("nextTick", nextTick ?: JSONObject.NULL)
         .put("lastError", PayloadSanitizer.redactLog(lastError.orEmpty()).ifBlank { JSONObject.NULL })
-        .put("logs", PayloadSanitizer.redactLog(logs).take(8000))
+        .put("logs", PayloadSanitizer.redactLog(logs).takeLast(8000))
         .toString()
 }
