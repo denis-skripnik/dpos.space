@@ -39,6 +39,7 @@ assert(appSource.includes('type="checkbox"'), 'UI renders account checkboxes, no
 assert(appSource.includes('Start') || appSource.includes('Запустить'), 'UI includes start affordance');
 assert(appSource.includes('Stop') || appSource.includes('Остановить'), 'UI includes stop affordance');
 assert(appSource.includes('auto-upvoter-auto-start') && appSource.includes('Запускать автоматически при открытии Android-приложения') && appSource.includes('autoStart: Boolean(row.autoStart)'), 'auto-upvoter exposes Android app-open autostart and passes it to native worker settings');
+assert(appSource.includes('item.autoStart') && appSource.includes('hasPostingKey') && appSource.includes('hasRegularKey') && appSource.includes('Android worker status'), 'auto-upvoter page renders detailed Android autostart/key status from native bridge');
 assert(appSource.includes('application open auto-start requested') || fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/DposApplication.kt'), 'utf8').includes('autoStartWorkerIfEnabled'), 'Android application has app-open worker autostart hook');
 assert(/расшифр/i.test(appSource) && /posting/i.test(appSource), 'UI warns posting keys are decrypted locally');
 assert(appSource.includes('min-energy') || appSource.includes('minEnergy'), 'UI exposes min energy setting');
