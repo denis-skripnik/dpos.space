@@ -7,6 +7,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import space.dpos.android.BuildConfig
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
@@ -30,7 +31,7 @@ class DposForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        WorkerStore(this).appendLog("foreground service created")
+        WorkerStore(this).appendLog("foreground service created; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
         startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
     }
 
@@ -50,7 +51,7 @@ class DposForegroundService : Service() {
             }
             else -> {
                 store.setWorkerEnabled(true)
-                store.appendLog("foreground service started")
+                store.appendLog("foreground service started; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
                 handler.removeCallbacks(tick)
                 handler.post(tick)
             }
