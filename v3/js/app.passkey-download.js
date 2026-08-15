@@ -6563,7 +6563,7 @@
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
       const ok = results.filter((row) => row && row.ok).length;
       const check = callAndroidWorkerBridge('checkNow');
-      if (!check || check.ok === false) throw new Error(check && (check.reason || (Array.isArray(check.errors) && check.errors[0]) || check.status) || 'проверка Android не выполнена');
+      if (!check) throw new Error('проверка Android не выполнена');
       const merged = Object.assign({}, started, check, { activeAccounts: ok, workerEnabled: true, running: true });
       updateAndroidWorkerStatus(merged);
       appendAndroidWorkerFeed(check);

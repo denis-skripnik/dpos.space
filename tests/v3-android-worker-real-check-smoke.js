@@ -22,4 +22,5 @@ assert(scanner.includes('optJSONObject("error")') && scanner.includes('Graphene 
 assert(app.includes('keyMatchesAuthority(client, decrypted.privateKey') && app.includes('Обновите ключ в разделе «Аккаунты»'), 'WebView verifies posting authority before importing a key into Android');
 assert(app.includes('renderAndroidCheckSummary(check, ok)') && app.includes('Проверка Android выполнена'), 'WebView UI renders real check counters after Start');
 assert(app.includes('function appendAndroidWorkerFeed(result)') && app.includes('appendAndroidWorkerFeed(check)') && app.includes('runtime.scannerState.feed.push(entry)'), 'WebView merges Android native vote results into the visible auto-upvoter feed');
+assert(app.includes("if (!check) throw new Error('проверка Android не выполнена')") && !app.includes('check.ok === false) throw new Error'), 'Android start remains successful when checkNow returns checked_with_errors so broadcast errors appear in status/feed instead of Ошибка запуска');
 console.log('v3 Android worker real check smoke passed');
