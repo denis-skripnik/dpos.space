@@ -24,11 +24,12 @@ data class SecureKeyImportDecision(
 )
 
 object SecureKeyImportPolicy {
-    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains + setOf(MinterNativeSupport.CHAIN_ID, DecimalNativeSupport.CHAIN_ID)
+    private val supportedChains = GrapheneChainSpecs.supportedNativeVoteChains + setOf("viz", MinterNativeSupport.CHAIN_ID, DecimalNativeSupport.CHAIN_ID)
     private val authoritiesByChain = mapOf(
         "golos" to setOf("posting", "active"),
         "hive" to setOf("posting", "active"),
         "steem" to setOf("posting", "active"),
+        "viz" to setOf("regular", "active"),
         "minter" to setOf("seed"),
         "decimal" to setOf("seed")
     )

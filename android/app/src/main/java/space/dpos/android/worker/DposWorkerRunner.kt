@@ -28,6 +28,7 @@ import space.dpos.android.upvoter.PostingKeyProvider
 import space.dpos.android.upvoter.VoteBroadcastResult
 import space.dpos.android.upvoter.VoteEvent
 import space.dpos.android.upvoter.VoteRuntime
+import space.dpos.android.upvoter.VizSelfAwardRuntime
 
 data class WorkerRunSummary(
     val ok: Boolean,
@@ -42,7 +43,9 @@ data class WorkerRunSummary(
     val errors: List<String>,
     val messages: List<String>,
     val lastTick: Long,
-    val autoUpvoterFeed: List<JSONObject> = emptyList()
+    val autoUpvoterFeed: List<JSONObject> = emptyList(),
+    val vizSelfAwardChecks: Int = 0,
+    val vizSelfAwardBroadcasted: Int = 0
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("ok", ok)
@@ -53,6 +56,8 @@ data class WorkerRunSummary(
         .put("autoUpvoterChecks", autoUpvoterChecks)
         .put("autoUpvoterAttempted", autoUpvoterAttempted)
         .put("autoUpvoterBroadcasted", autoUpvoterBroadcasted)
+        .put("vizSelfAwardChecks", vizSelfAwardChecks)
+        .put("vizSelfAwardBroadcasted", vizSelfAwardBroadcasted)
         .put("skipped", skipped)
         .put("errors", JSONArray(errors.map { PayloadSanitizer.text(it, 300) }))
         .put("messages", JSONArray(messages.map { PayloadSanitizer.text(it, 300) }))
@@ -74,6 +79,8 @@ class DposWorkerRunner(private val context: Context) {
         var autoUpvoterChecks = 0
         var autoUpvoterAttempted = 0
         var autoUpvoterBroadcasted = 0
+        var vizSelfAwardChecks = 0
+        var vizSelfAwardBroadcasted = 0
         var skipped = 0
         val errors = mutableListOf<String>()
         val messages = mutableListOf<String>()
@@ -183,14 +190,49 @@ class DposWorkerRunner(private val context: Context) {
                     store.appendLog(msg, "error")
                 }
             }
+            if (store.vizSelfAwardEnabled(account.chainId, account.account)) {
+                vizSelfAwardChecks += 1
+                if (account.chainId != "viz") {
+                    val msg = "${account.chainId}:${account.account}: self-award пропущен, сервис поддержан только для VIZ"
+                    store.appendLog(msg)
+                    messages += msg
+                    skipped += 1
+                    continue
+                }
+                try {
+                    val keyRef = store.defaultRegularKeyRef("viz", account.account)
+                    val key = store.readRegularKey("viz", account.account)
+                    if (key.isNullOrBlank()) {
+                        val msg = "viz:${account.account}: self-award пропущен, нет сохранённого regular-ключа"
+                        store.appendLog(msg)
+                        messages += msg
+                        skipped += 1
+                        continue
+                    }
+                    val spec = GrapheneChainSpecs.require("viz")
+                    val rpc = rpcClient(spec)
+                    val result = VizSelfAwardRuntime(rpc, broadcaster = GolosBroadcastClient(rpc)).execute(account.account, store.minEnergy("viz", account.account), keyRef, key)
+                    if (result.ok && result.status == "broadcast_sent") vizSelfAwardBroadcasted += 1
+                    if (result.ok && result.status == "low_energy_skip") skipped += 1
+                    val msg = "viz:${account.account}: self-award ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
+                    store.appendLog(msg, if (result.ok) "info" else "error")
+                    messages += msg
+                    if (!result.ok) errors += msg
+                } catch (e: Exception) {
+                    val msg = "viz:${account.account}: ошибка self-award: ${e.message}"
+                    errors += msg
+                    store.setLastError(e.message)
+                    store.appendLog(msg, "error")
+                }
+            }
         }
 
         val nextTick = System.currentTimeMillis() + store.intervalMinutes() * 60_000L
         store.setNextTick(nextTick)
         val ok = errors.isEmpty()
         val status = if (ok) "checked" else "checked_with_errors"
-        store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; errors=${errors.size}", if (ok) "info" else "error")
-        return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30))
+        store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; vizSelfAwards=$vizSelfAwardBroadcasted; errors=${errors.size}", if (ok) "info" else "error")
+        return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
     }
 
     private fun resultToFeedEntry(result: VoteBroadcastResult): JSONObject? {

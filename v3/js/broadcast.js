@@ -573,7 +573,12 @@
       };
     }
 
-    if (!settings.confirmExecute && !(settings.autoConsent === 'golos-auto-upvoter-start' && prepared.meta && prepared.meta.feature === 'golos-auto-upvoter')) {
+    const autoConsentAllowed = (
+      settings.autoConsent === 'golos-auto-upvoter-start' && prepared.meta && prepared.meta.feature === 'golos-auto-upvoter'
+    ) || (
+      settings.autoConsent === 'viz-self-award-start' && prepared.meta && prepared.meta.feature === 'viz-self-award'
+    );
+    if (!settings.confirmExecute && !autoConsentAllowed) {
       throw new Error('Реальный broadcast требует явного подтверждения в UI.');
     }
 

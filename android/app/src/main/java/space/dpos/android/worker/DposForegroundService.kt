@@ -2,13 +2,31 @@ package space.dpos.android.worker
 
 import android.app.Service
 import android.content.Intent
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.storage.WorkerStore
+import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
 
 class DposForegroundService : Service() {
+    private val handler = Handler(Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            if (!WorkerStore(this@DposForegroundService).workerEnabled()) return
+            Thread {
+                try {
+                    DposWorkerRunner(applicationContext).runOnce(reason = "foreground-7m12s")
+                } catch (e: Exception) {
+                    WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
+                }
+            }.start()
+            handler.postDelayed(this, VIZ_SELF_AWARD_TICK_MS)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         isRunning = true
@@ -22,6 +40,7 @@ class DposForegroundService : Service() {
             ACTION_STOP -> {
                 store.setWorkerEnabled(false)
                 store.appendLog("foreground service stop requested")
+                handler.removeCallbacks(tick)
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -32,6 +51,8 @@ class DposForegroundService : Service() {
             else -> {
                 store.setWorkerEnabled(true)
                 store.appendLog("foreground service started")
+                handler.removeCallbacks(tick)
+                handler.post(tick)
             }
         }
         startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
@@ -39,6 +60,7 @@ class DposForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(tick)
         WorkerStore(this).appendLog("foreground service stopped")
         isRunning = false
         super.onDestroy()
