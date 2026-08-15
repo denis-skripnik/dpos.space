@@ -17,6 +17,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.BuildConfig
 import space.dpos.android.bridge.DposAndroidBridge
@@ -185,6 +186,17 @@ class MainActivity : Activity() {
             logs = store.exportLogs()
         ))
         return base
+            .put("accounts", JSONArray(store.activeAccounts().map { account ->
+                JSONObject()
+                    .put("chainId", account.chainId)
+                    .put("account", account.account)
+                    .put("notifications", store.notificationEnabled(account.chainId, account.account))
+                    .put("autoUpvoter", store.autoUpvoterEnabled(account.chainId, account.account))
+                    .put("vizSelfAward", store.vizSelfAwardEnabled(account.chainId, account.account))
+                    .put("autoStart", store.autoStartEnabled(account.chainId, account.account))
+                    .put("hasPostingKey", store.hasPostingKey(account.chainId, account.account))
+                    .put("hasRegularKey", store.hasRegularKey(account.chainId, account.account))
+            }))
             .put("webUrl", BuildConfig.DPOS_WEB_URL)
             .put("permissionNotifications", NotificationHelper.canPost(this))
             .put("batteryOptimizationWarning", true)

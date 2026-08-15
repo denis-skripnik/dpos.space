@@ -136,6 +136,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun defaultPostingKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "posting", "posting")
     fun defaultRegularKeyRef(chainId: String, account: String): EncryptedKeyRef = EncryptedKeyRef(chainId, account, "regular", "regular")
     fun hasPostingKey(chainId: String, account: String): Boolean = hasEncryptedKey(defaultPostingKeyRef(chainId, account))
+    fun hasRegularKey(chainId: String, account: String): Boolean = hasEncryptedKey(defaultRegularKeyRef(chainId, account))
     fun readPostingKey(chainId: String, account: String): String? = readEncryptedKey(defaultPostingKeyRef(chainId, account))
     fun readRegularKey(chainId: String, account: String): String? = readEncryptedKey(defaultRegularKeyRef(chainId, account))
 }

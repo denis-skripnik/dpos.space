@@ -176,11 +176,9 @@ class DposWorkerRunner(private val context: Context) {
                     report.results.filter { !it.ok }.forEach { result ->
                         errors += "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
                         if (result.status == "posting_key_mismatch") {
-                            store.removeEncryptedKeyRef(keyRef)
-                            store.disableAutoUpvoter(account.chainId, account.account)
-                            val cleanup = "${account.chainId}:${account.account}: сохранённый Android posting-ключ удалён, автоапвоутер отключён до повторного сохранения корректного ключа"
-                            store.appendLog(cleanup, "error")
-                            messages += cleanup
+                            val warning = "${account.chainId}:${account.account}: сохранённый Android posting-ключ не совпал с authority; автоапвоутер не отключён автоматически — пересохраните posting-ключ в разделе «Аккаунты» и снова нажмите Start"
+                            store.appendLog(warning, "error")
+                            messages += warning
                         }
                     }
                 } catch (e: Exception) {

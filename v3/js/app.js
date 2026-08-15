@@ -6173,14 +6173,31 @@
       });
     }
 
-    if (runtime.running && startButton && stopButton) {
-      startButton.disabled = true;
-      stopButton.disabled = false;
-      renderFeed('VIZ автонаграда уже запущена в этой вкладке.');
-      setStatus('VIZ автонаграда себе уже запущена.', 'ok');
-    } else {
-      renderFeed();
-      setStatus('VIZ автонаграда себе готова к настройке.', 'info');
+    let androidStatusRendered = false;
+    if (hasAndroidWorkerBridge) {
+      const status = callAndroidWorkerBridge('getWorkerStatus');
+      if (status && (status.workerEnabled || status.running || status.logs)) {
+        androidStatusRendered = true;
+        renderFeed(`Android worker status: ${renderAndroidWorkerStatus(status)} Логи: ${String(status.logs || '').split('\n').filter(Boolean).slice(-6).join(' | ') || 'нет логов'}`);
+        if (status.workerEnabled || status.running) {
+          startButton.disabled = true;
+          stopButton.disabled = false;
+          setStatus('VIZ автонаграда: Android worker уже включён или запущен.', 'ok');
+        } else {
+          setStatus('VIZ автонаграда себе готова к настройке. Android worker остановлен.', 'info');
+        }
+      }
+    }
+    if (!androidStatusRendered) {
+      if (runtime.running && startButton && stopButton) {
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        renderFeed('VIZ автонаграда уже запущена в этой вкладке.');
+        setStatus('VIZ автонаграда себе уже запущена.', 'ok');
+      } else {
+        renderFeed();
+        setStatus('VIZ автонаграда себе готова к настройке.', 'info');
+      }
     }
   }
 
@@ -6293,9 +6310,20 @@
     const enabled = result.workerEnabled ? 'включена' : 'выключена';
     const running = result.running ? 'сейчас работает' : 'сейчас остановлена';
     const accounts = Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0;
+    const accountDetails = Array.isArray(result.accounts) && result.accounts.length
+      ? ` Аккаунты: ${result.accounts.map((item) => {
+        const flags = [];
+        if (item.autoUpvoter) flags.push('auto-upvoter');
+        if (item.vizSelfAward) flags.push('VIZ self-award');
+        if (item.autoStart) flags.push('autostart');
+        if (item.hasPostingKey) flags.push('posting key есть');
+        if (item.hasRegularKey) flags.push('regular key есть');
+        return `${item.chainId}:${item.account} (${flags.join(', ') || 'без флагов'})`;
+      }).join('; ')}.`
+      : '';
     const lastTick = result.lastTick ? ` Последняя проверка: ${new Date(Number(result.lastTick)).toLocaleString()}.` : ' Проверок ещё не было.';
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
-    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${lastTick}${error}`;
+    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${accountDetails}${lastTick}${error}`;
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {
@@ -6807,6 +6835,19 @@
       const statusNode = document.getElementById('android-worker-status');
       if (!statusNode) return;
       statusNode.textContent = renderAndroidWorkerStatus(result);
+      if (result && (result.workerEnabled || result.running)) {
+        runtime.running = true;
+        if (startButton) startButton.disabled = true;
+        if (stopButton) stopButton.disabled = false;
+      } else if (result && result.workerEnabled === false && result.running === false) {
+        runtime.running = false;
+        if (startButton) startButton.disabled = false;
+        if (stopButton) stopButton.disabled = true;
+      }
+      if (result && result.logs && feed) {
+        const tail = String(result.logs).split('\n').filter(Boolean).slice(-6).join(' | ');
+        renderScannerFeed(`Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail}`);
+      }
     }
 
     function appendAndroidWorkerFeed(result) {
@@ -6905,6 +6946,10 @@
     async function startAndroidAutoUpvoter(settings) {
       const accounts = selectedAndroidWorkerAccounts(settings).map((row) => row.account);
       if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
+      startButton.disabled = true;
+      stopButton.disabled = false;
+      setStatus(`${chain.title} автоапвоутер запускается в Android: проверяю аккаунты и ключи...`, 'loading');
+      appendScannerFeed(`START: синхронизация Android worker для ${accounts.map((account) => `@${account}`).join(', ')}.`);
       await loadAutoUpvoterBatterySummary(settings);
       renderScannerFeed('Перед запуском фоновой проверки: текущая батарейка загружена.');
       const result = await syncAndroidWorkerFromForm(settings);
@@ -7016,6 +7061,8 @@
           }
           runtime.running = false;
           runtime.settings = null;
+          startButton.disabled = false;
+          stopButton.disabled = true;
           feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
           setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
           if (pwa && typeof pwa.notify === 'function') {
