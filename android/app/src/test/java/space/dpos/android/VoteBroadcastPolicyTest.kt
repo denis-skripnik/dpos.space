@@ -194,6 +194,24 @@ class VoteBroadcastPolicyTest {
         assertTrue(isCanonicalCompactSignature(signature))
     }
 
+    @Test fun androidSignatureMatchesGolosJsKnownFixtureExactly() {
+        val golosJsWif = "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32"
+        val ref = EncryptedKeyRef("golos", "denis", "posting", "posting")
+        val signer = GolosVoteSigner(GolosTransactionBuilder())
+        val jsHeader = BlockHeaderRef(
+            refBlockNum = 120,
+            refBlockPrefix = 67305985L,
+            expirationEpochSeconds = 1_704_067_260L,
+            headBlockId = "0000007901020304000000000000000000000000000000000000000000000000"
+        )
+        val signed = signer.sign(VoteOperation("golos", "denis", "alice", "post", 7500), ref, golosJsWif, jsHeader)
+        assertTrue(signed.ok)
+        assertEquals(
+            "20253b251ec063eb8b7015513e1573a258037f325c420fb0ab436a1fbb012719d9585620ab63592a8f9b1ae6c8c662297d2c42d0b5a295d8a80372be9a861109c7",
+            signed.payload!!.signedTransaction.getJSONArray("signatures").getString(0)
+        )
+    }
+
     private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
     private fun deterministicGolosJsStyleWif(): String {
         val privateBytes = ECKey.fromPrivate(BigInteger("2"), true).privKeyBytes
