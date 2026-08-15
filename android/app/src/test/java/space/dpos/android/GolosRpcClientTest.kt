@@ -1,10 +1,19 @@
 package space.dpos.android
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import space.dpos.android.notifications.FallbackGrapheneHistoryClient
+import space.dpos.android.notifications.GolosHistoryClient
 import space.dpos.android.notifications.GolosHistoryRpc
 import space.dpos.android.notifications.GolosNotificationScanner
+import space.dpos.android.notifications.HistoryEvent
+import space.dpos.android.upvoter.FallbackGolosDiscussionClient
+import space.dpos.android.upvoter.FallbackGrapheneRpcClient
+import space.dpos.android.upvoter.FavoritePostRow
+import space.dpos.android.upvoter.GolosDiscussionClient
+import space.dpos.android.upvoter.GolosRpcClient
 
 class GolosRpcClientTest {
     @Test fun parsesCondenserHistoryRowsIntoEvents() {
@@ -44,5 +53,51 @@ class GolosRpcClientTest {
         } catch (e: IllegalStateException) {
             assertTrue(e.message!!.contains("Could not find API"))
         }
+    }
+
+    @Test fun historyClientFallsBackAfterForbiddenRpcEndpoint() {
+        val bad = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+                throw IllegalStateException("Graphene RPC HTTP 403")
+            }
+        }
+        val good = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
+                HistoryEvent(7, "transfer", mapOf("from" to "alice", "to" to account))
+            )
+        }
+        val rows = FallbackGrapheneHistoryClient(listOf(bad, good)).getAccountHistory("denis", -1, 50)
+        assertEquals(1, rows.size)
+        assertEquals(7L, rows.single().index)
+    }
+
+    @Test fun discussionClientFallsBackAfterForbiddenRpcEndpoint() {
+        val bad = object : GolosDiscussionClient {
+            override fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow> {
+                throw IllegalStateException("Graphene discussion RPC HTTP 403")
+            }
+        }
+        val good = object : GolosDiscussionClient {
+            override fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow> = listOf(FavoritePostRow(account, "fresh"))
+        }
+        val rows = FallbackGolosDiscussionClient(listOf(bad, good)).getBlogPosts("alice", 20)
+        assertEquals("fresh", rows.single().permlink)
+    }
+
+    @Test fun nativeRpcClientFallsBackAfterForbiddenRpcEndpoint() {
+        val bad = object : GolosRpcClient {
+            override fun getDynamicGlobalProperties(): JSONObject { throw IllegalStateException("Graphene RPC HTTP 403") }
+            override fun getAccount(account: String): JSONObject? { throw IllegalStateException("Graphene RPC HTTP 403") }
+            override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject { throw IllegalStateException("Graphene RPC HTTP 403") }
+        }
+        val good = object : GolosRpcClient {
+            override fun getDynamicGlobalProperties(): JSONObject = JSONObject().put("head_block_number", 1)
+            override fun getAccount(account: String): JSONObject? = JSONObject().put("name", account)
+            override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
+        }
+        val client = FallbackGrapheneRpcClient(listOf(bad, good))
+        assertEquals(1, client.getDynamicGlobalProperties().getInt("head_block_number"))
+        assertEquals("denis", client.getAccount("denis")!!.getString("name"))
+        assertTrue(client.broadcastTransactionSynchronous(JSONObject()).getBoolean("ok"))
     }
 }

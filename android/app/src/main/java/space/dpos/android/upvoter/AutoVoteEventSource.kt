@@ -12,6 +12,20 @@ interface GolosDiscussionClient {
     fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow>
 }
 
+class FallbackGolosDiscussionClient(private val clients: List<GolosDiscussionClient>) : GolosDiscussionClient {
+    override fun getBlogPosts(account: String, limit: Int): List<FavoritePostRow> {
+        var lastError: Exception? = null
+        for (client in clients) {
+            try {
+                return client.getBlogPosts(account, limit)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw IllegalStateException("all Graphene discussion RPC endpoints failed; last=${lastError?.message.orEmpty()}")
+    }
+}
+
 data class FavoritePostRow(
     val author: String,
     val permlink: String,
@@ -97,6 +111,7 @@ class HttpGrapheneDiscussionClient(private val endpoint: String, private val leg
             readTimeout = 20_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
         }
         OutputStreamWriter(connection.outputStream).use { it.write(body) }
         val text = if (connection.responseCode in 200..299) connection.inputStream.bufferedReader().use { it.readText() } else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
