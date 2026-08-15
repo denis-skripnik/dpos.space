@@ -6208,7 +6208,10 @@
         const donateLink = isGolos && action && action.author && !autoUpvoterActionHasDonate(entry)
           ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}" target="_blank" rel="noopener">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
           : '';
-        rows.push(`<div>${escapeHtml(message)}${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}</div>`);
+        const diagnostics = entry && entry.diagnostics && typeof entry.diagnostics === 'object'
+          ? ` <span class="muted">Android key: ${escapeHtml(entry.diagnostics.derivedPublicKey || 'н/д')}; authority: ${escapeHtml(Array.isArray(entry.diagnostics.authorityPublicKeys) ? entry.diagnostics.authorityPublicKeys.join(', ') : '')}</span>`
+          : '';
+        rows.push(`<div>${escapeHtml(message)}${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}${diagnostics}</div>`);
       });
       feed.innerHTML = rows.length > 1 ? rows.join('') : `${rows.join('')}<p>Сканер запущен, событий пока нет.</p>`;
     }

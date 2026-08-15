@@ -220,6 +220,7 @@ class DposWorkerRunner(private val context: Context) {
                 .put("status", result.status)
                 .put("ok", result.ok)
                 .put("reason", PayloadSanitizer.text(result.reason, 300)))
+            .put("diagnostics", result.diagnostics ?: JSONObject.NULL)
     }
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {

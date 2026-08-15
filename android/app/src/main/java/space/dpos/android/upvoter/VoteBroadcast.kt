@@ -113,7 +113,8 @@ data class VoteBroadcastResult(
     val operation: VoteOperation,
     val reason: String,
     val payload: SignedVotePayload? = null,
-    val rpcResponse: JSONObject? = null
+    val rpcResponse: JSONObject? = null,
+    val diagnostics: JSONObject? = null
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("ok", ok)
@@ -122,6 +123,7 @@ data class VoteBroadcastResult(
         .put("operation", operation.toJson())
         .put("payload", payload?.redactedJson() ?: JSONObject.NULL)
         .put("rpcResponse", PayloadSanitizer.text(rpcResponse?.toString().orEmpty(), 900).ifBlank { JSONObject.NULL })
+        .put("diagnostics", diagnostics ?: JSONObject.NULL)
 }
 
 interface TransactionBuilder {
@@ -196,13 +198,30 @@ object GraphenePublicKey {
         return prefix + Base58.encode(pub + checksum.copyOfRange(0, 4))
     }
 
-    fun matchesAuthority(publicKey: String, authority: JSONObject?): Boolean {
-        val keys = authority?.optJSONArray("key_auths") ?: return false
+    fun matchesAuthority(publicKey: String, authority: JSONObject?): Boolean = authorityWeight(publicKey, authority) >= (authority?.optInt("weight_threshold", 1) ?: 1)
+
+    fun authorityWeight(publicKey: String, authority: JSONObject?): Int {
+        val keys = authority?.optJSONArray("key_auths") ?: return 0
+        var weight = 0
         for (i in 0 until keys.length()) {
             val row = keys.optJSONArray(i) ?: continue
-            if (row.optString(0) == publicKey && row.optInt(1, 0) > 0) return true
+            if (row.optString(0) == publicKey) weight += row.optInt(1, 0)
         }
-        return false
+        return weight
+    }
+
+    fun authorityDiagnostics(publicKey: String, authority: JSONObject?): JSONObject {
+        val keys = authority?.optJSONArray("key_auths") ?: JSONArray()
+        val publicKeys = JSONArray()
+        for (i in 0 until keys.length()) {
+            val row = keys.optJSONArray(i) ?: continue
+            publicKeys.put(row.optString(0))
+        }
+        return JSONObject()
+            .put("derivedPublicKey", publicKey)
+            .put("authorityPublicKeys", publicKeys)
+            .put("derivedKeyWeight", authorityWeight(publicKey, authority))
+            .put("weightThreshold", authority?.optInt("weight_threshold", 1) ?: 1)
     }
 }
 
@@ -221,11 +240,17 @@ class GrapheneVoteSigner(
         val ecKey = try { ecKeyFromWif(privateWif) } catch (e: Exception) {
             return VoteBroadcastResult(false, "invalid_wif", operation, "posting key is not a valid WIF: ${PayloadSanitizer.text(e.message, 80)}")
         }
+        val publicKey = GraphenePublicKey.fromWif(privateWif, spec.publicKeyPrefix)
         val digest = Sha256Hash.wrap(Sha256Hash.hash(builder.signingBytes(operation, header)))
         val compact = canonicalCompactSignatureHex(ecKey, digest)
             ?: return VoteBroadcastResult(false, "signature_recovery_failed", operation, "could not produce canonical compact recoverable signature")
         val tx = builder.build(operation, header, compact)
-        return VoteBroadcastResult(true, "signed", operation, "signed ${spec.id} vote transaction locally", SignedVotePayload(operation, keyRef, tx))
+        return VoteBroadcastResult(true, "signed", operation, "signed ${spec.id} vote transaction locally", SignedVotePayload(operation, keyRef, tx), diagnostics = JSONObject()
+            .put("derivedPublicKey", publicKey)
+            .put("signatureHeader", compact.substring(0, 2).toInt(16))
+            .put("refBlockNum", header.refBlockNum)
+            .put("refBlockPrefix", header.refBlockPrefix)
+            .put("expirationEpochSeconds", header.expirationEpochSeconds))
     }
 
     private fun ecKeyFromWif(wif: String): ECKey {
@@ -397,11 +422,35 @@ class VoteRuntime(
         if (authorityCheck != null) return authorityCheck
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
+        val signedWithAuthority = signed.copy(diagnostics = mergeDiagnostics(signed.diagnostics, authorityDiagnostics(operation, privateWif)))
         return try {
             val response = broadcaster.broadcast(signed.payload.signedTransaction)
-            signed.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+            signedWithAuthority.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
         } catch (e: Exception) {
-            classifyBroadcastFailure(operation, signed, e)
+            classifyBroadcastFailure(operation, signedWithAuthority, e)
+        }
+    }
+
+    private fun mergeDiagnostics(first: JSONObject?, second: JSONObject?): JSONObject? {
+        if (first == null && second == null) return null
+        val merged = JSONObject()
+        listOf(first, second).forEach { obj ->
+            if (obj != null) {
+                obj.keys().forEach { key -> merged.put(key, obj.opt(key)) }
+            }
+        }
+        return merged
+    }
+
+    private fun authorityDiagnostics(operation: VoteOperation, privateWif: String?): JSONObject? {
+        if (privateWif.isNullOrBlank()) return null
+        return try {
+            val spec = GrapheneChainSpecs.requireVote(operation.chainId)
+            val publicKey = GraphenePublicKey.fromWif(privateWif, spec.publicKeyPrefix)
+            val account = rpcClient.getAccount(operation.voter) ?: return null
+            GraphenePublicKey.authorityDiagnostics(publicKey, account.optJSONObject(spec.postingAuthority))
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -432,8 +481,10 @@ class VoteRuntime(
         val account = try { rpcClient.getAccount(operation.voter) } catch (e: Exception) {
             return VoteBroadcastResult(false, "authority_check_failed", operation, "could not verify posting authority for @${operation.voter}: ${PayloadSanitizer.text(e.message, 160)}")
         } ?: return VoteBroadcastResult(false, "authority_check_failed", operation, "could not verify posting authority for @${operation.voter}: account not found")
-        if (!GraphenePublicKey.matchesAuthority(publicKey, account.optJSONObject(spec.postingAuthority))) {
-            return VoteBroadcastResult(false, "posting_key_mismatch", operation, "saved key is not listed in ${spec.postingAuthority} authority for @${operation.voter}; update the saved posting key before enabling Android auto-upvoter")
+        val authority = account.optJSONObject(spec.postingAuthority)
+        val diagnostics = GraphenePublicKey.authorityDiagnostics(publicKey, authority)
+        if (!GraphenePublicKey.matchesAuthority(publicKey, authority)) {
+            return VoteBroadcastResult(false, "posting_key_mismatch", operation, "saved key ${publicKey} does not satisfy ${spec.postingAuthority} authority for @${operation.voter}; authority keys=${diagnostics.optJSONArray("authorityPublicKeys")}", diagnostics = diagnostics)
         }
         return null
     }
