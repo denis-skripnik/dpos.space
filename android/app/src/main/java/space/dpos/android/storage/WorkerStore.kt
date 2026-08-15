@@ -122,6 +122,13 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         prefs.edit().putString("logs", next).apply()
     }
     fun exportLogs(): String = prefs.getString("logs", "").orEmpty()
+    fun saveAutoUpvoterFeed(feed: List<JSONObject>) {
+        prefs.edit().putString("autoUpvoterFeed", JSONArray(feed.takeLast(30)).toString()).apply()
+    }
+    fun exportAutoUpvoterFeed(): JSONArray {
+        val raw = prefs.getString("autoUpvoterFeed", "[]").orEmpty()
+        return try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+    }
     fun saveEncryptedKeyRef(ref: EncryptedKeyRef, secret: String) {
         secure.edit().putString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", secret).apply()
     }

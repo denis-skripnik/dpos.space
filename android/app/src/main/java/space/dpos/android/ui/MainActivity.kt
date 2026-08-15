@@ -197,6 +197,7 @@ class MainActivity : Activity() {
                     .put("hasPostingKey", store.hasPostingKey(account.chainId, account.account))
                     .put("hasRegularKey", store.hasRegularKey(account.chainId, account.account))
             }))
+            .put("autoUpvoterFeed", store.exportAutoUpvoterFeed())
             .put("webUrl", BuildConfig.DPOS_WEB_URL)
             .put("permissionNotifications", NotificationHelper.canPost(this))
             .put("batteryOptimizationWarning", true)

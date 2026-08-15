@@ -6835,6 +6835,7 @@
       const statusNode = document.getElementById('android-worker-status');
       if (!statusNode) return;
       statusNode.textContent = renderAndroidWorkerStatus(result);
+      runtime.nativeWorkerStatus = result || null;
       if (result && (result.workerEnabled || result.running)) {
         runtime.running = true;
         if (startButton) startButton.disabled = true;
@@ -6846,7 +6847,12 @@
       }
       if (result && result.logs && feed) {
         const tail = String(result.logs).split('\n').filter(Boolean).slice(-6).join(' | ');
-        renderScannerFeed(`Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail}`);
+        appendAndroidWorkerFeed(result);
+        if (Array.isArray(result.autoUpvoterFeed) && result.autoUpvoterFeed.length) {
+          renderScannerFeed(`Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail}`);
+        } else {
+          feed.textContent = `Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail || 'нет логов'} Последняя native-лента пока пуста: подходящих постов/действий могло не быть.`;
+        }
       }
     }
 
@@ -6981,7 +6987,13 @@
     }
 
     if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
-      refreshAndroidWorkerStatus().catch(() => {});
+      refreshAndroidWorkerStatus()
+        .then((status) => {
+          const workerActive = status && (status.workerEnabled || status.running);
+          if (workerActive) return loadAutoUpvoterBatterySummary(collectSettings());
+          return null;
+        })
+        .catch(() => {});
     }
 
     if (form) {
@@ -7086,7 +7098,7 @@
       feed.textContent = 'Ошибка: модуль DposGolosAutoUpvoter не загружен.';
     }
 
-    if (runtime.running && startButton && stopButton && feed) {
+    if (runtime.running && startButton && stopButton && feed && !(runtime.nativeWorkerStatus && (runtime.nativeWorkerStatus.workerEnabled || runtime.nativeWorkerStatus.running))) {
       startButton.disabled = true;
       stopButton.disabled = false;
       renderScannerFeed('Автоапвоутер уже запущен в этой вкладке; состояние восстановлено после перехода по сайту.');
@@ -7094,7 +7106,7 @@
         pwa.notifyVisibilityRuntime(`${chain.title} автоапвоутер`);
       }
       setStatus(`${chain.title} автоапвоутер уже запущен локально во вкладке.`, 'ok');
-    } else {
+    } else if (!(runtime.nativeWorkerStatus && (runtime.nativeWorkerStatus.workerEnabled || runtime.nativeWorkerStatus.running))) {
       setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
     }
   }
