@@ -5895,13 +5895,13 @@
     if (!global.localStorage) return { accounts: {} };
     try {
       const parsed = JSON.parse(global.localStorage.getItem(VIZ_SELF_AWARD_SETTINGS_KEY) || '{}');
-      return { accounts: parsed && typeof parsed.accounts === 'object' ? parsed.accounts : {} };
+      return { accounts: parsed && typeof parsed.accounts === 'object' ? parsed.accounts : {}, autoStart: Boolean(parsed && parsed.autoStart) };
     } catch (error) {
       return { accounts: {} };
     }
   }
 
-  function writeVizSelfAwardSettings(rows) {
+  function writeVizSelfAwardSettings(rows, autoStart) {
     if (!global.localStorage) return;
     const accounts = {};
     (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -5912,7 +5912,7 @@
         minEnergy: String(normalizeVizSelfAwardMinEnergy(row.minEnergy))
       };
     });
-    global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify({ accounts }));
+    global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify({ accounts, autoStart: Boolean(autoStart) }));
   }
 
   function getVizSelfAwardRuntime() {
@@ -5961,6 +5961,8 @@
           <div class="field actions"><button type="button" id="viz-self-award-apply-all">Скопировать минимум на все аккаунты</button></div>
         </div>
         ${accountCards}
+        <label class="inline-choice"><input id="viz-self-award-auto-start" name="autoStart" type="checkbox" value="1" ${stored.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <p class="muted">Если включено, APK при открытии проверит сохранённые настройки и сам запустит native worker для выбранных аккаунтов.</p>
         <div class="actions">
           <button type="button" id="viz-self-award-start">Запустить Start</button>
           <button type="button" id="viz-self-award-stop" class="secondary" disabled>Остановить Stop</button>
@@ -5994,12 +5996,14 @@
 
     function collectSettings() {
       if (!form) return [];
+      const autoStart = Boolean(form.querySelector('[name="autoStart"]') && form.querySelector('[name="autoStart"]').checked);
       const rows = Array.from(form.querySelectorAll('[data-viz-self-award-account]')).map((card) => ({
         account: card.dataset.vizSelfAwardAccount,
         enabled: Boolean(card.querySelector('[name="enabled"]') && card.querySelector('[name="enabled"]').checked),
-        minEnergy: normalizeVizSelfAwardMinEnergy(card.querySelector('[name="minEnergy"]') && card.querySelector('[name="minEnergy"]').value)
+        minEnergy: normalizeVizSelfAwardMinEnergy(card.querySelector('[name="minEnergy"]') && card.querySelector('[name="minEnergy"]').value),
+        autoStart
       }));
-      writeVizSelfAwardSettings(rows);
+      writeVizSelfAwardSettings(rows, autoStart);
       return rows;
     }
 
@@ -6039,6 +6043,7 @@
             enableAutoUpvoter: false,
             enableVizSelfAward: true,
             explicitConsent: true,
+            autoStart: Boolean(row.autoStart),
             minEnergy: row.minEnergy,
             intervalMinutes: 8
           });
@@ -6191,7 +6196,7 @@
       const parsed = JSON.parse(global.localStorage.getItem(autoUpvoterSettingsKey(chain)) || '{}');
       if (!parsed || typeof parsed !== 'object') return {};
       const accounts = parsed.accounts && typeof parsed.accounts === 'object' ? parsed.accounts : {};
-      return { accounts };
+      return { accounts, autoStart: Boolean(parsed.autoStart) };
     } catch (error) {
       return {};
     }
@@ -6209,7 +6214,7 @@
     return `${String(percent || '0').trim() || '0'} ${String(coefficient || '1').trim() || '1'}`;
   }
 
-  function writeGolosAutoUpvoterSettings(chain, settings) {
+  function writeGolosAutoUpvoterSettings(chain, settings, autoStart) {
     if (!global.localStorage) return;
     const rows = Array.isArray(settings) ? settings : [];
     const accounts = {};
@@ -6231,7 +6236,7 @@
         autoDonateCap: joinAutoDonatePoolSettings(pool.percent, pool.coefficient)
       };
     });
-    global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({ accounts }));
+    global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({ accounts, autoStart: Boolean(autoStart) }));
   }
 
   function getAutoUpvoterRuntime(chain) {
@@ -6427,6 +6432,8 @@
       ${isGolos ? '<p class="muted">Автодонат использует старую схему личного пула: % дневной эмиссии при 100% апвоте и коэффициент нелинейного уменьшения по фактическому весу голоса. Сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для отправки — 0.5 GOLOS.</p>' : `<p class="muted">В ${escapeHtml(chain.title)} донатов нет: Start отправляет только автоматические vote-операции за любимых авторов и повтор голосов кураторов.</p>`}
       ${users.length ? `<form id="auto-upvoter-form">${accountCards}
         <p id="auto-upvoter-battery-controls" class="muted">Перед запуском/остановкой: батарейка появится после выбора аккаунтов и нажатия Start.</p>
+        <label class="inline-choice"><input id="auto-upvoter-auto-start" name="autoStart" type="checkbox" value="1" ${storedSettings.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <p class="muted">Если включено, APK при открытии проверит сохранённые настройки и сам запустит native worker для выбранных аккаунтов.</p>
         <div class="actions">
           <button type="button" id="auto-upvoter-start">Запустить Start</button>
           <button type="button" id="auto-upvoter-stop" class="secondary" disabled>Остановить Stop</button>
@@ -6768,6 +6775,7 @@
 
 
     function collectSettings() {
+      const autoStart = Boolean(form.querySelector('[name="autoStart"]') && form.querySelector('[name="autoStart"]').checked);
       const settings = Array.from(form.querySelectorAll('[data-auto-upvoter-account]')).map((card) => {
         syncAutoDonatePoolValue(card);
         return {
@@ -6782,10 +6790,11 @@
           autoDonate: isGolos && Boolean(card.querySelector('[name="autoDonate"]').checked),
           autoDonatePoolPercent: card.querySelector('[name="autoDonatePoolPercent"]').value,
           autoDonatePoolCoefficient: card.querySelector('[name="autoDonatePoolCoefficient"]').value,
-          autoDonateCap: card.querySelector('[name="autoDonateCap"]').value
+          autoDonateCap: card.querySelector('[name="autoDonateCap"]').value,
+          autoStart
         };
       });
-      writeGolosAutoUpvoterSettings(chain, settings);
+      writeGolosAutoUpvoterSettings(chain, settings, autoStart);
       return settings;
     }
 
@@ -6826,6 +6835,7 @@
         account: row.account,
         enableNotifications: true,
         enableAutoUpvoter: true,
+        autoStart: Boolean(row.autoStart),
         explicitConsent: true,
         minEnergy: helper && typeof helper.normalizeAccountSettings === 'function' ? helper.normalizeAccountSettings(row).minEnergy : (Number(row.minEnergy) || 2500),
         maxActionsPerTick: 5,

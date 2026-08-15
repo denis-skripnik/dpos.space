@@ -5,7 +5,7 @@ object RoutePolicy {
     private const val MAX_ROUTE_LENGTH = 512
     private val allowedApps = setOf(
         "profiles", "accounts", "wallet", "history", "broadcast", "manage", "post", "notifications",
-        "auto-upvoter", "backup", "editor", "donate", "award", "calculator", "explorer", "swap",
+        "auto-upvoter", "viz-self-award", "backup", "editor", "donate", "award", "calculator", "explorer", "swap",
         "register", "registration", "top", "validators", "projects", "polls", "custom-generator", "voice-import"
     )
     private val allowedChains = setOf("golos", "viz", "steem", "hive", "minter", "decimal")

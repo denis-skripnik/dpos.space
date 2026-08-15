@@ -30,12 +30,14 @@ assert(appSource.includes("effectiveAppId === 'auto-upvoter'"), 'App router has 
 assert(appSource.includes('renderGolosAutoUpvoter'), 'App has Golos auto-upvoter renderer');
 assert(appSource.includes('DposAuth.getUsers(chain)'), 'UI reads all authorized Golos accounts');
 assert(appSource.includes('const GOLOS_AUTO_UPVOTER_SETTINGS_KEY') && appSource.includes('function readGolosAutoUpvoterSettings') && appSource.includes('function writeGolosAutoUpvoterSettings'), 'auto-upvoter persists settings in localStorage');
-assert(appSource.includes('const storedSettings = readGolosAutoUpvoterSettings(chain)') && appSource.includes('applyAutoUpvoterStoredSettings(storedSettings)') && appSource.includes('writeGolosAutoUpvoterSettings(chain, settings)'), 'auto-upvoter restores settings into fields and saves collected settings');
+assert(appSource.includes('const storedSettings = readGolosAutoUpvoterSettings(chain)') && appSource.includes('applyAutoUpvoterStoredSettings(storedSettings)') && appSource.includes('writeGolosAutoUpvoterSettings(chain, settings, autoStart)'), 'auto-upvoter restores settings into fields and saves collected settings');
 assert(appSource.includes('form.addEventListener(\'input\', persistAutoUpvoterSettings)') && appSource.includes("form.addEventListener('change', (event)"), 'auto-upvoter saves form edits before page refresh');
 assert(appSource.includes('async function renderGolosAutoUpvoter') && appSource.includes('await loadScript(chain.cryptoPath);') && appSource.includes('await renderGolosAutoUpvoter(chain)'), 'auto-upvoter loads SJCL before checking saved posting-key availability');
 assert(appSource.includes('type="checkbox"'), 'UI renders account checkboxes, not only the top account selector');
 assert(appSource.includes('Start') || appSource.includes('Запустить'), 'UI includes start affordance');
 assert(appSource.includes('Stop') || appSource.includes('Остановить'), 'UI includes stop affordance');
+assert(appSource.includes('auto-upvoter-auto-start') && appSource.includes('Запускать автоматически при открытии Android-приложения') && appSource.includes('autoStart: Boolean(row.autoStart)'), 'auto-upvoter exposes Android app-open autostart and passes it to native worker settings');
+assert(appSource.includes('application open auto-start requested') || fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/DposApplication.kt'), 'utf8').includes('autoStartWorkerIfEnabled'), 'Android application has app-open worker autostart hook');
 assert(/расшифр/i.test(appSource) && /posting/i.test(appSource), 'UI warns posting keys are decrypted locally');
 assert(appSource.includes('min-energy') || appSource.includes('minEnergy'), 'UI exposes min energy setting');
 assert(appSource.includes('curator-coefficient') || appSource.includes('curatorCoefficient'), 'UI exposes curator coefficient setting');
