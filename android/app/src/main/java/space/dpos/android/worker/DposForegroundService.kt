@@ -11,17 +11,27 @@ import space.dpos.android.BuildConfig
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
+import java.util.concurrent.atomic.AtomicBoolean
 
 class DposForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
+    private val tickRunning = AtomicBoolean(false)
     private val tick = object : Runnable {
         override fun run() {
-            if (!WorkerStore(this@DposForegroundService).workerEnabled()) return
+            val store = WorkerStore(this@DposForegroundService)
+            if (!store.workerEnabled()) return
+            if (!tickRunning.compareAndSet(false, true)) {
+                store.appendLog("foreground tick skipped; previous tick still running", "warning")
+                handler.postDelayed(this, VIZ_SELF_AWARD_TICK_MS)
+                return
+            }
             Thread {
                 try {
                     DposWorkerRunner(applicationContext).runOnce(reason = "foreground-7m12s")
                 } catch (e: Exception) {
                     WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
+                } finally {
+                    tickRunning.set(false)
                 }
             }.start()
             handler.postDelayed(this, VIZ_SELF_AWARD_TICK_MS)
