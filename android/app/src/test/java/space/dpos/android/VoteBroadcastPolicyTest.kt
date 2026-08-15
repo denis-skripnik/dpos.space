@@ -90,6 +90,18 @@ class VoteBroadcastPolicyTest {
         assertEquals(67305985L, parsed.refBlockPrefix)
     }
 
+    @Test fun headerFactoryCanMatchGolosJsBlockReference() {
+        val props = JSONObject()
+            .put("head_block_number", 123)
+            .put("head_block_id", "0000007b99999999000000000000000000000000000000000000000000000000")
+            .put("time", "2024-01-01T00:00:00")
+        val previousBlock = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
+        val parsed = GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock, expireSeconds = 60)
+        assertEquals(120, parsed.refBlockNum)
+        assertEquals(67305985L, parsed.refBlockPrefix)
+        assertEquals(1_704_067_260L, parsed.expirationEpochSeconds)
+    }
+
     @Test fun previewCheckDoesNotBroadcast() {
         val rpc = FakeRpc()
         val broadcaster = RecordingBroadcaster()
@@ -178,6 +190,7 @@ class VoteBroadcastPolicyTest {
             .put("head_block_number", 123)
             .put("head_block_id", "0000007b01020304000000000000000000000000000000000000000000000000")
             .put("time", "2024-01-01T00:00:00")
+        override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
         override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(postingPublicKey).put(1))))
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }

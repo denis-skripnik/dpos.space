@@ -139,6 +139,7 @@ interface VoteBroadcaster {
 
 interface GolosRpcClient {
     fun getDynamicGlobalProperties(): JSONObject
+    fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
 }
@@ -275,6 +276,11 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         return result.optJSONObject("result") ?: result
     }
 
+    override fun getBlock(blockNumber: Long): JSONObject? {
+        val result = postApi("database_api", "get_block", JSONArray().put(blockNumber))
+        return result.optJSONObject("result")
+    }
+
     override fun getAccount(account: String): JSONObject? {
         val clean = account.trim().removePrefix("@").lowercase(Locale.ROOT)
         val result = postApi("database_api", "get_accounts", JSONArray().put(JSONArray().put(clean)))
@@ -315,6 +321,7 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
 
 class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : GolosRpcClient {
     override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
+    override fun getBlock(blockNumber: Long): JSONObject? = call("block") { it.getBlock(blockNumber) }
     override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
 
@@ -342,15 +349,25 @@ object GolosTransactionHeaderFactory {
         val headBlockNumber = props.optLong("head_block_number")
         val headBlockId = props.optString("head_block_id")
         require(headBlockNumber > 0 && headBlockId.length >= 16) { "missing head block reference" }
-        val prefix = hexToBytes(headBlockId.substring(8, 16)).let { bytes ->
+        return fromBlockReference(headBlockNumber, headBlockId, props.optString("time"), expireSeconds)
+    }
+
+    fun fromGolosJsReference(props: JSONObject, previousBlock: JSONObject?, expireSeconds: Long = 60): BlockHeaderRef {
+        val headBlockNumber = props.optLong("head_block_number")
+        val previous = previousBlock?.optString("previous").orEmpty()
+        require(headBlockNumber > 3 && previous.length >= 16) { "missing golos-js block reference" }
+        return fromBlockReference(headBlockNumber - 3, previous, props.optString("time"), expireSeconds)
+    }
+
+    private fun fromBlockReference(refBlockNumberSource: Long, blockId: String, time: String, expireSeconds: Long): BlockHeaderRef {
+        val prefix = hexToBytes(blockId.substring(8, 16)).let { bytes ->
             ((bytes[0].toLong() and 0xffL)) or
                 ((bytes[1].toLong() and 0xffL) shl 8) or
                 ((bytes[2].toLong() and 0xffL) shl 16) or
                 ((bytes[3].toLong() and 0xffL) shl 24)
         }
-        val time = props.optString("time")
         val epoch = LocalDateTime.parse(time).toEpochSecond(ZoneOffset.UTC) + expireSeconds
-        return BlockHeaderRef((headBlockNumber and 0xffff).toInt(), prefix, epoch, headBlockId)
+        return BlockHeaderRef((refBlockNumberSource and 0xffff).toInt(), prefix, epoch, blockId)
     }
 }
 
@@ -359,8 +376,15 @@ class VoteRuntime(
     private val signer: VoteSigner = GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos")),
     private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient)
 ) {
+    private fun buildHeaderLikeGolosJs(): BlockHeaderRef {
+        val props = rpcClient.getDynamicGlobalProperties()
+        val head = props.optLong("head_block_number")
+        val previousBlock = rpcClient.getBlock(head - 2)
+        return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock)
+    }
+
     fun preview(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
-        val header = GolosTransactionHeaderFactory.fromDynamicGlobalProperties(rpcClient.getDynamicGlobalProperties())
+        val header = buildHeaderLikeGolosJs()
         val signed = signer.sign(operation, keyRef, privateWif, header)
         return if (signed.ok && signed.payload != null) {
             signed.copy(status = "preview_ready", reason = "preview/check built a signed transaction but did not broadcast", payload = signed.payload.copy(previewOnly = true))
@@ -368,7 +392,7 @@ class VoteRuntime(
     }
 
     fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
-        val header = GolosTransactionHeaderFactory.fromDynamicGlobalProperties(rpcClient.getDynamicGlobalProperties())
+        val header = buildHeaderLikeGolosJs()
         val authorityCheck = verifyPostingAuthority(operation, keyRef, privateWif)
         if (authorityCheck != null) return authorityCheck
         val signed = signer.sign(operation, keyRef, privateWif, header)
