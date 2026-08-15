@@ -87,12 +87,14 @@ class GolosRpcClientTest {
     @Test fun nativeRpcClientFallsBackAfterForbiddenRpcEndpoint() {
         val bad = object : GolosRpcClient {
             override fun getDynamicGlobalProperties(): JSONObject { throw IllegalStateException("Graphene RPC HTTP 403") }
-            override fun getAccount(account: String): JSONObject? { throw IllegalStateException("Graphene RPC HTTP 403") }
+            override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
+        override fun getAccount(account: String): JSONObject? { throw IllegalStateException("Graphene RPC HTTP 403") }
             override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject { throw IllegalStateException("Graphene RPC HTTP 403") }
         }
         val good = object : GolosRpcClient {
             override fun getDynamicGlobalProperties(): JSONObject = JSONObject().put("head_block_number", 1)
-            override fun getAccount(account: String): JSONObject? = JSONObject().put("name", account)
+            override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
+        override fun getAccount(account: String): JSONObject? = JSONObject().put("name", account)
             override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
         }
         val client = FallbackGrapheneRpcClient(listOf(bad, good))
