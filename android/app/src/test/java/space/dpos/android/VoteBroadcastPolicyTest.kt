@@ -10,6 +10,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.dpos.android.storage.EncryptedKeyRef
+import space.dpos.android.notifications.GolosHistoryClient
+import space.dpos.android.notifications.HistoryEvent
 import space.dpos.android.upvoter.BlockHeaderRef
 import space.dpos.android.upvoter.GolosTransactionBuilder
 import space.dpos.android.upvoter.GolosTransactionHeaderFactory
@@ -129,6 +131,26 @@ class VoteBroadcastPolicyTest {
         assertEquals(1, broadcaster.lastTx!!.getJSONArray("signatures").length())
     }
 
+    @Test fun realWorkerRuntimeConfirmsBroadcastThroughAccountHistory() {
+        val rpc = FakeRpc()
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster, historyClient = ConfirmingVoteHistory("denis", "alice", "post", 10000), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertTrue(result.ok)
+        assertEquals("broadcast_confirmed", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
+
+    @Test fun realWorkerRuntimeDoesNotCountUnconfirmedBroadcastAsSuccess() {
+        val rpc = FakeRpc()
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster, historyClient = ConfirmingVoteHistory("denis", "other", "post", 10000), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unconfirmed", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
+
 
     @Test fun executeStopsBeforeBroadcastWhenStoredKeyIsNotPostingAuthority() {
         val rpc = FakeRpc(postingPublicKey = "GLS1111111111111111111111111111111114T1Anm")
@@ -225,6 +247,12 @@ class VoteBroadcastPolicyTest {
             !(signature[1].toInt() == 0 && (signature[2].toInt() and 0x80) == 0) &&
             (signature[33].toInt() and 0x80) == 0 &&
             !(signature[33].toInt() == 0 && (signature[34].toInt() and 0x80) == 0)
+    }
+
+    private class ConfirmingVoteHistory(private val voter: String, private val author: String, private val permlink: String, private val weight: Int) : GolosHistoryClient {
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
+            HistoryEvent(99, "vote", mapOf("voter" to voter, "author" to author, "permlink" to permlink, "weight" to weight.toString()), "2026-08-15T00:00:00")
+        )
     }
 
     private class FakeRpc(private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get()))) : GolosRpcClient {

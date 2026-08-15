@@ -43,12 +43,12 @@ class AutoVoteRuntime(
             val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
             val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
-            if (result.ok && result.status == "broadcast_sent") sentCounts[action.account] = (sentCounts[action.account] ?: 0) + 1
+            if (result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent")) sentCounts[action.account] = (sentCounts[action.account] ?: 0) + 1
             if (!result.ok) skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
         }
         return AutoVoteRuntimeReport(
             attempted = attempted,
-            broadcasted = if (previewOnly) 0 else results.count { it.status == "broadcast_sent" && it.ok },
+            broadcasted = if (previewOnly) 0 else results.count { it.ok && (it.status == "broadcast_confirmed" || it.status == "broadcast_sent") },
             skipped = skips,
             results = results
         )
