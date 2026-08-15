@@ -25,6 +25,7 @@ import space.dpos.android.upvoter.GrapheneVoteSigner
 import space.dpos.android.upvoter.HttpGrapheneDiscussionClient
 import space.dpos.android.upvoter.HttpGrapheneRpcClient
 import space.dpos.android.upvoter.PostingKeyProvider
+import space.dpos.android.upvoter.VoteBroadcastResult
 import space.dpos.android.upvoter.VoteEvent
 import space.dpos.android.upvoter.VoteRuntime
 
@@ -40,7 +41,8 @@ data class WorkerRunSummary(
     val skipped: Int,
     val errors: List<String>,
     val messages: List<String>,
-    val lastTick: Long
+    val lastTick: Long,
+    val autoUpvoterFeed: List<JSONObject> = emptyList()
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("ok", ok)
@@ -55,6 +57,7 @@ data class WorkerRunSummary(
         .put("errors", JSONArray(errors.map { PayloadSanitizer.text(it, 300) }))
         .put("messages", JSONArray(messages.map { PayloadSanitizer.text(it, 300) }))
         .put("lastTick", lastTick)
+        .put("autoUpvoterFeed", JSONArray(autoUpvoterFeed))
 }
 
 class DposWorkerRunner(private val context: Context) {
@@ -74,6 +77,7 @@ class DposWorkerRunner(private val context: Context) {
         var skipped = 0
         val errors = mutableListOf<String>()
         val messages = mutableListOf<String>()
+        val autoUpvoterFeed = mutableListOf<JSONObject>()
 
         for (account in store.activeAccounts()) {
             accountsChecked += 1
@@ -158,6 +162,7 @@ class DposWorkerRunner(private val context: Context) {
                     autoUpvoterAttempted += report.attempted
                     autoUpvoterBroadcasted += report.broadcasted
                     skipped += report.skipped.size
+                    report.results.mapNotNullTo(autoUpvoterFeed) { resultToFeedEntry(it) }
                     val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), попыток ${report.attempted}, отправлено ${report.broadcasted}, skip=${report.skipped.size}"
                     store.appendLog(msg)
                     messages += msg
@@ -185,7 +190,35 @@ class DposWorkerRunner(private val context: Context) {
         val ok = errors.isEmpty()
         val status = if (ok) "checked" else "checked_with_errors"
         store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; errors=${errors.size}", if (ok) "info" else "error")
-        return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt)
+        return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30))
+    }
+
+    private fun resultToFeedEntry(result: VoteBroadcastResult): JSONObject? {
+        val operation = result.operation
+        val type = when {
+            result.ok && result.status == "broadcast_sent" -> "success"
+            result.ok && result.status == "already_voted" -> return null
+            !result.ok -> "error"
+            else -> "info"
+        }
+        val message = when (type) {
+            "success" -> "OK @${operation.voter} voted @${operation.author}/${operation.permlink}"
+            "error" -> "ERROR @${operation.voter} @${operation.author}/${operation.permlink}: ${result.status}"
+            else -> "@${operation.voter} @${operation.author}/${operation.permlink}: ${result.status}"
+        }
+        return JSONObject()
+            .put("type", type)
+            .put("message", message)
+            .put("action", JSONObject()
+                .put("type", "vote")
+                .put("account", operation.voter)
+                .put("author", operation.author)
+                .put("permlink", operation.permlink)
+                .put("weight", operation.weight)
+                .put("source", "android-native"))
+            .put("result", JSONObject()
+                .put("status", result.status)
+                .put("ok", result.ok))
     }
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {

@@ -1,5 +1,6 @@
 package space.dpos.android
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -7,6 +8,7 @@ import org.junit.Test
 import space.dpos.android.runtime.AccountImportRequest
 import space.dpos.android.runtime.WorkerCommandPolicy
 import space.dpos.android.runtime.WorkerSettingsCodec
+import space.dpos.android.worker.WorkerRunSummary
 
 class WorkerRuntimePolicyTest {
     @Test fun importRequiresExplicitOptInAndNeverCopiesSilently() {
@@ -55,5 +57,28 @@ class WorkerRuntimePolicyTest {
         assertTrue(json.contains("[redacted]"))
         assertFalse(json.contains("secret"))
         assertFalse(json.contains("not-a-real-secret-fixture"))
+    }
+
+    @Test fun workerSummaryCarriesAndroidAutoUpvoterFeedForWebViewRendering() {
+        val feedEntry = JSONObject()
+            .put("message", "OK @denis voted @alice/post")
+            .put("action", JSONObject().put("account", "denis").put("author", "alice").put("permlink", "post"))
+        val json = WorkerRunSummary(
+            ok = true,
+            status = "checked",
+            accountsChecked = 1,
+            notificationChecks = 0,
+            notificationsShown = 0,
+            autoUpvoterChecks = 1,
+            autoUpvoterAttempted = 1,
+            autoUpvoterBroadcasted = 1,
+            skipped = 0,
+            errors = emptyList(),
+            messages = listOf("done"),
+            lastTick = 10L,
+            autoUpvoterFeed = listOf(feedEntry)
+        ).toJson()
+        assertEquals(1, json.getJSONArray("autoUpvoterFeed").length())
+        assertTrue(json.getJSONArray("autoUpvoterFeed").getJSONObject(0).getString("message").contains("voted"))
     }
 }

@@ -10,14 +10,16 @@ const checkNow = bridge.slice(bridge.indexOf('fun checkNow()'), bridge.indexOf('
 assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'checkNow runs the real worker runner immediately');
 assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
 assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
-assert(runner.includes('notificationChecks') && runner.includes('autoUpvoterChecks') && runner.includes('autoUpvoterAttempted') && runner.includes('messages'), 'runner returns visible evidence counters');
+assert(runner.includes('notificationChecks') && runner.includes('autoUpvoterChecks') && runner.includes('autoUpvoterAttempted') && runner.includes('messages') && runner.includes('autoUpvoterFeed'), 'runner returns visible evidence counters and Android feed rows');
 assert(runner.includes('кураторов=${settings.curators.size}') && runner.includes('любимых=${settings.favorites.size}') && runner.includes('событий=${events.size}'), 'runner log explains which auto-upvoter sources were actually scanned');
 assert(runner.includes('posting_key_mismatch') && runner.includes('removeEncryptedKeyRef') && runner.includes('disableAutoUpvoter'), 'runner removes stale Android posting keys after authority mismatch');
 assert(bridge.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'bridge checkNow returns a real run summary');
+assert(bridge.includes('FallbackGrapheneRpcClient(spec.rpcEndpoints.map') && bridge.includes('preview(op, keyRef, key)'), 'Android manual vote preview also uses Golos RPC fallback endpoints');
 const scanner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/notifications/GolosNotificationScanner.kt'), 'utf8');
 const voteBroadcast = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/upvoter/VoteBroadcast.kt'), 'utf8');
 assert(voteBroadcast.includes('historyApiName = "account_history"') && voteBroadcast.includes('discussionApiName = "tags"'), 'Golos native worker uses real Golos history/feed API names');
 assert(scanner.includes('optJSONObject("error")') && scanner.includes('Graphene RPC response has no result array'), 'Graphene history parser exposes RPC errors instead of returning empty history');
 assert(app.includes('keyMatchesAuthority(client, decrypted.privateKey') && app.includes('Обновите ключ в разделе «Аккаунты»'), 'WebView verifies posting authority before importing a key into Android');
 assert(app.includes('renderAndroidCheckSummary(check, ok)') && app.includes('Проверка Android выполнена'), 'WebView UI renders real check counters after Start');
+assert(app.includes('function appendAndroidWorkerFeed(result)') && app.includes('appendAndroidWorkerFeed(check)') && app.includes('runtime.scannerState.feed.push(entry)'), 'WebView merges Android native vote results into the visible auto-upvoter feed');
 console.log('v3 Android worker real check smoke passed');
