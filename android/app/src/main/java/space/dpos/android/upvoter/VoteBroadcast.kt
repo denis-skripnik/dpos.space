@@ -9,17 +9,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.bouncycastle.crypto.digests.RIPEMD160Digest
 import org.bouncycastle.crypto.ec.CustomNamedCurves
-import org.bouncycastle.crypto.params.ECDomainParameters
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters
-import org.bouncycastle.crypto.signers.ECDSASigner
-import org.bouncycastle.crypto.signers.RandomDSAKCalculator
 import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.storage.EncryptedKeyRef
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -244,6 +243,10 @@ class GrapheneVoteSigner(
         val digest = Sha256Hash.wrap(Sha256Hash.hash(builder.signingBytes(operation, header)))
         val compact = canonicalCompactSignatureHex(ecKey, digest)
             ?: return VoteBroadcastResult(false, "signature_recovery_failed", operation, "could not produce canonical compact recoverable signature")
+        val recoveredPublicKey = recoverPublicKeyFromCompact(compact, digest, spec.publicKeyPrefix)
+        if (recoveredPublicKey != publicKey) {
+            return VoteBroadcastResult(false, "signature_public_key_mismatch", operation, "Android compact signature recovers ${recoveredPublicKey ?: "no public key"}, expected $publicKey; broadcast stopped before RPC", diagnostics = JSONObject().put("derivedPublicKey", publicKey).put("recoveredPublicKey", recoveredPublicKey ?: JSONObject.NULL).put("signatureHeader", compact.substring(0, 2).toInt(16)))
+        }
         val tx = builder.build(operation, header, compact)
         return VoteBroadcastResult(true, "signed", operation, "signed ${spec.id} vote transaction locally", SignedVotePayload(operation, keyRef, tx), diagnostics = JSONObject()
             .put("derivedPublicKey", publicKey)
@@ -260,9 +263,25 @@ class GrapheneVoteSigner(
         return ECKey.fromPrivate(decoded.copyOfRange(1, 33), true)
     }
 
+    private fun recoverPublicKeyFromCompact(compactHex: String, digest: Sha256Hash, prefix: String): String? {
+        val compact = ByteArray(compactHex.length / 2) { i -> compactHex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+        if (compact.size != 65) return null
+        val recId = (compact[0].toInt() and 0xff) - 27 - 4
+        if (recId !in 0..3) return null
+        val r = BigInteger(1, compact.copyOfRange(1, 33))
+        val s = BigInteger(1, compact.copyOfRange(33, 65))
+        val recovered = ECKey.recoverFromSignature(recId, ECKey.ECDSASignature(r, s), digest, true) ?: return null
+        val pub = recovered.pubKey
+        val digest160 = RIPEMD160Digest()
+        digest160.update(pub, 0, pub.size)
+        val checksum = ByteArray(20)
+        digest160.doFinal(checksum, 0)
+        return prefix + Base58.encode(pub + checksum.copyOfRange(0, 4))
+    }
+
     private fun canonicalCompactSignatureHex(ecKey: ECKey, digest: Sha256Hash): String? {
-        repeat(100) {
-            val signature = randomEcdsaSignature(ecKey, digest).toCanonicalised()
+        repeat(100) { nonce ->
+            val signature = deterministicEcdsaSignature(ecKey, digest, nonce).toCanonicalised()
             val recId = (0..3).firstOrNull { candidate -> ECKey.recoverFromSignature(candidate, signature, digest, true)?.pubKeyPoint == ecKey.pubKeyPoint }
                 ?: return@repeat
             val compact = ByteArrayOutputStream().apply {
@@ -275,14 +294,48 @@ class GrapheneVoteSigner(
         return null
     }
 
-    private fun randomEcdsaSignature(ecKey: ECKey, digest: Sha256Hash): ECKey.ECDSASignature {
+    private fun deterministicEcdsaSignature(ecKey: ECKey, digest: Sha256Hash, nonce: Int): ECKey.ECDSASignature {
         val curve = CustomNamedCurves.getByName("secp256k1")
-        val domain = ECDomainParameters(curve.curve, curve.g, curve.n, curve.h)
-        val signer = ECDSASigner(RandomDSAKCalculator())
-        signer.init(true, ECPrivateKeyParameters(ecKey.privKey, domain))
-        val components = signer.generateSignature(digest.bytes)
-        return ECKey.ECDSASignature(components[0], components[1])
+        val n = curve.n
+        val message = digest.bytes
+        val z = BigInteger(1, message)
+        val d = ecKey.privKey
+        var k = deterministicK(n, d, message, nonce)
+        while (true) {
+            val point = curve.g.multiply(k).normalize()
+            val r = point.affineXCoord.toBigInteger().mod(n)
+            val s = k.modInverse(n).multiply(z.add(d.multiply(r))).mod(n)
+            if (r.signum() > 0 && s.signum() > 0) return ECKey.ECDSASignature(r, s)
+            k = k.add(BigInteger.ONE).mod(n)
+            if (k.signum() == 0) k = BigInteger.ONE
+        }
     }
+
+    private fun deterministicK(n: BigInteger, privateKey: BigInteger, message: ByteArray, nonce: Int): BigInteger {
+        val x = privateKey.toBytes32()
+        val effectiveMessage = if (nonce <= 0) message else sha256(message + ByteArray(nonce))
+        var v = ByteArray(32) { 0x01 }
+        var k = ByteArray(32) { 0x00 }
+        k = hmacSha256(k, v + byteArrayOf(0x00) + x + effectiveMessage)
+        v = hmacSha256(k, v)
+        k = hmacSha256(k, v + byteArrayOf(0x01) + x + effectiveMessage)
+        v = hmacSha256(k, v)
+        while (true) {
+            v = hmacSha256(k, v)
+            val candidate = BigInteger(1, v)
+            if (candidate.signum() > 0 && candidate < n) return candidate
+            k = hmacSha256(k, v + byteArrayOf(0x00))
+            v = hmacSha256(k, v)
+        }
+    }
+
+    private fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(data)
+    }
+
+    private fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
 
     private fun isCanonicalCompactSignature(signature: ByteArray): Boolean {
         if (signature.size != 65) return false
@@ -539,6 +592,12 @@ private fun hexToBytes(hex: String): ByteArray {
     val clean = hex.trim()
     require(clean.length % 2 == 0) { "invalid hex length" }
     return ByteArray(clean.length / 2) { i -> clean.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+}
+
+private fun BigInteger.toBytes32(): ByteArray {
+    val raw = toByteArray().dropWhile { it == 0.toByte() }.toByteArray()
+    require(raw.size <= 32) { "integer too large" }
+    return ByteArray(32 - raw.size) + raw
 }
 
 private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
