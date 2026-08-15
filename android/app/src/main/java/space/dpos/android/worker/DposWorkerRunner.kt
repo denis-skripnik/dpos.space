@@ -210,8 +210,8 @@ class DposWorkerRunner(private val context: Context) {
                     }
                     val spec = GrapheneChainSpecs.require("viz")
                     val rpc = rpcClient(spec)
-                    val result = VizSelfAwardRuntime(rpc, broadcaster = GolosBroadcastClient(rpc)).execute(account.account, store.minEnergy("viz", account.account), keyRef, key)
-                    if (result.ok && result.status == "broadcast_sent") vizSelfAwardBroadcasted += 1
+                    val result = VizSelfAwardRuntime(rpc, broadcaster = GolosBroadcastClient(rpc), historyClient = historyClient(spec)).execute(account.account, store.minEnergy("viz", account.account), keyRef, key)
+                    if (result.ok && result.status == "broadcast_confirmed") vizSelfAwardBroadcasted += 1
                     if (result.ok && result.status == "low_energy_skip") skipped += 1
                     val msg = "viz:${account.account}: self-award ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
                     store.appendLog(msg, if (result.ok) "info" else "error")

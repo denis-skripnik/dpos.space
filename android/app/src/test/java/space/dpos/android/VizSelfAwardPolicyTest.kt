@@ -20,6 +20,8 @@ import space.dpos.android.upvoter.VizSelfAwardOperation
 import space.dpos.android.upvoter.VizSelfAwardPolicy
 import space.dpos.android.upvoter.VizSelfAwardRuntime
 import space.dpos.android.upvoter.VoteBroadcaster
+import space.dpos.android.notifications.GolosHistoryClient
+import space.dpos.android.notifications.HistoryEvent
 import java.math.BigInteger
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -84,15 +86,24 @@ class VizSelfAwardPolicyTest {
 
     @Test fun highEnergySignsAndBroadcastsSelfAwardAfterRegularAuthorityCheck() {
         val broadcaster = RecordingBroadcaster()
-        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster)
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster, historyClient = ConfirmingHistory("denis", 10), confirmationRetries = 1, confirmationDelayMs = 0)
         val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
         assertTrue(result.ok)
-        assertEquals("broadcast_sent", result.status)
+        assertEquals("broadcast_confirmed", result.status)
         assertEquals(1, broadcaster.broadcastCount)
         val op = broadcaster.lastTx!!.getJSONArray("operations").getJSONArray(0).getJSONObject(1)
         assertEquals("denis", op.getString("initiator"))
         assertEquals("denis", op.getString("receiver"))
         assertEquals(10, op.getInt("energy"))
+    }
+
+    @Test fun asyncVizBroadcastWithoutHistoryConfirmationIsNotCountedAsSuccess() {
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster, historyClient = ConfirmingHistory("other", 10), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unconfirmed", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
     }
 
     @Test fun wrongRegularKeyStopsBeforeBroadcast() {
@@ -132,6 +143,12 @@ class VizSelfAwardPolicyTest {
     }
 
     companion object {
-        private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
+        private class ConfirmingHistory(private val account: String, private val energy: Int) : GolosHistoryClient {
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
+            HistoryEvent(42, "award", mapOf("initiator" to this.account, "receiver" to this.account, "energy" to energy.toString()), "2026-08-15T00:00:00")
+        )
+    }
+
+    private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
     }
 }
