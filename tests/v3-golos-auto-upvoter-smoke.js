@@ -46,6 +46,7 @@ assert(appSource.includes('Отменить апвот с подтвержден
 assert(appSource.includes('data-auto-upvoter-vote') && appSource.includes('autoUpvoterPercentOptions') && appSource.includes('Голосовать с подтверждением'), 'manual unvote state is replaced by a vote control with -100..100 percent select');
 assert(appSource.includes('manualVoteState.set(autoUpvoterActionKey') && appSource.includes('manualVoteState.get(autoUpvoterActionKey'), 'feed toggles manual state between vote and unvote after successful actions');
 assert(appSource.includes('runtime.scannerState.feed.slice(-30).reverse().forEach'), 'auto-upvoter renders newest feed entries first');
+assert(appSource.includes('function appendAndroidWorkerFeed(result)') && appSource.includes('result.autoUpvoterFeed') && appSource.includes('appendAndroidWorkerFeed(check)'), 'Android native check results are merged into the same visible auto-upvoter feed');
 assert(!appSource.includes('message: `SKIP @${action.account} уже голосовал'), 'auto-upvoter suppresses noisy automatic already-voted skip rows');
 assert(helperSource.includes('if (result && result.skipped) continue;'), 'auto-upvoter execution does not add skip rows to feed');
 assert(appSource.includes('helper.estimateVoteEnergyAfter(liveEnergy, action.weight)') && appSource.includes("reason: 'low-battery'") && appSource.includes("reason: 'battery-unavailable'"), 'auto-upvoter rechecks projected live battery immediately before broadcasting and skips if battery cannot be read');

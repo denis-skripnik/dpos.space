@@ -6479,6 +6479,20 @@
       statusNode.textContent = renderAndroidWorkerStatus(result);
     }
 
+    function appendAndroidWorkerFeed(result) {
+      const rows = result && Array.isArray(result.autoUpvoterFeed) ? result.autoUpvoterFeed : [];
+      if (!rows.length) return;
+      rows.forEach((entry) => {
+        if (!entry || !entry.message) return;
+        const action = entry.action || null;
+        if (action && entry.result && entry.result.status === 'broadcast_sent') {
+          runtime.manualVoteState.set(autoUpvoterActionKey(action), 'voted');
+        }
+        runtime.scannerState.feed.push(entry);
+      });
+      renderScannerFeed();
+    }
+
     function selectedAndroidWorkerAccounts(settings) {
       return (Array.isArray(settings) ? settings : [])
         .filter((row) => row && row.enabled && String(row.account || '').trim())
@@ -6552,6 +6566,7 @@
       if (!check || check.ok === false) throw new Error(check && (check.reason || (Array.isArray(check.errors) && check.errors[0]) || check.status) || 'проверка Android не выполнена');
       const merged = Object.assign({}, started, check, { activeAccounts: ok, workerEnabled: true, running: true });
       updateAndroidWorkerStatus(merged);
+      appendAndroidWorkerFeed(check);
       appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${results.length} аккаунтов синхронизировано. ${renderAndroidCheckSummary(check, ok)}`);
       return merged;
     }

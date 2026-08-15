@@ -27,6 +27,7 @@ import space.dpos.android.storage.WorkerStore
 import space.dpos.android.worker.DposForegroundService
 import space.dpos.android.worker.DposPeriodicWorker
 import space.dpos.android.worker.DposWorkerRunner
+import space.dpos.android.upvoter.FallbackGrapheneRpcClient
 import space.dpos.android.upvoter.GrapheneChainSpecs
 import space.dpos.android.upvoter.GrapheneVoteSigner
 import space.dpos.android.upvoter.HttpGrapheneRpcClient
@@ -126,7 +127,8 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
             val spec = GrapheneChainSpecs.requireVote(chain)
             val keyRef = store.defaultPostingKeyRef(chain, account)
             val key = store.readPostingKey(chain, account)
-            val result = VoteRuntime(HttpGrapheneRpcClient(spec), signer = GrapheneVoteSigner(spec)).preview(op, keyRef, key)
+            val rpc = FallbackGrapheneRpcClient(spec.rpcEndpoints.map { endpoint -> HttpGrapheneRpcClient(spec, endpoint) })
+            val result = VoteRuntime(rpc, signer = GrapheneVoteSigner(spec)).preview(op, keyRef, key)
             result.toJson().put("broadcasted", false).toString()
         } catch (e: Exception) {
             JSONObject().put("ok", false).put("status", "preview_error").put("reason", PayloadSanitizer.text(e.message, 300)).put("broadcasted", false).toString()
