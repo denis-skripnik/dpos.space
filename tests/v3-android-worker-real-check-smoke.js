@@ -24,6 +24,7 @@ assert(bridge.includes('FallbackGrapheneRpcClient(spec.rpcEndpoints.map') && bri
 const scanner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/notifications/GolosNotificationScanner.kt'), 'utf8');
 const voteBroadcast = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/upvoter/VoteBroadcast.kt'), 'utf8');
 assert(voteBroadcast.includes('override fun getBlock(blockNumber: Long)') && voteBroadcast.includes('fromGolosJsReference') && voteBroadcast.includes('head - 2'), 'Golos native vote header follows golos-js getBlock(head-2).previous reference before signing');
+assert(voteBroadcast.includes('asyncBroadcastOnly = true') && voteBroadcast.includes('"broadcast_transaction"') && voteBroadcast.includes('"broadcast_transaction_synchronous"'), 'VIZ native self-award uses async broadcast_transaction because VIZ nodes hang on broadcast_transaction_synchronous');
 assert(voteBroadcast.includes('historyApiName = "account_history"') && voteBroadcast.includes('discussionApiName = "tags"'), 'Golos native worker uses real Golos history/feed API names');
 assert(scanner.includes('optJSONObject("error")') && scanner.includes('Graphene RPC response has no result array'), 'Graphene history parser exposes RPC errors instead of returning empty history');
 assert(app.includes('keyMatchesAuthority(client, decrypted.privateKey') && app.includes('Обновите ключ в разделе «Аккаунты»'), 'WebView verifies posting authority before importing a key into Android');

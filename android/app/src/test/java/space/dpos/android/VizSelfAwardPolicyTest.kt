@@ -70,6 +70,7 @@ class VizSelfAwardPolicyTest {
         assertTrue(spec.rpcEndpoints.contains("https://api.viz.world"))
         assertTrue(spec.rpcEndpoints.contains("https://node.viz.cx"))
         assertTrue(spec.rpcEndpoints.size >= 2)
+        assertTrue(spec.asyncBroadcastOnly)
     }
 
     @Test fun lowEnergySkipsWithoutBroadcast() {
