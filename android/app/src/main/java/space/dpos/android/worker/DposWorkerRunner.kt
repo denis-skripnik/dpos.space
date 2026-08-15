@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
+import space.dpos.android.BuildConfig
 import space.dpos.android.notifications.FallbackGrapheneHistoryClient
 import space.dpos.android.notifications.GolosNotificationScanner
 import space.dpos.android.notifications.HttpGrapheneHistoryClient
@@ -72,7 +73,7 @@ class DposWorkerRunner(private val context: Context) {
         val startedAt = System.currentTimeMillis()
         store.setLastTick(startedAt)
         store.setLastError(null)
-        store.appendLog("check started; reason=$reason")
+        store.appendLog("check started; reason=$reason; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE}); vizBroadcast=${if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"}")
         var accountsChecked = 0
         var notificationChecks = 0
         var notificationsShown = 0

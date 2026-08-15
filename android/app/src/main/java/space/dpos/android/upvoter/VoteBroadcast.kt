@@ -424,7 +424,8 @@ class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : Gol
                 lastError = e
             }
         }
-        throw IllegalStateException("all Graphene RPC endpoints failed for $label; last=${lastError?.message.orEmpty()}")
+        val detail = lastError?.let { "${it::class.java.simpleName}: ${it.message.orEmpty()}" }.orEmpty()
+        throw IllegalStateException("all Graphene RPC endpoints failed for $label; last=$detail")
     }
 }
 
