@@ -50,6 +50,14 @@ class WorkerRuntimePolicyTest {
         assertTrue(result.reason.contains("secret", ignoreCase = true))
     }
 
+    @Test fun workerSettingsCodecPreservesAutoStartFlag() {
+        val decoded = WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","enableNotifications":false,"enableAutoUpvoter":true,"autoStart":true,"explicitConsent":true}""")
+        assertTrue(decoded.accepted)
+        assertTrue(decoded.autoStart)
+        val json = WorkerSettingsCodec.decisionJson(decoded)
+        assertTrue(json.contains("\"autoStart\":true"))
+    }
+
     @Test fun statusJsonContainsControlsAndLastLogWithoutSecrets() {
         val json = WorkerSettingsCodec.statusJson(running = true, workerEnabled = true, activeAccounts = 2, lastTick = 10L, nextTick = 20L, lastError = "privateKey=not-a-real-key-fixture", logs = "seed=not-a-real-secret-fixture\nworker ok")
         assertTrue(json.contains("\"canStart\":true"))

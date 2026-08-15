@@ -12,6 +12,7 @@ data class AccountImportRequest(
     val enableNotifications: Boolean,
     val enableAutoUpvoter: Boolean,
     val enableVizSelfAward: Boolean = false,
+    val autoStart: Boolean = false,
     val explicitConsent: Boolean,
     val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
@@ -32,6 +33,7 @@ data class ImportDecision(
     val enableNotifications: Boolean = false,
     val enableAutoUpvoter: Boolean = false,
     val enableVizSelfAward: Boolean = false,
+    val autoStart: Boolean = false,
     val notificationOps: List<String> = emptyList(),
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
@@ -68,6 +70,7 @@ object WorkerCommandPolicy {
             enableNotifications = request.enableNotifications,
             enableAutoUpvoter = request.enableAutoUpvoter,
             enableVizSelfAward = request.enableVizSelfAward,
+            autoStart = request.autoStart,
             notificationOps = normalizeOps(request.notificationOps, chain),
             minEnergy = normalizeEnergyThreshold(request.minEnergy),
             maxActionsPerTick = request.maxActionsPerTick.coerceIn(1, 20),
@@ -121,6 +124,7 @@ object WorkerSettingsCodec {
                     enableNotifications = obj.optBoolean("enableNotifications", false),
                     enableAutoUpvoter = obj.optBoolean("enableAutoUpvoter", false),
                     enableVizSelfAward = obj.optBoolean("enableVizSelfAward", false),
+                    autoStart = obj.optBoolean("autoStart", false),
                     explicitConsent = obj.optBoolean("explicitConsent", false),
                     notificationOps = readStringList(obj.opt("notificationOps")),
                     minEnergy = obj.optInt("minEnergy", 2500),
@@ -146,6 +150,7 @@ object WorkerSettingsCodec {
         .put("enableNotifications", decision.enableNotifications)
         .put("enableAutoUpvoter", decision.enableAutoUpvoter)
         .put("enableVizSelfAward", decision.enableVizSelfAward)
+        .put("autoStart", decision.autoStart)
         .put("notificationOps", JSONArray(decision.notificationOps))
         .put("minEnergy", decision.minEnergy)
         .put("maxActionsPerTick", decision.maxActionsPerTick)

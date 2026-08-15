@@ -37,6 +37,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
             .putString("notifyOps:${decision.chainId}:${decision.account}", JSONArray(decision.notificationOps).toString())
             .putBoolean("upvoter:${decision.chainId}:${decision.account}", decision.enableAutoUpvoter)
             .putBoolean("vizSelfAward:${decision.chainId}:${decision.account}", decision.enableVizSelfAward)
+            .putBoolean("autoStart:${decision.chainId}:${decision.account}", decision.autoStart)
             .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
             .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
             .putInt("intervalMinutes", decision.intervalMinutes)
@@ -46,7 +47,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
             .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
             .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
             .apply()
-        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}; vizSelfAward=${decision.enableVizSelfAward}")
+        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}; vizSelfAward=${decision.enableVizSelfAward}; autoStart=${decision.autoStart}")
     }
 
     fun readAccounts(): List<AccountIdentity> {
@@ -67,6 +68,10 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun notificationOps(chainId: String, account: String): List<String> = readStringList("notifyOps:$chainId:$account")
     fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false)
     fun vizSelfAwardEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("vizSelfAward:$chainId:$account", false)
+    fun autoStartEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("autoStart:$chainId:$account", false)
+    fun hasAutoStartAccounts(): Boolean = activeAccounts().any { account ->
+        autoStartEnabled(account.chainId, account.account) && (autoUpvoterEnabled(account.chainId, account.account) || vizSelfAwardEnabled(account.chainId, account.account) || notificationEnabled(account.chainId, account.account))
+    }
     fun minEnergy(chainId: String, account: String): Int = prefs.getInt("minEnergy:$chainId:$account", 2500)
     fun maxActions(chainId: String, account: String): Int = prefs.getInt("maxActions:$chainId:$account", 5)
     fun curators(chainId: String, account: String): List<String> = readStringList("curators:$chainId:$account")
