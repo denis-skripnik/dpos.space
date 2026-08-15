@@ -80,6 +80,13 @@ class VoteBroadcastPolicyTest {
         assertFalse(bytes.takeLast(32).all { it == 0.toByte() })
     }
 
+    @Test fun signingBytesTransactionPartMatchesGolosRpcGetTransactionHex() {
+        val op = VoteOperation("golos", "denis", "alice", "post", 7500)
+        val bytes = GolosTransactionBuilder().signingBytes(op, header)
+        val txHex = bytes.copyOfRange(32, bytes.size).joinToString("") { "%02x".format(it) }
+        assertEquals("7b000102030400f1536501000564656e697305616c69636504706f73744c1d00", txHex)
+    }
+
     @Test fun headerFactoryParsesGrapheneHeadBlockPrefix() {
         val props = JSONObject()
             .put("head_block_number", 123)
@@ -168,6 +175,23 @@ class VoteBroadcastPolicyTest {
         val golosJsStyleWif = deterministicGolosJsStyleWif()
         val expectedCompressedPublic = GraphenePublicKey.fromWif(deterministicNonSecretWif())
         assertEquals(expectedCompressedPublic, GraphenePublicKey.fromWif(golosJsStyleWif))
+    }
+
+    @Test fun androidPublicKeyMatchesGolosJsForKnownWifFixture() {
+        val golosJsWif = "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32"
+        assertEquals("GLS7PKZqo3Dio7HEsuPUcg5KCxSpLnrVgZe5ioZQzM6vrFhoSixes", GraphenePublicKey.fromWif(golosJsWif))
+    }
+
+    @Test fun androidSignatureRecoversFixturePostingPublicKey() {
+        val golosJsWif = "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32"
+        val ref = EncryptedKeyRef("golos", "denis", "posting", "posting")
+        val signer = GolosVoteSigner(GolosTransactionBuilder())
+        val signed = signer.sign(VoteOperation("golos", "denis", "alice", "post", 7500), ref, golosJsWif, header)
+        assertTrue(signed.ok)
+        val signature = signed.payload!!.signedTransaction.getJSONArray("signatures").getString(0)
+        assertEquals(130, signature.length)
+        assertTrue(signature.substring(0, 2).toInt(16) in 31..34)
+        assertTrue(isCanonicalCompactSignature(signature))
     }
 
     private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())
