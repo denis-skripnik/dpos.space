@@ -382,25 +382,30 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
     }
 
     private fun post(bodyJson: JSONObject, label: String = "rpc"): JSONObject {
-        val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 20_000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
-        }
         val body = bodyJson.toString()
-        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-        val text = try {
-            (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+        try {
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = if (label.endsWith(".broadcast_transaction")) 8_000 else 20_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
+            }
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val responseCode = conn.responseCode
+            val text = (if (responseCode in 200..299) conn.inputStream else conn.errorStream)
+                .bufferedReader()
+                .use { it.readText() }
+            if (responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP $responseCode at $endpoint via $label: ${PayloadSanitizer.text(text, 160)}")
+            val json = JSONObject(text)
+            if (json.has("error")) throw IllegalStateException("Graphene RPC error at $endpoint via $label: ${PayloadSanitizer.text(json.get("error").toString(), 500)}")
+            return json
         } catch (e: java.net.SocketTimeoutException) {
-            throw IllegalStateException("timeout at $endpoint via $label")
+            throw IllegalStateException("timeout at $endpoint via $label", e)
+        } catch (e: java.io.InterruptedIOException) {
+            throw IllegalStateException("interrupted timeout at $endpoint via $label: ${PayloadSanitizer.text(e.message, 120)}", e)
         }
-        if (conn.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${conn.responseCode} at $endpoint via $label: ${PayloadSanitizer.text(text, 160)}")
-        val json = JSONObject(text)
-        if (json.has("error")) throw IllegalStateException(PayloadSanitizer.text(json.get("error").toString(), 500))
-        return json
     }
 }
 
