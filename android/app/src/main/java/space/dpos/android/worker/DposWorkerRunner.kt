@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.core.PayloadSanitizer
+import space.dpos.android.notifications.FallbackGrapheneHistoryClient
 import space.dpos.android.notifications.GolosNotificationScanner
 import space.dpos.android.notifications.HttpGrapheneHistoryClient
 import space.dpos.android.notifications.NotificationHelper
@@ -16,6 +17,8 @@ import space.dpos.android.upvoter.AccountSettings
 import space.dpos.android.upvoter.AutoUpvoterPlanner
 import space.dpos.android.upvoter.AutoVoteEventCollector
 import space.dpos.android.upvoter.AutoVoteRuntime
+import space.dpos.android.upvoter.FallbackGolosDiscussionClient
+import space.dpos.android.upvoter.FallbackGrapheneRpcClient
 import space.dpos.android.upvoter.GolosBroadcastClient
 import space.dpos.android.upvoter.GrapheneChainSpecs
 import space.dpos.android.upvoter.GrapheneVoteSigner
@@ -81,7 +84,7 @@ class DposWorkerRunner(private val context: Context) {
                     val cursor = store.readCursor(account.chainId, account.account)
                     val selectedOps = store.notificationOps(account.chainId, account.account)
                     val (nextCursor, notifications) = if (spec != null) {
-                        GolosNotificationScanner(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.historyApiName), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
+                        GolosNotificationScanner(historyClient(spec), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
                     } else if (account.chainId in RestWalletNotificationSpecs.supportedChains) {
                         RestWalletNotificationScanner(account.chainId).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
                     } else {
@@ -98,10 +101,10 @@ class DposWorkerRunner(private val context: Context) {
                     store.appendLog(msg)
                     messages += msg
                 } catch (e: Exception) {
-                    val msg = "${account.chainId}:${account.account}: ошибка уведомлений: ${e.message}"
-                    errors += msg
-                    store.setLastError(e.message)
-                    store.appendLog(msg, "error")
+                    val msg = "${account.chainId}:${account.account}: уведомления временно недоступны: ${e.message}"
+                    store.appendLog(msg, "warning")
+                    messages += msg
+                    skipped += 1
                 }
             }
             if (store.autoUpvoterEnabled(account.chainId, account.account)) {
@@ -146,7 +149,7 @@ class DposWorkerRunner(private val context: Context) {
                         skipped += plan.skips.size
                         continue
                     }
-                    val rpc = HttpGrapheneRpcClient(spec)
+                    val rpc = rpcClient(spec)
                     val runtime = AutoVoteRuntime(VoteRuntime(rpc, signer = GrapheneVoteSigner(spec), broadcaster = GolosBroadcastClient(rpc)), object : PostingKeyProvider {
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
@@ -187,6 +190,18 @@ class DposWorkerRunner(private val context: Context) {
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
         val spec = GrapheneChainSpecs.requireVote(chainId)
-        return AutoVoteEventCollector(HttpGrapheneHistoryClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.historyApiName), HttpGrapheneDiscussionClient(spec.defaultRpcEndpoint, spec.legacyCallRpc, spec.discussionApiName)).collect(settings)
+        return AutoVoteEventCollector(historyClient(spec), discussionClient(spec)).collect(settings)
     }
+
+    private fun historyClient(spec: space.dpos.android.upvoter.GrapheneChainSpec) = FallbackGrapheneHistoryClient(
+        spec.rpcEndpoints.map { endpoint -> HttpGrapheneHistoryClient(endpoint, spec.legacyCallRpc, spec.historyApiName) }
+    )
+
+    private fun discussionClient(spec: space.dpos.android.upvoter.GrapheneChainSpec) = FallbackGolosDiscussionClient(
+        spec.rpcEndpoints.map { endpoint -> HttpGrapheneDiscussionClient(endpoint, spec.legacyCallRpc, spec.discussionApiName) }
+    )
+
+    private fun rpcClient(spec: space.dpos.android.upvoter.GrapheneChainSpec) = FallbackGrapheneRpcClient(
+        spec.rpcEndpoints.map { endpoint -> HttpGrapheneRpcClient(spec, endpoint) }
+    )
 }

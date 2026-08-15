@@ -38,6 +38,7 @@ data class GrapheneChainSpec(
     val id: String,
     val networkChainIdHex: String,
     val defaultRpcEndpoint: String,
+    val rpcEndpoints: List<String> = listOf(defaultRpcEndpoint),
     val publicKeyPrefix: String = "GLS",
     val voteOperationId: Int = 0,
     val postingAuthority: String = "posting",
@@ -51,7 +52,7 @@ data class GrapheneChainSpec(
 
 object GrapheneChainSpecs {
     private val specs = mapOf(
-        "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, legacyCallRpc = true, historyApiName = "account_history", discussionApiName = "tags", notificationOps = listOf("content_mentions", "comment_mention", "comment", "custom_json", "transfer", "donate", "author_reward", "curation_reward", "comment_benefactor_reward")),
+        "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, rpcEndpoints = listOf(DEFAULT_GOLOS_RPC, "https://api-full.golos.id", "https://apibeta.golos.today"), legacyCallRpc = true, historyApiName = "account_history", discussionApiName = "tags", notificationOps = listOf("content_mentions", "comment_mention", "comment", "custom_json", "transfer", "donate", "author_reward", "curation_reward", "comment_benefactor_reward")),
         "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "proposal_create", "proposal_update", "proposal_delete")),
         "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "producer_reward")),
         "viz" to GrapheneChainSpec("viz", VIZ_CHAIN_ID, DEFAULT_VIZ_RPC, publicKeyPrefix = "VIZ", legacyCallRpc = true, historyApiName = "account_history", nativeVoteSupported = false, notificationOps = listOf("comment", "transfer", "award", "fixed_award", "receive_award", "benefactor_award"))
@@ -300,13 +301,33 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
             readTimeout = 20_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
         }
         val body = bodyJson.toString()
         conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val text = (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+        if (conn.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${conn.responseCode} at $endpoint: ${PayloadSanitizer.text(text, 160)}")
         val json = JSONObject(text)
         if (json.has("error")) throw IllegalStateException(PayloadSanitizer.text(json.get("error").toString(), 500))
         return json
+    }
+}
+
+class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : GolosRpcClient {
+    override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
+    override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
+    override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
+
+    private fun <T> call(label: String, block: (GolosRpcClient) -> T): T {
+        var lastError: Exception? = null
+        for (client in clients) {
+            try {
+                return block(client)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw IllegalStateException("all Graphene RPC endpoints failed for $label; last=${lastError?.message.orEmpty()}")
     }
 }
 

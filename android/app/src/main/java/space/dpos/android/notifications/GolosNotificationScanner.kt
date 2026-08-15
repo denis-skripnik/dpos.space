@@ -22,11 +22,26 @@ class HttpGrapheneHistoryClient(private val endpoint: String, private val legacy
             readTimeout = 20_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
         }
         OutputStreamWriter(connection.outputStream).use { it.write(GolosHistoryRpc.buildAccountHistoryPayload(account, from, limit, legacyCallRpc, apiName)) }
         val body = if (connection.responseCode in 200..299) connection.inputStream.bufferedReader().use { it.readText() } else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (connection.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${connection.responseCode}: ${body.take(120)}")
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${connection.responseCode} at $endpoint: ${body.take(120)}")
         return GolosHistoryRpc.parseAccountHistory(body)
+    }
+}
+
+class FallbackGrapheneHistoryClient(private val clients: List<GolosHistoryClient>) : GolosHistoryClient {
+    override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+        var lastError: Exception? = null
+        for (client in clients) {
+            try {
+                return client.getAccountHistory(account, from, limit)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw IllegalStateException("all Graphene history RPC endpoints failed; last=${lastError?.message.orEmpty()}")
     }
 }
 
