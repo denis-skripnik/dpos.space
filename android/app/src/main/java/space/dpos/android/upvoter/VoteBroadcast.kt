@@ -367,12 +367,10 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         return rows.optJSONObject(0)
     }
 
+    fun broadcastMethodName(): String = if (spec.asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"
+
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
-        if (spec.asyncBroadcastOnly) {
-            postApi("network_broadcast_api", "broadcast_transaction", JSONArray().put(signedTransaction))
-        } else {
-            postApi("network_broadcast_api", "broadcast_transaction_synchronous", JSONArray().put(signedTransaction))
-        }
+        postApi("network_broadcast_api", broadcastMethodName(), JSONArray().put(signedTransaction))
 
     private fun postApi(api: String, methodName: String, params: JSONArray): JSONObject {
         val body = if (spec.legacyCallRpc) {
@@ -380,10 +378,10 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         } else {
             JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "$api.$methodName").put("params", params)
         }
-        return post(body)
+        return post(body, "$api.$methodName")
     }
 
-    private fun post(bodyJson: JSONObject): JSONObject {
+    private fun post(bodyJson: JSONObject, label: String = "rpc"): JSONObject {
         val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -394,8 +392,12 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         }
         val body = bodyJson.toString()
         conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-        val text = (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
-        if (conn.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${conn.responseCode} at $endpoint: ${PayloadSanitizer.text(text, 160)}")
+        val text = try {
+            (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+        } catch (e: java.net.SocketTimeoutException) {
+            throw IllegalStateException("timeout at $endpoint via $label")
+        }
+        if (conn.responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP ${conn.responseCode} at $endpoint via $label: ${PayloadSanitizer.text(text, 160)}")
         val json = JSONObject(text)
         if (json.has("error")) throw IllegalStateException(PayloadSanitizer.text(json.get("error").toString(), 500))
         return json
