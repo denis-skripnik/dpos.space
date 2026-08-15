@@ -228,6 +228,7 @@ class DposWorkerRunner(private val context: Context) {
         val nextTick = System.currentTimeMillis() + store.intervalMinutes() * 60_000L
         store.setNextTick(nextTick)
         val ok = errors.isEmpty()
+        store.saveAutoUpvoterFeed(autoUpvoterFeed)
         val status = if (ok) "checked" else "checked_with_errors"
         store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; vizSelfAwards=$vizSelfAwardBroadcasted; errors=${errors.size}", if (ok) "info" else "error")
         return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
