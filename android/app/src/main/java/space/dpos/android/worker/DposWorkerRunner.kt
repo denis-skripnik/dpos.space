@@ -29,7 +29,12 @@ import space.dpos.android.upvoter.PostingKeyProvider
 import space.dpos.android.upvoter.VoteBroadcastResult
 import space.dpos.android.upvoter.VoteEvent
 import space.dpos.android.upvoter.VoteRuntime
+import space.dpos.android.upvoter.VizSelfAwardOperation
+import space.dpos.android.upvoter.VizSelfAwardResult
 import space.dpos.android.upvoter.VizSelfAwardRuntime
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 data class WorkerRunSummary(
     val ok: Boolean,
@@ -208,9 +213,7 @@ class DposWorkerRunner(private val context: Context) {
                         skipped += 1
                         continue
                     }
-                    val spec = GrapheneChainSpecs.require("viz")
-                    val rpc = rpcClient(spec)
-                    val result = VizSelfAwardRuntime(rpc, broadcaster = GolosBroadcastClient(rpc), historyClient = historyClient(spec)).execute(account.account, store.minEnergy("viz", account.account), keyRef, key)
+                    val result = runVizSelfAwardWithTimeout(account.account, keyRef, key)
                     if (result.ok && result.status == "broadcast_confirmed") vizSelfAwardBroadcasted += 1
                     if (result.ok && result.status == "low_energy_skip") skipped += 1
                     val msg = "viz:${account.account}: self-award ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
@@ -235,10 +238,45 @@ class DposWorkerRunner(private val context: Context) {
         return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
     }
 
+    private fun runVizSelfAwardWithTimeout(account: String, keyRef: EncryptedKeyRef, key: String, timeoutSeconds: Long = 45L): VizSelfAwardResult {
+        val clean = account.trim().removePrefix("@").lowercase()
+        val executor = Executors.newSingleThreadExecutor()
+        return try {
+            val future = executor.submit<VizSelfAwardResult> {
+                val spec = GrapheneChainSpecs.require("viz")
+                val rpc = rpcClient(spec)
+                VizSelfAwardRuntime(
+                    rpc,
+                    broadcaster = GolosBroadcastClient(rpc),
+                    historyClient = historyClient(spec)
+                ).execute(clean, store.minEnergy("viz", clean), keyRef, key)
+            }
+            future.get(timeoutSeconds, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            VizSelfAwardResult(
+                ok = false,
+                status = "broadcast_timeout",
+                reason = "VIZ self-award exceeded ${timeoutSeconds}s for @$clean; worker skipped this account so the foreground service can finish the tick",
+                operation = VizSelfAwardOperation(clean, 1),
+                rpcResponse = JSONObject().put("timeoutSeconds", timeoutSeconds)
+            )
+        } catch (e: Exception) {
+            VizSelfAwardResult(
+                ok = false,
+                status = "broadcast_error",
+                reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native VIZ self-award failed" }, 300),
+                operation = VizSelfAwardOperation(clean, 1),
+                rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500))
+            )
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     private fun resultToFeedEntry(result: VoteBroadcastResult): JSONObject? {
         val operation = result.operation
         val type = when {
-            result.ok && result.status == "broadcast_sent" -> "success"
+            result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent") -> "success"
             result.ok && result.status == "already_voted" -> return null
             !result.ok -> "error"
             else -> "info"
