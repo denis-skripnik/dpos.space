@@ -65,6 +65,13 @@ class VizSelfAwardPolicyTest {
         )
     }
 
+    @Test fun vizNativeSelfAwardUsesMultipleRpcEndpointsForBadGatewayFallback() {
+        val spec = space.dpos.android.upvoter.GrapheneChainSpecs.require("viz")
+        assertTrue(spec.rpcEndpoints.contains("https://api.viz.world"))
+        assertTrue(spec.rpcEndpoints.contains("https://node.viz.cx"))
+        assertTrue(spec.rpcEndpoints.size >= 2)
+    }
+
     @Test fun lowEnergySkipsWithoutBroadcast() {
         val broadcaster = RecordingBroadcaster()
         val runtime = VizSelfAwardRuntime(FakeRpc(energy = 9499), broadcaster)
