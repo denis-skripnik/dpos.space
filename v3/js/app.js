@@ -6310,6 +6310,8 @@
     const enabled = result.workerEnabled ? 'включена' : 'выключена';
     const running = result.running ? 'сейчас работает' : 'сейчас остановлена';
     const accounts = Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0;
+    const version = result.appVersionName ? ` APK ${result.appVersionName} (${result.appVersionCode || '?'})` : '';
+    const vizMethod = result.vizBroadcastMethod ? ` VIZ broadcast: ${result.vizBroadcastMethod}.` : '';
     const accountDetails = Array.isArray(result.accounts) && result.accounts.length
       ? ` Аккаунты: ${result.accounts.map((item) => {
         const flags = [];
@@ -6323,7 +6325,7 @@
       : '';
     const lastTick = result.lastTick ? ` Последняя проверка: ${new Date(Number(result.lastTick)).toLocaleString()}.` : ' Проверок ещё не было.';
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
-    return `Фоновая проверка в Android: ${enabled}, ${running}, аккаунтов: ${accounts}.${accountDetails}${lastTick}${error}`;
+    return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}`;
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {

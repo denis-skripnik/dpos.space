@@ -25,6 +25,7 @@ import space.dpos.android.core.RoutePolicy
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
+import space.dpos.android.upvoter.GrapheneChainSpecs
 import space.dpos.android.worker.DposForegroundService
 
 class MainActivity : Activity() {
@@ -198,6 +199,9 @@ class MainActivity : Activity() {
                     .put("hasRegularKey", store.hasRegularKey(account.chainId, account.account))
             }))
             .put("autoUpvoterFeed", store.exportAutoUpvoterFeed())
+            .put("appVersionName", BuildConfig.VERSION_NAME)
+            .put("appVersionCode", BuildConfig.VERSION_CODE)
+            .put("vizBroadcastMethod", if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous")
             .put("webUrl", BuildConfig.DPOS_WEB_URL)
             .put("permissionNotifications", NotificationHelper.canPost(this))
             .put("batteryOptimizationWarning", true)
