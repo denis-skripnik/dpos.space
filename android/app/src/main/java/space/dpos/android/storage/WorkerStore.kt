@@ -121,6 +121,13 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         val next = (old + "${System.currentTimeMillis()} [$level] ${PayloadSanitizer.redactLog(message)}").takeLast(160).joinToString("\n")
         prefs.edit().putString("logs", next).apply()
     }
+    fun clearLogs() = prefs.edit().remove("logs").remove("lastError").apply()
+    fun markAppVersion(version: String): Boolean {
+        val old = prefs.getString("appVersion", "").orEmpty()
+        if (old == version) return false
+        prefs.edit().putString("appVersion", version).apply()
+        return old.isNotBlank()
+    }
     fun exportLogs(): String = prefs.getString("logs", "").orEmpty()
     fun saveAutoUpvoterFeed(feed: List<JSONObject>) {
         prefs.edit().putString("autoUpvoterFeed", JSONArray(feed.takeLast(30)).toString()).apply()

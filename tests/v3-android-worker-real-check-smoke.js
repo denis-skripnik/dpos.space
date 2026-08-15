@@ -4,6 +4,8 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const bridge = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/bridge/DposAndroidBridge.kt'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposPeriodicWorker.kt'), 'utf8');
+const application = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/DposApplication.kt'), 'utf8');
+const foregroundService = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposForegroundService.kt'), 'utf8');
 const runner = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/worker/DposWorkerRunner.kt'), 'utf8');
 const store = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/storage/WorkerStore.kt'), 'utf8');
 const mainActivity = fs.readFileSync(path.join(root, 'android/app/src/main/java/space/dpos/android/ui/MainActivity.kt'), 'utf8');
@@ -13,6 +15,7 @@ const checkNow = bridge.slice(bridge.indexOf('fun checkNow()'), bridge.indexOf('
 assert(checkNow.includes('DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual")'), 'checkNow runs the real worker runner immediately');
 assert(!checkNow.includes('OneTimeWorkRequestBuilder') && !checkNow.includes('queued'), 'checkNow no longer returns only queued WorkManager status');
 assert(worker.includes('DposWorkerRunner(applicationContext).runOnce(reason = "periodic")'), 'periodic worker and manual check share the same runner');
+assert(application.includes('markAppVersion(version)') && application.includes('clearLogs()') && foregroundService.includes('foreground service started; apk='), 'APK upgrades clear stale worker logs and mark new service starts with build version');
 assert(runner.includes('store.saveAutoUpvoterFeed(autoUpvoterFeed)'), 'runner persists last Android auto-upvoter feed for status screen after app-open autostart');
 assert(store.includes('fun saveAutoUpvoterFeed') && store.includes('fun exportAutoUpvoterFeed'), 'worker store can persist/export last native auto-upvoter feed');
 assert(mainActivity.includes('.put("autoUpvoterFeed", store.exportAutoUpvoterFeed())') && mainActivity.includes('appVersionName') && mainActivity.includes('vizBroadcastMethod'), 'native worker status exposes persisted auto-upvoter feed, APK version, and VIZ broadcast method to WebView');

@@ -17,9 +17,14 @@ class DposApplication : Application() {
 
     private fun autoStartWorkerIfEnabled() {
         val store = WorkerStore(this)
+        val version = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
+        if (store.markAppVersion(version)) {
+            store.clearLogs()
+            store.appendLog("apk updated; fresh worker log started; apk=$version")
+        }
         if (!store.hasAutoStartAccounts()) return
         store.setWorkerEnabled(true)
-        store.appendLog("application open auto-start requested")
+        store.appendLog("application open auto-start requested; apk=$version")
         val intent = Intent(this, DposForegroundService::class.java).setAction(DposForegroundService.ACTION_START)
         if (Build.VERSION.SDK_INT >= 26) ContextCompat.startForegroundService(this, intent) else startService(intent)
     }
