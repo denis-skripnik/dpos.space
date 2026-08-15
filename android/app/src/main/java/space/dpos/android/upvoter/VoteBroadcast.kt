@@ -10,6 +10,8 @@ import org.json.JSONObject
 import org.bouncycastle.crypto.digests.RIPEMD160Digest
 import org.bouncycastle.crypto.ec.CustomNamedCurves
 import space.dpos.android.core.PayloadSanitizer
+import space.dpos.android.notifications.GolosHistoryClient
+import space.dpos.android.notifications.HistoryEvent
 import space.dpos.android.storage.EncryptedKeyRef
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
@@ -465,7 +467,10 @@ object GolosTransactionHeaderFactory {
 class VoteRuntime(
     private val rpcClient: GolosRpcClient,
     private val signer: VoteSigner = GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos")),
-    private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient)
+    private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient),
+    private val historyClient: GolosHistoryClient? = null,
+    private val confirmationRetries: Int = 2,
+    private val confirmationDelayMs: Long = 1_500L
 ) {
     private fun buildHeaderLikeGolosJs(): BlockHeaderRef {
         val props = rpcClient.getDynamicGlobalProperties()
@@ -491,10 +496,34 @@ class VoteRuntime(
         val signedWithAuthority = signed.copy(diagnostics = mergeDiagnostics(signed.diagnostics, authorityDiagnostics(operation, privateWif)))
         return try {
             val response = broadcaster.broadcast(signed.payload.signedTransaction)
-            signedWithAuthority.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+            val confirmation = confirmVote(operation)
+            if (confirmation != null) {
+                signedWithAuthority.copy(status = "broadcast_confirmed", reason = "vote confirmed in ${operation.chainId} history: @${operation.voter} -> @${operation.author}/${operation.permlink} at #${confirmation.index}", rpcResponse = response, diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, JSONObject().put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp)))
+            } else if (historyClient != null) {
+                signedWithAuthority.copy(ok = false, status = "broadcast_unconfirmed", reason = "${operation.chainId} RPC accepted broadcast but vote was not found in account history after verification", rpcResponse = response)
+            } else {
+                signedWithAuthority.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
+            }
         } catch (e: Exception) {
             classifyBroadcastFailure(operation, signedWithAuthority, e)
         }
+    }
+
+    private fun confirmVote(operation: VoteOperation): HistoryEvent? {
+        val history = historyClient ?: return null
+        repeat(confirmationRetries.coerceAtLeast(1)) { attempt ->
+            if (attempt > 0 && confirmationDelayMs > 0) Thread.sleep(confirmationDelayMs)
+            val rows = history.getAccountHistory(operation.voter, -1, 30)
+            val found = rows.asReversed().firstOrNull { event ->
+                event.type == "vote" &&
+                    event.data["voter"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.voter &&
+                    event.data["author"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.author &&
+                    event.data["permlink"].orEmpty() == operation.permlink &&
+                    event.data["weight"].orEmpty().toIntOrNull() == operation.weight
+            }
+            if (found != null) return found
+        }
+        return null
     }
 
     private fun mergeDiagnostics(first: JSONObject?, second: JSONObject?): JSONObject? {
