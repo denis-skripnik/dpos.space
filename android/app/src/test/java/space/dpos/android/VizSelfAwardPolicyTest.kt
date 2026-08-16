@@ -112,6 +112,7 @@ class VizSelfAwardPolicyTest {
         val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
         assertFalse(result.ok)
         assertEquals("signature_rejected", result.status)
+        assertEquals("tx_missing_regular_auth", result.rpcResponse!!.getJSONObject("error").getJSONObject("data").getString("name"))
         assertEquals(0, broadcaster.broadcastCount)
     }
 
@@ -140,6 +141,7 @@ class VizSelfAwardPolicyTest {
             .put("last_vote_time", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.ofEpochSecond(System.currentTimeMillis() / 1000L, 0, ZoneOffset.UTC)))
             .put("regular_authority", JSONObject().put("weight_threshold", 1).put("key_auths", JSONArray().put(JSONArray().put(regularPublicKey).put(1))))
         override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityAccepted
+        override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = if (verifyAuthorityAccepted) JSONObject().put("result", true) else JSONObject().put("error", JSONObject().put("code", -32000).put("message", "missing required regular authority").put("data", JSONObject().put("name", "tx_missing_regular_auth")))
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 

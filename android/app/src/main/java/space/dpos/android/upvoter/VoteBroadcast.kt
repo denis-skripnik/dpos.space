@@ -146,6 +146,7 @@ interface GolosRpcClient {
     fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
     fun verifyAuthority(signedTransaction: JSONObject): Boolean
+    fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
 }
 
@@ -370,26 +371,30 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         return rows.optJSONObject(0)
     }
 
-    override fun verifyAuthority(signedTransaction: JSONObject): Boolean {
-        val result = postApi("database_api", "verify_authority", JSONArray().put(signedTransaction))
-        return result.optBoolean("result", false)
-    }
+    override fun verifyAuthority(signedTransaction: JSONObject): Boolean =
+        verifyAuthorityDetailed(signedTransaction).optBoolean("result", false)
+
+    override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject =
+        postApiRaw("database_api", "verify_authority", JSONArray().put(signedTransaction), throwOnRpcError = false)
 
     fun broadcastMethodName(): String = if (spec.asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"
 
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
         postApi("network_broadcast_api", broadcastMethodName(), JSONArray().put(signedTransaction))
 
-    private fun postApi(api: String, methodName: String, params: JSONArray): JSONObject {
+    private fun postApi(api: String, methodName: String, params: JSONArray): JSONObject =
+        postApiRaw(api, methodName, params, throwOnRpcError = true)
+
+    private fun postApiRaw(api: String, methodName: String, params: JSONArray, throwOnRpcError: Boolean): JSONObject {
         val body = if (spec.legacyCallRpc) {
             JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "call").put("params", JSONArray().put(api).put(methodName).put(params))
         } else {
             JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "$api.$methodName").put("params", params)
         }
-        return post(body, "$api.$methodName")
+        return post(body, "$api.$methodName", throwOnRpcError)
     }
 
-    private fun post(bodyJson: JSONObject, label: String = "rpc"): JSONObject {
+    private fun post(bodyJson: JSONObject, label: String = "rpc", throwOnRpcError: Boolean = true): JSONObject {
         val body = bodyJson.toString()
         try {
             val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
@@ -407,7 +412,7 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
                 .use { it.readText() }
             if (responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP $responseCode at $endpoint via $label: ${PayloadSanitizer.text(text, 160)}")
             val json = JSONObject(text)
-            if (json.has("error")) throw IllegalStateException("Graphene RPC error at $endpoint via $label: ${PayloadSanitizer.text(json.get("error").toString(), 500)}")
+            if (throwOnRpcError && json.has("error")) throw IllegalStateException("Graphene RPC error at $endpoint via $label: ${PayloadSanitizer.text(json.get("error").toString(), 500)}")
             return json
         } catch (e: java.net.SocketTimeoutException) {
             throw IllegalStateException("timeout at $endpoint via $label", e)
@@ -421,7 +426,8 @@ class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : Gol
     override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
     override fun getBlock(blockNumber: Long): JSONObject? = call("block") { it.getBlock(blockNumber) }
     override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
-    override fun verifyAuthority(signedTransaction: JSONObject): Boolean = call("verify authority") { it.verifyAuthority(signedTransaction) }
+    override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityDetailed(signedTransaction).optBoolean("result", false)
+    override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = call("verify authority") { it.verifyAuthorityDetailed(signedTransaction) }
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
 
     private fun <T> call(label: String, block: (GolosRpcClient) -> T): T {
