@@ -431,16 +431,16 @@ class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : Gol
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
 
     private fun <T> call(label: String, block: (GolosRpcClient) -> T): T {
-        var lastError: Exception? = null
+        val errors = mutableListOf<String>()
         for (client in clients) {
             try {
                 return block(client)
             } catch (e: Exception) {
-                lastError = e
+                errors += "${e::class.java.simpleName}: ${PayloadSanitizer.text(e.message, 700)}"
             }
         }
-        val detail = lastError?.let { "${it::class.java.simpleName}: ${it.message.orEmpty()}" }.orEmpty()
-        throw IllegalStateException("all Graphene RPC endpoints failed for $label; last=$detail")
+        val detail = errors.takeLast(5).joinToString(" | ")
+        throw IllegalStateException("all Graphene RPC endpoints failed for $label; errors=$detail")
     }
 }
 
