@@ -18,6 +18,7 @@ import space.dpos.android.upvoter.AccountSettings
 import space.dpos.android.upvoter.AutoUpvoterPlanner
 import space.dpos.android.upvoter.AutoVoteEventCollector
 import space.dpos.android.upvoter.AutoVoteRuntime
+import space.dpos.android.upvoter.AutoVoteRuntimeReport
 import space.dpos.android.upvoter.FallbackGolosDiscussionClient
 import space.dpos.android.upvoter.FallbackGrapheneRpcClient
 import space.dpos.android.upvoter.GolosBroadcastClient
@@ -28,6 +29,8 @@ import space.dpos.android.upvoter.HttpGrapheneRpcClient
 import space.dpos.android.upvoter.PostingKeyProvider
 import space.dpos.android.upvoter.VoteBroadcastResult
 import space.dpos.android.upvoter.VoteEvent
+import space.dpos.android.upvoter.VoteOperation
+import space.dpos.android.upvoter.VotePlan
 import space.dpos.android.upvoter.VoteRuntime
 import space.dpos.android.upvoter.VizSelfAwardOperation
 import space.dpos.android.upvoter.VizSelfAwardResult
@@ -203,7 +206,9 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                     val favoriteEvents = events.count { it.kind == "favorite_post" }
                     val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
                     publishStatus("${account.chainId}:${account.account}: лента проверена; событий=${events.size}; планирую голоса")
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер планирую голоса")
                     val plan = AutoUpvoterPlanner().plan(listOf(settings), events)
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер план готов; actions=${plan.actions.size}; skip=${plan.skips.size}")
                     if (plan.actions.isEmpty()) {
                         val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
                         publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
@@ -218,7 +223,8 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                         override fun privateWif(chainId: String, account: String): String? = key
                     }, chainId = spec.id)
                     publishStatus("${account.chainId}:${account.account}: отправляю ${plan.actions.size} vote-операций")
-                    val report = runtime.execute(plan)
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер отправляю vote-операции; actions=${plan.actions.size}; timeout=60s")
+                    val report = runAutoVoteRuntimeWithTimeout(account.chainId, account.account, runtime, plan)
                     autoUpvoterAttempted += report.attempted
                     autoUpvoterBroadcasted += report.broadcasted
                     skipped += report.skipped.size
@@ -294,6 +300,56 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
         store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; vizSelfAwards=$vizSelfAwardBroadcasted; errors=${errors.size}", if (ok) "info" else "error")
         publishStatus("проверка завершена; аккаунтов=$accountsChecked; уведомлений=$notificationsShown; vote отправлено=$autoUpvoterBroadcasted; VIZ self-awards=$vizSelfAwardBroadcasted; ошибок=${errors.size}")
         return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
+    }
+
+    private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = 60L): AutoVoteRuntimeReport {
+        val executor = Executors.newSingleThreadExecutor()
+        return try {
+            val future = executor.submit<AutoVoteRuntimeReport> { runtime.execute(plan) }
+            future.get(timeoutSeconds, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            val first = plan.actions.firstOrNull()
+            val operation = VoteOperation(
+                chainId = chainId,
+                voter = account,
+                author = first?.author ?: account,
+                permlink = first?.permlink ?: "auto-upvoter-timeout",
+                weight = first?.weight ?: 10000
+            )
+            AutoVoteRuntimeReport(
+                attempted = 0,
+                broadcasted = 0,
+                skipped = listOf("runtime-timeout:$account"),
+                results = listOf(VoteBroadcastResult(
+                    ok = false,
+                    status = "broadcast_timeout",
+                    operation = operation,
+                    reason = "${chainId} auto-upvoter exceeded ${timeoutSeconds}s after planning ${plan.actions.size} vote actions; worker skipped remaining broadcasts so the foreground service can finish the tick"
+                ))
+            )
+        } catch (e: Exception) {
+            val first = plan.actions.firstOrNull()
+            val operation = VoteOperation(
+                chainId = chainId,
+                voter = account,
+                author = first?.author ?: account,
+                permlink = first?.permlink ?: "auto-upvoter-error",
+                weight = first?.weight ?: 10000
+            )
+            AutoVoteRuntimeReport(
+                attempted = 0,
+                broadcasted = 0,
+                skipped = listOf("runtime-error:$account"),
+                results = listOf(VoteBroadcastResult(
+                    ok = false,
+                    status = "broadcast_error",
+                    operation = operation,
+                    reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native auto-upvoter runtime failed" }, 300)
+                ))
+            )
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     private fun runVizSelfAwardWithTimeout(account: String, keyRef: EncryptedKeyRef, key: String, timeoutSeconds: Long = 45L): VizSelfAwardResult {
