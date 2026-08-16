@@ -149,6 +149,7 @@ class GrapheneNativeVoteSupportTest {
             .put("time", "2024-01-01T00:00:00")
         override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
         override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(GraphenePublicKey.fromWif(deterministicNonSecretWif(), "STM")).put(1))))
+        override fun verifyAuthority(signedTransaction: JSONObject): Boolean = true
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 
