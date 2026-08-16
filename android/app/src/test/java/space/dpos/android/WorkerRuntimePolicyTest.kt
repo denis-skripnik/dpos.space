@@ -67,6 +67,22 @@ class WorkerRuntimePolicyTest {
         assertFalse(json.contains("not-a-real-secret-fixture"))
     }
 
+    @Test fun statusJsonSplitsErrorAndGolosTailsByPreservedLogLines() {
+        val json = JSONObject(WorkerSettingsCodec.statusJson(
+            running = true,
+            workerEnabled = true,
+            activeAccounts = 4,
+            lastTick = 10L,
+            nextTick = 20L,
+            lastError = null,
+            logs = "100 [info] viz:denis-skripnik: self-award broadcast_confirmed\n101 [info] account started; golos:denis-skripnik; notifications=true; autoUpvoter=true\n102 [error] golos:denis-skripnik: broadcast_error: node failed\n103 [info] check finished; accounts=4"
+        ))
+        assertTrue(json.getString("golosLogTail").contains("golos:denis-skripnik"))
+        assertFalse(json.getString("golosLogTail").contains("viz:denis-skripnik"))
+        assertTrue(json.getString("errorLogTail").contains("broadcast_error"))
+        assertFalse(json.getString("errorLogTail").contains("broadcast_confirmed"))
+    }
+
     @Test fun workerSummaryCarriesAndroidAutoUpvoterFeedForWebViewRendering() {
         val feedEntry = JSONObject()
             .put("message", "ERROR @denis @alice/post: broadcast_error: node rejected transaction")

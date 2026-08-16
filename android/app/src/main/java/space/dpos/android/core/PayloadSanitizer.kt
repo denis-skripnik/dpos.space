@@ -12,11 +12,16 @@ object PayloadSanitizer {
 
     fun tag(value: String?): String = text(value, 48).ifBlank { "dpos-space" }
 
-    fun redactLog(line: String): String = line.split(' ', '\n', '	').joinToString(" ") { token ->
-        when {
-            secretPattern.containsMatchIn(token.substringBefore('=')) -> "${token.substringBefore('=')}=[redacted]"
-            wifLike.matches(token) -> "[redacted]"
-            else -> token
+    fun redactLog(line: String): String = line
+        .lines()
+        .joinToString("\n") { rawLine ->
+            rawLine.split(' ', '	').joinToString(" ") { token ->
+                when {
+                    secretPattern.containsMatchIn(token.substringBefore('=')) -> "${token.substringBefore('=')}=[redacted]"
+                    wifLike.matches(token) -> "[redacted]"
+                    else -> token
+                }
+            }
         }
-    }.take(2000)
+        .takeLast(8000)
 }
