@@ -111,6 +111,12 @@ class VizSelfAwardRuntime(
         val signed = signer.sign(op, keyRef, privateWif, header)
         if (!signed.ok || signed.signedTransaction == null) return signed
         return try {
+            val authorityAccepted = try { rpcClient.verifyAuthority(signed.signedTransaction) } catch (e: Exception) {
+                return signed.copy(ok = false, status = "signature_verification_error", reason = "VIZ verify_authority failed before broadcast: ${PayloadSanitizer.text(e.message, 220)}", rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message, 500)))
+            }
+            if (!authorityAccepted) {
+                return signed.copy(ok = false, status = "signature_rejected", reason = "VIZ node rejected signed transaction authority before broadcast; regular key/signature did not verify on-chain", rpcResponse = JSONObject().put("verify_authority", false))
+            }
             val response = broadcaster.broadcast(signed.signedTransaction)
             val confirmation = confirmSelfAward(clean, spend)
             if (confirmation != null) {

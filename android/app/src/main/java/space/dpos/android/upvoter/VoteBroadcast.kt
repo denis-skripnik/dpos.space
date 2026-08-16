@@ -145,6 +145,7 @@ interface GolosRpcClient {
     fun getDynamicGlobalProperties(): JSONObject
     fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
+    fun verifyAuthority(signedTransaction: JSONObject): Boolean
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
 }
 
@@ -369,6 +370,11 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         return rows.optJSONObject(0)
     }
 
+    override fun verifyAuthority(signedTransaction: JSONObject): Boolean {
+        val result = postApi("database_api", "verify_authority", JSONArray().put(signedTransaction))
+        return result.optBoolean("result", false)
+    }
+
     fun broadcastMethodName(): String = if (spec.asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"
 
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
@@ -415,6 +421,7 @@ class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : Gol
     override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
     override fun getBlock(blockNumber: Long): JSONObject? = call("block") { it.getBlock(blockNumber) }
     override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
+    override fun verifyAuthority(signedTransaction: JSONObject): Boolean = call("verify authority") { it.verifyAuthority(signedTransaction) }
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
 
     private fun <T> call(label: String, block: (GolosRpcClient) -> T): T {

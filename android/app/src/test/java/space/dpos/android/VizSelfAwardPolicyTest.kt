@@ -106,6 +106,15 @@ class VizSelfAwardPolicyTest {
         assertEquals(1, broadcaster.broadcastCount)
     }
 
+    @Test fun vizNodeAuthorityRejectionStopsBeforeBroadcast() {
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000, verifyAuthorityAccepted = false), broadcaster, historyClient = ConfirmingHistory("denis", 10), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("signature_rejected", result.status)
+        assertEquals(0, broadcaster.broadcastCount)
+    }
+
     @Test fun wrongRegularKeyStopsBeforeBroadcast() {
         val broadcaster = RecordingBroadcaster()
         val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000, regularPublicKey = "VIZ1111111111111111111111111111111114T1Anm"), broadcaster)
@@ -117,7 +126,8 @@ class VizSelfAwardPolicyTest {
 
     private class FakeRpc(
         private val energy: Int,
-        private val regularPublicKey: String = GraphenePublicKey.fromWif(deterministicNonSecretWif(), "VIZ")
+        private val regularPublicKey: String = GraphenePublicKey.fromWif(deterministicNonSecretWif(), "VIZ"),
+        private val verifyAuthorityAccepted: Boolean = true
     ) : GolosRpcClient {
         override fun getDynamicGlobalProperties(): JSONObject = JSONObject()
             .put("head_block_number", 123)
@@ -129,6 +139,7 @@ class VizSelfAwardPolicyTest {
             .put("energy", energy)
             .put("last_vote_time", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.ofEpochSecond(System.currentTimeMillis() / 1000L, 0, ZoneOffset.UTC)))
             .put("regular_authority", JSONObject().put("weight_threshold", 1).put("key_auths", JSONArray().put(JSONArray().put(regularPublicKey).put(1))))
+        override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityAccepted
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 
