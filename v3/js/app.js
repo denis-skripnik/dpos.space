@@ -6329,7 +6329,7 @@
     const errorTail = result.errorLogTail ? ` Последние ошибки/предупреждения: ${result.errorLogTail}.` : '';
     const golosTail = result.golosLogTail ? ` Последние строки Golos: ${result.golosLogTail}.` : '';
     const lastRun = result.lastRunSummary && typeof result.lastRunSummary === 'object'
-      ? ` Последний run: status=${result.lastRunSummary.status || 'н/д'}, attempted=${result.lastRunSummary.autoUpvoterAttempted || 0}, broadcasted=${result.lastRunSummary.autoUpvoterBroadcasted || 0}, errors=${Array.isArray(result.lastRunSummary.errors) ? result.lastRunSummary.errors.length : 0}.`
+      ? ` Последний run: status=${result.lastRunSummary.status || 'н/д'}, кандидатов=${result.lastRunSummary.autoUpvoterCandidates || 0}, обработано=${result.lastRunSummary.autoUpvoterAttempted || 0}, vote сейчас=${result.lastRunSummary.autoUpvoterBroadcasted || 0}, всего vote=${result.lastRunSummary.totalAutoUpvoterBroadcasted || 0}, VIZ сейчас=${result.lastRunSummary.vizSelfAwardBroadcasted || 0}, всего VIZ=${result.lastRunSummary.totalVizSelfAwardBroadcasted || 0}, errors=${Array.isArray(result.lastRunSummary.errors) ? result.lastRunSummary.errors.length : 0}.`
       : '';
     const logs = result.logs ? ` Логи: ${result.logs}` : '';
     return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}${errorTail}${golosTail}${lastRun}${logs}`;
@@ -6350,7 +6350,8 @@
     if (result.lastTick) lines.push(`lastTick=${new Date(Number(result.lastTick)).toLocaleString()}`);
     if (result.lastRunSummary && typeof result.lastRunSummary === 'object') {
       const s = result.lastRunSummary;
-      lines.push(`lastRun status=${s.status || '?'} ok=${s.ok} accounts=${s.accountsChecked || 0} autoChecks=${s.autoUpvoterChecks || 0} attempted=${s.autoUpvoterAttempted || 0} broadcasted=${s.autoUpvoterBroadcasted || 0} skipped=${s.skipped || 0} viz=${s.vizSelfAwardBroadcasted || 0}`);
+      lines.push(`lastRun status=${s.status || '?'} ok=${s.ok} accounts=${s.accountsChecked || 0} autoChecks=${s.autoUpvoterChecks || 0} candidates=${s.autoUpvoterCandidates || 0} processed=${s.autoUpvoterAttempted || 0} broadcastedNow=${s.autoUpvoterBroadcasted || 0} totalVotes=${s.totalAutoUpvoterBroadcasted || 0} skipped=${s.skipped || 0} vizNow=${s.vizSelfAwardBroadcasted || 0} totalViz=${s.totalVizSelfAwardBroadcasted || 0}`);
+      if (s.autoUpvoterSkipSummary && typeof s.autoUpvoterSkipSummary === 'object') lines.push(`skipSummary=${JSON.stringify(s.autoUpvoterSkipSummary)}`);
       if (Array.isArray(s.errors) && s.errors.length) {
         lines.push('lastRun errors:');
         s.errors.slice(-8).forEach((item) => appendWithinBudget(lines, `- ${String(item)}`, 1200));

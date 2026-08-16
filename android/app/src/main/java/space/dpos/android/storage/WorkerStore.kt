@@ -143,6 +143,20 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         val raw = prefs.getString("autoUpvoterFeed", "[]").orEmpty()
         return try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
     }
+    fun totalAutoUpvoterBroadcasted(): Int = prefs.getInt("totalAutoUpvoterBroadcasted", 0)
+    fun addAutoUpvoterBroadcasted(count: Int) {
+        if (count <= 0) return
+        prefs.edit().putInt("totalAutoUpvoterBroadcasted", totalAutoUpvoterBroadcasted() + count).apply()
+    }
+    fun totalVizSelfAwardBroadcasted(): Int = prefs.getInt("totalVizSelfAwardBroadcasted", 0)
+    fun addVizSelfAwardBroadcasted(count: Int) {
+        if (count <= 0) return
+        prefs.edit().putInt("totalVizSelfAwardBroadcasted", totalVizSelfAwardBroadcasted() + count).apply()
+    }
+    fun lastVizSelfAwardAt(account: String): Long? = prefs.getLong("lastVizSelfAwardAt:viz:$account", -1L).takeIf { it >= 0 }
+    fun markVizSelfAward(account: String, at: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong("lastVizSelfAwardAt:viz:$account", at).apply()
+    }
     fun saveEncryptedKeyRef(ref: EncryptedKeyRef, secret: String) {
         secure.edit().putString("key:${ref.chainId}:${ref.account}:${ref.authority}:${ref.alias}", secret).apply()
     }
