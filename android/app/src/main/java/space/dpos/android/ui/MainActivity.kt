@@ -200,6 +200,7 @@ class MainActivity : Activity() {
                     .put("hasRegularKey", store.hasRegularKey(account.chainId, account.account))
             }))
             .put("autoUpvoterFeed", store.exportAutoUpvoterFeed())
+            .put("lastRunSummary", store.exportLastRunSummary() ?: JSONObject.NULL)
             .put("appVersionName", BuildConfig.VERSION_NAME)
             .put("appVersionCode", BuildConfig.VERSION_CODE)
             .put("vizBroadcastMethod", if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous")

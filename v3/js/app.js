@@ -6328,8 +6328,43 @@
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
     const errorTail = result.errorLogTail ? ` Последние ошибки/предупреждения: ${result.errorLogTail}.` : '';
     const golosTail = result.golosLogTail ? ` Последние строки Golos: ${result.golosLogTail}.` : '';
+    const lastRun = result.lastRunSummary && typeof result.lastRunSummary === 'object'
+      ? ` Последний run: status=${result.lastRunSummary.status || 'н/д'}, attempted=${result.lastRunSummary.autoUpvoterAttempted || 0}, broadcasted=${result.lastRunSummary.autoUpvoterBroadcasted || 0}, errors=${Array.isArray(result.lastRunSummary.errors) ? result.lastRunSummary.errors.length : 0}.`
+      : '';
     const logs = result.logs ? ` Логи: ${result.logs}` : '';
-    return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}${errorTail}${golosTail}${logs}`;
+    return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}${errorTail}${golosTail}${lastRun}${logs}`;
+  }
+
+  function androidWorkerDiagnosticText(result, max = 4000) {
+    if (!result || typeof result !== 'object') return 'Android worker logs: статус недоступен.';
+    const lines = [];
+    lines.push(`Android worker logs APK ${result.appVersionName || '?'} (${result.appVersionCode || '?'})`);
+    lines.push(`worker=${result.workerEnabled ? 'on' : 'off'} running=${result.running ? 'yes' : 'no'} accounts=${Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0}`);
+    if (result.lastTick) lines.push(`lastTick=${new Date(Number(result.lastTick)).toLocaleString()}`);
+    if (result.lastRunSummary && typeof result.lastRunSummary === 'object') {
+      const s = result.lastRunSummary;
+      lines.push(`lastRun status=${s.status || '?'} ok=${s.ok} accounts=${s.accountsChecked || 0} autoChecks=${s.autoUpvoterChecks || 0} attempted=${s.autoUpvoterAttempted || 0} broadcasted=${s.autoUpvoterBroadcasted || 0} skipped=${s.skipped || 0} viz=${s.vizSelfAwardBroadcasted || 0}`);
+      if (Array.isArray(s.errors) && s.errors.length) {
+        lines.push('lastRun errors:');
+        s.errors.slice(-20).forEach((item) => lines.push(`- ${String(item)}`));
+      }
+      if (Array.isArray(s.messages) && s.messages.length) {
+        lines.push('lastRun messages:');
+        s.messages.slice(-12).forEach((item) => lines.push(`- ${String(item)}`));
+      }
+    }
+    if (Array.isArray(result.autoUpvoterFeed) && result.autoUpvoterFeed.length) {
+      lines.push('autoUpvoterFeed:');
+      result.autoUpvoterFeed.slice(-20).forEach((entry) => {
+        const res = entry && entry.result;
+        const action = entry && entry.action;
+        lines.push(`- ${entry && entry.message ? entry.message : ''} status=${res && res.status || ''} ok=${res && res.ok} reason=${res && res.reason || ''} action=${action && action.account || ''}->${action && action.author || ''}/${action && action.permlink || ''}`);
+      });
+    }
+    if (result.errorLogTail) lines.push(`errorLogTail:\n${result.errorLogTail}`);
+    if (result.golosLogTail) lines.push(`golosLogTail:\n${result.golosLogTail}`);
+    if (result.logs) lines.push(`logsTail:\n${result.logs}`);
+    return lines.join('\n').slice(-max);
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {
@@ -6476,6 +6511,8 @@
           <h3 id="android-worker-heading">Фоновая проверка в Android</h3>
           ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start включает фоновую проверку по выбранным настройкам. На сайте Start работает только пока открыта страница.</p><p class="warning"><strong>Android:</strong> если проверки опаздывают после блокировки экрана, откройте настройки батареи приложения и выберите режим «Без ограничений» / «Не оптимизировать» / «Разрешить работу в фоне». Foreground-уведомление будет тихо обновляться текущим статусом автоапвоутера без звуков.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
           <div id="android-worker-status" role="status" aria-live="polite">Статус фоновой проверки ещё не запрошен.</div>
+          <p><button type="button" id="android-worker-copy-logs" class="secondary">Копировать Android logs до 4000 символов</button></p>
+          <p id="android-worker-copy-logs-status" class="muted" role="status" aria-live="polite"></p>
         </section>
       </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}
       <section class="card" aria-labelledby="auto-upvoter-status-heading">
@@ -6906,6 +6943,22 @@
       updateAndroidWorkerStatus(result);
       return result;
     }
+
+    async function copyAndroidWorkerLogs() {
+      const status = document.getElementById('android-worker-copy-logs-status');
+      try {
+        const result = callAndroidWorkerBridge('getWorkerStatus');
+        updateAndroidWorkerStatus(result);
+        const text = androidWorkerDiagnosticText(result, 4000);
+        await navigator.clipboard.writeText(text);
+        if (status) status.textContent = `Android logs скопированы: ${text.length} символов. Пришлите этот текст.`;
+      } catch (error) {
+        if (status) status.textContent = `Не удалось скопировать Android logs: ${profiles.formatError(error)}`;
+      }
+    }
+
+    const copyLogsButton = document.getElementById('android-worker-copy-logs');
+    if (copyLogsButton) copyLogsButton.addEventListener('click', copyAndroidWorkerLogs);
 
     function findStoredAutoUpvoterUser(account) {
       const normalized = String(account || '').trim().replace(/^@/, '');
