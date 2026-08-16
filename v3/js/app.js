@@ -6358,7 +6358,9 @@
       result.autoUpvoterFeed.slice(-20).forEach((entry) => {
         const res = entry && entry.result;
         const action = entry && entry.action;
-        lines.push(`- ${entry && entry.message ? entry.message : ''} status=${res && res.status || ''} ok=${res && res.ok} reason=${res && res.reason || ''} action=${action && action.account || ''}->${action && action.author || ''}/${action && action.permlink || ''}`);
+        const diag = entry && entry.diagnostics && typeof entry.diagnostics === 'object' ? entry.diagnostics : null;
+        const diagText = diag ? ` diagnostics=${JSON.stringify(diag)}` : '';
+        lines.push(`- ${entry && entry.message ? entry.message : ''} status=${res && res.status || ''} ok=${res && res.ok} reason=${res && res.reason || ''} action=${action && action.account || ''}->${action && action.author || ''}/${action && action.permlink || ''}${diagText}`);
       });
     }
     if (result.errorLogTail) lines.push(`errorLogTail:\n${result.errorLogTail}`);
