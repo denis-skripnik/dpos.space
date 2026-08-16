@@ -16,20 +16,30 @@ import java.util.concurrent.atomic.AtomicBoolean
 class DposForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunning = AtomicBoolean(false)
+    private fun workerStatusText(status: String): String = "DPoS Space: ${space.dpos.android.core.PayloadSanitizer.text(status, 520)}"
+    private fun updateForegroundStatus(status: String) {
+        NotificationHelper.updateForeground(this, NOTIFICATION_ID, workerStatusText(status))
+    }
     private val tick = object : Runnable {
         override fun run() {
             val store = WorkerStore(this@DposForegroundService)
             if (!store.workerEnabled()) return
+            updateForegroundStatus("ждёт проверки; аккаунтов: ${store.activeAccounts().size}; интервал 7 минут 12 секунд")
             if (!tickRunning.compareAndSet(false, true)) {
                 store.appendLog("foreground tick skipped; previous tick still running", "warning")
+                updateForegroundStatus("предыдущая проверка ещё идёт; следующий тик запланирован")
                 handler.postDelayed(this, VIZ_SELF_AWARD_TICK_MS)
                 return
             }
             Thread {
                 try {
-                    DposWorkerRunner(applicationContext).runOnce(reason = "foreground-7m12s")
+                    updateForegroundStatus("проверка запущена; аккаунтов: ${store.activeAccounts().size}")
+                    val summary = DposWorkerRunner(applicationContext) { updateForegroundStatus(it) }.runOnce(reason = "foreground-7m12s")
+                    val status = if (summary.ok) "проверка завершена" else "проверка завершена с ошибками"
+                    updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; голосов: ${summary.autoUpvoterBroadcasted}; VIZ self-awards: ${summary.vizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
                 } catch (e: Exception) {
                     WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
+                    updateForegroundStatus("ошибка проверки: ${e.message ?: "unknown"}")
                 } finally {
                     tickRunning.set(false)
                 }
@@ -42,7 +52,8 @@ class DposForegroundService : Service() {
         super.onCreate()
         isRunning = true
         WorkerStore(this).appendLog("foreground service created; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
-        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
+        val initialStatus = workerStatusText("запущен; проверки идут локально на устройстве; для стабильной работы включите режим батареи без ограничений")
+        startForeground(NOTIFICATION_ID, NotificationHelper.foreground(this, initialStatus))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -66,7 +77,7 @@ class DposForegroundService : Service() {
                 handler.post(tick)
             }
         }
-        startForeground(42, NotificationHelper.foreground(this, "Работает. Проверки выполняются локально на устройстве. Авто-голосование отправляет операции только при включённом аккаунте, ключе и safety-gates."))
+        updateForegroundStatus("работает; следующий тик будет автоматически; для стабильной работы включите режим батареи без ограничений")
         return START_STICKY
     }
 
@@ -83,6 +94,7 @@ class DposForegroundService : Service() {
         const val ACTION_START = "space.dpos.android.START_WORKER"
         const val ACTION_STOP = "space.dpos.android.STOP_WORKER"
         const val ACTION_CHECK_NOW = "space.dpos.android.CHECK_NOW"
+        const val NOTIFICATION_ID = 42
         @Volatile var isRunning: Boolean = false
     }
 }

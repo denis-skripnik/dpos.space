@@ -71,8 +71,12 @@ data class WorkerRunSummary(
         .put("autoUpvoterFeed", JSONArray(autoUpvoterFeed))
 }
 
-class DposWorkerRunner(private val context: Context) {
+class DposWorkerRunner(private val context: Context, private val statusSink: ((String) -> Unit)? = null) {
     private val store = WorkerStore(context)
+
+    private fun publishStatus(status: String) {
+        statusSink?.invoke(PayloadSanitizer.text(status, 520))
+    }
 
     fun runOnce(reason: String = "manual"): WorkerRunSummary {
         val startedAt = System.currentTimeMillis()
@@ -93,10 +97,12 @@ class DposWorkerRunner(private val context: Context) {
         val autoUpvoterFeed = mutableListOf<JSONObject>()
         val activeAccounts = store.activeAccounts()
         store.appendLog("accounts loaded; count=${activeAccounts.size}")
+        publishStatus("проверка началась; аккаунтов: ${activeAccounts.size}; уведомление обновляется тихо без звука")
 
         for (account in activeAccounts) {
             accountsChecked += 1
             store.appendLog("account started; ${account.chainId}:${account.account}; notifications=${store.notificationEnabled(account.chainId, account.account)}; autoUpvoter=${store.autoUpvoterEnabled(account.chainId, account.account)}; vizSelfAward=${store.vizSelfAwardEnabled(account.chainId, account.account)}")
+            publishStatus("аккаунт ${account.chainId}:${account.account}; уведомления=${store.notificationEnabled(account.chainId, account.account)}; автоапвоутер=${store.autoUpvoterEnabled(account.chainId, account.account)}; VIZ self-award=${store.vizSelfAwardEnabled(account.chainId, account.account)}")
             val spec = GrapheneChainSpecs.find(account.chainId)
             if (store.notificationEnabled(account.chainId, account.account)) {
                 notificationChecks += 1
@@ -129,6 +135,7 @@ class DposWorkerRunner(private val context: Context) {
             }
             if (store.autoUpvoterEnabled(account.chainId, account.account)) {
                 autoUpvoterChecks += 1
+                publishStatus("${account.chainId}:${account.account}: автоапвоутер запускается; ищу новые события")
                 if (spec == null || !spec.nativeVoteSupported) {
                     val msg = "${account.chainId}:${account.account}: автоапвоутер пропущен, фоновое голосование для цепочки не поддержано"
                     store.appendLog(msg)
@@ -161,9 +168,11 @@ class DposWorkerRunner(private val context: Context) {
                     val curatorEvents = events.count { it.kind == "curator_vote" }
                     val favoriteEvents = events.count { it.kind == "favorite_post" }
                     val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
+                    publishStatus("${account.chainId}:${account.account}: лента проверена; событий=${events.size}; планирую голоса")
                     val plan = AutoUpvoterPlanner().plan(listOf(settings), events)
                     if (plan.actions.isEmpty()) {
                         val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
+                        publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
                         store.appendLog(msg)
                         messages += msg
                         skipped += plan.skips.size
@@ -174,12 +183,14 @@ class DposWorkerRunner(private val context: Context) {
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
                     }, chainId = spec.id)
+                    publishStatus("${account.chainId}:${account.account}: отправляю ${plan.actions.size} vote-операций")
                     val report = runtime.execute(plan)
                     autoUpvoterAttempted += report.attempted
                     autoUpvoterBroadcasted += report.broadcasted
                     skipped += report.skipped.size
                     report.results.mapNotNullTo(autoUpvoterFeed) { resultToFeedEntry(it) }
                     val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), попыток ${report.attempted}, отправлено ${report.broadcasted}, skip=${report.skipped.size}"
+                    publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; попыток=${report.attempted}; отправлено=${report.broadcasted}; skip=${report.skipped.size}")
                     store.appendLog(msg)
                     messages += msg
                     report.results.filter { !it.ok }.forEach { result ->
@@ -199,6 +210,7 @@ class DposWorkerRunner(private val context: Context) {
             }
             if (store.vizSelfAwardEnabled(account.chainId, account.account)) {
                 vizSelfAwardChecks += 1
+                publishStatus("viz:${account.account}: VIZ self-award запускается")
                 if (account.chainId != "viz") {
                     val msg = "${account.chainId}:${account.account}: self-award пропущен, сервис поддержан только для VIZ"
                     store.appendLog(msg)
@@ -208,6 +220,7 @@ class DposWorkerRunner(private val context: Context) {
                 }
                 try {
                     store.appendLog("viz:${account.account}: self-award preparing; method=${if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"}")
+                    publishStatus("viz:${account.account}: проверяю энергию и regular authority")
                     val keyRef = store.defaultRegularKeyRef("viz", account.account)
                     val key = store.readRegularKey("viz", account.account)
                     if (key.isNullOrBlank()) {
@@ -218,10 +231,12 @@ class DposWorkerRunner(private val context: Context) {
                         continue
                     }
                     store.appendLog("viz:${account.account}: self-award submitting with bounded worker")
+                    publishStatus("viz:${account.account}: отправляю self-award; timeout 45 секунд")
                     val result = runVizSelfAwardWithTimeout(account.account, keyRef, key)
                     if (result.ok && result.status == "broadcast_confirmed") vizSelfAwardBroadcasted += 1
                     if (result.ok && result.status == "low_energy_skip") skipped += 1
                     val msg = "viz:${account.account}: self-award ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
+                    publishStatus("viz:${account.account}: self-award ${result.status}; ${PayloadSanitizer.text(result.reason, 180)}")
                     store.appendLog(msg, if (result.ok) "info" else "error")
                     messages += msg
                     if (!result.ok) errors += msg
@@ -240,6 +255,7 @@ class DposWorkerRunner(private val context: Context) {
         store.saveAutoUpvoterFeed(autoUpvoterFeed)
         val status = if (ok) "checked" else "checked_with_errors"
         store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; vizSelfAwards=$vizSelfAwardBroadcasted; errors=${errors.size}", if (ok) "info" else "error")
+        publishStatus("проверка завершена; аккаунтов=$accountsChecked; уведомлений=$notificationsShown; vote отправлено=$autoUpvoterBroadcasted; VIZ self-awards=$vizSelfAwardBroadcasted; ошибок=${errors.size}")
         return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
     }
 
