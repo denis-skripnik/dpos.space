@@ -11,7 +11,9 @@ data class AutoVoteRuntimeReport(
     val attempted: Int,
     val broadcasted: Int,
     val skipped: List<String>,
-    val results: List<VoteBroadcastResult>
+    val results: List<VoteBroadcastResult>,
+    val candidates: Int,
+    val skipSummary: Map<String, Int>
 )
 
 class AutoVoteRuntime(
@@ -56,7 +58,9 @@ class AutoVoteRuntime(
             attempted = attempted,
             broadcasted = if (previewOnly) 0 else results.count { it.ok && (it.status == "broadcast_confirmed" || it.status == "broadcast_sent") },
             skipped = skips,
-            results = results
+            results = results,
+            candidates = plan.actions.size,
+            skipSummary = skips.groupingBy { it.substringBefore(':') }.eachCount()
         )
     }
 }
