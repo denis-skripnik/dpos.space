@@ -88,7 +88,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
             val msg = "worker run skipped; previous run still running; reason=$reason"
             store.appendLog(msg, "warning")
             publishStatus("проверка пропущена: предыдущая проверка ещё выполняется")
-            return WorkerRunSummary(
+            val summary = WorkerRunSummary(
                 ok = true,
                 status = "skipped_overlap",
                 accountsChecked = 0,
@@ -105,6 +105,8 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                 vizSelfAwardChecks = 0,
                 vizSelfAwardBroadcasted = 0
             )
+            store.saveLastRunSummary(summary.toJson())
+            return summary
         }
         return try {
             runOnceLocked(reason)
@@ -300,7 +302,9 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
         val status = if (ok) "checked" else "checked_with_errors"
         store.appendLog("check finished; accounts=$accountsChecked; notifications=$notificationsShown; attempted=$autoUpvoterAttempted; vizSelfAwards=$vizSelfAwardBroadcasted; errors=${errors.size}", if (ok) "info" else "error")
         publishStatus("проверка завершена; аккаунтов=$accountsChecked; уведомлений=$notificationsShown; vote отправлено=$autoUpvoterBroadcasted; VIZ self-awards=$vizSelfAwardBroadcasted; ошибок=${errors.size}")
-        return WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
+        val summary = WorkerRunSummary(ok, status, accountsChecked, notificationChecks, notificationsShown, autoUpvoterChecks, autoUpvoterAttempted, autoUpvoterBroadcasted, skipped, errors, messages.takeLast(12), startedAt, autoUpvoterFeed.takeLast(30), vizSelfAwardChecks, vizSelfAwardBroadcasted)
+        store.saveLastRunSummary(summary.toJson())
+        return summary
     }
 
     private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = 60L): AutoVoteRuntimeReport {
