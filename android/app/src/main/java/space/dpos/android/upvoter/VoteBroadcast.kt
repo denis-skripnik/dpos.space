@@ -507,6 +507,8 @@ class VoteRuntime(
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
         val signedWithAuthority = signed.copy(diagnostics = mergeDiagnostics(signed.diagnostics, authorityDiagnostics(operation, privateWif)))
+        val nodeAuthority = nodeVerifyAuthority(operation, signedWithAuthority)
+        if (nodeAuthority != null) return nodeAuthority
         return try {
             val response = broadcaster.broadcast(signed.payload.signedTransaction)
             val confirmation = confirmVote(operation)
@@ -520,6 +522,26 @@ class VoteRuntime(
         } catch (e: Exception) {
             classifyBroadcastFailure(operation, signedWithAuthority, e)
         }
+    }
+
+    private fun nodeVerifyAuthority(operation: VoteOperation, signed: VoteBroadcastResult): VoteBroadcastResult? {
+        val tx = signed.payload?.signedTransaction ?: return null
+        val check = try { rpcClient.verifyAuthorityDetailed(tx) } catch (e: Exception) {
+            return signed.copy(
+                ok = false,
+                status = "authority_verify_error",
+                reason = "${operation.chainId} verify_authority failed before broadcast: ${PayloadSanitizer.text(e.message, 220)}",
+                rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500))
+            )
+        }
+        if (check.optBoolean("result", false)) return null
+        val detail = if (check.has("error")) "${check.opt("error")}" else check.toString()
+        return signed.copy(
+            ok = false,
+            status = "authority_broadcast_mismatch",
+            reason = "${operation.chainId} node verify_authority rejected signed vote before broadcast: ${PayloadSanitizer.text(detail, 260)}",
+            rpcResponse = JSONObject().put("verify_authority", PayloadSanitizer.text(detail, 500))
+        )
     }
 
     private fun confirmVote(operation: VoteOperation): HistoryEvent? {
@@ -570,6 +592,14 @@ class VoteRuntime(
                 status = "already_voted",
                 reason = "@${operation.voter} already voted this way for @${operation.author}/${operation.permlink}; auto-upvoter skipped duplicate as success",
                 rpcResponse = JSONObject().put("classified", "already_voted").put("error", PayloadSanitizer.text(message, 500))
+            )
+        }
+        if (message.contains("missing", ignoreCase = true) && message.contains("authority", ignoreCase = true)) {
+            return signed.copy(
+                ok = false,
+                status = "authority_broadcast_mismatch",
+                reason = PayloadSanitizer.text(message.ifBlank { "${operation.chainId} node rejected signed vote authority" }, 300),
+                rpcResponse = JSONObject().put("classified", "authority_broadcast_mismatch").put("error", PayloadSanitizer.text(message, 500))
             )
         }
         return signed.copy(

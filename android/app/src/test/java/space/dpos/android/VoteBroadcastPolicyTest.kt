@@ -191,6 +191,26 @@ class VoteBroadcastPolicyTest {
         assertEquals("broadcast_error", result.status)
         assertEquals(1, broadcaster.broadcastCount)
     }
+    @Test fun executeStopsBeforeBroadcastWhenNodeVerifyAuthorityRejectsSignedVote() {
+        val rpc = FakeRpc(verifyAuthorityResponse = JSONObject().put("error", JSONObject().put("code", -32004).put("message", "missing required posting authority")))
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("authority_broadcast_mismatch", result.status)
+        assertEquals(0, broadcaster.broadcastCount)
+        assertTrue(result.reason.contains("verify_authority"))
+    }
+
+    @Test fun executeClassifiesBroadcastMissingAuthorityAsAuthorityMismatch() {
+        val rpc = FakeRpc(postingPublicKey = GraphenePublicKey.fromWif(deterministicNonSecretWif()))
+        val broadcaster = ThrowingBroadcaster("""Graphene RPC error: {"code":-32004,"message":"missing required posting authority"}""")
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster)
+        val result = runtime.execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("authority_broadcast_mismatch", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+    }
 
 
     @Test fun graphenPublicKeyUsesCompressedPubkeyForGolosJsStyleWif() {
@@ -255,15 +275,18 @@ class VoteBroadcastPolicyTest {
         )
     }
 
-    private class FakeRpc(private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get()))) : GolosRpcClient {
+    private class FakeRpc(
+        private val postingPublicKey: String = GraphenePublicKey.fromWif(ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())),
+        private val verifyAuthorityResponse: JSONObject = JSONObject().put("result", true)
+    ) : GolosRpcClient {
         override fun getDynamicGlobalProperties(): JSONObject = JSONObject()
             .put("head_block_number", 123)
             .put("head_block_id", "0000007b01020304000000000000000000000000000000000000000000000000")
             .put("time", "2024-01-01T00:00:00")
         override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
         override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", org.json.JSONArray().put(org.json.JSONArray().put(postingPublicKey).put(1))))
-        override fun verifyAuthority(signedTransaction: JSONObject): Boolean = true
-        override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = JSONObject().put("result", true)
+        override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityResponse.optBoolean("result", false)
+        override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = verifyAuthorityResponse
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 
