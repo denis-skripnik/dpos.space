@@ -5,6 +5,9 @@ import org.bitcoinj.core.ECKey
 import org.bitcoinj.core.Sha256Hash
 import org.bouncycastle.asn1.x9.X9ECParameters
 import org.bouncycastle.crypto.digests.RIPEMD160Digest
+import org.bouncycastle.crypto.digests.SHA256Digest
+import org.bouncycastle.crypto.macs.HMac
+import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.crypto.ec.CustomNamedCurves
 import org.json.JSONArray
 import org.json.JSONObject
@@ -18,8 +21,6 @@ import java.security.MessageDigest
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.Locale
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 const val VIZ_SELF_AWARD_REGENERATION_SECONDS: Long = 432000L
 const val VIZ_SELF_AWARD_TICK_MS: Long = 432000L
@@ -214,7 +215,6 @@ class VizAwardTransactionBuilder(private val spec: GrapheneChainSpec) {
             writeUInt64LE(0)
             writeGrapheneString(operation.memo)
             writeVarUInt(0) // beneficiaries
-            writeVarUInt(0) // award extensions
             writeVarUInt(0) // transaction extensions
         }.toByteArray()
         return vizHexToBytes(spec.networkChainIdHex) + txBytes
@@ -232,15 +232,20 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
             return VizSelfAwardResult(false, "invalid_wif", "regular key is not a valid WIF: ${PayloadSanitizer.text(e.message, 80)}", operation)
         }
         val publicKey = GraphenePublicKey.fromWif(privateWif, spec.publicKeyPrefix)
-        val digest = Sha256Hash.wrap(Sha256Hash.hash(builder.signingBytes(operation, header)))
-        val compact = canonicalCompactSignatureHex(ecKey, digest)
+        val digestBytes = Sha256Hash.hash(builder.signingBytes(operation, header))
+        val digest = Sha256Hash.wrap(digestBytes)
+        val compactSignature = canonicalCompactSignature(ecKey, digestBytes)
             ?: return VizSelfAwardResult(false, "signature_recovery_failed", "could not produce canonical compact recoverable signature", operation)
+        val compact = compactSignature.hex
         val recoveredPublicKey = recoverPublicKeyFromCompact(compact, digest, spec.publicKeyPrefix)
         if (recoveredPublicKey != publicKey) {
             return VizSelfAwardResult(false, "signature_public_key_mismatch", "Android compact signature recovers ${recoveredPublicKey ?: "no public key"}, expected $publicKey; broadcast stopped before RPC", operation, diagnostics = JSONObject().put("derivedPublicKey", publicKey).put("recoveredPublicKey", recoveredPublicKey ?: JSONObject.NULL).put("signatureHeader", compact.substring(0, 2).toInt(16)))
         }
         return VizSelfAwardResult(true, "signed", "signed VIZ self-award locally", operation, builder.build(operation, header, compact), diagnostics = JSONObject()
             .put("derivedPublicKey", publicKey)
+            .put("signingDigestHex", digestBytes.toHex())
+            .put("signingBytesHex", builder.signingBytes(operation, header).toHex())
+            .put("canonicalNonce", compactSignature.nonce)
             .put("signatureHeader", compact.substring(0, 2).toInt(16))
             .put("refBlockNum", header.refBlockNum)
             .put("refBlockPrefix", header.refBlockPrefix)
@@ -270,9 +275,12 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
         return prefix + Base58.encode(pub + checksum.copyOfRange(0, 4))
     }
 
-    private fun canonicalCompactSignatureHex(ecKey: ECKey, digest: Sha256Hash): String? {
+    private data class CompactSignature(val hex: String, val nonce: Int)
+
+    private fun canonicalCompactSignature(ecKey: ECKey, digestBytes: ByteArray): CompactSignature? {
+        val digest = Sha256Hash.wrap(digestBytes)
         repeat(100) { nonce ->
-            val signature = deterministicEcdsaSignature(ecKey, digest, nonce).toCanonicalised()
+            val signature = deterministicEcdsaSignature(ecKey, digestBytes, nonce).toCanonicalised()
             val recId = (0..3).firstOrNull { candidate -> ECKey.recoverFromSignature(candidate, signature, digest, true)?.pubKeyPoint == ecKey.pubKeyPoint }
                 ?: return@repeat
             val compact = ByteArrayOutputStream().apply {
@@ -280,15 +288,15 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
                 writePadded(signature.r)
                 writePadded(signature.s)
             }.toByteArray()
-            if (isCanonicalCompactSignature(compact)) return compact.toHex()
+            if (isCanonicalCompactSignature(compact)) return CompactSignature(compact.toHex(), nonce)
         }
         return null
     }
 
-    private fun deterministicEcdsaSignature(ecKey: ECKey, digest: Sha256Hash, nonce: Int): ECKey.ECDSASignature {
+    private fun deterministicEcdsaSignature(ecKey: ECKey, message: ByteArray, nonce: Int): ECKey.ECDSASignature {
         val curve = CustomNamedCurves.getByName("secp256k1")
         val n = curve.n
-        val message = digest.bytes
+        require(message.size == 32) { "message digest must be 32 bytes" }
         val z = BigInteger(1, message)
         val d = ecKey.privKey
         var k = deterministicK(n, d, message, nonce)
@@ -321,9 +329,12 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
     }
 
     private fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(key, "HmacSHA256"))
-        return mac.doFinal(data)
+        val hmac = HMac(SHA256Digest())
+        hmac.init(KeyParameter(key))
+        hmac.update(data, 0, data.size)
+        val out = ByteArray(32)
+        hmac.doFinal(out, 0)
+        return out
     }
 
     private fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
