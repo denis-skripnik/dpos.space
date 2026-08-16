@@ -111,11 +111,17 @@ class VizSelfAwardRuntime(
         val signed = signer.sign(op, keyRef, privateWif, header)
         if (!signed.ok || signed.signedTransaction == null) return signed
         return try {
-            val authorityAccepted = try { rpcClient.verifyAuthority(signed.signedTransaction) } catch (e: Exception) {
-                return signed.copy(ok = false, status = "signature_verification_error", reason = "VIZ verify_authority failed before broadcast: ${PayloadSanitizer.text(e.message, 220)}", rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message, 500)))
+            val authorityResponse = try { rpcClient.verifyAuthorityDetailed(signed.signedTransaction) } catch (e: Exception) {
+                return signed.copy(ok = false, status = "signature_verification_error", reason = "VIZ verify_authority transport failed before broadcast: ${PayloadSanitizer.text(e.message, 220)}", rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message, 500)))
             }
-            if (!authorityAccepted) {
-                return signed.copy(ok = false, status = "signature_rejected", reason = "VIZ node rejected signed transaction authority before broadcast; regular key/signature did not verify on-chain", rpcResponse = JSONObject().put("verify_authority", false))
+            val authorityError = authorityResponse.optJSONObject("error")
+            if (authorityError != null) {
+                val data = authorityError.optJSONObject("data")
+                val codeName = data?.optString("name").orEmpty().ifBlank { authorityError.optString("message", "verify_authority_error").lineSequence().firstOrNull().orEmpty() }
+                return signed.copy(ok = false, status = "signature_rejected", reason = "VIZ node rejected signed transaction before broadcast: ${PayloadSanitizer.text(codeName, 140)}", rpcResponse = authorityResponse)
+            }
+            if (!authorityResponse.optBoolean("result", false)) {
+                return signed.copy(ok = false, status = "signature_rejected", reason = "VIZ node verify_authority returned false before broadcast; regular key/signature did not verify on-chain", rpcResponse = authorityResponse)
             }
             val response = broadcaster.broadcast(signed.signedTransaction)
             val confirmation = confirmSelfAward(clean, spend)

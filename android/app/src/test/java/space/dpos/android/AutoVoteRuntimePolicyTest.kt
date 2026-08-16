@@ -126,6 +126,7 @@ class AutoVoteRuntimePolicyTest {
         override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
         override fun getAccount(account: String): JSONObject? = JSONObject().put("posting", JSONObject().put("key_auths", JSONArray().put(JSONArray().put(GraphenePublicKey.fromWif(deterministicNonSecretWif(), "GLS")).put(1))))
         override fun verifyAuthority(signedTransaction: JSONObject): Boolean = true
+        override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = JSONObject().put("result", true)
         override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
     }
 

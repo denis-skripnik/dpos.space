@@ -90,6 +90,7 @@ class GolosRpcClientTest {
             override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
             override fun getAccount(account: String): JSONObject? { throw IllegalStateException("Graphene RPC HTTP 403") }
             override fun verifyAuthority(signedTransaction: JSONObject): Boolean = false
+            override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = JSONObject().put("result", false)
             override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject { throw IllegalStateException("Graphene RPC HTTP 403") }
         }
         val good = object : GolosRpcClient {
@@ -97,6 +98,7 @@ class GolosRpcClientTest {
             override fun getBlock(blockNumber: Long): JSONObject? = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
             override fun getAccount(account: String): JSONObject? = JSONObject().put("name", account)
             override fun verifyAuthority(signedTransaction: JSONObject): Boolean = true
+        override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = JSONObject().put("result", true)
             override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = JSONObject().put("ok", true)
         }
         val client = FallbackGrapheneRpcClient(listOf(bad, good))
