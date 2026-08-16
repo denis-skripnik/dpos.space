@@ -222,7 +222,7 @@ class VizAwardTransactionBuilder(private val spec: GrapheneChainSpec) {
 }
 
 class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: VizAwardTransactionBuilder) {
-    fun sign(operation: VizSelfAwardOperation, keyRef: EncryptedKeyRef?, privateWif: String?, header: BlockHeaderRef): VizSelfAwardResult {
+    fun sign(operation: VizSelfAwardOperation, keyRef: EncryptedKeyRef?, privateWif: String?, header: BlockHeaderRef, includeDiagnostics: Boolean = false): VizSelfAwardResult {
         if (keyRef == null) return VizSelfAwardResult(false, "missing_key_ref", "regular key ref is absent; no signing attempted", operation)
         if (privateWif.isNullOrBlank()) return VizSelfAwardResult(false, "missing_private_key", "regular key material is absent; no signing attempted", operation)
         if (keyRef.chainId != spec.id || keyRef.account != operation.account || keyRef.authority != "regular") {
@@ -239,9 +239,14 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
         val compact = compactSignature.hex
         val recoveredPublicKey = recoverPublicKeyFromCompact(compact, digest, spec.publicKeyPrefix)
         if (recoveredPublicKey != publicKey) {
-            return VizSelfAwardResult(false, "signature_public_key_mismatch", "Android compact signature recovers ${recoveredPublicKey ?: "no public key"}, expected $publicKey; broadcast stopped before RPC", operation, diagnostics = JSONObject().put("derivedPublicKey", publicKey).put("recoveredPublicKey", recoveredPublicKey ?: JSONObject.NULL).put("signatureHeader", compact.substring(0, 2).toInt(16)))
+            val diagnostics = if (includeDiagnostics) JSONObject()
+                .put("derivedPublicKey", publicKey)
+                .put("recoveredPublicKey", recoveredPublicKey ?: JSONObject.NULL)
+                .put("signatureHeader", compact.substring(0, 2).toInt(16))
+            else null
+            return VizSelfAwardResult(false, "signature_public_key_mismatch", "Android compact signature recovers ${recoveredPublicKey ?: "no public key"}, expected $publicKey; broadcast stopped before RPC", operation, diagnostics = diagnostics)
         }
-        return VizSelfAwardResult(true, "signed", "signed VIZ self-award locally", operation, builder.build(operation, header, compact), diagnostics = JSONObject()
+        val diagnostics = if (includeDiagnostics) JSONObject()
             .put("derivedPublicKey", publicKey)
             .put("signingDigestHex", digestBytes.toHex())
             .put("signingBytesHex", builder.signingBytes(operation, header).toHex())
@@ -249,7 +254,9 @@ class VizAwardSigner(private val spec: GrapheneChainSpec, private val builder: V
             .put("signatureHeader", compact.substring(0, 2).toInt(16))
             .put("refBlockNum", header.refBlockNum)
             .put("refBlockPrefix", header.refBlockPrefix)
-            .put("expirationEpochSeconds", header.expirationEpochSeconds))
+            .put("expirationEpochSeconds", header.expirationEpochSeconds)
+        else null
+        return VizSelfAwardResult(true, "signed", "signed VIZ self-award locally", operation, builder.build(operation, header, compact), diagnostics = diagnostics)
     }
 
     private fun ecKeyFromWif(wif: String): ECKey {

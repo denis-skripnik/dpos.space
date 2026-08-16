@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.dpos.android.storage.EncryptedKeyRef
@@ -78,7 +79,7 @@ class VizSelfAwardPolicyTest {
     @Test fun androidVizAwardSignatureMatchesVizJsLibFixtureExactly() {
         val spec = space.dpos.android.upvoter.GrapheneChainSpecs.require("viz")
         val signer = VizAwardSigner(spec, VizAwardTransactionBuilder(spec))
-        val result = signer.sign(VizSelfAwardOperation("denis", 10), EncryptedKeyRef("viz", "denis", "regular", "regular"), "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", header)
+        val result = signer.sign(VizSelfAwardOperation("denis", 10), EncryptedKeyRef("viz", "denis", "regular", "regular"), "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", header, includeDiagnostics = true)
         assertTrue(result.ok)
         assertEquals("72c56ec8073b93959fe4a3b5745a6926eef4f0535abd757bcb3ade38a78c62f5", result.diagnostics!!.getString("signingDigestHex"))
         assertEquals(3, result.diagnostics!!.getInt("canonicalNonce"))
@@ -86,6 +87,15 @@ class VizSelfAwardPolicyTest {
             "200ef95542ea44b43cf3d0f5b76e295d6640636f0e1af68354e9a3c45ebfedd028578e570a9662adcaa05fa768db3459ea5cd957f672cae02332effd9a078e5d30",
             result.signedTransaction!!.getJSONArray("signatures").getString(0)
         )
+    }
+
+    @Test fun productionVizSigningDoesNotExposeInternalDiagnostics() {
+        val spec = space.dpos.android.upvoter.GrapheneChainSpecs.require("viz")
+        val signer = VizAwardSigner(spec, VizAwardTransactionBuilder(spec))
+        val result = signer.sign(VizSelfAwardOperation("denis", 10), EncryptedKeyRef("viz", "denis", "regular", "regular"), "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", header)
+        assertTrue(result.ok)
+        assertNull(result.diagnostics)
+        assertTrue(result.signedTransaction!!.has("signatures"))
     }
 
     @Test fun vizNativeSelfAwardUsesMultipleRpcEndpointsForBadGatewayFallback() {
