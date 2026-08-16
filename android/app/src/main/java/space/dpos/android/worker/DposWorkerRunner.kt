@@ -35,6 +35,7 @@ import space.dpos.android.upvoter.VizSelfAwardRuntime
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class WorkerRunSummary(
     val ok: Boolean,
@@ -79,6 +80,37 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
     }
 
     fun runOnce(reason: String = "manual"): WorkerRunSummary {
+        if (!globalRunLock.compareAndSet(false, true)) {
+            val now = System.currentTimeMillis()
+            val msg = "worker run skipped; previous run still running; reason=$reason"
+            store.appendLog(msg, "warning")
+            publishStatus("проверка пропущена: предыдущая проверка ещё выполняется")
+            return WorkerRunSummary(
+                ok = true,
+                status = "skipped_overlap",
+                accountsChecked = 0,
+                notificationChecks = 0,
+                notificationsShown = 0,
+                autoUpvoterChecks = 0,
+                autoUpvoterAttempted = 0,
+                autoUpvoterBroadcasted = 0,
+                skipped = 1,
+                errors = emptyList(),
+                messages = listOf(msg),
+                lastTick = now,
+                autoUpvoterFeed = emptyList(),
+                vizSelfAwardChecks = 0,
+                vizSelfAwardBroadcasted = 0
+            )
+        }
+        return try {
+            runOnceLocked(reason)
+        } finally {
+            globalRunLock.set(false)
+        }
+    }
+
+    private fun runOnceLocked(reason: String = "manual"): WorkerRunSummary {
         val startedAt = System.currentTimeMillis()
         store.setLastTick(startedAt)
         store.setLastError(null)
@@ -135,6 +167,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
             }
             if (store.autoUpvoterEnabled(account.chainId, account.account)) {
                 autoUpvoterChecks += 1
+                store.appendLog("${account.chainId}:${account.account}: автоапвоутер запускается; ищу новые события")
                 publishStatus("${account.chainId}:${account.account}: автоапвоутер запускается; ищу новые события")
                 if (spec == null || !spec.nativeVoteSupported) {
                     val msg = "${account.chainId}:${account.account}: автоапвоутер пропущен, фоновое голосование для цепочки не поддержано"
@@ -165,6 +198,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                         maxActionsPerTick = store.maxActions(account.chainId, account.account)
                     )
                     val events = collectAutoVoteEvents(spec.id, listOf(settings))
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер события загружены; count=${events.size}")
                     val curatorEvents = events.count { it.kind == "curator_vote" }
                     val favoriteEvents = events.count { it.kind == "favorite_post" }
                     val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
@@ -194,7 +228,10 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                     store.appendLog(msg)
                     messages += msg
                     report.results.filter { !it.ok }.forEach { result ->
-                        errors += "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
+                        val errorMsg = "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
+                        errors += errorMsg
+                        store.appendLog(errorMsg, "error")
+                        messages += errorMsg
                         if (result.status == "posting_key_mismatch") {
                             val warning = "${account.chainId}:${account.account}: сохранённый Android posting-ключ не совпал с authority; автоапвоутер не отключён автоматически — пересохраните posting-ключ в разделе «Аккаунты» и снова нажмите Start"
                             store.appendLog(warning, "error")
@@ -340,4 +377,8 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
     private fun rpcClient(spec: space.dpos.android.upvoter.GrapheneChainSpec) = FallbackGrapheneRpcClient(
         spec.rpcEndpoints.map { endpoint -> HttpGrapheneRpcClient(spec, endpoint) }
     )
+
+    companion object {
+        private val globalRunLock = AtomicBoolean(false)
+    }
 }
