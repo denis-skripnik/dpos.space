@@ -200,7 +200,8 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                         favoritesPercent = store.favoritesPercent(account.chainId, account.account),
                         maxActionsPerTick = store.maxActions(account.chainId, account.account)
                     )
-                    val events = collectAutoVoteEvents(spec.id, listOf(settings))
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер загружаю события; curators=${settings.curators.size}; favorites=${settings.favorites.size}; timeout=45s")
+                    val events = collectAutoVoteEventsWithTimeout(spec.id, listOf(settings))
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер события загружены; count=${events.size}")
                     val curatorEvents = events.count { it.kind == "curator_vote" }
                     val favoriteEvents = events.count { it.kind == "favorite_post" }
@@ -415,6 +416,18 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                 .put("ok", result.ok)
                 .put("reason", PayloadSanitizer.text(result.reason, 300)))
             .put("diagnostics", result.diagnostics ?: JSONObject.NULL)
+    }
+
+    private fun collectAutoVoteEventsWithTimeout(chainId: String, settings: List<AccountSettings>, timeoutSeconds: Long = 45L): List<VoteEvent> {
+        val executor = Executors.newSingleThreadExecutor()
+        return try {
+            val future = executor.submit<List<VoteEvent>> { collectAutoVoteEvents(chainId, settings) }
+            future.get(timeoutSeconds, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            throw IllegalStateException("${chainId} auto-upvoter event collection exceeded ${timeoutSeconds}s; curator/favorite feed RPC did not finish in time")
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
