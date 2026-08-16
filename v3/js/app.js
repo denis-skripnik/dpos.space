@@ -6326,7 +6326,10 @@
       : '';
     const lastTick = result.lastTick ? ` Последняя проверка: ${new Date(Number(result.lastTick)).toLocaleString()}.` : ' Проверок ещё не было.';
     const error = result.lastError ? ` Последняя ошибка: ${result.lastError}.` : '';
-    return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}`;
+    const errorTail = result.errorLogTail ? ` Последние ошибки/предупреждения: ${result.errorLogTail}.` : '';
+    const golosTail = result.golosLogTail ? ` Последние строки Golos: ${result.golosLogTail}.` : '';
+    const logs = result.logs ? ` Логи: ${result.logs}` : '';
+    return `Фоновая проверка в Android${version}: ${enabled}, ${running}, аккаунтов: ${accounts}.${vizMethod}${accountDetails}${lastTick}${error}${errorTail}${golosTail}${logs}`;
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {

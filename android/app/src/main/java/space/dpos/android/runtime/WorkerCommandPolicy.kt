@@ -177,17 +177,31 @@ object WorkerSettingsCodec {
         nextTick: Long?,
         lastError: String?,
         logs: String
-    ): String = JSONObject()
-        .put("running", running)
-        .put("workerEnabled", workerEnabled)
-        .put("status", if (running) "running" else "stopped")
-        .put("canStart", true)
-        .put("canStop", running)
-        .put("canCheckNow", workerEnabled || activeAccounts > 0)
-        .put("activeAccounts", activeAccounts)
-        .put("lastTick", lastTick ?: JSONObject.NULL)
-        .put("nextTick", nextTick ?: JSONObject.NULL)
-        .put("lastError", PayloadSanitizer.redactLog(lastError.orEmpty()).ifBlank { JSONObject.NULL })
-        .put("logs", PayloadSanitizer.redactLog(logs).takeLast(8000))
-        .toString()
+    ): String {
+        val redactedLogs = PayloadSanitizer.redactLog(logs)
+        val lines = redactedLogs.lines().filter { it.isNotBlank() }
+        val errorTail = lines
+            .filter { line -> line.contains("[error]") || line.contains("[warning]") || line.contains("ошибка", ignoreCase = true) || line.contains("error", ignoreCase = true) }
+            .takeLast(20)
+            .joinToString("\n")
+        val golosTail = lines
+            .filter { line -> line.contains("golos:", ignoreCase = true) }
+            .takeLast(40)
+            .joinToString("\n")
+        return JSONObject()
+            .put("running", running)
+            .put("workerEnabled", workerEnabled)
+            .put("status", if (running) "running" else "stopped")
+            .put("canStart", true)
+            .put("canStop", running)
+            .put("canCheckNow", workerEnabled || activeAccounts > 0)
+            .put("activeAccounts", activeAccounts)
+            .put("lastTick", lastTick ?: JSONObject.NULL)
+            .put("nextTick", nextTick ?: JSONObject.NULL)
+            .put("lastError", PayloadSanitizer.redactLog(lastError.orEmpty()).ifBlank { JSONObject.NULL })
+            .put("logs", redactedLogs.takeLast(8000))
+            .put("errorLogTail", errorTail.takeLast(4000))
+            .put("golosLogTail", golosTail.takeLast(5000))
+            .toString()
+    }
 }
