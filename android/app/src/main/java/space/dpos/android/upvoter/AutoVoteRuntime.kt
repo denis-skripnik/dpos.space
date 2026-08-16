@@ -44,7 +44,13 @@ class AutoVoteRuntime(
             val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
             if (result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent")) sentCounts[action.account] = (sentCounts[action.account] ?: 0) + 1
-            if (!result.ok) skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
+            if (!result.ok) {
+                skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
+                if (result.status == "authority_broadcast_mismatch" || result.status == "authority_verify_error" || result.status == "posting_key_mismatch") {
+                    skips += "stop-plan:${result.status}:${action.account}"
+                    break
+                }
+            }
         }
         return AutoVoteRuntimeReport(
             attempted = attempted,

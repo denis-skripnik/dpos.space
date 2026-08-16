@@ -97,6 +97,24 @@ class AutoVoteRuntimePolicyTest {
         assertTrue(report.skipped.any { it.startsWith("broadcast_error:denis|alice|bad") })
     }
 
+    @Test fun authorityMismatchStopsRemainingCandidatesForSameBrokenSigner() {
+        val broadcaster = ThrowingBroadcaster("missing required posting authority")
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 3)),
+            listOf(
+                VoteEvent("favorite_post", author = "alice", permlink = "bad1"),
+                VoteEvent("favorite_post", author = "alice", permlink = "bad2"),
+                VoteEvent("favorite_post", author = "alice", permlink = "bad3")
+            )
+        )
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
+        assertEquals(1, report.attempted)
+        assertEquals(0, report.broadcasted)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertEquals(listOf("authority_broadcast_mismatch"), report.results.map { it.status })
+        assertTrue(report.skipped.any { it.startsWith("stop-plan:authority_broadcast_mismatch:denis") })
+    }
+
     @Test fun limitSkippedCandidateIsNotCountedAsAttempted() {
         val broadcaster = RecordingBroadcaster()
         val plan = AutoUpvoterPlanner().plan(
