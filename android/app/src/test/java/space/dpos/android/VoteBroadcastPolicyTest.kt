@@ -211,6 +211,9 @@ class VoteBroadcastPolicyTest {
         assertEquals("authority_broadcast_mismatch", result.status)
         assertEquals(1, broadcaster.broadcastCount)
     }
+    @Test fun golosUsesAsyncBroadcastLikeGolosJsAndConfirmsThroughHistory() {
+        assertTrue(space.dpos.android.upvoter.GrapheneChainSpecs.requireVote("golos").asyncBroadcastOnly)
+    }
 
 
     @Test fun graphenPublicKeyUsesCompressedPubkeyForGolosJsStyleWif() {
