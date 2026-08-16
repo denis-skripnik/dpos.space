@@ -19,7 +19,8 @@ data class AutoVoteRuntimeReport(
 class AutoVoteRuntime(
     private val voteRuntime: VoteRuntime,
     private val keyProvider: PostingKeyProvider,
-    private val chainId: String = "golos"
+    private val chainId: String = "golos",
+    private val pauseAfterSuccessfulBroadcastMs: Long = 0L
 ) {
     fun preview(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = true)
     fun execute(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = false)
@@ -28,13 +29,8 @@ class AutoVoteRuntime(
         val skips = plan.skips.toMutableList()
         val results = mutableListOf<VoteBroadcastResult>()
         val chain = chainId.trim().lowercase()
-        val sentCounts = mutableMapOf<String, Int>()
         var attempted = 0
-        for (action in plan.actions) {
-            if ((sentCounts[action.account] ?: 0) >= action.maxBroadcastsPerTick) {
-                skips += "limit:${action.account}|${action.author}|${action.permlink}"
-                continue
-            }
+        for ((index, action) in plan.actions.withIndex()) {
             val key = keyProvider.privateWif(chain, action.account)
             if (key.isNullOrBlank()) {
                 attempted += 1
@@ -45,7 +41,15 @@ class AutoVoteRuntime(
             val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
             val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
-            if (result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent")) sentCounts[action.account] = (sentCounts[action.account] ?: 0) + 1
+            val sent = result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent")
+            if (sent && !previewOnly && pauseAfterSuccessfulBroadcastMs > 0 && index < plan.actions.lastIndex) {
+                try {
+                    Thread.sleep(pauseAfterSuccessfulBroadcastMs)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
             if (!result.ok) {
                 skips += "${result.status}:${action.account}|${action.author}|${action.permlink}"
                 if (result.status == "authority_broadcast_mismatch" || result.status == "authority_verify_error" || result.status == "posting_key_mismatch") {

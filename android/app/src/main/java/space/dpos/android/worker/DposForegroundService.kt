@@ -36,7 +36,7 @@ class DposForegroundService : Service() {
                     updateForegroundStatus("проверка запущена; аккаунтов: ${store.activeAccounts().size}")
                     val summary = DposWorkerRunner(applicationContext) { updateForegroundStatus(it) }.runOnce(reason = "foreground-7m12s")
                     val status = if (summary.ok) "проверка завершена" else "проверка завершена с ошибками"
-                    updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; голосов: ${summary.autoUpvoterBroadcasted}; VIZ self-awards: ${summary.vizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
+                    updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; vote сейчас: ${summary.autoUpvoterBroadcasted}; всего vote: ${summary.totalAutoUpvoterBroadcasted}; VIZ сейчас: ${summary.vizSelfAwardBroadcasted}; всего VIZ: ${summary.totalVizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
                 } catch (e: Exception) {
                     WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
                     updateForegroundStatus("ошибка проверки: ${e.message ?: "unknown"}")
