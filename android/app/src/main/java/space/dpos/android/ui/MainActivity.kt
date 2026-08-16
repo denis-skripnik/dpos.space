@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -204,8 +205,15 @@ class MainActivity : Activity() {
             .put("vizBroadcastMethod", if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous")
             .put("webUrl", BuildConfig.DPOS_WEB_URL)
             .put("permissionNotifications", NotificationHelper.canPost(this))
-            .put("batteryOptimizationWarning", true)
+            .put("batteryOptimizationWarning", !isIgnoringBatteryOptimizations())
+            .put("batteryOptimizationHint", "Для стабильной фоновой проверки после блокировки экрана включите режим батареи: Без ограничений / Не оптимизировать / Разрешить работу в фоне.")
             .toString()
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val powerManager = getSystemService(POWER_SERVICE) as? PowerManager
+        return powerManager?.isIgnoringBatteryOptimizations(packageName) == true
     }
 
     companion object {

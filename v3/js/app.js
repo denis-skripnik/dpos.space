@@ -5952,6 +5952,7 @@
       <p>Сервис не даёт энергии простаивать на 100%: выбранные сохранённые аккаунты периодически награждают сами себя, если энергия выше заданного минимума.</p>
       <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические VIZ award без подтверждения каждой награды. Используется regular-ключ, сохранённый в разделе «Аккаунты».</p>
       <p class="muted">Точный параметр сети: 100% энергии восстанавливается за 432000 секунд. Поэтому 0.1% восстанавливается за 7 минут 12 секунд. ${hasAndroidWorkerBridge ? 'В Android-приложении Start включает native foreground worker; на сайте работает active-tab режим.' : 'Web-версия работает, пока открыта страница/PWA; фоновая Android-версия доступна в APK.'}</p>
+      ${hasAndroidWorkerBridge ? '<p class="warning"><strong>Android:</strong> если проверки опаздывают после блокировки экрана, откройте настройки батареи приложения и выберите режим «Без ограничений» / «Не оптимизировать» / «Разрешить работу в фоне». Foreground-уведомление будет тихо обновляться текущим статусом VIZ self-award без звуков.</p>' : ''}
       ${users.length ? `<form id="viz-self-award-form">
         <div class="field-grid">
           <div class="field">
@@ -6470,7 +6471,7 @@
         </div>
         <section class="card" data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'} aria-labelledby="android-worker-heading">
           <h3 id="android-worker-heading">Фоновая проверка в Android</h3>
-          ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start включает фоновую проверку по выбранным настройкам. На сайте Start работает только пока открыта страница.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
+          ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start включает фоновую проверку по выбранным настройкам. На сайте Start работает только пока открыта страница.</p><p class="warning"><strong>Android:</strong> если проверки опаздывают после блокировки экрана, откройте настройки батареи приложения и выберите режим «Без ограничений» / «Не оптимизировать» / «Разрешить работу в фоне». Foreground-уведомление будет тихо обновляться текущим статусом автоапвоутера без звуков.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
           <div id="android-worker-status" role="status" aria-live="polite">Статус фоновой проверки ещё не запрошен.</div>
         </section>
       </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}

@@ -26,7 +26,12 @@ object NotificationHelper {
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL_WORKER, "DPoS Space runtime", NotificationManager.IMPORTANCE_LOW))
+        val workerChannel = NotificationChannel(CHANNEL_WORKER, "DPoS Space runtime", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "Silent ongoing notification while DPoS Space keeps Android worker checks active."
+            setSound(null, null)
+            enableVibration(false)
+        }
+        manager.createNotificationChannel(workerChannel)
         manager.createNotificationChannel(NotificationChannel(CHANNEL_EVENTS, "DPoS Space events", NotificationManager.IMPORTANCE_DEFAULT))
     }
 
@@ -60,12 +65,24 @@ object NotificationHelper {
         NotificationManagerCompat.from(context).notify(PayloadSanitizer.tag(tag).hashCode(), notification)
     }
 
+    fun updateForeground(context: Context, notificationId: Int, status: String) {
+        ensureChannels(context)
+        context.getSystemService(NotificationManager::class.java)
+            .notify(notificationId, foreground(context, status))
+    }
+
     fun foreground(context: Context, status: String) = NotificationCompat.Builder(context, CHANNEL_WORKER)
         .setSmallIcon(R.mipmap.ic_launcher)
         .setContentTitle("DPoS Space worker")
         .setContentText(PayloadSanitizer.text(status, 120))
         .setStyle(NotificationCompat.BigTextStyle().bigText(PayloadSanitizer.text(status, 600)))
         .setOngoing(true)
+        .setShowWhen(false)
+        .setOnlyAlertOnce(true)
+        .setDefaults(0)
+        .setSound(null)
+        .setVibrate(null)
+        .setSilent(true)
         .setContentIntent(contentIntent(context, "#app=notifications"))
         .addAction(R.mipmap.ic_launcher, "Открыть", contentIntent(context, "#app=notifications"))
         .addAction(R.mipmap.ic_launcher, "Проверить", serviceIntent(context, DposForegroundService.ACTION_CHECK_NOW, 4202))
