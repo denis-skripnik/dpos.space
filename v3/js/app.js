@@ -6337,6 +6337,13 @@
 
   function androidWorkerDiagnosticText(result, max = 4000) {
     if (!result || typeof result !== 'object') return 'Android worker logs: статус недоступен.';
+    const appendWithinBudget = (parts, text, reserve = 0) => {
+      const current = parts.join('\n');
+      const room = max - reserve - current.length - (current ? 1 : 0);
+      if (room <= 0) return;
+      const value = String(text || '');
+      parts.push(value.length > room ? value.slice(0, room) : value);
+    };
     const lines = [];
     lines.push(`Android worker logs APK ${result.appVersionName || '?'} (${result.appVersionCode || '?'})`);
     lines.push(`worker=${result.workerEnabled ? 'on' : 'off'} running=${result.running ? 'yes' : 'no'} accounts=${Number.isFinite(Number(result.activeAccounts)) ? Number(result.activeAccounts) : 0}`);
@@ -6346,27 +6353,27 @@
       lines.push(`lastRun status=${s.status || '?'} ok=${s.ok} accounts=${s.accountsChecked || 0} autoChecks=${s.autoUpvoterChecks || 0} attempted=${s.autoUpvoterAttempted || 0} broadcasted=${s.autoUpvoterBroadcasted || 0} skipped=${s.skipped || 0} viz=${s.vizSelfAwardBroadcasted || 0}`);
       if (Array.isArray(s.errors) && s.errors.length) {
         lines.push('lastRun errors:');
-        s.errors.slice(-20).forEach((item) => lines.push(`- ${String(item)}`));
+        s.errors.slice(-8).forEach((item) => appendWithinBudget(lines, `- ${String(item)}`, 1200));
       }
       if (Array.isArray(s.messages) && s.messages.length) {
         lines.push('lastRun messages:');
-        s.messages.slice(-12).forEach((item) => lines.push(`- ${String(item)}`));
+        s.messages.slice(-6).forEach((item) => appendWithinBudget(lines, `- ${String(item)}`, 1200));
       }
     }
     if (Array.isArray(result.autoUpvoterFeed) && result.autoUpvoterFeed.length) {
-      lines.push('autoUpvoterFeed:');
-      result.autoUpvoterFeed.slice(-20).forEach((entry) => {
+      lines.push('autoUpvoterFeed with public diagnostics:');
+      result.autoUpvoterFeed.slice(-8).forEach((entry) => {
         const res = entry && entry.result;
         const action = entry && entry.action;
         const diag = entry && entry.diagnostics && typeof entry.diagnostics === 'object' ? entry.diagnostics : null;
         const diagText = diag ? ` diagnostics=${JSON.stringify(diag)}` : '';
-        lines.push(`- ${entry && entry.message ? entry.message : ''} status=${res && res.status || ''} ok=${res && res.ok} reason=${res && res.reason || ''} action=${action && action.account || ''}->${action && action.author || ''}/${action && action.permlink || ''}${diagText}`);
+        appendWithinBudget(lines, `- ${entry && entry.message ? entry.message : ''} status=${res && res.status || ''} ok=${res && res.ok} reason=${res && res.reason || ''} action=${action && action.account || ''}->${action && action.author || ''}/${action && action.permlink || ''}${diagText}`, 1000);
       });
     }
-    if (result.errorLogTail) lines.push(`errorLogTail:\n${result.errorLogTail}`);
-    if (result.golosLogTail) lines.push(`golosLogTail:\n${result.golosLogTail}`);
-    if (result.logs) lines.push(`logsTail:\n${result.logs}`);
-    return lines.join('\n').slice(-max);
+    if (result.errorLogTail) appendWithinBudget(lines, `errorLogTail:\n${String(result.errorLogTail).slice(-900)}`, 500);
+    if (result.golosLogTail) appendWithinBudget(lines, `golosLogTail:\n${String(result.golosLogTail).slice(-700)}`, 300);
+    if (result.logs) appendWithinBudget(lines, `logsTail:\n${String(result.logs).split('\n').filter(Boolean).slice(-10).join('\n')}`, 0);
+    return lines.join('\n').slice(0, max);
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {
