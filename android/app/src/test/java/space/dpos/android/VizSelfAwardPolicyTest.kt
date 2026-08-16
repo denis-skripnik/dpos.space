@@ -15,6 +15,7 @@ import space.dpos.android.upvoter.GraphenePublicKey
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_MAX_SPEND
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_MEMO
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
+import space.dpos.android.upvoter.VizAwardSigner
 import space.dpos.android.upvoter.VizAwardTransactionBuilder
 import space.dpos.android.upvoter.VizSelfAwardOperation
 import space.dpos.android.upvoter.VizSelfAwardPolicy
@@ -62,8 +63,28 @@ class VizSelfAwardPolicyTest {
         val bytes = VizAwardTransactionBuilder(spec).signingBytes(VizSelfAwardOperation("denis", 10), header)
         val txHex = bytes.copyOfRange(32, bytes.size).joinToString("") { "%02x".format(it.toInt() and 0xff) }
         assertEquals(
-            "780001020304bc009265012f0564656e69730564656e69730a0000000000000000001a64706f732e73706163653a2056495a2073656c662d6177617264000000",
+            "780001020304bc009265012f0564656e69730564656e69730a0000000000000000001a64706f732e73706163653a2056495a2073656c662d61776172640000",
             txHex
+        )
+    }
+
+    @Test fun androidVizWifPublicKeyMatchesVizJsLibFixture() {
+        assertEquals(
+            "VIZ7PKZqo3Dio7HEsuPUcg5KCxSpLnrVgZe5ioZQzM6vrFhoSixes",
+            GraphenePublicKey.fromWif("5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", "VIZ")
+        )
+    }
+
+    @Test fun androidVizAwardSignatureMatchesVizJsLibFixtureExactly() {
+        val spec = space.dpos.android.upvoter.GrapheneChainSpecs.require("viz")
+        val signer = VizAwardSigner(spec, VizAwardTransactionBuilder(spec))
+        val result = signer.sign(VizSelfAwardOperation("denis", 10), EncryptedKeyRef("viz", "denis", "regular", "regular"), "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", header)
+        assertTrue(result.ok)
+        assertEquals("72c56ec8073b93959fe4a3b5745a6926eef4f0535abd757bcb3ade38a78c62f5", result.diagnostics!!.getString("signingDigestHex"))
+        assertEquals(3, result.diagnostics!!.getInt("canonicalNonce"))
+        assertEquals(
+            "200ef95542ea44b43cf3d0f5b76e295d6640636f0e1af68354e9a3c45ebfedd028578e570a9662adcaa05fa768db3459ea5cd957f672cae02332effd9a078e5d30",
+            result.signedTransaction!!.getJSONArray("signatures").getString(0)
         )
     }
 

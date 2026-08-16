@@ -15,8 +15,8 @@ android {
         applicationId = "space.dpos.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 46
-        versionName = "0.1.45"
+        versionCode = 47
+        versionName = "0.1.46"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DPOS_WEB_URL", "\"https://dpos.blinddev.xyz/\"")
     }
