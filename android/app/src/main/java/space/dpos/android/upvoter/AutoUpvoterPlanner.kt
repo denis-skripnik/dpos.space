@@ -35,14 +35,8 @@ class AutoUpvoterPlanner {
         val actions = mutableListOf<PlannedVote>()
         val skips = mutableListOf<String>()
         val energy = settings.associate { it.account to it.currentEnergy }.toMutableMap()
-        val actionCounts = mutableMapOf<String, Int>()
         for (event in events) {
             for (account in settings.filter { it.enabled }) {
-                val planLimit = (account.maxActionsPerTick + max(3, account.maxActionsPerTick * 2)).coerceAtLeast(account.maxActionsPerTick)
-                if ((actionCounts[account.account] ?: 0) >= planLimit) {
-                    skips += "limit:${account.account}|${event.author}|${event.permlink}"
-                    continue
-                }
                 val matched = when (event.kind) {
                     "curator_vote" -> account.curators.any { it.equals(event.voter, true) }
                     "favorite_post" -> account.favorites.any { it.equals(event.author, true) }
@@ -60,7 +54,6 @@ class AutoUpvoterPlanner {
                 val projected = current?.let { estimateEnergyAfter(it, weight) }
                 if (current != null && (current < account.minEnergy || (projected != null && projected < account.minEnergy))) { skips += "energy:$key"; continue }
                 if (projected != null) energy[account.account] = projected
-                actionCounts[account.account] = (actionCounts[account.account] ?: 0) + 1
                 actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected, account.maxActionsPerTick.coerceAtLeast(0))
             }
         }

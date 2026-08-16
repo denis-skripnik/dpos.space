@@ -142,8 +142,10 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
         val errors = mutableListOf<String>()
         val messages = mutableListOf<String>()
         val autoUpvoterFeed = mutableListOf<JSONObject>()
-        val activeAccounts = store.activeAccounts()
-        store.appendLog("accounts loaded; count=${activeAccounts.size}")
+        val storedAccounts = store.readAccounts()
+        val activeAccounts = storedAccounts.filter { it.enabled }
+        val enabledStored = storedAccounts.count { it.enabled }
+        store.appendLog("accounts loaded; active=${activeAccounts.size}; stored=${storedAccounts.size}; enabled=$enabledStored")
         publishStatus("проверка началась; аккаунтов: ${activeAccounts.size}; уведомление обновляется тихо без звука")
 
         for (account in activeAccounts) {
@@ -234,9 +236,9 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                     val runtime = AutoVoteRuntime(VoteRuntime(rpc, signer = GrapheneVoteSigner(spec), broadcaster = GolosBroadcastClient(rpc), historyClient = historyClient(spec)), object : PostingKeyProvider {
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
-                    }, chainId = spec.id)
-                    publishStatus("${account.chainId}:${account.account}: обрабатываю кандидатов vote; кандидатов=${plan.actions.size}; лимит новых голосов за тик=${settings.maxActionsPerTick}")
-                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер обрабатывает кандидатов vote; candidates=${plan.actions.size}; maxBroadcastsPerTick=${settings.maxActionsPerTick}; timeout=60s")
+                    }, chainId = spec.id, pauseAfterSuccessfulBroadcastMs = 5_000L)
+                    publishStatus("${account.chainId}:${account.account}: обрабатываю кандидатов vote; кандидатов=${plan.actions.size}; пауза между успешными голосами 5 секунд")
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер обрабатывает кандидатов vote; candidates=${plan.actions.size}; pauseAfterSuccessfulBroadcast=5s; timeout=dynamic")
                     val report = runAutoVoteRuntimeWithTimeout(account.chainId, account.account, runtime, plan)
                     autoUpvoterAttempted += report.attempted
                     autoUpvoterBroadcasted += report.broadcasted
@@ -337,7 +339,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
         return summary
     }
 
-    private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = 60L): AutoVoteRuntimeReport {
+    private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = ((plan.actions.size * 10L) + 30L).coerceIn(60L, 600L)): AutoVoteRuntimeReport {
         val executor = Executors.newSingleThreadExecutor()
         return try {
             val future = executor.submit<AutoVoteRuntimeReport> { runtime.execute(plan) }

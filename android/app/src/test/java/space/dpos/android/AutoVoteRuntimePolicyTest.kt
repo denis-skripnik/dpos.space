@@ -61,7 +61,7 @@ class AutoVoteRuntimePolicyTest {
         assertEquals(0, report.skipped.size)
     }
 
-    @Test fun alreadyVotedDoesNotConsumeBroadcastLimitAndRuntimeContinuesToNextCandidate() {
+    @Test fun alreadyVotedDoesNotStopRuntimeAndAllCandidatesAreProcessed() {
         val broadcaster = DuplicateThenSuccessBroadcaster()
         val plan = AutoUpvoterPlanner().plan(
             listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 1)),
@@ -71,13 +71,13 @@ class AutoVoteRuntimePolicyTest {
                 VoteEvent("favorite_post", author = "alice", permlink = "third")
             )
         )
-        assertTrue("planner keeps fallback candidates beyond the one-new-vote limit", plan.actions.size >= 2)
+        assertEquals(3, plan.actions.size)
         val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
-        assertEquals(2, report.attempted)
-        assertEquals(1, report.broadcasted)
-        assertEquals(2, broadcaster.broadcastCount)
-        assertEquals(listOf("already_voted", "broadcast_sent"), report.results.map { it.status })
-        assertTrue(report.skipped.any { it.startsWith("limit:denis|alice|third") })
+        assertEquals(3, report.attempted)
+        assertEquals(2, report.broadcasted)
+        assertEquals(3, broadcaster.broadcastCount)
+        assertEquals(listOf("already_voted", "broadcast_sent", "broadcast_sent"), report.results.map { it.status })
+        assertTrue(report.skipped.none { it.startsWith("limit:") })
     }
 
     @Test fun fatalBroadcastFailureIsRecordedButDoesNotStopNextCandidateLikeJsRuntime() {
@@ -115,7 +115,7 @@ class AutoVoteRuntimePolicyTest {
         assertTrue(report.skipped.any { it.startsWith("stop-plan:authority_broadcast_mismatch:denis") })
     }
 
-    @Test fun limitSkippedCandidateIsNotCountedAsAttempted() {
+    @Test fun configuredMaxActionsNoLongerDropsCandidatesInNativeWorkerRuntime() {
         val broadcaster = RecordingBroadcaster()
         val plan = AutoUpvoterPlanner().plan(
             listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000, maxActionsPerTick = 1)),
@@ -125,10 +125,10 @@ class AutoVoteRuntimePolicyTest {
             )
         )
         val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster), FakeKeyProvider()).execute(plan)
-        assertEquals(1, report.attempted)
-        assertEquals(1, report.broadcasted)
-        assertEquals(1, broadcaster.broadcastCount)
-        assertTrue(report.skipped.any { it.startsWith("limit:denis|alice|second") })
+        assertEquals(2, report.attempted)
+        assertEquals(2, report.broadcasted)
+        assertEquals(2, broadcaster.broadcastCount)
+        assertTrue(report.skipped.none { it.startsWith("limit:") })
     }
 
     private fun planWithOneAction() = AutoUpvoterPlanner().plan(
