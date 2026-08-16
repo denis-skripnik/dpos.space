@@ -69,8 +69,8 @@ data class WorkerRunSummary(
         .put("vizSelfAwardChecks", vizSelfAwardChecks)
         .put("vizSelfAwardBroadcasted", vizSelfAwardBroadcasted)
         .put("skipped", skipped)
-        .put("errors", JSONArray(errors.map { PayloadSanitizer.text(it, 300) }))
-        .put("messages", JSONArray(messages.map { PayloadSanitizer.text(it, 300) }))
+        .put("errors", JSONArray(errors.map { PayloadSanitizer.text(it, 700) }))
+        .put("messages", JSONArray(messages.map { PayloadSanitizer.text(it, 700) }))
         .put("lastTick", lastTick)
         .put("autoUpvoterFeed", JSONArray(autoUpvoterFeed))
 }
@@ -237,7 +237,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                     store.appendLog(msg)
                     messages += msg
                     report.results.filter { !it.ok }.forEach { result ->
-                        val errorMsg = "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
+                        val errorMsg = "${account.chainId}:${account.account}: ${result.status}: ${PayloadSanitizer.text(result.reason, 600)}"
                         errors += errorMsg
                         store.appendLog(errorMsg, "error")
                         messages += errorMsg
@@ -418,7 +418,7 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
             .put("result", JSONObject()
                 .put("status", result.status)
                 .put("ok", result.ok)
-                .put("reason", PayloadSanitizer.text(result.reason, 300)))
+                .put("reason", PayloadSanitizer.text(result.reason, 700)))
             .put("diagnostics", result.diagnostics ?: JSONObject.NULL)
     }
 
