@@ -113,7 +113,6 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                 vizSelfAwardChecks = 0,
                 vizSelfAwardBroadcasted = 0
             )
-            store.saveLastRunSummary(summary.toJson())
             return summary
         }
         return try {

@@ -35,8 +35,12 @@ class DposForegroundService : Service() {
                 try {
                     updateForegroundStatus("проверка запущена; аккаунтов: ${store.activeAccounts().size}")
                     val summary = DposWorkerRunner(applicationContext) { updateForegroundStatus(it) }.runOnce(reason = "foreground-7m12s")
-                    val status = if (summary.ok) "проверка завершена" else "проверка завершена с ошибками"
-                    updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; vote сейчас: ${summary.autoUpvoterBroadcasted}; всего vote: ${summary.totalAutoUpvoterBroadcasted}; VIZ сейчас: ${summary.vizSelfAwardBroadcasted}; всего VIZ: ${summary.totalVizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
+                    if (summary.status == "skipped_overlap") {
+                        updateForegroundStatus("предыдущая проверка ещё идёт; последний успешный статус сохраняется")
+                    } else {
+                        val status = if (summary.ok) "проверка завершена" else "проверка завершена с ошибками"
+                        updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; vote сейчас: ${summary.autoUpvoterBroadcasted}; всего vote: ${summary.totalAutoUpvoterBroadcasted}; VIZ сейчас: ${summary.vizSelfAwardBroadcasted}; всего VIZ: ${summary.totalVizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
+                    }
                 } catch (e: Exception) {
                     WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
                     updateForegroundStatus("ошибка проверки: ${e.message ?: "unknown"}")
