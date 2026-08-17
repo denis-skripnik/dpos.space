@@ -6013,6 +6013,21 @@
       return auth.getUsers(chain).find((user) => auth.getUserLogin(user) === normalized);
     }
 
+    function syncAndroidVizSelfAwardSettings(settings) {
+      const rows = Array.isArray(settings) ? settings : [];
+      for (const row of rows.filter((item) => item && item.account)) {
+        const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
+          account: row.account,
+          enabled: Boolean(row.enabled),
+          autoStart: Boolean(row.autoStart),
+          minEnergy: row.minEnergy,
+          explicitConsent: true
+        });
+        if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
+      }
+      return rows.length;
+    }
+
     async function startAndroidVizSelfAward(settings) {
       const rows = Array.isArray(settings) ? settings : [];
       const selected = rows.filter((row) => row.enabled && row.account);
@@ -6042,16 +6057,7 @@
           decrypted.privateKey = '';
         }
       }
-      for (const row of rows.filter((item) => item && item.account)) {
-        const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
-          account: row.account,
-          enabled: Boolean(row.enabled),
-          autoStart: Boolean(row.autoStart),
-          minEnergy: row.minEnergy,
-          explicitConsent: true
-        });
-        if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
-      }
+      syncAndroidVizSelfAwardSettings(rows);
       const started = callAndroidWorkerBridge('startWorker');
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
       const check = callAndroidWorkerBridge('checkNow');
@@ -6176,6 +6182,19 @@
     let androidStatusRendered = false;
     if (hasAndroidWorkerBridge) {
       const status = callAndroidWorkerBridge('getWorkerStatus');
+      const settings = collectSettings();
+      const selected = settings.filter((row) => row.enabled && row.account);
+      if (stored.autoStart && selected.length) {
+        try {
+          syncAndroidVizSelfAwardSettings(settings);
+          const startResult = callAndroidWorkerBridge('startWorker');
+          const check = callAndroidWorkerBridge('checkNow');
+          appendFeed(`Android native VIZ self-award auto-sync: синхронизировано ${settings.length} аккаунтов, включено ${selected.length}. ${renderAndroidCheckSummary(check, selected.length)}`);
+          if (!startResult || !startResult.ok) appendFeed(`Android worker auto-start warning: ${startResult && (startResult.reason || startResult.status) || 'неизвестный ответ'}`);
+        } catch (error) {
+          appendFeed(`Android native VIZ self-award auto-sync error: ${profiles.formatError(error)}`);
+        }
+      }
       if (status && (status.workerEnabled || status.running || status.logs)) {
         androidStatusRendered = true;
         renderFeed(`Android worker status: ${renderAndroidWorkerStatus(status)} Логи: ${String(status.logs || '').split('\n').filter(Boolean).slice(-6).join(' | ') || 'нет логов'}`);
