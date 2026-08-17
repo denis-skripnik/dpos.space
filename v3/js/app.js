@@ -6908,7 +6908,7 @@
         if (Array.isArray(result.autoUpvoterFeed) && result.autoUpvoterFeed.length) {
           renderScannerFeed(`Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail}`);
         } else {
-          feed.textContent = `Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail || 'нет логов'} Последняя native-лента пока пуста: подходящих постов/действий могло не быть.`;
+          renderScannerFeed(`Android worker status: ${renderAndroidWorkerStatus(result)} Логи: ${tail || 'нет логов'} Новых native-записей в этом тике нет; прежняя лента сохранена.`);
         }
       }
     }
@@ -6919,6 +6919,11 @@
       rows.forEach((entry) => {
         if (!entry || !entry.message) return;
         const action = entry.action || null;
+        const result = entry.result || null;
+        const key = [entry.message, action && action.account, action && action.author, action && action.permlink, result && result.status].map((item) => String(item || '')).join('|');
+        runtime.nativeFeedKeys = runtime.nativeFeedKeys || new Set();
+        if (runtime.nativeFeedKeys.has(key)) return;
+        runtime.nativeFeedKeys.add(key);
         if (action && entry.result && entry.result.status === 'broadcast_sent') {
           runtime.manualVoteState.set(autoUpvoterActionKey(action), 'voted');
         }

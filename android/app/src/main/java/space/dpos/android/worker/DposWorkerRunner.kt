@@ -35,6 +35,9 @@ import space.dpos.android.upvoter.VoteRuntime
 import space.dpos.android.upvoter.VizSelfAwardOperation
 import space.dpos.android.upvoter.VizSelfAwardResult
 import space.dpos.android.upvoter.VizSelfAwardRuntime
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -152,6 +155,11 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
             store.appendLog("account started; ${account.chainId}:${account.account}; notifications=${store.notificationEnabled(account.chainId, account.account)}; autoUpvoter=${store.autoUpvoterEnabled(account.chainId, account.account)}; vizSelfAward=${store.vizSelfAwardEnabled(account.chainId, account.account)}")
             publishStatus("аккаунт ${account.chainId}:${account.account}; уведомления=${store.notificationEnabled(account.chainId, account.account)}; автоапвоутер=${store.autoUpvoterEnabled(account.chainId, account.account)}; VIZ self-award=${store.vizSelfAwardEnabled(account.chainId, account.account)}")
             val spec = GrapheneChainSpecs.find(account.chainId)
+            if (account.chainId == "viz" && spec != null) {
+                val vizEnergy = fetchNativeVoteEnergy(rpcClient(spec), account.account)
+                val vizEnergyLabel = vizEnergy?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"
+                store.appendLog("viz:${account.account}: energy monitor; energy=${vizEnergyLabel}%")
+            }
             if (store.notificationEnabled(account.chainId, account.account)) {
                 notificationChecks += 1
                 try {
@@ -202,15 +210,28 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                         skipped += 1
                         continue
                     }
+                    val rpc = rpcClient(spec)
+                    val minEnergy = store.minEnergy(account.chainId, account.account)
+                    val liveEnergy = fetchNativeVoteEnergy(rpc, account.account)
+                    val energyLabel = liveEnergy?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер energy check; energy=${energyLabel}%; minEnergy=${minEnergy / 100.0}%")
+                    if (liveEnergy == null && minEnergy > 0) {
+                        val msg = "${account.chainId}:${account.account}: автоапвоутер пропущен, не удалось прочитать live voting energy; minEnergy=${minEnergy / 100.0}%"
+                        store.appendLog(msg, "warning")
+                        messages += msg
+                        skipped += 1
+                        continue
+                    }
                     val settings = AccountSettings(
                         account.account,
                         enabled = true,
                         curators = store.curators(account.chainId, account.account),
                         favorites = store.favorites(account.chainId, account.account),
-                        minEnergy = store.minEnergy(account.chainId, account.account),
+                        minEnergy = minEnergy,
                         curatorMode = store.curatorMode(account.chainId, account.account),
                         curatorCoefficient = store.curatorCoefficient(account.chainId, account.account),
                         favoritesPercent = store.favoritesPercent(account.chainId, account.account),
+                        currentEnergy = liveEnergy,
                         maxActionsPerTick = store.maxActions(account.chainId, account.account)
                     )
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер загружаю события; curators=${settings.curators.size}; favorites=${settings.favorites.size}; timeout=45s")
@@ -231,7 +252,6 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                         skipped += plan.skips.size
                         continue
                     }
-                    val rpc = rpcClient(spec)
                     val runtime = AutoVoteRuntime(VoteRuntime(rpc, signer = GrapheneVoteSigner(spec), broadcaster = GolosBroadcastClient(rpc), historyClient = historyClient(spec)), object : PostingKeyProvider {
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
@@ -390,6 +410,20 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    private fun fetchNativeVoteEnergy(rpc: space.dpos.android.upvoter.GolosRpcClient, account: String): Int? {
+        val accountJson = try { rpc.getAccount(account.trim().removePrefix("@").lowercase(Locale.ROOT)) } catch (_: Exception) { null } ?: return null
+        val raw = when {
+            accountJson.has("voting_power") -> accountJson.optDouble("voting_power", Double.NaN)
+            accountJson.has("energy") -> accountJson.optDouble("energy", Double.NaN)
+            else -> Double.NaN
+        }
+        if (!raw.isFinite()) return null
+        val time = accountJson.optString("last_vote_time", accountJson.optString("last_account_update", accountJson.optString("created", "")))
+        val last = runCatching { LocalDateTime.parse(time).toEpochSecond(ZoneOffset.UTC) * 1000L }.getOrNull() ?: return raw.toInt().coerceIn(0, 10000)
+        val deltaSeconds = ((System.currentTimeMillis() - last).coerceAtLeast(0L)) / 1000.0
+        return (raw + deltaSeconds * 10000.0 / 432_000.0).toInt().coerceIn(0, 10000)
     }
 
     private fun runVizSelfAwardWithTimeout(account: String, keyRef: EncryptedKeyRef, key: String, timeoutSeconds: Long = 45L): VizSelfAwardResult {
