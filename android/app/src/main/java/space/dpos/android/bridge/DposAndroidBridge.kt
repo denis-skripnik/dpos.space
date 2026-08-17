@@ -69,6 +69,33 @@ class DposAndroidBridge(private val activity: Activity, private val statusProvid
     }
 
     @JavascriptInterface
+    fun syncVizSelfAwardSettings(json: String?): String {
+        return try {
+            val obj = JSONObject(json.orEmpty())
+            if (!obj.optBoolean("explicitConsent", false)) throw IllegalArgumentException("explicit opt-in is required before Android worker syncs VIZ self-award settings")
+            val account = obj.optString("account").trim().removePrefix("@").lowercase()
+            if (!Regex("^[a-z0-9.-]{3,32}$").matches(account)) throw IllegalArgumentException("invalid VIZ account name")
+            val enabled = obj.optBoolean("enabled", false)
+            val autoStart = obj.optBoolean("autoStart", false)
+            val rawMin = obj.optInt("minEnergy", 9500)
+            val minEnergy = (if (rawMin in 1..100) rawMin * 100 else rawMin).coerceIn(0, 9999)
+            store.syncVizSelfAward(account, enabled, autoStart, minEnergy)
+            schedulePeriodicChecks(8)
+            JSONObject()
+                .put("ok", true)
+                .put("status", "synced")
+                .put("chainId", "viz")
+                .put("account", account)
+                .put("enabled", enabled)
+                .put("autoStart", autoStart)
+                .put("minEnergy", minEnergy)
+                .toString()
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("status", "sync_error").put("reason", PayloadSanitizer.text(e.message, 300)).toString()
+        }
+    }
+
+    @JavascriptInterface
     fun importSecureKey(json: String?): String {
         val decision = SecureKeyImportCodec.decode(json)
         val ref = decision.keyRef

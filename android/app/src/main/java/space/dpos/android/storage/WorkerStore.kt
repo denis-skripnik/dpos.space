@@ -50,6 +50,23 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}; vizSelfAward=${decision.enableVizSelfAward}; autoStart=${decision.autoStart}")
     }
 
+    fun syncVizSelfAward(account: String, enabled: Boolean, autoStart: Boolean, minEnergy: Int) {
+        val clean = account.trim().removePrefix("@").lowercase()
+        if (clean.isBlank()) return
+        val chainId = "viz"
+        val accounts = readAccounts().filterNot { it.chainId == chainId && it.account == clean }.toMutableList()
+        val active = notificationEnabled(chainId, clean) || autoUpvoterEnabled(chainId, clean) || enabled
+        accounts += AccountIdentity(chainId, clean, active)
+        prefs.edit()
+            .putString("accounts", JSONArray(accounts.map { JSONObject().put("chainId", it.chainId).put("account", it.account).put("enabled", it.enabled) }).toString())
+            .putBoolean("vizSelfAward:$chainId:$clean", enabled)
+            .putBoolean("autoStart:$chainId:$clean", autoStart)
+            .putInt("minEnergy:$chainId:$clean", minEnergy.coerceIn(0, 9999))
+            .putInt("intervalMinutes", 8)
+            .apply()
+        appendLog("synced VIZ self-award settings for $chainId:$clean; vizSelfAward=$enabled; autoStart=$autoStart; minEnergy=${minEnergy.coerceIn(0, 9999)}")
+    }
+
     fun readAccounts(): List<AccountIdentity> {
         val raw = prefs.getString("accounts", "[]").orEmpty()
         return try {
