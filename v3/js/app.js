@@ -5915,6 +5915,47 @@
     global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify({ accounts, autoStart: Boolean(autoStart) }));
   }
 
+  function storedVizSelfAwardRows(chain) {
+    const stored = readVizSelfAwardSettings();
+    const vizChain = chain || chains.viz;
+    if (!vizChain || !stored.autoStart) return [];
+    return auth.getUsers(vizChain).map((user) => {
+      const account = auth.getUserLogin(user);
+      const saved = stored.accounts[account] || {};
+      return {
+        account,
+        enabled: Boolean(saved.enabled),
+        minEnergy: normalizeVizSelfAwardMinEnergy(saved.minEnergy || '9500'),
+        autoStart: true
+      };
+    }).filter((row) => row.account);
+  }
+
+  function syncAndroidVizSelfAwardRows(rows) {
+    if (!nativeAndroidWorkerBridge()) return 0;
+    const items = Array.isArray(rows) ? rows.filter((item) => item && item.account) : [];
+    for (const row of items) {
+      const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
+        account: row.account,
+        enabled: Boolean(row.enabled),
+        autoStart: Boolean(row.autoStart),
+        minEnergy: row.minEnergy,
+        explicitConsent: true
+      });
+      if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
+    }
+    return items.length;
+  }
+
+  function autoSyncStoredVizSelfAwardForAndroid() {
+    if (!nativeAndroidWorkerBridge()) return null;
+    const rows = storedVizSelfAwardRows(chains.viz);
+    if (!rows.length) return null;
+    const enabled = rows.filter((row) => row.enabled).length;
+    syncAndroidVizSelfAwardRows(rows);
+    return { rows: rows.length, enabled };
+  }
+
   function getVizSelfAwardRuntime() {
     if (!global.__dposVizSelfAwardRuntime || typeof global.__dposVizSelfAwardRuntime !== 'object') {
       global.__dposVizSelfAwardRuntime = { running: false, interval: null, feed: [], settings: [] };
@@ -6014,18 +6055,7 @@
     }
 
     function syncAndroidVizSelfAwardSettings(settings) {
-      const rows = Array.isArray(settings) ? settings : [];
-      for (const row of rows.filter((item) => item && item.account)) {
-        const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
-          account: row.account,
-          enabled: Boolean(row.enabled),
-          autoStart: Boolean(row.autoStart),
-          minEnergy: row.minEnergy,
-          explicitConsent: true
-        });
-        if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
-      }
-      return rows.length;
+      return syncAndroidVizSelfAwardRows(settings);
     }
 
     async function startAndroidVizSelfAward(settings) {
@@ -14867,6 +14897,18 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderRoute() {
+    if (nativeAndroidWorkerBridge() && !global.__dposVizSelfAwardGlobalAutoSynced) {
+      global.__dposVizSelfAwardGlobalAutoSynced = true;
+      try {
+        const synced = autoSyncStoredVizSelfAwardForAndroid();
+        if (synced && synced.enabled > 0) {
+          callAndroidWorkerBridge('startWorker');
+          callAndroidWorkerBridge('checkNow');
+        }
+      } catch (error) {
+        console.warn('VIZ self-award global auto-sync failed', error);
+      }
+    }
     const state = parseHash();
     if (!hasExplicitRouteState(state)) {
       const chain = chains.golos || Object.values(chains)[0];
