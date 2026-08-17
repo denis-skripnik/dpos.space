@@ -32,6 +32,8 @@ for (const marker of [
   "VIZ_SELF_AWARD_MEMO = 'dpos.space: VIZ self-award'",
   'Android native VIZ self-award включён',
   'function syncAndroidVizSelfAwardSettings(settings)',
+  'function autoSyncStoredVizSelfAwardForAndroid()',
+  '__dposVizSelfAwardGlobalAutoSynced',
   'Android native VIZ self-award auto-sync',
   "callAndroidWorkerBridge('syncVizSelfAwardSettings'",
   'enabled: Boolean(row.enabled)',
