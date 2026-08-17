@@ -6521,14 +6521,18 @@
           <h3 id="android-worker-heading">Фоновая проверка в Android</h3>
           ${nativeAutoVoteSupported ? '<p class="muted">В Android-приложении эта же кнопка Start включает фоновую проверку по выбранным настройкам. На сайте Start работает только пока открыта страница.</p><p class="warning"><strong>Android:</strong> если проверки опаздывают после блокировки экрана, откройте настройки батареи приложения и выберите режим «Без ограничений» / «Не оптимизировать» / «Разрешить работу в фоне». Foreground-уведомление будет тихо обновляться текущим статусом автоапвоутера без звуков.</p>' : `<p class="warning">${escapeHtml(androidNativeUnsupportedReason(chain))}</p>`}
           <div id="android-worker-status" role="status" aria-live="polite">Статус фоновой проверки ещё не запрошен.</div>
-          <p><button type="button" id="android-worker-copy-logs" class="secondary">Копировать Android logs до 4000 символов</button></p>
-          <p id="android-worker-copy-logs-status" class="muted" role="status" aria-live="polite"></p>
         </section>
       </form>` : `<p class="muted">Нет сохранённых ${escapeHtml(chain.title)}-аккаунтов. Откройте раздел «Аккаунты» и добавьте аккаунт с posting-ключом.</p>`}
       <section class="card" aria-labelledby="auto-upvoter-status-heading">
         <h3 id="auto-upvoter-status-heading">Статус и лента</h3>
         <div id="auto-upvoter-feed" role="status" aria-live="polite">Остановлен. Реальных отправок без кнопки Start нет.</div>
       </section>
+      ${hasAndroidWorkerBridge ? `<section class="card" aria-labelledby="support-diagnostics-heading" data-support-diagnostics-panel>
+        <h3 id="support-diagnostics-heading">Поддержка и диагностика</h3>
+        <p class="muted">Если что-то выглядит странно, скопируйте единый диагностический отчёт и отправьте разработчику. Отчёт включает статус worker, последние ошибки, хвост логов и публичные diagnostics; приватные ключи/WIF не добавляются.</p>
+        <p><button type="button" id="support-copy-diagnostics" class="secondary">Копировать диагностический отчёт</button></p>
+        <p id="support-copy-diagnostics-status" class="muted" role="status" aria-live="polite"></p>
+      </section>` : ''}
     </section>`;
 
     const form = document.getElementById('auto-upvoter-form');
@@ -6954,21 +6958,21 @@
       return result;
     }
 
-    async function copyAndroidWorkerLogs() {
-      const status = document.getElementById('android-worker-copy-logs-status');
+    async function copyAndroidWorkerDiagnostics() {
+      const status = document.getElementById('support-copy-diagnostics-status');
       try {
         const result = callAndroidWorkerBridge('getWorkerStatus');
         updateAndroidWorkerStatus(result);
         const text = androidWorkerDiagnosticText(result, 4000);
         await navigator.clipboard.writeText(text);
-        if (status) status.textContent = `Android logs скопированы: ${text.length} символов. Пришлите этот текст.`;
+        if (status) status.textContent = `Диагностический отчёт скопирован: ${text.length} символов. Отправьте этот текст разработчику.`;
       } catch (error) {
-        if (status) status.textContent = `Не удалось скопировать Android logs: ${profiles.formatError(error)}`;
+        if (status) status.textContent = `Не удалось скопировать диагностический отчёт: ${profiles.formatError(error)}`;
       }
     }
 
-    const copyLogsButton = document.getElementById('android-worker-copy-logs');
-    if (copyLogsButton) copyLogsButton.addEventListener('click', copyAndroidWorkerLogs);
+    const copyDiagnosticsButton = document.getElementById('support-copy-diagnostics');
+    if (copyDiagnosticsButton) copyDiagnosticsButton.addEventListener('click', copyAndroidWorkerDiagnostics);
 
     function findStoredAutoUpvoterUser(account) {
       const normalized = String(account || '').trim().replace(/^@/, '');
