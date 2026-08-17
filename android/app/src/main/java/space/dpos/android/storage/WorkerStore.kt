@@ -29,25 +29,37 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
 
     fun importDecision(decision: ImportDecision) {
         if (!decision.accepted) return
+        val existingNotifications = notificationEnabled(decision.chainId, decision.account)
+        val existingAutoUpvoter = autoUpvoterEnabled(decision.chainId, decision.account)
+        val existingVizSelfAward = vizSelfAwardEnabled(decision.chainId, decision.account)
+        val existingAutoStart = autoStartEnabled(decision.chainId, decision.account)
+        val finalNotifications = existingNotifications || decision.enableNotifications
+        val finalAutoUpvoter = existingAutoUpvoter || decision.enableAutoUpvoter
+        val finalVizSelfAward = existingVizSelfAward || decision.enableVizSelfAward
+        val finalAutoStart = existingAutoStart || decision.autoStart
+        val shouldUpdateVoteSettings = decision.enableAutoUpvoter || decision.enableVizSelfAward
         val accounts = readAccounts().filterNot { it.chainId == decision.chainId && it.account == decision.account }.toMutableList()
-        accounts += AccountIdentity(decision.chainId, decision.account, enabled = decision.enableNotifications || decision.enableAutoUpvoter || decision.enableVizSelfAward)
-        prefs.edit()
+        accounts += AccountIdentity(decision.chainId, decision.account, enabled = finalNotifications || finalAutoUpvoter || finalVizSelfAward)
+        val edit = prefs.edit()
             .putString("accounts", JSONArray(accounts.map { JSONObject().put("chainId", it.chainId).put("account", it.account).put("enabled", it.enabled) }).toString())
-            .putBoolean("notify:${decision.chainId}:${decision.account}", decision.enableNotifications)
-            .putString("notifyOps:${decision.chainId}:${decision.account}", JSONArray(decision.notificationOps).toString())
-            .putBoolean("upvoter:${decision.chainId}:${decision.account}", decision.enableAutoUpvoter)
-            .putBoolean("vizSelfAward:${decision.chainId}:${decision.account}", decision.enableVizSelfAward)
-            .putBoolean("autoStart:${decision.chainId}:${decision.account}", decision.autoStart)
-            .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
-            .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
+            .putBoolean("notify:${decision.chainId}:${decision.account}", finalNotifications)
+            .putString("notifyOps:${decision.chainId}:${decision.account}", JSONArray(if (decision.enableNotifications) decision.notificationOps else notificationOps(decision.chainId, decision.account)).toString())
+            .putBoolean("upvoter:${decision.chainId}:${decision.account}", finalAutoUpvoter)
+            .putBoolean("vizSelfAward:${decision.chainId}:${decision.account}", finalVizSelfAward)
+            .putBoolean("autoStart:${decision.chainId}:${decision.account}", finalAutoStart)
             .putInt("intervalMinutes", decision.intervalMinutes)
-            .putString("curators:${decision.chainId}:${decision.account}", JSONArray(decision.curators).toString())
-            .putString("favorites:${decision.chainId}:${decision.account}", JSONArray(decision.favorites).toString())
-            .putString("curatorMode:${decision.chainId}:${decision.account}", decision.curatorMode)
-            .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
-            .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
-            .apply()
-        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=${decision.enableNotifications}; realCapableUpvoter=${decision.enableAutoUpvoter}; vizSelfAward=${decision.enableVizSelfAward}; autoStart=${decision.autoStart}")
+        if (shouldUpdateVoteSettings) {
+            edit
+                .putInt("minEnergy:${decision.chainId}:${decision.account}", decision.minEnergy)
+                .putInt("maxActions:${decision.chainId}:${decision.account}", decision.maxActionsPerTick)
+                .putString("curators:${decision.chainId}:${decision.account}", JSONArray(decision.curators).toString())
+                .putString("favorites:${decision.chainId}:${decision.account}", JSONArray(decision.favorites).toString())
+                .putString("curatorMode:${decision.chainId}:${decision.account}", decision.curatorMode)
+                .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
+                .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
+        }
+        edit.apply()
+        appendLog("imported android worker settings for ${decision.chainId}:${decision.account}; notifications=$finalNotifications; realCapableUpvoter=$finalAutoUpvoter; vizSelfAward=$finalVizSelfAward; autoStart=$finalAutoStart; preservedExistingFlags=true")
     }
 
     fun syncVizSelfAward(account: String, enabled: Boolean, autoStart: Boolean, minEnergy: Int) {
