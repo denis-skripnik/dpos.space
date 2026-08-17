@@ -288,6 +288,16 @@ class DposWorkerRunner(private val context: Context, private val statusSink: ((S
                     store.appendLog(msg, "error")
                 }
             }
+            if (account.chainId == "viz") {
+                val vizEnabled = store.vizSelfAwardEnabled(account.chainId, account.account)
+                val vizAutoStart = store.autoStartEnabled(account.chainId, account.account)
+                val hasRegularKey = store.hasRegularKey(account.chainId, account.account)
+                val minEnergy = store.minEnergy(account.chainId, account.account)
+                store.appendLog("viz:${account.account}: self-award decision; enabled=$vizEnabled; autoStart=$vizAutoStart; regularKey=$hasRegularKey; minEnergy=${minEnergy / 100.0}%")
+                if (!vizEnabled && hasRegularKey && vizAutoStart) {
+                    store.appendLog("viz:${account.account}: self-award disabled in native storage despite autostart and regular key; open VIZ self-award page or press Start to resync UI flags", "warning")
+                }
+            }
             if (store.vizSelfAwardEnabled(account.chainId, account.account)) {
                 vizSelfAwardChecks += 1
                 publishStatus("viz:${account.account}: VIZ self-award запускается")
