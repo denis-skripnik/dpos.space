@@ -137,7 +137,12 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         return if (raw.isBlank()) null else try { JSONObject(raw) } catch (_: Exception) { null }
     }
     fun saveAutoUpvoterFeed(feed: List<JSONObject>) {
-        prefs.edit().putString("autoUpvoterFeed", JSONArray(feed.takeLast(30)).toString()).apply()
+        if (feed.isEmpty()) return
+        val existing = exportAutoUpvoterFeed()
+        val merged = JSONArray()
+        for (i in 0 until existing.length()) merged.put(existing.opt(i))
+        feed.forEach { merged.put(it) }
+        prefs.edit().putString("autoUpvoterFeed", JSONArray((0 until merged.length()).map { merged.optJSONObject(it) ?: JSONObject().put("value", merged.opt(it)) }.takeLast(30)).toString()).apply()
     }
     fun exportAutoUpvoterFeed(): JSONArray {
         val raw = prefs.getString("autoUpvoterFeed", "[]").orEmpty()
