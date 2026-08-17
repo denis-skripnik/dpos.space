@@ -5938,7 +5938,7 @@
       const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
         account: row.account,
         enabled: Boolean(row.enabled),
-        autoStart: Boolean(row.autoStart),
+        autoStart: Boolean(row.autoStart) && Boolean(row.enabled),
         minEnergy: row.minEnergy,
         explicitConsent: true
       });
@@ -6992,7 +6992,7 @@
         account: row.account,
         enableNotifications: true,
         enableAutoUpvoter: true,
-        autoStart: Boolean(row.autoStart),
+        autoStart: Boolean(row.autoStart) && Boolean(row.enabled),
         explicitConsent: true,
         minEnergy: helper && typeof helper.normalizeAccountSettings === 'function' ? helper.normalizeAccountSettings(row).minEnergy : (Number(row.minEnergy) || 2500),
         maxActionsPerTick: 5,
