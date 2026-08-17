@@ -6014,7 +6014,8 @@
     }
 
     async function startAndroidVizSelfAward(settings) {
-      const selected = (Array.isArray(settings) ? settings : []).filter((row) => row.enabled && row.account);
+      const rows = Array.isArray(settings) ? settings : [];
+      const selected = rows.filter((row) => row.enabled && row.account);
       if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
       await loadScript(chain.libraryPath);
       await loadScript(chain.cryptoPath);
@@ -6037,21 +6038,19 @@
             explicitConsent: true
           });
           if (!keyResult || !keyResult.ok) throw new Error(keyResult && (keyResult.reason || keyResult.status) || 'secure key import failed');
-          const settingsResult = callAndroidWorkerBridge('importWorkerSettings', {
-            chainId: 'viz',
-            account: row.account,
-            enableNotifications: false,
-            enableAutoUpvoter: false,
-            enableVizSelfAward: true,
-            explicitConsent: true,
-            autoStart: Boolean(row.autoStart),
-            minEnergy: row.minEnergy,
-            intervalMinutes: 8
-          });
-          if (!settingsResult || !settingsResult.ok) throw new Error(settingsResult && (settingsResult.reason || settingsResult.status) || 'settings import failed');
         } finally {
           decrypted.privateKey = '';
         }
+      }
+      for (const row of rows.filter((item) => item && item.account)) {
+        const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
+          account: row.account,
+          enabled: Boolean(row.enabled),
+          autoStart: Boolean(row.autoStart),
+          minEnergy: row.minEnergy,
+          explicitConsent: true
+        });
+        if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
       }
       const started = callAndroidWorkerBridge('startWorker');
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
