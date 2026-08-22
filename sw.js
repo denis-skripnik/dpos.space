@@ -1,7 +1,7 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260727-posting-authority-preflight';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20260817-android-apk-download';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -14,7 +14,7 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/history.js?v=20260727-posting-authority-preflight',
   '/v3/js/notifications.js?v=20260727-posting-authority-preflight',
   '/v3/js/auto-upvoter.js?v=20260727-posting-authority-preflight',
-  '/v3/js/pwa.js?v=20260727-posting-authority-preflight',
+  '/v3/js/pwa.js?v=20260817-android-apk-download',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'
