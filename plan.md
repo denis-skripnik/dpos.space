@@ -6252,3 +6252,22 @@ Live VIZ sample for `denis-skripnik` observed read-only on `https://api.viz.worl
 - `withdrawn`: `120650710990`
 - `next_vesting_withdrawal`: `2026-08-28T19:15:54`
 - Derived remaining amount: `(to_withdraw - withdrawn) / 1_000_000 = 180104.582855 SHARES`; remaining intervals at that rate: `8`; estimated final withdrawal time: next withdrawal plus seven daily intervals.
+
+### VIZ delegated SHARES row cancel shortcut
+
+Scope:
+- In the VIZ wallet table `Кому вы делегировали SHARES`, each delegated row exposes a cancel shortcut for the full row delegation.
+- The shortcut opens the existing `Делегирование SHARES` details/modal, fills the delegatee account, and prepares the cancellation amount `0.000000 SHARES` because VIZ `delegate_vesting_shares` cancels by setting delegated shares to zero.
+- The shortcut carries and announces the full row amount, so the user knows which full delegation is being returned without manually copying `mgb.bda` or `223000.000000 SHARES`.
+- If `min_delegation_time` is later than the current time, the shortcut is disabled and explains the earliest available return time.
+
+Non-goals:
+- No direct one-click broadcast from the table.
+- No change to the underlying VIZ operation semantics.
+- No changes to received-delegation rows.
+
+Completion contract:
+- outcome: an available delegated VIZ row has an active cancel button that opens/fills the existing delegation form; a not-yet-available row has a disabled button with an explanatory label/title.
+- verification: `node tests/v3-viz-wallet-smoke.js`, `node --check v3/js/app.js`, `node --check tests/*.js`, full `for test in tests/*.js; do node "$test"; done`, and `git diff --check`.
+- constraints: static runtime only, no live broadcast in tests, no secret/key changes, and existing preview/confirm flow remains mandatory.
+- stop_when: the VIZ API exposes a different cancellation rule than legacy code, or the change would require direct broadcast from the row.

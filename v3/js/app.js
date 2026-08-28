@@ -4055,15 +4055,26 @@
     return `${(regenerated / 100).toFixed(2)}%`;
   }
 
+  function vizDelegationReturnAvailable(minTime, nowMs) {
+    const parsed = vizParseUtcTimestamp(minTime);
+    if (!Number.isFinite(parsed)) return true;
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    return parsed <= now;
+  }
+
   function renderVizDelegations(title, rows, direction, unavailable) {
     if (unavailable) return `<p class="muted">${escapeHtml(title)}: не удалось загрузить список с доступных VIZ-нод. Управление всё равно доступно через форму «Делегирование SHARES»: для отмены укажите аккаунт и сумму 0.000000 SHARES.</p>`;
     if (!rows || !rows.length) return `<p class="muted">${escapeHtml(title)}: список пуст. Если нужно отменить делегирование, используйте форму «Делегирование SHARES» с суммой 0.000000 SHARES.</p>`;
     const body = rows.map((item) => {
       const peer = direction === 'received' ? item.delegator : item.delegatee;
+      const amount = item.vesting_shares || '';
+      const minTime = item.min_delegation_time || '';
+      const canReturn = direction !== 'delegated' || vizDelegationReturnAvailable(minTime);
+      const disabledTitle = canReturn ? `Вернуть всю делегацию ${amount || 'SHARES'}` : `Возврат будет доступен после ${minTime}`;
       const cancel = direction === 'delegated'
-        ? ` <button type="button" data-viz-cancel-delegation="${escapeHtml(peer || '')}">Отменить делегирование</button>`
+        ? ` <button type="button" data-viz-cancel-delegation="${escapeHtml(peer || '')}" data-viz-cancel-amount="${escapeHtml(amount)}" data-viz-cancel-min-time="${escapeHtml(minTime)}" data-viz-cancel-disabled="${canReturn ? '0' : '1'}" title="${escapeHtml(disabledTitle)}"${canReturn ? '' : ' disabled'}>${canReturn ? 'Отменить делегирование' : 'Возврат пока недоступен'}</button>`
         : '';
-      return `<tr><td>@${escapeHtml(peer || '')}</td><td>${escapeHtml(item.vesting_shares || '')}</td><td>${escapeHtml(item.min_delegation_time || '')}${cancel}</td></tr>`;
+      return `<tr><td>@${escapeHtml(peer || '')}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(minTime)}${cancel}</td></tr>`;
     }).join('');
     return `<div class="table-wrap"><table><caption>${escapeHtml(title)}</caption><thead><tr><th scope="col">Аккаунт</th><th scope="col">SHARES</th><th scope="col">Мин. время возврата</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
@@ -5133,15 +5144,18 @@
     }
 
     document.querySelectorAll('[data-viz-cancel-delegation]').forEach((button) => {
+      button.disabled = button.dataset.vizCancelDisabled === '1';
       button.addEventListener('click', () => {
+        if (button.disabled) return;
         const delegatee = button.dataset.vizCancelDelegation || '';
+        const amount = button.dataset.vizCancelAmount || '';
         const toInput = document.getElementById('wallet-delegation-to');
         const amountInput = document.getElementById('wallet-delegation-vesting');
-        if (amountInput) openModalForElement(amountInput, button);
         if (toInput) toInput.value = delegatee;
         if (amountInput) amountInput.value = '0.000000 SHARES';
+        if (amountInput) openModalForElement(amountInput, button);
         if (toInput) toInput.focus();
-        setStatus(`Для отмены делегирования @${delegatee} проверьте и отправьте форму «Делегирование SHARES» с 0.000000 SHARES.`, 'info');
+        setStatus(`Для возврата всей делегации @${delegatee}${amount ? ` (${amount})` : ''} проверьте и отправьте форму «Делегирование SHARES» с 0.000000 SHARES.`, 'info');
       });
     });
 
