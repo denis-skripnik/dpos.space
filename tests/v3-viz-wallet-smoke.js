@@ -66,6 +66,9 @@ assert(appSource.includes('bindGrapheneWalletQuickActions(appEl)'), 'VIZ wallet 
 assert(appSource.includes("walletQuickActionButton('Перевести VIZ', 'wallet-transfer-form'"), 'VIZ wallet balance actions can open transfer details');
 assert(appSource.includes("'wallet-transfer-amount': raw.balance"), 'VIZ wallet balance actions prefill transfer amount');
 assert(appSource.includes("walletQuickActionButton('Делегировать SHARES', 'wallet-delegation-form'"), 'VIZ wallet delegation actions can open delegation details');
+assert(appSource.includes('data-viz-cancel-amount') && appSource.includes('vizDelegationReturnAvailable'), 'VIZ delegated rows carry full amount and availability state for cancel shortcut');
+assert(appSource.includes('button.disabled = button.dataset.vizCancelDisabled === \'1\'') && appSource.includes('Возврат будет доступен'), 'VIZ delegated cancel shortcut is disabled until min delegation return time');
+assert(appSource.includes("amountInput.value = '0.000000 SHARES'") && appSource.includes('button.dataset.vizCancelAmount'), 'VIZ delegated cancel shortcut opens the form for full-row cancellation while preserving legacy zero-SHARES operation');
 assert(appSource.includes('function normalizeHumanAssetInput'), 'VIZ wallet has a helper that accepts plain human numbers and appends the network asset symbol');
 assert(bindVizForms.includes("normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES'"), 'VIZ SHARES withdraw accepts plain numbers and normalizes to six-decimal SHARES');
 assert(bindVizForms.includes("normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES'"), 'VIZ SHARES delegation accepts plain numbers and normalizes to six-decimal SHARES');
