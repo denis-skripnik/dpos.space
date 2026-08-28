@@ -16,9 +16,16 @@ Static v3 files:
 - `v3/js/profiles.js` — read-only profile/account data loading.
 - `v3/js/history.js` — read-only account history loading and normalization.
 - `v3/js/app.js` — accessible router and UI wiring.
+- `v3/js/pwa.js` — PWA/service-worker/notification panel and Android APK download copy.
+- `manifest.webmanifest`, `sw.js`, `v3/assets/icons/` — PWA shell, cache versioning, icons, and notification assets.
+- `.well-known/assetlinks.json` — Android Digital Asset Links for debug WebView/passkey support; release builds need a release fingerprint update.
 - `v3/vendor/<chain>/` — minimal required browser blockchain libraries copied for v3 runtime.
 - `tests/*.js` — v3 smoke tests.
 - `plan.md` — migration plan and cleanup notes.
+
+Canonical runtime note:
+
+- `index.html` currently loads `v3/js/app.js`; sibling files like `app.wallet-notifications.js`, `app.unified-services.js`, `app.passkey-download.js`, `app.unified-native-worker.js`, and similar `app.*.js` are historical snapshots/reference artifacts unless `index.html` is changed to load them.
 
 Android app files:
 
@@ -44,14 +51,39 @@ The old PHP app tree was removed from branch `v3`. Do not add runtime dependenci
 - Keep code transparent: small functions, clear names, no speculative abstractions.
 - Web/PWA runtime is static. Android reliable background work belongs to the native APK, not to PWA promises.
 
+## Web functionality map
+
+- Supported chain groups are Golos, VIZ, Steem, Hive, Minter, and Decimal; chain metadata and route registration live in `v3/js/chains.js`.
+- Common Graphene-style web routes include profiles/accounts/wallet/history/broadcast/notifications/editor/feeds/post/calculator/manage/register/import/instant-view/swap/explorer where each chain supports them.
+- VIZ web routes additionally include award, `viz-self-award`, registration, analytics, `custom-generator` / custom JSON generator, polls, projects, top, validator rewards, randomblockchain, Viz-links search, Voice import, VMP gateway to Minter, exchanges, manage, explorer, and help.
+- Golos web routes additionally include donate, top, witnesses rewards, stakebot/UIA/gateways where covered by tests, `post-quota`, Escrow, and legacy-compatible editor/feed/post flows.
+- Minter/Decimal web routes include validators, explorer, swap, my-coin/coins/NFT surfaces, calculator, randomblockchain, notifications, and help where registered in `chains.js`.
+- The global `#app=backup` route is site-level, not chain-level: password backup uses PBKDF2 + AES-GCM; optional passkey backup uses WebAuthn PRF + HKDF + AES-GCM when available; backup exports only whitelisted DPoS localStorage keys.
+- Large operation forms use the vanilla accessible modal layer in `v3/js/app.js`: `role="dialog"`, `aria-modal`, focus trap, Escape/close buttons, nested modal stack, and return-focus behavior. Do not regress primary operation forms back to long native spoilers.
+- Real web broadcasts must stay behind explicit user action/confirmation. Automated tests must not send real mainnet transactions.
+- Operation previews/results and diagnostics must sanitize WIF/private/secret/token/password-looking values.
+
 ## Android app and native worker
 
 - Android package: `space.dpos.android`; current debug version after the latest work is `0.1.69-debug` / `versionCode 70`.
 - The APK loads the live site from `https://dpos.blinddev.xyz/`; JavaScript fixes require the public static site and service worker cache markers to be updated too.
+- Android manifest permissions include Internet/network state, POST_NOTIFICATIONS, foreground service/data sync, and BOOT_COMPLETED. `android:allowBackup` is false.
+- `BootReceiver` may restore only user-enabled workers after reboot; it must not start hidden background signing without visible worker state.
+- `RoutePolicy` and WebView route handling must keep notification/bridge routes inside the DPoS app surface, not arbitrary external URLs.
+- Android WebView file chooser support exists for backup/import flows; keep file selection scoped to user-initiated WebView inputs and preserve TalkBack-readable fallback errors.
 - Android keys are stored via encrypted native storage; never log, copy, or preserve WIF/private keys in reports, tests, diagnostics, or chat.
+- `importWorkerSettings(json)` is for non-secret settings only; `importSecureKey(json)` is the only bridge path for private keys/seeds and returns metadata only.
+- Android WebView/passkey support depends on `.well-known/assetlinks.json`; current file is for `space.dpos.android.debug` and its debug certificate fingerprint.
 - User-facing diagnostics must be TalkBack-friendly: text status, headings, copyable support report, no icon-only meaning.
 - Foreground worker notifications must stay quiet: stable notification, low importance, no sound/vibration, and in-place status updates.
 - All worker entry points (`manual`, `foreground`, `periodic`, app-open autostart) must share the global no-overlap guard; `skipped_overlap` must not overwrite the last successful counters with zeroes.
+
+## Minter and Decimal native Android boundaries
+
+- Minter native support is a narrow SEND signer/broadcaster milestone: seed import through Android secure storage, BIP39/BIP44 Ethereum path `m/44'/60'/0'/0/0`, Mx address derivation, RLP/Keccak signing, and `/v2/send_transaction` semantics. It is not full native Minter parity for delegate/swap/token operations.
+- Decimal native support is a narrow plain DEL transfer signer/broadcaster milestone: seed import through Android secure storage, `d0`/EVM address derivation, EIP-155 legacy native DEL transfer signing, chain id 75 (`0x4b`), and `eth_sendRawTransaction` via `https://node.decimalchain.com/web3/`. It is not native Decimal token/swap/delegate/NFT parity.
+- Current Android UI removed separate native Minter/Decimal panels; normal wallet Preview/Send forms remain the visible path. Keep tests `v3-android-minter-native-smoke.js` and `v3-android-decimal-native-smoke.js` aligned with that boundary.
+- Minter/Decimal automated tests use fake broadcasters and fixture/non-secret seed phrases; never live-broadcast valid mainnet transactions in tests.
 
 ## VIZ self-award invariants
 
@@ -121,12 +153,10 @@ node tests/v3-android-worker-real-check-smoke.js
 node tests/v3-viz-self-award-smoke.js
 
 # Android targeted policy tests
-cd android
-./gradlew testDebugUnitTest --tests 'space.dpos.android.WorkerRuntimePolicyTest' --tests 'space.dpos.android.AutoVoteRuntimePolicyTest' --tests 'space.dpos.android.VoteBroadcastPolicyTest' --no-daemon
+(cd android && ./gradlew testDebugUnitTest --tests 'space.dpos.android.WorkerRuntimePolicyTest' --tests 'space.dpos.android.AutoVoteRuntimePolicyTest' --tests 'space.dpos.android.VoteBroadcastPolicyTest' --no-daemon)
 
 # Android full debug gate
-cd android
-./gradlew clean test assembleDebug --no-daemon
+(cd android && ./gradlew clean test assembleDebug --no-daemon)
 
 # static smoke server
 python3 -m http.server 8080
