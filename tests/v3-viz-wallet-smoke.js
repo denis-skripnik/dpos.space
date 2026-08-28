@@ -1,5 +1,6 @@
 const assert = require('assert');
 const fs = require('fs');
+const vm = require('vm');
 
 const appSource = fs.readFileSync('v3/js/app.js', 'utf8');
 const planSource = fs.readFileSync('plan.md', 'utf8');
@@ -65,6 +66,23 @@ assert(appSource.includes('bindGrapheneWalletQuickActions(appEl)'), 'VIZ wallet 
 assert(appSource.includes("walletQuickActionButton('Перевести VIZ', 'wallet-transfer-form'"), 'VIZ wallet balance actions can open transfer details');
 assert(appSource.includes("'wallet-transfer-amount': raw.balance"), 'VIZ wallet balance actions prefill transfer amount');
 assert(appSource.includes("walletQuickActionButton('Делегировать SHARES', 'wallet-delegation-form'"), 'VIZ wallet delegation actions can open delegation details');
+assert(appSource.includes('function normalizeHumanAssetInput'), 'VIZ wallet has a helper that accepts plain human numbers and appends the network asset symbol');
+assert(bindVizForms.includes("normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES'"), 'VIZ SHARES withdraw accepts plain numbers and normalizes to six-decimal SHARES');
+assert(bindVizForms.includes("normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES'"), 'VIZ SHARES delegation accepts plain numbers and normalizes to six-decimal SHARES');
+assert(appSource.includes('Осталось до завершения вывода') && appSource.includes('vizWithdrawRemainingText'), 'VIZ wallet shows remaining time for the current SHARES withdraw process');
+const helperRuntime = [
+  appSource.slice(appSource.indexOf('function numericAssetValue'), appSource.indexOf('function formatUiaAmount')),
+  appSource.slice(appSource.indexOf('function normalizeHumanAssetInput'), appSource.indexOf('function normalizeVizSharingRatePercent')),
+  appSource.slice(appSource.indexOf('function vizAssetMicroAmount'), appSource.indexOf('function renderVizWalletBalances')),
+  `this.__walletHelpers = { normalizeHumanAssetInput, vizWithdrawRemainingText };`
+].join('\n');
+const helperContext = { Date };
+vm.createContext(helperContext);
+vm.runInContext(helperRuntime, helperContext, { filename: 'v3/js/app.js#wallet-helper-slice' });
+assert.strictEqual(helperContext.__walletHelpers.normalizeHumanAssetInput({ vestingSymbol: 'SHARES' }, '100000', 'SHARES', 'Сумма SHARES'), '100000.000000 SHARES', 'plain VIZ SHARES number is normalized to chain asset');
+assert.strictEqual(helperContext.__walletHelpers.normalizeHumanAssetInput({ vestingSymbol: 'SHARES' }, '100000,5 SHARES', 'SHARES', 'Сумма SHARES'), '100000.500000 SHARES', 'comma and optional SHARES suffix are accepted for VIZ SHARES');
+const remainingText = helperContext.__walletHelpers.vizWithdrawRemainingText({ vesting_withdraw_rate: '24130.142198 SHARES', to_withdraw: '300755293845', withdrawn: '120650710990', next_vesting_withdrawal: '2026-08-28T19:15:54' }, Date.parse('2026-08-28T11:04:41Z'));
+assert(remainingText.includes('180104.582855 SHARES') && remainingText.includes('8 интервалов') && remainingText.includes('2026-09-04 19:15:54 UTC'), 'VIZ remaining withdraw helper uses to_withdraw/withdrawn/rate/next date');
 assert(appSource.includes('target.focus()'), 'VIZ wallet quick actions move focus to the target field');
 assert(appSource.includes('getInviteByKey(publicKey'), 'VIZ wallet can inspect invite by public key');
 assert(appSource.includes('wifToPublic'), 'VIZ create/check invite derives public invite key from secret WIF');
@@ -75,6 +93,8 @@ assert(!bindVizForms.includes("'createInvite', [auth.getCurrentLogin(chain), amo
 assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes('function executeVizonator'), 'VIZ Vizonator JS bridge adapter is present');
 assert(fs.readFileSync('v3/js/broadcast.js', 'utf8').includes("transfer_to_vesting', { to, amount }"), 'VIZ Vizonator transfer_to_vesting uses legacy bridge options');
 assert(appSource.includes('Для Vizonator memo с # передаётся в расширение как есть'), 'VIZ wallet warns about Vizonator #memo behavior');
+assert(appSource.includes("id: 'ton_gram_gate'") && appSource.includes("to: 'gram.gate'") && appSource.includes('TON адрес в memo без префиксов'), 'VIZ transfer built-ins include the TON/Gram gateway template');
+assert(!renderVizForms.includes('XCHNG.VIZ') && !renderVizForms.includes('VIZUIA на Голосе') && !renderVizForms.includes('Graphene биржа') && !renderVizForms.includes('Шлюз в Minter'), 'VIZ transfer built-ins no longer show obsolete exchange/Golos/Minter templates');
 
 for (const evidence of [
   'blockchains/viz/apps/wallet/config.json',

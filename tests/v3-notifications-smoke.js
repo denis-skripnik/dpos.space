@@ -13,7 +13,7 @@ const cssSource = fs.readFileSync(path.join(root, 'v3/css/style.css'), 'utf8');
 const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 assert(indexSource.includes('id="notifications-panel"'), 'header contains notifications panel mount');
-assert(indexSource.includes('v3/js/notifications.js') && indexSource.indexOf('v3/js/notifications.js') < indexSource.indexOf('v3/js/app.wallet-notifications.js'), 'notifications module loads before app runtime');
+assert(indexSource.includes('v3/js/notifications.js') && indexSource.indexOf('v3/js/notifications.js') < indexSource.indexOf('v3/js/app.js'), 'notifications module loads before app runtime');
 assert(chainsSource.includes("id: 'notifications'") && chainsSource.includes("title: 'Уведомления'") && chainsSource.includes('Hive/Steem-событий'), 'Golos/VIZ/Hive/Steem have notifications app entries for show-all link');
 assert(historySource.includes('content_mentions') && historySource.includes('comment_mention'), 'history operation labels include supported mention ops');
 assert(notificationsSource.includes("content_mentions") && notificationsSource.includes("comment_mention") && notificationsSource.includes("hive: ['comment', 'transfer'") && notificationsSource.includes("steem: ['comment', 'transfer'"), 'notification scanner selects explicit ops for Golos/VIZ/Hive/Steem');
