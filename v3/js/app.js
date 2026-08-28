@@ -1880,6 +1880,21 @@
     return broadcast.validateAsset(chain, value, symbols, label);
   }
 
+  function normalizeHumanAssetInput(chain, value, symbol, label, options) {
+    const settings = Object.assign({ decimals: symbol === (chain.vestingSymbol || 'VESTS') ? 6 : 3, allowZero: true }, options || {});
+    const assetSymbol = String(symbol || '').trim().toUpperCase();
+    const text = String(value || '').trim().replace(',', '.');
+    const withoutSymbol = text.replace(new RegExp(`\\s*${assetSymbol}$`, 'i'), '').trim();
+    if (!/^\d+(?:\.\d{1,18})?$/.test(withoutSymbol)) {
+      throw new Error(`${label || 'Сумма'}: введите число${assetSymbol ? `, например 100000 или 100000.000000 ${assetSymbol}` : ''}.`);
+    }
+    const number = Number(withoutSymbol);
+    if (!Number.isFinite(number) || number < 0 || (!settings.allowZero && number === 0)) {
+      throw new Error(`${label || 'Сумма'}: нужно ${settings.allowZero ? 'неотрицательное' : 'положительное'} число.`);
+    }
+    return `${number.toFixed(settings.decimals)} ${assetSymbol}`;
+  }
+
   function normalizeVizSharingRatePercent(value) {
     const text = String(value ?? '').trim().replace(',', '.');
     if (text === '') return 0;
@@ -4053,6 +4068,46 @@
     return `<div class="table-wrap"><table><caption>${escapeHtml(title)}</caption><thead><tr><th scope="col">Аккаунт</th><th scope="col">SHARES</th><th scope="col">Мин. время возврата</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
+  function vizAssetMicroAmount(value) {
+    const text = String(value || '').trim();
+    if (!text) return 0;
+    if (/^\d+$/.test(text) && text.length > 6) return Number(text) / 1000000;
+    return numericAssetValue(text);
+  }
+
+  function vizParseUtcTimestamp(value) {
+    const text = String(value || '').trim();
+    if (!text || /^1970-01-01/.test(text)) return NaN;
+    return Date.parse(text.endsWith('Z') ? text : `${text}Z`);
+  }
+
+  function formatVizDurationRu(ms) {
+    const totalHours = Math.max(0, Math.ceil(ms / 3600000));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const parts = [];
+    if (days) parts.push(`${days} дн.`);
+    if (hours || !parts.length) parts.push(`${hours} ч.`);
+    return parts.join(' ');
+  }
+
+  function vizWithdrawRemainingText(raw, nowMs) {
+    const rate = numericAssetValue(raw && raw.vesting_withdraw_rate);
+    const toWithdraw = vizAssetMicroAmount(raw && raw.to_withdraw);
+    const withdrawn = vizAssetMicroAmount(raw && raw.withdrawn);
+    const remaining = Math.max(toWithdraw - withdrawn, 0);
+    const next = vizParseUtcTimestamp(raw && raw.next_vesting_withdrawal);
+    if (!rate || !remaining || !Number.isFinite(next)) return '';
+    const intervals = Math.ceil(remaining / rate);
+    if (intervals <= 0) return '';
+    const finalTime = next + Math.max(0, intervals - 1) * 24 * 60 * 60 * 1000;
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    const duration = formatVizDurationRu(finalTime - now);
+    const amount = `${remaining.toFixed(6)} SHARES`;
+    const finalDate = new Date(finalTime).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
+    return `примерно ${duration}: осталось ${amount}, ${intervals} интервалов, финальный вывод около ${finalDate}`;
+  }
+
   function renderVizWalletBalances(profile, delegations) {
     const raw = (profile && profile.raw) || {};
     const rows = [];
@@ -4062,6 +4117,7 @@
     };
     const withdrawRate = Number.parseFloat(raw.vesting_withdraw_rate) || 0;
     const fullWithdraw = withdrawRate ? `${(withdrawRate * 28).toFixed(6)} SHARES` : '';
+    const withdrawRemaining = vizWithdrawRemainingText(raw);
 
     add('VIZ', raw.balance, walletQuickActionButton('Перевести VIZ', 'wallet-transfer-form', { 'wallet-transfer-amount': raw.balance }) + ' ' + walletQuickActionButton('В SHARES', 'wallet-vesting-form', { 'wallet-vesting-amount': raw.balance }));
     add('SHARES', raw.vesting_shares, walletQuickActionButton('Вывести SHARES', 'wallet-withdraw-vesting-form', { 'wallet-withdraw-vesting-amount': vizSharesMax(profile, 'vesting_shares') }) + ' ' + walletQuickActionButton('Делегировать SHARES', 'wallet-delegation-form', { 'wallet-delegation-vesting': vizSharesMax(profile, 'vesting_shares') }));
@@ -4071,6 +4127,7 @@
     add('Energy', vizCurrentEnergy(profile) || (raw.energy !== undefined ? `${Number(raw.energy) / 100}%` : ''));
     add('Reward SHARES', raw.reward_vesting_balance);
     add('Выводится по', raw.vesting_withdraw_rate, fullWithdraw ? `итого за 28 интервалов: ${fullWithdraw}` : '');
+    add('Осталось до завершения вывода', withdrawRemaining);
     add('Следующий вывод', raw.next_vesting_withdrawal);
 
     const list = `<ul class="wallet-viz-balances">${rows.map(([label, value, note]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}${note ? ` <span class="muted">— ${String(note).includes('<button') ? note : escapeHtml(note)}</span>` : ''}</li>`).join('') || '<li>Нет данных о балансах.</li>'}</ul>`;
@@ -4091,15 +4148,12 @@
 
   function renderVizTransferTemplateSelect(login) {
     const builtIns = [
-      { id: 'xchng_market', name: 'Биржа, XCHNG.VIZ (memo: log:)', to: 'xchng', memo: 'log:' },
-      { id: 'golos_xchng_market', name: 'VIZUIA на Голосе (memo: log:)', to: 'gls.xchng', memo: 'log:' },
-      { id: 'gph_xchng_market', name: 'Graphene биржа, XCHNG.VIZ (memo: log:)', to: 'gph.xchng', memo: 'log:' },
-      { id: 'vmp_market', name: 'Шлюз в Minter (memo начинается с Mx)', to: 'vmp', memo: 'Mx' },
+      { id: 'ton_gram_gate', name: 'TON (Gram) через gateway.viz.cx', to: 'gram.gate', memo: '', hint: 'TON адрес в memo без префиксов' },
       { id: 'self_shares', name: 'На свой аккаунт в SHARES', to: login || '', memo: '', toVesting: true }
     ];
-    const builtInOptions = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-to-vesting="${item.toVesting ? '1' : ''}">${escapeHtml(item.name)}</option>`).join('');
+    const builtInOptions = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-to-vesting="${item.toVesting ? '1' : ''}" data-hint="${escapeHtml(item.hint || '')}">${escapeHtml(item.name)}</option>`).join('');
     const customOptions = readVizTransferTemplates().map((item, index) => `<option value="${index + 1}" data-to="${escapeHtml(item.to || '')}" data-memo="${escapeHtml(item.memo || '')}" data-to-vesting="${item.transfer_to_vesting ? '1' : ''}">${escapeHtml(item.name)}</option>`).join('');
-    return `<div class="field"><label for="wallet-viz-transfer-template">Шаблон перевода VIZ</label><select id="wallet-viz-transfer-template"><option value="">Выберите шаблон</option>${builtInOptions}${customOptions}</select> <button type="button" id="wallet-viz-template-remove" hidden>Удалить текущий шаблон</button></div>`;
+    return `<div class="field"><label for="wallet-viz-transfer-template">Шаблон перевода VIZ</label><select id="wallet-viz-transfer-template"><option value="">Выберите шаблон</option>${builtInOptions}${customOptions}</select> <button type="button" id="wallet-viz-template-remove" hidden>Удалить текущий шаблон</button><p id="wallet-viz-template-hint" class="muted">Для TON (Gram): получатель gram.gate, TON адрес укажите в memo без добавлений.</p></div>`;
   }
 
   function renderVizWalletForms(chain, profile) {
@@ -4148,7 +4202,7 @@
           <fieldset>
             <legend>Вывод SHARES</legend>
             <p class="muted">Если вывод уже запущен, новая операция изменит сумму вывода.</p>
-            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма SHARES</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="1.000000 SHARES">${withdrawMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(withdrawMax)}">Максимум ${escapeHtml(withdrawMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-withdraw-vesting-amount">Сумма SHARES числом</label><input id="wallet-withdraw-vesting-amount" name="vesting" type="text" required placeholder="100000">${withdrawMax ? ` <button type="button" data-fill-target="wallet-withdraw-vesting-amount" data-fill-value="${escapeHtml(withdrawMax)}">Максимум ${escapeHtml(withdrawMax)}</button>` : ''}</div>
             <button type="submit" name="intent" value="preview">Проверить вывод SHARES</button>
             <button type="submit" name="intent" value="send">Начать вывод</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -4167,7 +4221,7 @@
           <fieldset>
             <legend>Делегирование SHARES</legend>
             <div class="field"><label for="wallet-delegation-to">Кому</label><input id="wallet-delegation-to" name="delegatee" type="text" required autocomplete="off"></div>
-            <div class="field"><label for="wallet-delegation-vesting">Сумма SHARES</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="1.000000 SHARES">${delegatedMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(delegatedMax)}">Максимум ${escapeHtml(delegatedMax)}</button>` : ''}</div>
+            <div class="field"><label for="wallet-delegation-vesting">Сумма SHARES числом</label><input id="wallet-delegation-vesting" name="vesting" type="text" required placeholder="100000">${delegatedMax ? ` <button type="button" data-fill-target="wallet-delegation-vesting" data-fill-value="${escapeHtml(delegatedMax)}">Максимум ${escapeHtml(delegatedMax)}</button>` : ''}</div>
             <button type="submit" name="intent" value="preview">Проверить делегирование</button>
             <button type="submit" name="intent" value="send">Делегировать</button>
             <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -4988,6 +5042,8 @@
           if (to) to.value = option.dataset.to || '';
           if (memo) memo.value = option.dataset.memo || '';
           if (toVesting) toVesting.checked = option.dataset.toVesting === '1';
+          const hint = document.getElementById('wallet-viz-template-hint');
+          if (hint && option.dataset.hint) hint.textContent = option.dataset.hint;
           if (remove) remove.hidden = option.dataset.builtin === '1';
         });
       }
@@ -5116,7 +5172,7 @@
     });
 
     bindOperationForm(chain, 'wallet-withdraw-vesting-form', (form) => {
-      const amount = normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
+      const amount = normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
       return broadcast.prepare(chain, 'active', 'withdrawVesting', [auth.getCurrentLogin(chain), amount], { title: 'Вывод SHARES', amount });
     });
 
@@ -5127,7 +5183,7 @@
 
     bindOperationForm(chain, 'wallet-delegation-form', (form) => {
       const to = normalizeAccountInput(chain, form.get('delegatee'), 'Кому делегировать');
-      const amount = normalizeAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
+      const amount = normalizeHumanAssetInput(chain, form.get('vesting'), chain.vestingSymbol, 'Сумма SHARES');
       return broadcast.prepare(chain, 'active', 'delegateVestingShares', [auth.getCurrentLogin(chain), to, amount], { title: 'Делегирование SHARES', to, amount });
     });
 
@@ -6180,7 +6236,7 @@
             await startAndroidVizSelfAward(settings);
             runtime.running = true;
             runtime.settings = settings;
-            setStatus('VIZ автонаграда себе запущена в Android native foreground worker.', 'ok');
+            setStatus('VIZ автонаграда себе запущена в Android-приложении.', 'ok');
             return;
           }
           await runTick(settings);
@@ -6203,7 +6259,7 @@
       stopButton.addEventListener('click', () => {
         if (hasAndroidWorkerBridge) {
           const result = callAndroidWorkerBridge('stopWorker');
-          appendFeed(`Android native worker остановлен: ${result && result.status ? result.status : 'ok'}`);
+          appendFeed(`Android-приложение остановило автонаграду: ${result && result.status ? result.status : 'ok'}`);
         }
         stop('Остановлено пользователем. Новых автонаград не будет.');
       });

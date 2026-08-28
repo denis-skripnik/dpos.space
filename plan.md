@@ -6217,3 +6217,38 @@ Minter and Decimal notifications are now supported through their existing public
 - The UI remains unified: open/save the normal Notifications page; no separate Android import/start/check buttons or Minter/Decimal signer panels are exposed.
 
 - 2026-07-26 follow-up: Minter/Decimal notification filters include `multisend` as a normal shared wallet operation. Raw API/message names are handled by the operation catalog before filtering, not by notification-specific hardcode.
+
+### Wallet amount normalization and VIZ withdraw remaining time
+
+Scope:
+- Let wallet users enter human numbers for power/vesting operations instead of requiring exact chain assets such as `100000.000000 SHARES` or `123.000000 GESTS`.
+- Preserve legacy semantics from old wallet code: VIZ SHARES forms normalize `parseFloat(value).toFixed(6) + ' SHARES'`; Golos/Hive/Steem power inputs accept СГ/HP/SP numbers and convert to raw GESTS/VESTS through live dynamic-global-property rates.
+- Add a VIZ-only wallet balance row that estimates how long the current power-down still has until completion, using `to_withdraw`, `withdrawn`, `vesting_withdraw_rate`, and `next_vesting_withdrawal`.
+- Replace obsolete VIZ transfer built-in templates: remove XCHNG.VIZ, Graphene exchange, VIZUIA-on-Golos and VMP/Minter gateway shortcuts; add TON/Gram gateway template from https://gateway.viz.cx/ with account `gram.gate` and memo as the plain TON address without prefixes.
+
+Non-goals:
+- No live transaction broadcast in tests.
+- No backend/PHP/indexer dependency.
+- No migration of user custom `viz_transfer_templates`; only built-in visible templates change.
+- No change to Minter/Decimal wallet operations in this pass.
+
+Implementation tasks:
+1. Add focused smoke checks for VIZ numeric SHARES input normalization, VIZ remaining-withdraw display, and VIZ built-in transfer templates.
+2. Add/adjust smoke checks that Golos/Hive/Steem power form labels and helpers accept human power numbers and normalize to raw network vesting assets internally.
+3. Implement a shared low-risk formatter for human numeric asset input in `v3/js/app.js` and use it for VIZ withdraw/delegation SHARES.
+4. Implement VIZ withdraw remaining-time helper with safe empty output when no active withdraw data exists.
+5. Keep all changes in `v3/js/app.js`, existing focused smoke tests, and this plan section.
+
+Completion contract:
+- outcome: VIZ wallet forms accept `100000`, `100000.5`, `100000,5` for SHARES operations and prepare `100000.000000 SHARES` / `100000.500000 SHARES`; Golos/Hive/Steem continue accepting СГ/HP/SP numbers and converting to GESTS/VESTS; VIZ wallet shows remaining current withdraw time when the account has active withdraw state; obsolete exchange/Minter/VIZUIA templates are not visible.
+- verification: `node --check v3/js/app.js`, `node --check tests/*.js`, `node tests/v3-viz-wallet-smoke.js`, `node tests/v3-golos-wallet-smoke.js`, `node tests/v3-hive-wallet-smoke.js`, `node tests/v3-steem-wallet-smoke.js`, plus `git diff --check`.
+- constraints: static runtime only; old localStorage auth unchanged; no secret output; no real mainnet writes in automated tests; visible copy remains screen-reader-friendly.
+- boundaries: in scope VIZ/Golos/Hive/Steem wallet form normalization and VIZ transfer built-ins; out of scope Android native signing changes, production deployment, APK rebuild, and unrelated route parity.
+- stop_when: a required formula cannot be derived from existing legacy code/RPC fields, or a fix would require changing key storage, live broadcast behavior, or production deployment.
+
+Live VIZ sample for `denis-skripnik` observed read-only on `https://api.viz.world` during planning:
+- `vesting_withdraw_rate`: `24130.142198 SHARES`
+- `to_withdraw`: `300755293845`
+- `withdrawn`: `120650710990`
+- `next_vesting_withdrawal`: `2026-08-28T19:15:54`
+- Derived remaining amount: `(to_withdraw - withdrawn) / 1_000_000 = 180104.582855 SHARES`; remaining intervals at that rate: `8`; estimated final withdrawal time: next withdrawal plus seven daily intervals.
