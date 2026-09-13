@@ -6271,3 +6271,21 @@ Completion contract:
 - verification: `node tests/v3-viz-wallet-smoke.js`, `node --check v3/js/app.js`, `node --check tests/*.js`, full `for test in tests/*.js; do node "$test"; done`, and `git diff --check`.
 - constraints: static runtime only, no live broadcast in tests, no secret/key changes, and existing preview/confirm flow remains mandatory.
 - stop_when: the VIZ API exposes a different cancellation rule than legacy code, or the change would require direct broadcast from the row.
+
+### VIZ self-award energy threshold plain-language UX
+
+Scope:
+- Keep the existing exact network-math explanation.
+- Add a plain-language paragraph before it with concrete examples for 95%, 99%, and 99.9%, including what happens at/below the threshold.
+- Show and accept ordinary percent values in self-award controls; do not expose the internal 0–10000 basis-point scale as the primary input.
+- Preserve existing stored settings and Android/native contracts by converting stored/internal values such as 9500 to 95 for display and converting user percent input back to the internal scale on save/sync.
+
+Non-goals:
+- No change to award cadence, maximum 0.1% spend, signing, autostart, or background execution.
+- No migration or rewrite of localStorage records.
+
+Completion contract:
+- outcome: a normal user can enter 95, 99, or 99.9 and understand how the threshold limits energy spending; old 9500/9900 settings display as 95/99.
+- verification: focused `v3-viz-self-award-smoke.js`, JavaScript syntax checks, full JS smoke suite, and browser inspection of rendered labels/copy/default values.
+- constraints: retain the mathematical paragraph and all current consent/security behavior; no deployment changes.
+- stop_when: implementation requires changing stored/native `minEnergy` units or award-spend behavior.

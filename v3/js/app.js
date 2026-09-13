@@ -5944,6 +5944,11 @@
     return Math.max(0, Math.min(9999, basis));
   }
 
+  function vizSelfAwardMinEnergyPercent(value) {
+    const percent = normalizeVizSelfAwardMinEnergy(value) / 100;
+    return percent.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+
   function currentVizEnergy(account, nowMs) {
     if (!account) return NaN;
     const base = Number(account.energy);
@@ -6052,8 +6057,8 @@
         <label><input id="${checkboxId}" type="checkbox" name="enabled" value="1" ${saved.enabled ? 'checked' : ''}> Включить автонаграду для этого аккаунта</label>
         <p class="muted">Regular-ключ: ${keyStatus && keyStatus.regularOrPosting ? 'сохранён' : 'не найден или недоступен'}.</p>
         <div class="field">
-          <label for="${inputId}">Минимальная энергия, % или шкала 0–10000</label>
-          <input id="${inputId}" name="minEnergy" type="number" min="0" max="10000" step="1" value="${escapeHtml(saved.minEnergy || '9500')}">
+          <label for="${inputId}">Минимальная энергия, %</label>
+          <input id="${inputId}" name="minEnergy" type="number" min="0" max="99.99" step="0.01" inputmode="decimal" aria-describedby="viz-self-award-energy-help" value="${escapeHtml(vizSelfAwardMinEnergyPercent(saved.minEnergy || '9500'))}">
         </div>
       </fieldset>`;
     }).join('');
@@ -6062,13 +6067,14 @@
       <h2 id="viz-self-award-heading">VIZ: автонаграда себе</h2>
       <p>Сервис не даёт энергии простаивать на 100%: выбранные сохранённые аккаунты периодически награждают сами себя, если энергия выше заданного минимума.</p>
       <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические VIZ award без подтверждения каждой награды. Используется regular-ключ, сохранённый в разделе «Аккаунты».</p>
-      <p class="muted">Точный параметр сети: 100% энергии восстанавливается за 432000 секунд. Поэтому 0.1% восстанавливается за 7 минут 12 секунд. ${hasAndroidWorkerBridge ? 'В Android-приложении Start включает native foreground worker; на сайте работает active-tab режим.' : 'Web-версия работает, пока открыта страница/PWA; фоновая Android-версия доступна в APK.'}</p>
+      <p id="viz-self-award-energy-help"><strong>Что вводить:</strong> обычный процент энергии — например 95, 99 или 99.9. Это нижняя граница запаса, а не размер награды. При 95% сервис не будет тратить энергию ниже 95%; при 99% сохранит не меньше 99%; при 99.9% награда возможна только почти при полном запасе. За одну проверку тратится максимум 0.1% энергии и только часть выше выбранной границы. Если энергия равна выбранному порогу или ниже, сервис ничего не отправляет. Внутренние значения 9500 и 9900 вводить не нужно.</p>
+      <p class="muted">Точный параметр сети: 100% энергии восстанавливается за 432000 секунд. Поэтому 0.1% восстанавливается за 7 минут 12 секунд. Внутри VIZ энергия хранится по шкале 0–10000: 9500 означает 95%, а 9900 — 99%. ${hasAndroidWorkerBridge ? 'В Android-приложении Start включает native foreground worker; на сайте работает active-tab режим.' : 'Web-версия работает, пока открыта страница/PWA; фоновая Android-версия доступна в APK.'}</p>
       ${hasAndroidWorkerBridge ? '<p class="warning"><strong>Android:</strong> если проверки опаздывают после блокировки экрана, откройте настройки батареи приложения и выберите режим «Без ограничений» / «Не оптимизировать» / «Разрешить работу в фоне». Foreground-уведомление будет тихо обновляться текущим статусом VIZ self-award без звуков.</p>' : ''}
       ${users.length ? `<form id="viz-self-award-form">
         <div class="field-grid">
           <div class="field">
-            <label for="viz-self-award-apply-value">Значение для всех аккаунтов</label>
-            <input id="viz-self-award-apply-value" type="number" min="0" max="10000" step="1" value="9500">
+            <label for="viz-self-award-apply-value">Минимальная энергия для всех аккаунтов, %</label>
+            <input id="viz-self-award-apply-value" type="number" min="0" max="99.99" step="0.01" inputmode="decimal" aria-describedby="viz-self-award-energy-help" value="95">
           </div>
           <div class="field actions"><button type="button" id="viz-self-award-apply-all">Скопировать минимум на все аккаунты</button></div>
         </div>
@@ -6230,7 +6236,7 @@
     if (applyAll && applyValue && form) {
       applyAll.addEventListener('click', () => {
         const value = normalizeVizSelfAwardMinEnergy(applyValue.value);
-        form.querySelectorAll('[name="minEnergy"]').forEach((input) => { input.value = String(value); });
+        form.querySelectorAll('[name="minEnergy"]').forEach((input) => { input.value = vizSelfAwardMinEnergyPercent(value); });
         collectSettings();
         setStatus(`Минимальная энергия ${(value / 100).toFixed(2)}% скопирована на все VIZ-аккаунты.`, 'ok');
       });
