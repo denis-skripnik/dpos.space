@@ -33,9 +33,11 @@ assert(styleSource.includes('.pwa-panel {\n  position: static;'), 'PWA panel is 
 assert(!/\.pwa-panel\s*\{[^}]*position:\s*(fixed|sticky)/.test(styleSource), 'PWA panel must not overlay app content');
 
 assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-"), 'service worker has explicit versioned cache');
+assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-20260913-viz-self-award-energy-percent'"), 'service worker cache version changes with the VIZ self-award percent UX runtime');
 assert(swSource.includes("'/v3/js/pwa.js?v="), 'service worker caches versioned PWA helper');
 assert(swSource.includes("'/v3/js/app.wallet-notifications.js'"), 'service worker caches physically versioned app runtime');
 assert(indexSource.includes('v3/js/app.js?v=') && indexSource.includes('v3/css/style.css?v='), 'index uses versioned app runtime and CSS to bypass stale browser/WebView/CDN cache');
+assert(indexSource.includes('v3/js/app.js?v=20260913-viz-self-award-energy-percent'), 'index requests the refreshed VIZ self-award app runtime marker');
 assert(swSource.includes('networkFirst(request)') && swSource.includes('isRuntimeAsset(request)'), 'service worker uses network-first for runtime JS/CSS/manifest');
 assert(swSource.includes('notificationclick'), 'service worker focuses or opens app from local notifications');
 assert(!/setInterval|setTimeout\s*\(/.test(swSource), 'service worker does not pretend to run a background scanner timer');

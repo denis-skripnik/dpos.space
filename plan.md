@@ -6289,3 +6289,20 @@ Completion contract:
 - verification: focused `v3-viz-self-award-smoke.js`, JavaScript syntax checks, full JS smoke suite, and browser inspection of rendered labels/copy/default values.
 - constraints: retain the mathematical paragraph and all current consent/security behavior; no deployment changes.
 - stop_when: implementation requires changing stored/native `minEnergy` units or award-spend behavior.
+
+### VIZ self-award web runtime cache refresh
+
+Scope:
+- Bump the canonical `v3/js/app.js` query marker in `index.html` after the self-award percent/copy change.
+- Bump `DPOS_CACHE_VERSION` in `sw.js` so existing PWA/Android WebView sessions replace the old runtime cache.
+- Update focused smoke expectations for the new marker.
+
+Non-goals:
+- No Android source, APK version, or APK binary rebuild; the APK loads the web runtime and no native contract changed.
+- No change to service-worker fetch strategy or shell asset membership.
+
+Completion contract:
+- outcome: the existing Android APK and PWA request the newly versioned `app.js`, while a newly activated service worker uses a fresh cache namespace.
+- verification: focused PWA/auto-upvoter smoke tests, all JavaScript syntax checks, full JS smoke suite, `git diff --check`, and local HTTP verification of the new markers.
+- constraints: preserve network-first runtime handling and do not add `app.js` to precache.
+- stop_when: a native Android API/bridge change is discovered that requires an APK rebuild.
