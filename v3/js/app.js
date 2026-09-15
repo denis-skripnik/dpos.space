@@ -12313,6 +12313,13 @@ Memo key: ${keys.memo}`);
     return list.map((outcome, index) => String((outcome && outcome.label) || `Исход ${index}`));
   }
 
+  function vizPmChoiceOptions(market, outcomes, withIndex) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const isBinary = Number(market && market.market_type) === 0;
+    const source = labels.length ? labels : (isBinary ? ['Да / A', 'Нет / B'] : []);
+    return source.map((label, index) => ({ value: String(index), label: withIndex ? `${index}: ${label}` : label }));
+  }
+
   function vizPmLookupApi(ctx) {
     return ctx && ctx.connection && ctx.connection.client && ctx.connection.client.api;
   }
@@ -12650,7 +12657,6 @@ Memo key: ${keys.memo}`);
       ['Резерв оракула (минимум)', escapeHtml(String(vizPmProp(props, 'pm_min_oracle_insurance')))],
       ['Регистрация оракула (комиссия)', escapeHtml(String(vizPmProp(props, 'pm_oracle_registration_fee')))],
       ['Макс. комиссия оракула', escapeHtml(vizPmBp(vizPmProp(props, 'pm_max_oracle_fee_percent')))],
-      ['Мин. ставка', escapeHtml(String(vizPmProp(props, 'pm_min_bet')))],
       ['Мин. пакетная ставка', escapeHtml(String(vizPmProp(props, 'pm_min_batch_bet')))],
       ['Леверидж включён', vizPmProp(props, 'pm_leverage_enabled') ? 'да' : 'нет'],
       ['Ленивый пул включён', vizPmProp(props, 'pm_lazy_pool_enabled') ? 'да' : 'нет'],
@@ -12968,11 +12974,13 @@ Memo key: ${keys.memo}`);
     );
     vizPmBindForms(chain, builders);
     vizPmAfterRender();
+    vizPmBindLeverageQuote(chain, ctx, id);
     setStatus(`Рынок #${id} открыт. Ставки и ликвидность используют ликвидный VIZ через проверку и подтверждение.`, 'info');
   }
 
   function vizPmOutcomesBlock(market, outcomes, weightSums) {
-    const labels = vizPmOutcomeLabels(outcomes);
+    const isBinary = Number(market.market_type) === 0;
+    const labels = vizPmOutcomeLabels(outcomes).length ? vizPmOutcomeLabels(outcomes) : (isBinary ? ['Да / A', 'Нет / B'] : []);
     const quotes = vizPmPoolQuotes(market, labels);
     const sumOutcomes = weightSums && Array.isArray(weightSums.outcomes) ? weightSums.outcomes : [];
     const rows = (outcomes.length ? outcomes : labels.map((label, index) => ({ label, outcome_index: index }))).map((outcome, index) => {
@@ -12991,9 +12999,7 @@ Memo key: ${keys.memo}`);
   }
 
   function vizPmBetForm(market, outcomes, ctx) {
-    const labels = vizPmOutcomeLabels(outcomes);
-    const isBinary = Number(market.market_type) === 0;
-    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : (isBinary ? [{ value: '0', label: 'Да / A' }, { value: '1', label: 'Нет / B' }] : []);
+    const options = vizPmChoiceOptions(market, outcomes);
     return vizPmOperation('Сделать ставку', 'viz-pm-bet-form', 'Ставка ликвидным VIZ', [
       { id: 'viz-pm-bet-choice', name: 'choice', type: 'select', label: 'Исход', options, required: true },
       { id: 'viz-pm-bet-amount', name: 'amount', type: 'text', label: 'Сумма ставки (VIZ)', required: true, placeholder: '10.000 VIZ', max: ctx.liquidMax },
@@ -13003,9 +13009,7 @@ Memo key: ${keys.memo}`);
   }
 
   function vizPmCommitRevealForms(market, outcomes, ctx, props) {
-    const labels = vizPmOutcomeLabels(outcomes);
-    const isBinary = Number(market.market_type) === 0;
-    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : (isBinary ? [{ value: '0', label: 'Да / A' }, { value: '1', label: 'Нет / B' }] : []);
+    const options = vizPmChoiceOptions(market, outcomes);
     const noRevealFee = vizPmProp(props, 'pm_commit_no_reveal_penalty_percent');
     return `${vizPmOperation('Скрытая ставка (commit)', 'viz-pm-commit-form', 'Commit-ставка', [
       { id: 'viz-pm-commit-choice', name: 'choice', type: 'select', label: 'Исход', options, required: true },
@@ -13094,15 +13098,15 @@ Memo key: ${keys.memo}`);
   }
 
   function vizPmLeverageForms(market, outcomes, ctx, props) {
-    const labels = vizPmOutcomeLabels(outcomes);
-    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : [];
+    const options = vizPmChoiceOptions(market, outcomes);
     return `${vizPmOperation('Открыть позицию с плечом', 'viz-pm-leverage-open-form', 'Открытие плеча', [
       { id: 'viz-pm-lev-open-outcome', name: 'outcome_index', type: 'select', label: 'Исход', options, required: true },
       { id: 'viz-pm-lev-open-collateral', name: 'collateral', type: 'text', label: 'Залог (VIZ)', required: true, placeholder: '10.000 VIZ', max: ctx.liquidMax },
       { id: 'viz-pm-lev-open-loan', name: 'loan', type: 'text', label: 'Заём (VIZ)', required: true, placeholder: '90.000 VIZ' },
       { id: 'viz-pm-lev-open-min', name: 'min_tokens', type: 'number', label: 'Минимум токенов', min: 0, step: 1, value: '0' },
       { id: 'viz-pm-lev-open-slippage', name: 'max_slippage_percent', type: 'number', label: 'Макс. проскальзывание, bp', min: 0, step: 1, value: String(vizPmProp(props, 'pm_leverage_max_slippage_percent') ? Number(vizPmProp(props, 'pm_leverage_max_slippage_percent')) * 100 : 1000) }
-    ], 'Проверьте котировку займа ниже перед отправкой.')}
+    ], 'Нажмите «Рассчитать максимальный заём» — котировка использует исход и залог из формы.')}
+    <div class="field"><button type="button" id="viz-pm-lev-quote-btn">Рассчитать максимальный заём</button><div id="viz-pm-lev-quote" role="status" aria-live="polite"></div></div>
     ${vizPmOperation('Закрыть позицию с плечом', 'viz-pm-leverage-close-form', 'Закрытие плеча', [
       { id: 'viz-pm-lev-close-id', name: 'position_id', type: 'number', label: 'Номер позиции', required: true, min: 1, step: 1 },
       { id: 'viz-pm-lev-close-min', name: 'min_return', type: 'number', label: 'Минимальный возврат (0 = без)', min: 0, step: 1, value: '0' }
@@ -13121,14 +13125,12 @@ Memo key: ${keys.memo}`);
       ['Комиссия', escapeHtml(vizPmBp(source.fee_percent))],
       ['Рынков разрешено', escapeHtml(String(source.markets_resolved !== undefined ? source.markets_resolved : ''))],
       ['Споров выиграно/проиграно', `${escapeHtml(String(source.disputes_won || 0))} / ${escapeHtml(String(source.disputes_lost || 0))}`],
-      ['Надёжность', oracle.reliability_score !== undefined ? escapeHtml(`${(Number(oracle.reliability_score) / 100).toFixed(2)}%`) : '—'],
-      ['Ждут резолва', escapeHtml(String(oracle.markets_awaiting_resolution !== undefined ? oracle.markets_awaiting_resolution : ''))]
+      ['Надёжность', oracle.reliability_score !== undefined ? escapeHtml(`${(Number(oracle.reliability_score) / 100).toFixed(2)}%`) : '—']
     ]);
   }
 
   function vizPmResolveForms(market, outcomes) {
-    const labels = vizPmOutcomeLabels(outcomes);
-    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label: `${index}: ${label}` })) : [];
+    const options = vizPmChoiceOptions(market, outcomes, true);
     return `${vizPmOperation('Разрешить рынок', 'viz-pm-resolve-form', 'Резолв рынка (оракул)', [
       { id: 'viz-pm-resolve-outcome', name: 'winning_outcome', type: 'select', label: 'Победный исход', options, required: true },
       { id: 'viz-pm-resolve-url', name: 'decision_url', type: 'text', label: 'URL доказательства (до 256)', placeholder: 'https://...' },
@@ -13147,19 +13149,22 @@ Memo key: ${keys.memo}`);
       ['Причина', escapeHtml(String(dispute.reason || ''))]
     ])];
     if (votes) {
+      const totalVotes = Array.isArray(votes.votes) ? votes.votes.length : 0;
+      const quorumPct = (Number(votes.quorum_percent_bp || 0) / 100).toFixed(2);
+      const consensusPct = (Number(votes.expected_consensus_strength_bp || 0) / 100).toFixed(2);
       parts.push(vizPmKv([
-        ['Голосов «поддержать оракула»', escapeHtml(vizPmAsset(votes.uphold_weight))],
-        ['Голосов «изменить исход»', escapeHtml(vizPmAsset(votes.challenge_weight))],
+        ['Голосов подано', String(totalVotes)],
         ['Кворум достигнут', votes.quorum_reached ? 'да' : 'нет'],
-        ['Ожидаемый исход', votes.expected_outcome >= 0 ? escapeHtml(String(votes.expected_outcome)) : '—']
+        ['Участие (кворум)', `${quorumPct}%`],
+        ['Ожидаемое решение', votes.expected_uphold ? 'поддержать оракула' : (votes.expected_outcome >= 0 ? `изменить на исход ${escapeHtml(String(votes.expected_outcome))}` : '—')],
+        ['Сила консенсуса', `${consensusPct}%`]
       ]));
     }
     return parts.join('');
   }
 
   function vizPmDisputeForms(market, outcomes, props) {
-    const labels = vizPmOutcomeLabels(outcomes);
-    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label: `${index}: ${label}` })) : [];
+    const options = vizPmChoiceOptions(market, outcomes, true);
     const fee = vizPmProp(props, 'pm_dispute_fee');
     return `${vizPmOperation('Создать спор', 'viz-pm-dispute-create-form', 'Создание спора' + (fee ? ` (комиссия ${fee})` : ''), [
       { id: 'viz-pm-dispute-create-outcome', name: 'proposed_outcome', type: 'select', label: 'Правильный исход (предложение)', options, required: true },
@@ -13337,6 +13342,52 @@ Memo key: ${keys.memo}`);
         return vizPmPrepared(chain, 'active', 'pmLeverageConvert', [from, positionId, conversion, []], { title: 'VIZ pm_leverage_convert' });
       }
     };
+  }
+
+  function vizPmBindLeverageQuote(chain, ctx, marketId) {
+    const button = document.getElementById('viz-pm-lev-quote-btn');
+    const out = document.getElementById('viz-pm-lev-quote');
+    if (!button || !out) return;
+    button.addEventListener('click', async () => {
+      out.textContent = 'Считаю котировку плеча...';
+      try {
+        const outcomeEl = document.getElementById('viz-pm-lev-open-outcome');
+        const collateralEl = document.getElementById('viz-pm-lev-open-collateral');
+        const outcomeIndex = Number(outcomeEl ? outcomeEl.value : 0);
+        const collateralText = collateralEl ? String(collateralEl.value || '').trim() : '';
+        if (!collateralText) { out.textContent = 'Укажите залог (VIZ) в форме открытия.'; return; }
+        const collateralMilli = vizPmAssetToMilli(collateralText, chain, 'Залог');
+        const quote = await vizPmApi(ctx, 'getLeverageQuote', [Number(marketId), outcomeIndex, collateralMilli]);
+        if (!quote) { out.textContent = 'Нода не вернула котировку плеча.'; return; }
+        const rows = [
+          ['Доступно', quote.available ? 'да' : 'нет'],
+          ['Максимальный заём', vizPmAssetViz(quote.max_loan)],
+          ['Максимальное плечо', `${(Number(quote.max_leverage_x100 || 0) / 100).toFixed(2)}×`],
+          ['Свободно в пуле', vizPmAssetViz(quote.pool_free_amount)],
+          ['Доступный фонд', vizPmAssetViz(quote.fund_available)],
+          ['Лимит на позицию', vizPmAssetViz(quote.per_position_cap)],
+          ['Лимит на рынок', vizPmAssetViz(quote.market_position_cap)],
+          ['Плата пула за заём', `${vizPmProp(quote, 'pool_profit_percent')}%`],
+          ['Макс. проскальзывание', `${vizPmProp(quote, 'max_slippage_percent')}%`]
+        ];
+        let html = vizPmKv(rows);
+        if (Array.isArray(quote.failed_constraints) && quote.failed_constraints.length) {
+          html += `<p class="muted">Ограничения: ${quote.failed_constraints.map((c) => escapeHtml(`${c.constraint}${c.reason ? ': ' + c.reason : ''}`)).join('; ')}</p>`;
+        }
+        if (Array.isArray(quote.stops) && quote.stops.length) {
+          const stopRows = quote.stops.slice(0, 12).map((stop) => [
+            `${(Number(stop.leverage_x100 || 0) / 100).toFixed(2)}×`,
+            escapeHtml(vizPmAsset(stop.loan)),
+            escapeHtml(vizPmAsset(stop.expected_tokens)),
+            escapeHtml(vizPmAsset(stop.liquidation_threshold))
+          ]);
+          html += vizPmTable('Варианты займа', ['Плечо', 'Заём (VIZ)', 'Токены', 'Порог ликвидации (VIZ)'], stopRows);
+        }
+        out.innerHTML = html;
+      } catch (error) {
+        out.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+      }
+    });
   }
 
   function vizPmBindOracleLookup(chain, ctx) {
