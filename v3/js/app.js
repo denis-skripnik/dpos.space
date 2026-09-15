@@ -12431,7 +12431,7 @@ Memo key: ${keys.memo}`);
     if (!Number.isSafeInteger(value)) throw new Error(`${label}: значение вне допустимого диапазона.`);
     const settings = options || {};
     if (settings.positive && value <= 0) throw new Error(`${label}: нужно положительное число.`);
-    if (!settings.positive && value < 0) throw new Error(`${label}: нужно неотрицательное число.`);
+    if (!settings.allowNegative && value < 0) throw new Error(`${label}: нужно неотрицательное число.`);
     return value;
   }
 
@@ -12648,7 +12648,7 @@ Memo key: ${keys.memo}`);
           { id: 'viz-pm-lazy-deposit-note', name: 'note', type: 'textarea', label: 'Пожелания', placeholder: 'Видно перед отправкой; не сохраняется в блокчейне.', rows: 2 }
         ], 'Списывается с ликвидного баланса VIZ выбранного аккаунта.')}
         ${vizPmOperation('Вывести из ленивого пула', 'viz-pm-lazy-withdraw-form', 'Вывод из ленивого пула', [
-          { id: 'viz-pm-lazy-withdraw-shares', name: 'shares', type: 'number', label: 'Количество shares', required: true, min: 0, step: 1, placeholder: '0' },
+          { id: 'viz-pm-lazy-withdraw-shares', name: 'shares', type: 'number', label: 'Количество shares (0 = все)', required: true, min: 0, step: 1, placeholder: '0' },
           { id: 'viz-pm-lazy-withdraw-emergency', name: 'emergency', type: 'checkbox', label: 'Аварийный вывод (штраф на прибыль)' }
         ], 'Введите shares из строки «Моё пополнение» ниже.')}
       </section>`;
@@ -12663,7 +12663,7 @@ Memo key: ${keys.memo}`);
       },
       'viz-pm-lazy-withdraw-form': (form) => {
         const from = vizPmSigner(chain, 'Провайдер ленивого пула');
-        const shares = vizPmIntFormValue(form, 'shares', 'Количество shares', { positive: true });
+        const shares = vizPmIntFormValue(form, 'shares', 'Количество shares');
         const emergency = form.get('emergency') ? true : false;
         return vizPmPrepared(chain, 'active', 'pmLazyWithdraw', [from, shares, emergency, []], { title: 'VIZ pm_lazy_withdraw', amount: `${shares} shares` });
       }
@@ -12725,7 +12725,12 @@ Memo key: ${keys.memo}`);
         const from = vizPmSigner(chain, 'Оракул');
         const fields = { owner: from };
         const delta = vizPmFormValue(form, 'insurance_delta');
-        if (delta) fields.insurance_delta = broadcast.validateAsset(chain, delta.replace(/^\+/, ''), [chain.liquidSymbol || 'VIZ'], 'Изменение депозита');
+        if (delta) {
+          const negative = delta.charAt(0) === '-';
+          const magnitude = delta.replace(/^[+-]\s*/, '');
+          const asset = broadcast.validateAsset(chain, magnitude, [chain.liquidSymbol || 'VIZ'], 'Изменение депозита');
+          fields.insurance_delta = negative ? `-${asset}` : asset;
+        }
         const fee = vizPmFormValue(form, 'fee_percent');
         if (fee !== '') fields.fee_percent = vizPmIntFormValue(form, 'fee_percent', 'Комиссия оракула');
         const fixed = vizPmFormValue(form, 'fixed_fee');
@@ -13039,7 +13044,7 @@ Memo key: ${keys.memo}`);
     return vizPmOperation('Передать позицию', 'viz-pm-transfer-position-form', 'Передача позиции', [
       { id: 'viz-pm-transfer-id', name: 'bet_id', type: 'number', label: 'Номер ставки (bet_id)', required: true, min: 1, step: 1 },
       { id: 'viz-pm-transfer-to', name: 'to', type: 'text', label: 'Кому (@)', required: true },
-      { id: 'viz-pm-transfer-amount', name: 'amount', type: 'number', label: 'Количество токенов', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-transfer-amount', name: 'amount', type: 'number', label: 'Количество токенов (0 = вся позиция)', min: 0, step: 1, value: '0' },
       { id: 'viz-pm-transfer-memo', name: 'memo', type: 'text', label: 'Memo' }
     ]);
   }
@@ -13215,7 +13220,7 @@ Memo key: ${keys.memo}`);
         const from = vizPmSigner(chain, 'Передача позиции');
         const betId = vizPmIntFormValue(form, 'bet_id', 'Номер ставки', { positive: true });
         const to = normalizeAccountInput(chain, vizPmFormValue(form, 'to'), 'Получатель');
-        const amount = vizPmIntFormValue(form, 'amount', 'Количество токенов', { positive: true });
+        const amount = vizPmIntFormValue(form, 'amount', 'Количество токенов');
         const memo = vizPmFormValue(form, 'memo');
         return vizPmPrepared(chain, 'active', 'pmTransferPosition', [from, betId, to, amount, memo, []], { title: 'VIZ pm_transfer_position', to, amount: `${amount} токенов` });
       },
@@ -13252,7 +13257,7 @@ Memo key: ${keys.memo}`);
       },
       'viz-pm-dispute-vote-form': (form) => {
         const from = vizPmSigner(chain, 'Голос в споре');
-        const voteOutcome = vizPmIntFormValue(form, 'vote_outcome', 'Голос');
+        const voteOutcome = vizPmIntFormValue(form, 'vote_outcome', 'Голос', { allowNegative: true });
         const votePercent = vizPmIntFormValue(form, 'vote_percent', 'Вес голоса');
         return vizPmPrepared(chain, 'regular', 'pmDisputeVote', [from, marketId, voteOutcome, votePercent, []], { title: 'VIZ pm_dispute_vote (regular)' });
       },
