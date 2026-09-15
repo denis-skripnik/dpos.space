@@ -12680,8 +12680,7 @@ Memo key: ${keys.memo}`);
         <p>Ленивый пул распределяет ликвидность между рынками автоматически. Пополнение — ликвидным VIZ; вывод — по shares, при необходимости с аварийной комиссией.</p>
         <div id="viz-pm-lazy-stats" role="status" aria-live="polite"><p class="muted">Пул загружается...</p></div>
         ${vizPmOperation('Пополнить ленивый пул', 'viz-pm-lazy-deposit-form', 'Пополнение ленивого пула (VIZ)', [
-          { id: 'viz-pm-lazy-deposit-amount', name: 'amount', type: 'text', label: 'Сумма VIZ', required: true, placeholder: '100.000 VIZ', max: ctx.liquidMax },
-          { id: 'viz-pm-lazy-deposit-note', name: 'note', type: 'textarea', label: 'Пожелания', placeholder: 'Видно перед отправкой; не сохраняется в блокчейне.', rows: 2 }
+          { id: 'viz-pm-lazy-deposit-amount', name: 'amount', type: 'text', label: 'Сумма VIZ', required: true, placeholder: '100.000 VIZ', max: ctx.liquidMax }
         ], 'Списывается с ликвидного баланса VIZ выбранного аккаунта.')}
         ${vizPmOperation('Вывести из ленивого пула', 'viz-pm-lazy-withdraw-form', 'Вывод из ленивого пула', [
           { id: 'viz-pm-lazy-withdraw-shares', name: 'shares', type: 'number', label: 'Количество shares (0 = все)', required: true, min: 0, step: 1, placeholder: '0' },

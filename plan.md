@@ -6332,3 +6332,21 @@ Completion contract:
 - verification: `node --check v3/js/app.js v3/js/chains.js`, `for test in tests/*.js; do node "$test"; done`, `git diff --check`, and browser QA against `https://testnet.viz.world/` and `https://api.viz.world` (list/detail/bet preview, MAX button, console clean).
 - constraints: static runtime only, no live mainnet broadcast in tests, no change to existing broadcast semantics, no secret/key changes, preview+confirm remains mandatory.
 - stop_when: the node exposes a different pm_* field contract than the viz-js-lib 0.16.0 build, or the vendored library upgrade proves not backward compatible with existing VIZ flows.
+
+
+### VIZ prediction markets: remove dead «Пожелания» field
+
+Scope:
+- Remove the non-functional `Пожелания` (`note`) textarea from the «Пополнить ленивый пул» operation form in `v3/js/app.js`.
+
+Non-goals:
+- No change to `pm_lazy_deposit`, the other lazy-pool fields, the withdraw form, or any other service.
+
+Rationale and constraints:
+- The `viz-pm-lazy-deposit-form` builder reads only `amount`; the on-chain `pm_lazy_deposit(account, amount, extensions)` has no memo/note slot, and the preview summary never rendered it. The field was a leftover that did nothing, and its own placeholder falsely promised «Видно перед отправкой».
+
+Completion contract:
+- outcome: the «Пополнить ленивый пул» form shows only «Сумма VIZ».
+- verification: `node --check v3/js/app.js`; full JS smoke suite (101/101); `git diff --check`; browser DOM check on `#chain=viz&app=prediction-markets` (lazy-deposit modal exposes a single field `amount`, no `note`; withdraw modal unchanged with `shares`/`emergency`).
+- constraints: static runtime only; no cache-marker bump needed because `app.js` is served network-first (not precached), matching recent point commits.
+- stop_when: a future memo/note capability is added to the lazy-pool API.
