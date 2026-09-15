@@ -545,7 +545,7 @@
     return state;
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants', 'pmMarket', 'pmStatus', 'pmCategory', 'pmTag', 'pmPage', 'pmRisky'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants', 'pmMarket', 'pmStatus', 'pmCategory', 'pmTag', 'pmPage', 'pmRisky', 'pmAnchor'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -12365,6 +12365,31 @@ Memo key: ${keys.memo}`);
     navigate(Object.assign({ chain: 'viz', app: 'prediction-markets' }, patch || {}));
   }
 
+  function vizPmAnchorLink(target, label, extra) {
+    const href = escapeHtml(appHash(Object.assign({ chain: 'viz', app: 'prediction-markets', pmAnchor: target }, extra || {})));
+    return `<li><a href="${href}" data-pm-anchor="${escapeHtml(target)}">${escapeHtml(label)}</a></li>`;
+  }
+
+  function vizPmBindAnchors() {
+    appEl.querySelectorAll('a[data-pm-anchor]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const target = link.getAttribute('data-pm-anchor');
+        const el = target ? document.getElementById(target) : null;
+        if (!el) return;
+        event.preventDefault();
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+        el.focus();
+        replaceHashParams({ pmAnchor: target });
+      });
+    });
+    const jump = (parseHash() || {}).pmAnchor;
+    if (jump) {
+      const el = document.getElementById(jump);
+      if (el) el.scrollIntoView({ block: 'start' });
+    }
+  }
+
   async function vizPmLoadLiquidMax(chain, connection, login) {
     const account = await profiles.fetchAccount(connection, login);
     const balance = account && typeof account.balance === 'string' ? account.balance : '';
@@ -12457,6 +12482,7 @@ Memo key: ${keys.memo}`);
     upgradeOperationDetailsToModals(appEl);
     bindMaxButtons(appEl);
     bindCopyButtons(appEl);
+    vizPmBindAnchors();
   }
 
   async function renderVizPredictionMarkets(chain, account) {
@@ -12547,7 +12573,7 @@ Memo key: ${keys.memo}`);
         <h2>VIZ: Рынки предсказаний</h2>
         <p>Рынки предсказаний VIZ работают через встроенный плагин <code>prediction_market_api</code> (Onix / HF14). Ставки и ликвидность оплачиваются ликвидным VIZ. Полная проверка операции и отдельное подтверждение отправки обязательны.</p>
         ${accountInfo}
-        <nav aria-label="Разделы рынков предсказаний"><ul><li><a href="#viz-pm-list-heading">Список рынков</a></li><li><a href="#viz-pm-lazy-heading">Ленивый пул</a></li><li><a href="#viz-pm-oracles-heading">Оракулы</a></li><li><a href="#viz-pm-create-heading">Создать рынок</a></li><li><a href="#viz-pm-props-heading">Параметры сети</a></li></ul></nav>
+        <nav aria-label="Разделы рынков предсказаний"><ul>${[['viz-pm-list-heading', 'Список рынков'], ['viz-pm-lazy-heading', 'Ленивый пул'], ['viz-pm-oracles-heading', 'Оракулы'], ['viz-pm-create-heading', 'Создать рынок'], ['viz-pm-props-heading', 'Параметры сети']].map((item) => vizPmAnchorLink(item[0], item[1])).join('')}</ul></nav>
 
         <section class="subpanel" aria-labelledby="viz-pm-list-heading">
           <h3 id="viz-pm-list-heading">Список рынков</h3>
@@ -12866,7 +12892,7 @@ Memo key: ${keys.memo}`);
         <h2>Рынок #${escapeHtml(String(id))}: ${escapeHtml(vizPmMarketTitle(market))}</h2>
         <p class="muted">${escapeHtml(vizPmLabel(VIZ_PM_MARKET_TYPE, market.market_type))} · ${escapeHtml(vizPmLabel(VIZ_PM_MARKET_STATUS, market.status))} · выплаты: ${escapeHtml(vizPmLabel(VIZ_PM_PAYOUT_STATUS, market.payout_status))}</p>
         ${market.url ? `<p><a href="${escapeHtml(String(market.url))}" target="_blank" rel="noopener">Источник рынка</a></p>` : ''}
-        <nav aria-label="Разделы рынка"><ul><li><a href="#viz-pm-market-data">Данные</a></li><li><a href="#viz-pm-market-outcomes">Исходы</a></li><li><a href="#viz-pm-market-bet">Ставка</a></li><li><a href="#viz-pm-market-manage">Управление ставками</a></li><li><a href="#viz-pm-market-liquidity">Ликвидность</a></li><li><a href="#viz-pm-market-leverage">Плечо</a></li><li><a href="#viz-pm-market-oracle">Оракул</a></li><li><a href="#viz-pm-market-dispute">Спор</a></li></ul></nav>
+        <nav aria-label="Разделы рынка"><ul>${[['viz-pm-market-data-heading', 'Данные'], ['viz-pm-market-outcomes-heading', 'Исходы'], ['viz-pm-market-bet-heading', 'Ставка'], ['viz-pm-market-manage-heading', 'Управление ставками'], ['viz-pm-market-liquidity-heading', 'Ликвидность'], ['viz-pm-market-leverage-heading', 'Плечо'], ['viz-pm-market-oracle-heading', 'Оракул'], ['viz-pm-market-dispute-heading', 'Спор']].map((item) => vizPmAnchorLink(item[0], item[1], { pmMarket: id })).join('')}</ul></nav>
         <section class="subpanel" id="viz-pm-market-data" aria-labelledby="viz-pm-market-data-heading">
           <h3 id="viz-pm-market-data-heading">Данные рынка</h3>
           ${vizPmKv([
