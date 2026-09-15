@@ -545,7 +545,7 @@
     return state;
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants'];
+  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants', 'pmMarket', 'pmStatus', 'pmCategory', 'pmTag', 'pmPage', 'pmRisky'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -12187,6 +12187,1186 @@ Memo key: ${keys.memo}`);
     setStatus('VIZ: projects открыт в static-safe режиме. Backend catalog/tasks/news не восстанавливаются.', 'info');
   }
 
+  // ===== VIZ prediction markets (Onix / HF14, prediction_market_api plugin) =====
+  // Static-safe integration of the VIZ prediction markets protocol: read-only browsing
+  // via viz.api.get* / list* methods and explicit-confirm broadcast of pm_* operations
+  // through the shared broadcast layer. Bets, liquidity and lazy-pool deposits are paid
+  // from the account liquid VIZ balance with a "Максимум" fill button like the wallet.
+
+  const VIZ_PM_PAGE_SIZE = 20;
+  const VIZ_PM_MARKET_STATUS = { '-1': 'Удалён', '0': 'Ожидает оракула', '1': 'Активен', '2': 'Ставки закрыты', '3': 'Разрешён' };
+  const VIZ_PM_PAYOUT_STATUS = { '0': 'Нет', '1': 'Ожидает выплаты', '2': 'Выплачено', '3': 'Спор' };
+  const VIZ_PM_MARKET_TYPE = { '0': 'Бинарный (CPMM)', '1': 'Мульти-LMSR' };
+  const VIZ_PM_BET_STATUS = { '0': 'Активна', '1': 'Отменена', '2': 'Возврат', '3': 'Разрешена', '5': 'В очереди', '6': 'Ожидает раскрытия' };
+  const VIZ_PM_LIQUIDITY_STATUS = { '0': 'Активна', '3': 'Закрыта' };
+  const VIZ_PM_LEVERAGE_STATUS = { '0': 'Активна', '1': 'Ликвидирована', '2': 'Победа', '3': 'Проигрыш', '4': 'Закрыта', '5': 'Конвертирована' };
+  const VIZ_PM_COMMIT_STATUS = { '0': 'Зафиксирована', '1': 'Раскрыта', '2': 'Штраф (не раскрыта)' };
+  const VIZ_PM_DISPUTE_STATUS = { '0': 'Открыт', '1': 'Оракул неправ', '2': 'Оракул прав', '3': 'Автозакрыт' };
+  const VIZ_PM_DISPUTE_MODE = { '0': 'Комитет', '1': 'Аккаунт' };
+  const VIZ_PM_ENDT = { '1': 'Экономика/данные', '2': 'Спорт', '3': 'Политика' };
+  const VIZ_PM_KLINE_REASON = { '0': 'Ставка', '1': 'Отмена', '2': 'Ликвидация', '3': 'Пакетный расчёт', '4': 'Открытие плеча', '5': 'Резолв плеча' };
+  const VIZ_PM_LEVERAGE_REASON = { '0': 'Встречная ставка', '1': 'Отмена ставки', '2': 'Истечение срока' };
+
+  let vizPmCtx = null;
+
+  function vizPmLabel(map, value, fallback) {
+    const key = String(value);
+    if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+    return fallback !== undefined ? fallback : key;
+  }
+
+  function vizPmMilli(milli) {
+    return Number(milli || 0) / 1000;
+  }
+
+  function vizPmAsset(milli) {
+    return vizPmMilli(milli).toFixed(3);
+  }
+
+  function vizPmAssetViz(milli) {
+    return `${vizPmAsset(milli)} VIZ`;
+  }
+
+  function vizPmBp(bp) {
+    return `${(Number(bp || 0) / 100).toFixed(2)}%`;
+  }
+
+  function vizPmMarketId(market) {
+    if (!market) return '';
+    if (market.market !== undefined && market.market !== null) return market.market;
+    return market.id;
+  }
+
+  function vizPmParseJson(value) {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(String(value)); } catch (error) { return null; }
+  }
+
+  function vizPmMarketTitle(market) {
+    if (!market) return 'Рынок';
+    const metadata = vizPmParseJson(market.metadata) || {};
+    return String(market.title || metadata.title || metadata.question || market.url || `Рынок #${vizPmMarketId(market)}`).trim();
+  }
+
+  function vizPmDate(value) {
+    const text = String(value || '').trim();
+    if (!text || text === '1970-01-01T00:00:00') return '—';
+    try { return history.formatDate ? history.formatDate(text) : text; } catch (error) { return text; }
+  }
+
+  function vizPmTimepointToInput(value) {
+    const text = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text) || text.startsWith('1970-01-01')) return '';
+    return text.slice(0, 16);
+  }
+
+  function vizPmInputToTimepoint(value) {
+    const text = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) {
+      throw new Error('Укажите дату и время в формате ГГГГ-ММ-ДД ЧЧ:ММ.');
+    }
+    return `${text}:00`;
+  }
+
+  function vizPmKv(rows) {
+    const visible = (rows || []).filter((row) => row && row[1] !== undefined && row[1] !== null && String(row[1]) !== '');
+    if (!visible.length) return '<p class="muted">Нет данных.</p>';
+    return `<dl class="kv-list">${visible.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${value}</dd></div>`).join('')}</dl>`;
+  }
+
+  function vizPmTable(caption, headers, rows) {
+    if (!rows || !rows.length) return `<p class="muted">${escapeHtml(caption)}: нет записей.</p>`;
+    return `<div class="table-wrap"><table aria-label="${escapeHtml(caption)}"><caption>${escapeHtml(caption)}</caption><thead><tr>${headers.map((header) => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${rows.map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function vizPmLink(params, label) {
+    return `<a href="${escapeHtml(appHash(Object.assign({ chain: 'viz', app: 'prediction-markets' }, params)))}">${escapeHtml(label)}</a>`;
+  }
+
+  function vizPmImage(link, alt) {
+    const url = String(link || '').trim();
+    if (!/^https?:\/\//i.test(url)) return '';
+    return `<p><img src="${escapeHtml(url)}" alt="${escapeHtml(alt || 'Изображение рынка')}" loading="lazy" style="max-width:100%;height:auto"></p>`;
+  }
+
+  // Marginal CPMM quote from live pool reserves — clearly an estimate, not a promised price.
+  function vizPmPoolQuotes(market, labels) {
+    if (!market || Number(market.market_type) !== 0) return [];
+    const reserveA = Number(market.reserve_a || 0);
+    const reserveB = Number(market.reserve_b || 0);
+    const total = reserveA + reserveB;
+    if (total <= 0) return [];
+    const names = labels || ['A', 'B'];
+    return [
+      { label: names[0] || 'A', pct: (reserveB / total) * 100 },
+      { label: names[1] || 'B', pct: (reserveA / total) * 100 }
+    ];
+  }
+
+  function vizPmOutcomeLabels(outcomes) {
+    const list = Array.isArray(outcomes) ? outcomes : [];
+    return list.map((outcome, index) => String((outcome && outcome.label) || `Исход ${index}`));
+  }
+
+  function vizPmLookupApi(ctx) {
+    return ctx && ctx.connection && ctx.connection.client && ctx.connection.client.api;
+  }
+
+  async function vizPmApi(ctx, method, args) {
+    const api = vizPmLookupApi(ctx);
+    if (!api) throw new Error('Библиотека viz.api недоступна.');
+    const asyncName = `${method}Async`;
+    if (typeof api[asyncName] !== 'function' && typeof api[method] !== 'function') {
+      throw new Error(`Нода не поддерживает prediction_market_api.${method}. Обновите viz-js-lib (нужна версия с рынками предсказаний) или выберите другую ноду.`);
+    }
+    return profiles.apiCall(ctx.connection, method, args);
+  }
+
+  // Optional reads throw when the record does not exist; this returns a fallback instead.
+  async function vizPmApiOptional(ctx, method, args, fallback) {
+    try {
+      const result = await vizPmApi(ctx, method, args);
+      return result === undefined || result === null ? fallback : result;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  async function vizPmChainProps(ctx) {
+    if (ctx.chainProps) return ctx.chainProps;
+    const props = await vizPmApiOptional(ctx, 'getPmChainProperties', [], null);
+    ctx.chainProps = props || {};
+    return ctx.chainProps;
+  }
+
+  function vizPmProp(props, key) {
+    return props && props[key] !== undefined && props[key] !== null ? props[key] : '';
+  }
+
+  function vizPmAssetToMilli(assetValue, chain, label) {
+    const normalized = broadcast.validateAsset(chain, assetValue, [chain.liquidSymbol || 'VIZ'], label || 'Сумма');
+    return Math.round(Number(String(normalized).split(' ')[0]) * 1000);
+  }
+
+  function vizPmStateFromHash() {
+    const raw = parseHash();
+    return {
+      market: raw.pmMarket ? String(raw.pmMarket) : '',
+      status: raw.pmStatus !== undefined && raw.pmStatus !== '' ? String(raw.pmStatus) : '1',
+      category: raw.pmCategory ? String(raw.pmCategory) : '',
+      tag: raw.pmTag ? String(raw.pmTag) : '',
+      page: Math.max(0, Number(raw.pmPage || 0) || 0),
+      risky: raw.pmRisky === '1'
+    };
+  }
+
+  function vizPmNavigate(patch) {
+    navigate(Object.assign({ chain: 'viz', app: 'prediction-markets' }, patch || {}));
+  }
+
+  async function vizPmLoadLiquidMax(chain, connection, login) {
+    const account = await profiles.fetchAccount(connection, login);
+    const balance = account && typeof account.balance === 'string' ? account.balance : '';
+    const match = balance.match(/^\d+(?:\.\d+)?\s+VIZ$/);
+    return match ? match[0] : '';
+  }
+
+  function vizPmSigner(chain, label) {
+    return normalizeAccountInput(chain, auth.getCurrentLogin(chain), label || 'Аккаунт для подписи');
+  }
+
+  function vizPmRenderUnavailable(chain, error) {
+    const message = profiles.formatError(error);
+    appEl.innerHTML = `
+      <section class="panel viz-prediction-markets">
+        <h2>VIZ: Рынки предсказаний</h2>
+        <p class="error-panel">Не удалось загрузить рынки предсказаний: ${escapeHtml(message)}</p>
+        <p>Варианты: убедитесь, что выбрана сеть Mainnet или Testnet (обе поддерживают prediction_market_api), что нода ${escapeHtml((chain.nodes || []).join(', '))} отвечает, и что загружен viz-js-lib с поддержкой pm_* операций.</p>
+        <p><a href="${escapeHtml(appHash({ chain: 'viz', app: 'help' }))}">Справка VIZ</a></p>
+      </section>`;
+    setStatus(`Ошибка рынков предсказаний: ${message}`, 'error');
+  }
+
+  function vizPmField(spec) {
+    const id = spec.id;
+    const label = escapeHtml(spec.label || '');
+    const required = spec.required ? ' required' : '';
+    const max = spec.max ? ` <button type="button" data-fill-target="${id}" data-fill-value="${escapeHtml(spec.max)}">Максимум ${escapeHtml(spec.max)}</button>` : '';
+    if (spec.type === 'select') {
+      const current = spec.value !== undefined && spec.value !== null ? String(spec.value) : '';
+      const options = (spec.options || []).map((option) => {
+        const value = String(option.value);
+        return `<option value="${escapeHtml(value)}"${value === current ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
+      }).join('');
+      return `<div class="field"><label for="${id}">${label}</label><select id="${id}" name="${escapeHtml(spec.name)}"${required}>${options}</select>${max}</div>`;
+    }
+    if (spec.type === 'textarea') {
+      return `<div class="field"><label for="${id}">${label}</label><textarea id="${id}" name="${escapeHtml(spec.name)}" rows="${Number(spec.rows) || 3}"${required} placeholder="${escapeHtml(spec.placeholder || '')}"></textarea></div>`;
+    }
+    if (spec.type === 'checkbox') {
+      return `<label class="inline-choice"><input id="${id}" name="${escapeHtml(spec.name)}" type="checkbox"${spec.checked ? ' checked' : ''}> ${label}</label>`;
+    }
+    const type = spec.type || 'text';
+    const placeholder = spec.placeholder ? ` placeholder="${escapeHtml(spec.placeholder)}"` : '';
+    const value = spec.value !== undefined && spec.value !== null && spec.value !== '' ? ` value="${escapeHtml(String(spec.value))}"` : '';
+    const step = spec.step ? ` step="${escapeHtml(String(spec.step))}"` : '';
+    const min = spec.min !== undefined ? ` min="${escapeHtml(String(spec.min))}"` : '';
+    return `<div class="field"><label for="${id}">${label}</label><input id="${id}" name="${escapeHtml(spec.name)}" type="${escapeHtml(type)}"${required}${placeholder}${value}${step}${min} autocomplete="off">${max}</div>`;
+  }
+
+  function vizPmOperation(title, formId, legend, fields, hint) {
+    const body = `<form id="${formId}" class="stacked-form"><fieldset><legend>${escapeHtml(legend)}</legend>${hint ? `<p class="muted">${hint}</p>` : ''}${fields.map(vizPmField).join('')}<button type="submit" name="intent" value="preview">Проверить</button><button type="submit" name="intent" value="send">Отправить</button><div class="operation-result" data-operation-result role="status" aria-live="polite"></div></fieldset></form>`;
+    return `<details class="operation-modal-source" id="${formId}-details"><summary>${escapeHtml(title)}</summary>${body}</details>`;
+  }
+
+  function vizPmFormValue(form, name) {
+    return String(form.get(name) || '').trim();
+  }
+
+  function vizPmIntFormValue(form, name, label, options) {
+    const text = vizPmFormValue(form, name);
+    if (!/^-?\d+$/.test(text)) throw new Error(`${label}: нужно целое число.`);
+    const value = Number(text);
+    if (!Number.isSafeInteger(value)) throw new Error(`${label}: значение вне допустимого диапазона.`);
+    const settings = options || {};
+    if (settings.positive && value <= 0) throw new Error(`${label}: нужно положительное число.`);
+    if (!settings.positive && value < 0) throw new Error(`${label}: нужно неотрицательное число.`);
+    return value;
+  }
+
+  function vizPmAssetFormValue(form, name, chain, label, options) {
+    const normalized = broadcast.validateAsset(chain, vizPmFormValue(form, name), [chain.liquidSymbol || 'VIZ'], label || 'Сумма');
+    const amount = Number(String(normalized).split(' ')[0]);
+    const settings = options || {};
+    if (settings.positive && amount <= 0) throw new Error(`${label || 'Сумма'}: нужно положительное значение.`);
+    return normalized;
+  }
+
+  function vizPmPrepared(chain, authority, operationName, params, meta) {
+    return broadcast.prepare(chain, authority, operationName, params, meta || {});
+  }
+
+  function vizPmBindForms(chain, builders) {
+    Object.keys(builders).forEach((formId) => {
+      bindOperationForm(chain, formId, builders[formId]);
+    });
+  }
+
+  function vizPmAfterRender() {
+    upgradeOperationDetailsToModals(appEl);
+    bindMaxButtons(appEl);
+    bindCopyButtons(appEl);
+  }
+
+  async function renderVizPredictionMarkets(chain, account) {
+    await loadScript(chain.cryptoPath);
+    await loadScript(chain.libraryPath);
+    const requested = String(account || '').trim().replace(/^@/, '') || auth.getCurrentLogin(chain) || '';
+    const state = vizPmStateFromHash();
+    appEl.innerHTML = '<section class="panel viz-prediction-markets"><h2>VIZ: Рынки предсказаний</h2><p>Подключаю публичную ноду и загружаю prediction_market_api...</p></section>';
+    setStatus('Загружаю рынки предсказаний VIZ...', 'loading');
+
+    let connection;
+    try {
+      connection = await getConnection(chain);
+    } catch (error) {
+      vizPmRenderUnavailable(chain, error);
+      return;
+    }
+
+    const ctx = { chain, connection, login: requested, liquidMax: '', chainProps: null };
+    if (requested) {
+      try { ctx.liquidMax = await vizPmLoadLiquidMax(chain, connection, requested); } catch (error) { ctx.liquidMax = ''; }
+    }
+    vizPmCtx = ctx;
+
+    try {
+      if (state.market) await vizPmRenderMarket(chain, ctx, state);
+      else await vizPmRenderList(chain, ctx, state);
+    } catch (error) {
+      vizPmRenderUnavailable(chain, error);
+    }
+  }
+
+  async function vizPmRenderList(chain, ctx, state) {
+    const signer = auth.getCurrentLogin(chain) || '';
+    await vizPmChainProps(ctx);
+    let categories = [];
+    try {
+      const payload = await vizPmApi(ctx, 'getMarketCategories', []);
+      categories = (payload && payload.categories) || [];
+    } catch (error) { categories = []; }
+
+    let markets = [];
+    let listError = '';
+    try {
+      if (state.category) {
+        markets = await vizPmApi(ctx, 'listMarketsByCategory', [state.category, state.page * VIZ_PM_PAGE_SIZE, VIZ_PM_PAGE_SIZE, '', '', '', '']);
+      } else {
+        markets = await vizPmApi(ctx, 'listMarkets', [Number(state.status), state.page * VIZ_PM_PAGE_SIZE, VIZ_PM_PAGE_SIZE, state.risky, '']);
+      }
+    } catch (error) {
+      listError = profiles.formatError(error);
+    }
+    const list = Array.isArray(markets) ? markets : [];
+
+    const statusTabs = [
+      { value: '1', label: 'Активные' },
+      { value: '0', label: 'Ожидают оракула' },
+      { value: '2', label: 'Ставки закрыты' },
+      { value: '3', label: 'Разрешённые' }
+    ].map((tab) => {
+      const active = !state.category && state.status === tab.value;
+      const href = appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: tab.value, pmPage: '' });
+      return `<li><a href="${escapeHtml(href)}"${active ? ' aria-current="true"' : ''}>${escapeHtml(tab.label)}</a></li>`;
+    }).join('');
+    const categoryLinks = categories.slice(0, 30).map((item) => {
+      const active = state.category === item.category;
+      const href = appHash({ chain: 'viz', app: 'prediction-markets', pmCategory: item.category, pmPage: '' });
+      return `<li><a href="${escapeHtml(href)}"${active ? ' aria-current="true"' : ''}>${escapeHtml(String(item.category))} (${escapeHtml(String(item.count))})</a></li>`;
+    }).join('');
+
+    const cards = list.map((market) => vizPmMarketCard(market)).join('');
+    const prevHref = appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: state.category ? '' : state.status, pmCategory: state.category, pmPage: state.page > 0 ? state.page - 1 : '' });
+    const nextHref = appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: state.category ? '' : state.status, pmCategory: state.category, pmPage: state.page + 1 });
+    const pagination = list.length || state.page > 0
+      ? `<nav class="pagination" aria-label="Страницы списка рынков"><ul>${state.page > 0 ? `<li><a href="${escapeHtml(prevHref)}">Назад</a></li>` : ''}<li>Страница ${escapeHtml(String(state.page + 1))}</li>${list.length >= VIZ_PM_PAGE_SIZE ? `<li><a href="${escapeHtml(nextHref)}">Вперёд</a></li>` : ''}</ul></nav>`
+      : '';
+
+    const riskyToggle = state.category
+      ? ''
+      : `<li>${state.risky ? `<a href="${escapeHtml(appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: state.status, pmRisky: '', pmPage: '' }))}">Скрыть рискованные рынки</a>` : `<a href="${escapeHtml(appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: state.status, pmRisky: '1', pmPage: '' }))}">Показать рискованные рынки</a>`}</li>`;
+
+    const accountInfo = ctx.login
+      ? `<p>Аккаунт: <a href="${escapeHtml(appHash({ chain: 'viz', app: 'profiles', account: ctx.login }))}">@${escapeHtml(ctx.login)}</a>${ctx.liquidMax ? ` · ликвидный баланс: <strong>${escapeHtml(ctx.liquidMax)}</strong>` : ''}. Ставки, ликвидность и пополнение ленивого пула списываются с ликвидного баланса VIZ.</p>`
+      : '<p class="muted">Откройте раздел «Аккаунты» и выберите сохранённый VIZ-аккаунт, чтобы делать ставки, добавлять ликвидность и пополнять ленивый пул.</p>';
+
+    appEl.innerHTML = `
+      <section class="panel viz-prediction-markets">
+        <h2>VIZ: Рынки предсказаний</h2>
+        <p>Рынки предсказаний VIZ работают через встроенный плагин <code>prediction_market_api</code> (Onix / HF14). Ставки и ликвидность оплачиваются ликвидным VIZ. Полная проверка операции и отдельное подтверждение отправки обязательны.</p>
+        ${accountInfo}
+        <nav aria-label="Разделы рынков предсказаний"><ul><li><a href="#viz-pm-list-heading">Список рынков</a></li><li><a href="#viz-pm-lazy-heading">Ленивый пул</a></li><li><a href="#viz-pm-oracles-heading">Оракулы</a></li><li><a href="#viz-pm-create-heading">Создать рынок</a></li><li><a href="#viz-pm-props-heading">Параметры сети</a></li></ul></nav>
+
+        <section class="subpanel" aria-labelledby="viz-pm-list-heading">
+          <h3 id="viz-pm-list-heading">Список рынков</h3>
+          <nav aria-label="Фильтр по статусу"><ul class="pm-tabs">${statusTabs}${riskyToggle}${state.category ? `<li><a href="${escapeHtml(appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: '1', pmPage: '' }))}">Все категории</a></li>` : ''}</ul></nav>
+          ${categories.length ? `<details><summary>Категории рынков (${escapeHtml(String(categories.length))})</summary><ul class="pm-categories">${categoryLinks}</ul></details>` : ''}
+          <form id="viz-pm-open-form" class="stacked-form"><fieldset><legend>Открыть рынок по номеру</legend><div class="field"><label for="viz-pm-open-id">Номер рынка (market_id)</label><input id="viz-pm-open-id" name="market" type="number" min="1" step="1" required autocomplete="off" value="${escapeHtml(state.market || '')}"></div><button type="submit">Открыть рынок</button></fieldset></form>
+          ${listError ? `<p class="error-panel">Не удалось загрузить список: ${escapeHtml(listError)}</p>` : ''}
+          ${cards ? `<div class="pm-cards">${cards}</div>` : (listError ? '' : '<p class="muted">В этой выборке рынков нет. Попробуйте другой статус, категорию или включите рискованные рынки.</p>')}
+          ${pagination}
+        </section>
+
+        ${vizPmLazyPoolSection(chain, ctx)}
+        ${vizPmOraclesSection(chain, ctx)}
+        ${vizPmCreateMarketSection(chain, ctx)}
+        ${vizPmConnectionPropertiesSection(ctx)}
+
+        <p class="muted">Источник данных — публичный RPC VIZ (${escapeHtml(ctx && ctx.connection && ctx.connection.node ? ctx.connection.node : (chain.nodes || [])[0] || '')}). Раздел работает только в сети VIZ.</p>
+      </section>`;
+
+    const openForm = document.getElementById('viz-pm-open-form');
+    if (openForm) {
+      openForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const value = String(new FormData(openForm).get('market') || '').trim();
+        if (!value) return;
+        vizPmNavigate({ pmMarket: value });
+      });
+    }
+
+    const lazyBuilders = vizPmLazyPoolBuilders(chain, ctx);
+    const oracleBuilders = vizPmOracleBuilders(chain, ctx);
+    const createBuilders = vizPmCreateMarketBuilders(chain, ctx);
+    vizPmBindForms(chain, lazyBuilders);
+    vizPmBindForms(chain, oracleBuilders);
+    vizPmBindForms(chain, createBuilders);
+    vizPmBindOracleLookup(chain, ctx);
+    vizPmBindLazyPoolLoad(ctx);
+    vizPmAfterRender();
+    setStatus(signer ? `Рынки предсказаний VIZ открыты: доступны ставки и ликвидность от @${signer}.` : 'Рынки предсказаний VIZ открыты. Выберите аккаунт для операций.', 'info');
+  }
+
+  function vizPmMarketCard(market) {
+    const id = vizPmMarketId(market);
+    const title = vizPmMarketTitle(market);
+    const href = appHash({ chain: 'viz', app: 'prediction-markets', pmMarket: String(id) });
+    const status = vizPmLabel(VIZ_PM_MARKET_STATUS, market.status);
+    const type = vizPmLabel(VIZ_PM_MARKET_TYPE, market.market_type);
+    const metadata = vizPmParseJson(market.metadata) || {};
+    const quotes = vizPmPoolQuotes(market);
+    const quoteText = quotes.length ? quotes.map((quote) => `${escapeHtml(quote.label)} ${quote.pct.toFixed(1)}%`).join(' / ') : '';
+    return `<article class="card viz-pm-card">
+      <h3><a href="${escapeHtml(href)}">${escapeHtml(title)}</a></h3>
+      <p class="muted">#${escapeHtml(String(id))} · ${escapeHtml(type)} · ${escapeHtml(status)} · создатель @${escapeHtml(String(market.creator || ''))} · оракул @${escapeHtml(String(market.oracle || ''))}${metadata.category ? ` · ${escapeHtml(String(metadata.category))}` : ''}</p>
+      <dl class="kv-list">
+        <div><dt>Банк ставок</dt><dd>${escapeHtml(vizPmAssetViz(market.bets_sum))}</dd></div>
+        <div><dt>Ликвидность</dt><dd>${escapeHtml(vizPmAssetViz(market.liquidity_sum))}</dd></div>
+        <div><dt>Ставки до</dt><dd>${escapeHtml(vizPmDate(market.betting_expiration))}</dd></div>
+        ${quoteText ? `<div><dt>Котировка пула (оценка)</dt><dd>${quoteText}</dd></div>` : ''}
+      </dl>
+      <p><a href="${escapeHtml(href)}">Открыть рынок #${escapeHtml(String(id))}</a></p>
+    </article>`;
+  }
+
+  function vizPmConnectionPropertiesSection(ctx) {
+    const props = ctx.chainProps || null;
+    const rows = props ? [
+      ['Создание рынка (комиссия)', escapeHtml(String(vizPmProp(props, 'pm_market_creation_fee')))],
+      ['Минимальная ликвидность рынка', escapeHtml(String(vizPmProp(props, 'pm_min_liquidity')))],
+      ['Макс. исходов на рынок', escapeHtml(String(vizPmProp(props, 'pm_max_outcomes')))],
+      ['Резерв оракула (минимум)', escapeHtml(String(vizPmProp(props, 'pm_min_oracle_insurance')))],
+      ['Регистрация оракула (комиссия)', escapeHtml(String(vizPmProp(props, 'pm_oracle_registration_fee')))],
+      ['Макс. комиссия оракула', escapeHtml(vizPmBp(vizPmProp(props, 'pm_max_oracle_fee_percent')))],
+      ['Мин. ставка', escapeHtml(String(vizPmProp(props, 'pm_min_bet')))],
+      ['Мин. пакетная ставка', escapeHtml(String(vizPmProp(props, 'pm_min_batch_bet')))],
+      ['Леверидж включён', vizPmProp(props, 'pm_leverage_enabled') ? 'да' : 'нет'],
+      ['Ленивый пул включён', vizPmProp(props, 'pm_lazy_pool_enabled') ? 'да' : 'нет'],
+      ['Commit-reveal включён', vizPmProp(props, 'pm_commit_reveal_enabled') ? 'да' : 'нет'],
+      ['Спор: комиссия', escapeHtml(String(vizPmProp(props, 'pm_dispute_fee')))],
+      ['Доля нераскрытых ставок (штраф)', escapeHtml(vizPmBp(vizPmProp(props, 'pm_commit_no_reveal_penalty_percent')))],
+      ['Стоимость конвертации плеча', escapeHtml(`${vizPmProp(props, 'pm_conversion_profit_cost_percent')}%`)]
+    ] : [];
+    return `
+      <section class="subpanel" aria-labelledby="viz-pm-props-heading">
+        <h3 id="viz-pm-props-heading">Параметры сети рынков</h3>
+        <p>Живые значения governance <code>get_pm_chain_properties</code>; они определяют лимиты форм ниже.</p>
+        ${props ? vizPmKv(rows) : '<p class="muted">Нода не вернула параметры рынков предсказаний.</p>'}
+      </section>`;
+  }
+
+  function vizPmLazyPoolSection(chain, ctx) {
+    return `
+      <section class="subpanel" aria-labelledby="viz-pm-lazy-heading">
+        <h3 id="viz-pm-lazy-heading">Ленивый пул ликвидности</h3>
+        <p>Ленивый пул распределяет ликвидность между рынками автоматически. Пополнение — ликвидным VIZ; вывод — по shares, при необходимости с аварийной комиссией.</p>
+        <div id="viz-pm-lazy-stats" role="status" aria-live="polite"><p class="muted">Пул загружается...</p></div>
+        ${vizPmOperation('Пополнить ленивый пул', 'viz-pm-lazy-deposit-form', 'Пополнение ленивого пула (VIZ)', [
+          { id: 'viz-pm-lazy-deposit-amount', name: 'amount', type: 'text', label: 'Сумма VIZ', required: true, placeholder: '100.000 VIZ', max: ctx.liquidMax },
+          { id: 'viz-pm-lazy-deposit-note', name: 'note', type: 'textarea', label: 'Пожелания', placeholder: 'Видно перед отправкой; не сохраняется в блокчейне.', rows: 2 }
+        ], 'Списывается с ликвидного баланса VIZ выбранного аккаунта.')}
+        ${vizPmOperation('Вывести из ленивого пула', 'viz-pm-lazy-withdraw-form', 'Вывод из ленивого пула', [
+          { id: 'viz-pm-lazy-withdraw-shares', name: 'shares', type: 'number', label: 'Количество shares', required: true, min: 0, step: 1, placeholder: '0' },
+          { id: 'viz-pm-lazy-withdraw-emergency', name: 'emergency', type: 'checkbox', label: 'Аварийный вывод (штраф на прибыль)' }
+        ], 'Введите shares из строки «Моё пополнение» ниже.')}
+      </section>`;
+  }
+
+  function vizPmLazyPoolBuilders(chain, ctx) {
+    return {
+      'viz-pm-lazy-deposit-form': (form) => {
+        const from = vizPmSigner(chain, 'Провайдер ленивого пула');
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма пополнения', { positive: true });
+        return vizPmPrepared(chain, 'active', 'pmLazyDeposit', [from, amount, []], { title: 'VIZ pm_lazy_deposit', amount });
+      },
+      'viz-pm-lazy-withdraw-form': (form) => {
+        const from = vizPmSigner(chain, 'Провайдер ленивого пула');
+        const shares = vizPmIntFormValue(form, 'shares', 'Количество shares', { positive: true });
+        const emergency = form.get('emergency') ? true : false;
+        return vizPmPrepared(chain, 'active', 'pmLazyWithdraw', [from, shares, emergency, []], { title: 'VIZ pm_lazy_withdraw', amount: `${shares} shares` });
+      }
+    };
+  }
+
+  function vizPmOraclesSection(chain, ctx) {
+    const props = ctx.chainProps || {};
+    return `
+      <section class="subpanel" aria-labelledby="viz-pm-oracles-heading">
+        <h3 id="viz-pm-oracles-heading">Оракулы</h3>
+        <p>Оракул принимает и разрешает рынки. Регистрация требует резерв (страховой депозит).</p>
+        <div id="viz-pm-oracle-lookup" role="status" aria-live="polite"><p class="muted">Введите логин оракула, чтобы посмотреть данные, или загрузите список.</p></div>
+        <form id="viz-pm-oracle-lookup-form" class="stacked-form"><fieldset><legend>Найти оракула</legend><div class="field"><label for="viz-pm-oracle-owner">Логин оракула</label><input id="viz-pm-oracle-owner" name="oracle" type="text" autocomplete="off" placeholder="например polymarket"></div><button type="submit">Показать оракула</button><button type="button" id="viz-pm-oracle-list">Показать список оракулов</button></fieldset></form>
+        ${vizPmOperation('Зарегистрировать оракула', 'viz-pm-oracle-register-form', 'Регистрация оракула', [
+          { id: 'viz-pm-oracle-reg-insurance', name: 'insurance', type: 'text', label: 'Страховой депозит (VIZ)', required: true, placeholder: String(vizPmProp(props, 'pm_min_oracle_insurance') || '5000.000 VIZ'), max: ctx.liquidMax },
+          { id: 'viz-pm-oracle-reg-fee', name: 'fee_percent', type: 'number', label: 'Комиссия оракула, bp (10000=100%)', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-oracle-reg-fixed', name: 'fixed_fee', type: 'text', label: 'Фиксированная комиссия (VIZ)', value: '0.000 VIZ' },
+          { id: 'viz-pm-oracle-reg-rules', name: 'rules_url', type: 'text', label: 'URL правил (до 256 символов)', placeholder: 'https://...' },
+          { id: 'viz-pm-oracle-reg-creator', name: 'auto_accept_creator', type: 'checkbox', label: 'Авто-принимать рынки, где я создатель', checked: true },
+          { id: 'viz-pm-oracle-reg-resolver', name: 'auto_accept_resolver', type: 'checkbox', label: 'Авто-принимать рынки, где я резолвер' },
+          { id: 'viz-pm-oracle-reg-all', name: 'auto_accept', type: 'checkbox', label: 'Авто-принимать все рынки' }
+        ], 'Депозит списывается с ликвидного VIZ.')}
+        ${vizPmOperation('Обновить оракула', 'viz-pm-oracle-update-form', 'Обновление профиля оракула', [
+          { id: 'viz-pm-oracle-upd-insurance', name: 'insurance_delta', type: 'text', label: 'Изменить депозит на (VIZ, ±)', placeholder: 'например 100.000 VIZ или -50.000 VIZ' },
+          { id: 'viz-pm-oracle-upd-fee', name: 'fee_percent', type: 'number', label: 'Новая комиссия, bp', min: 0, step: 1, placeholder: 'оставьте пустым, чтобы не менять' },
+          { id: 'viz-pm-oracle-upd-fixed', name: 'fixed_fee', type: 'text', label: 'Новая фикс. комиссия (VIZ)', placeholder: 'оставьте пустым, чтобы не менять' },
+          { id: 'viz-pm-oracle-upd-rules', name: 'rules_url', type: 'text', label: 'Новый URL правил', placeholder: 'оставьте пустым, чтобы не менять' },
+          { id: 'viz-pm-oracle-upd-creator', name: 'set_creator', type: 'checkbox', label: 'Изменить режим «я создатель»' },
+          { id: 'viz-pm-oracle-upd-creator-val', name: 'auto_accept_creator', type: 'checkbox', label: 'Новое значение: авто-принимать (я создатель)' },
+          { id: 'viz-pm-oracle-upd-resolver', name: 'set_resolver', type: 'checkbox', label: 'Изменить режим «я резолвер»' },
+          { id: 'viz-pm-oracle-upd-resolver-val', name: 'auto_accept_resolver', type: 'checkbox', label: 'Новое значение: авто-принимать (я резолвер)' },
+          { id: 'viz-pm-oracle-upd-all', name: 'set_all', type: 'checkbox', label: 'Изменить общий авто-приём' },
+          { id: 'viz-pm-oracle-upd-all-val', name: 'auto_accept', type: 'checkbox', label: 'Новое значение: авто-принимать всё' }
+        ], 'Отметьте поля, которые нужно изменить; остальные останутся прежними.')}
+        ${vizPmOperation('Принять рынок (оракул)', 'viz-pm-oracle-accept-form', 'Принятие рынка оракулом', [
+          { id: 'viz-pm-oracle-accept-id', name: 'market_id', type: 'number', label: 'Номер рынка', required: true, min: 1, step: 1 },
+          { id: 'viz-pm-oracle-accept-decision', name: 'accept', type: 'select', label: 'Решение', options: [{ value: '1', label: 'Принять' }, { value: '0', label: 'Отклонить' }] },
+          { id: 'viz-pm-oracle-accept-fee', name: 'oracle_fee_percent', type: 'number', label: 'Комиссия оракула, bp', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-oracle-accept-fixed', name: 'oracle_fixed_fee', type: 'text', label: 'Фиксированная комиссия (VIZ)', value: '0.000 VIZ' }
+        ], 'Используется, если оракул не принимает рынки автоматически.')}
+      </section>`;
+  }
+
+  function vizPmOracleBuilders(chain) {
+    return {
+      'viz-pm-oracle-register-form': (form) => {
+        const from = vizPmSigner(chain, 'Оракул');
+        const insurance = vizPmAssetFormValue(form, 'insurance', chain, 'Страховой депозит', { positive: true });
+        const fee = vizPmIntFormValue(form, 'fee_percent', 'Комиссия оракула');
+        const fixed = vizPmAssetFormValue(form, 'fixed_fee', chain, 'Фиксированная комиссия');
+        const rules = vizPmFormValue(form, 'rules_url');
+        const autoCreator = form.get('auto_accept_creator') ? true : false;
+        const autoResolver = form.get('auto_accept_resolver') ? true : false;
+        const autoAll = form.get('auto_accept') ? true : false;
+        return vizPmPrepared(chain, 'active', 'pmOracleRegister', [from, insurance, fee, fixed, rules, autoCreator, autoResolver, autoAll, []], { title: 'VIZ pm_oracle_register', amount: insurance });
+      },
+      'viz-pm-oracle-update-form': (form) => {
+        const from = vizPmSigner(chain, 'Оракул');
+        const fields = { owner: from };
+        const delta = vizPmFormValue(form, 'insurance_delta');
+        if (delta) fields.insurance_delta = broadcast.validateAsset(chain, delta.replace(/^\+/, ''), [chain.liquidSymbol || 'VIZ'], 'Изменение депозита');
+        const fee = vizPmFormValue(form, 'fee_percent');
+        if (fee !== '') fields.fee_percent = vizPmIntFormValue(form, 'fee_percent', 'Комиссия оракула');
+        const fixed = vizPmFormValue(form, 'fixed_fee');
+        if (fixed) fields.fixed_fee = broadcast.validateAsset(chain, fixed, [chain.liquidSymbol || 'VIZ'], 'Фиксированная комиссия');
+        const rules = vizPmFormValue(form, 'rules_url');
+        if (rules) fields.rules_url = rules;
+        if (form.get('set_creator')) fields.auto_accept_creator = form.get('auto_accept_creator') ? true : false;
+        if (form.get('set_resolver')) fields.auto_accept_resolver = form.get('auto_accept_resolver') ? true : false;
+        if (form.get('set_all')) fields.auto_accept = form.get('auto_accept') ? true : false;
+        fields.extensions = [];
+        if (Object.keys(fields).length <= 2) throw new Error('Отметьте хотя бы одно поле для изменения оракула.');
+        return vizPmPrepared(chain, 'active', 'sendOperations', [[['pm_oracle_update', fields]]], { title: 'VIZ pm_oracle_update' });
+      },
+      'viz-pm-oracle-accept-form': (form) => {
+        const from = vizPmSigner(chain, 'Оракул');
+        const marketId = vizPmIntFormValue(form, 'market_id', 'Номер рынка', { positive: true });
+        const accept = vizPmFormValue(form, 'accept') === '0' ? false : true;
+        const fee = vizPmIntFormValue(form, 'oracle_fee_percent', 'Комиссия оракула');
+        const fixed = broadcast.validateAsset(chain, vizPmFormValue(form, 'oracle_fixed_fee') || '0.000 VIZ', [chain.liquidSymbol || 'VIZ'], 'Фиксированная комиссия');
+        return vizPmPrepared(chain, 'active', 'pmOracleAcceptMarket', [from, marketId, accept, fee, fixed, []], { title: 'VIZ pm_oracle_accept_market' });
+      }
+    };
+  }
+
+  function vizPmCreateMarketSection(chain, ctx) {
+    const props = ctx.chainProps || {};
+    const maxOutcomes = Number(vizPmProp(props, 'pm_max_outcomes')) || 16;
+    return `
+      <section class="subpanel" aria-labelledby="viz-pm-create-heading">
+        <h3 id="viz-pm-create-heading">Создать рынок</h3>
+        <p>Создание рынка требует ликвидности не меньше <strong>${escapeHtml(String(vizPmProp(props, 'pm_min_liquidity') || '100.000 VIZ'))}</strong> и комиссии <strong>${escapeHtml(String(vizPmProp(props, 'pm_market_creation_fee') || '5.000 VIZ'))}</strong>. Создатель и оракул могут совпадать (self-oracle).</p>
+        ${vizPmOperation('Создать рынок', 'viz-pm-create-market-form', 'Новый рынок предсказаний', [
+          { id: 'viz-pm-create-type', name: 'market_type', type: 'select', label: 'Тип рынка', options: [{ value: '0', label: 'Бинарный (CPMM)' }, { value: '1', label: 'Мульти исходы (LMSR)' }] },
+          { id: 'viz-pm-create-outcomes', name: 'outcomes', type: 'textarea', label: 'Исходы (по одному в строке, до ' + maxOutcomes + ')', placeholder: 'Yes\nNo', rows: 3, required: true },
+          { id: 'viz-pm-create-url', name: 'url', type: 'text', label: 'Вопрос / ссылка (до 256)', required: true, placeholder: 'Что произойдёт к 2026 году?' },
+          { id: 'viz-pm-create-oracle', name: 'oracle', type: 'text', label: 'Оракул (@, пусто = ваш аккаунт)', placeholder: 'ваш логин = self-oracle' },
+          { id: 'viz-pm-create-liquidity', name: 'liquidity', type: 'text', label: 'Начальная ликвидность (VIZ)', required: true, placeholder: String(vizPmProp(props, 'pm_min_liquidity') || '100.000 VIZ'), max: ctx.liquidMax },
+          { id: 'viz-pm-create-lmsr-b', name: 'lmsr_b', type: 'number', label: 'LMSR b (только для мульти; пусто = рассчитать)', min: 0, step: 1, placeholder: 'авто' },
+          { id: 'viz-pm-create-bet-until', name: 'betting_expiration', type: 'datetime-local', label: 'Ставки принимаются до', required: true },
+          { id: 'viz-pm-create-result-until', name: 'result_expiration', type: 'datetime-local', label: 'Резолв не позже', required: true },
+          { id: 'viz-pm-create-oracle-fee', name: 'oracle_fee_percent', type: 'number', label: 'Комиссия оракула, bp (10000=100%)', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-create-oracle-fixed', name: 'oracle_fixed_fee', type: 'text', label: 'Фикс. комиссия оракула (VIZ)', value: '0.000 VIZ' },
+          { id: 'viz-pm-create-creator-fee', name: 'creator_fee_percent', type: 'number', label: 'Комиссия создателя, bp', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-create-liquidity-fee', name: 'liquidity_fee_percent', type: 'number', label: 'Комиссия провайдерам ликвидности, bp', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-create-endt', name: 'endogeneity_tier', type: 'select', label: 'Категория эндогенности', options: [{ value: '1', label: 'Экономика/данные' }, { value: '2', label: 'Спорт' }, { value: '3', label: 'Политика' }] },
+          { id: 'viz-pm-create-dispute-mode', name: 'dispute_mode', type: 'select', label: 'Режим спора', options: [{ value: '0', label: 'Комитет' }, { value: '1', label: 'Назначенный аккаунт' }] },
+          { id: 'viz-pm-create-dispute-resolver', name: 'dispute_resolver', type: 'text', label: 'Резолвер спора (если режим «аккаунт»)', placeholder: 'логин резолвера' },
+          { id: 'viz-pm-create-dispute-penalty', name: 'dispute_penalty_percent', type: 'number', label: 'Штраф спора, bp', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-create-time-penalty-type', name: 'time_penalty_type', type: 'select', label: 'Штраф за позднюю ставку', options: [{ value: '0', label: 'Нет' }, { value: '1', label: 'Линейный' }, { value: '2', label: 'Квадратичный' }] },
+          { id: 'viz-pm-create-time-penalty-value', name: 'time_penalty_value', type: 'number', label: 'Значение штрафа времени (1e6=100%)', min: 0, step: 1, value: '0' },
+          { id: 'viz-pm-create-early', name: 'allow_early_resolution', type: 'checkbox', label: 'Разрешить досрочный резолв' },
+          { id: 'viz-pm-create-cancel', name: 'allow_cancellation', type: 'checkbox', label: 'Разрешить отмену ставок' },
+          { id: 'viz-pm-create-batch', name: 'allow_batch', type: 'checkbox', label: 'Разрешить пакетные ставки' },
+          { id: 'viz-pm-create-instant', name: 'allow_instant_bet', type: 'checkbox', label: 'Разрешить мгновенные ставки' },
+          { id: 'viz-pm-create-category', name: 'category', type: 'text', label: 'Категория (метаданные)', placeholder: 'sports, politics, crypto...' },
+          { id: 'viz-pm-create-subcategory', name: 'subcategory', type: 'text', label: 'Подкатегория' },
+          { id: 'viz-pm-create-tags', name: 'tags', type: 'text', label: 'Теги через запятую' },
+          { id: 'viz-pm-create-description', name: 'description', type: 'textarea', label: 'Описание / правила', rows: 3 }
+        ], 'Ликвидность и комиссия списываются с ликвидного баланса VIZ. Время в формате ГГГГ-ММ-ДД ЧЧ:ММ (UTC).')}
+      </section>`;
+  }
+
+  function vizPmCreateMarketBuilders(chain) {
+    return {
+      'viz-pm-create-market-form': (form) => {
+        const from = vizPmSigner(chain, 'Создатель рынка');
+        const marketType = vizPmFormValue(form, 'market_type') === '1' ? 1 : 0;
+        const outcomes = String(form.get('outcomes') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+        if (outcomes.length < 2) throw new Error('Укажите минимум два исхода, каждый с новой строки.');
+        if (marketType === 0 && outcomes.length !== 2) throw new Error('Бинарный рынок должен иметь ровно два исхода.');
+        if (outcomes.some((item) => item.length > 64)) throw new Error('Название исхода не длиннее 64 символов.');
+        const url = vizPmFormValue(form, 'url');
+        if (!url) throw new Error('Введите вопрос рынка.');
+        if (url.length > 256) throw new Error('Вопрос/ссылка не длиннее 256 символов.');
+        const oracle = vizPmFormValue(form, 'oracle').replace(/^@/, '') || from;
+        const liquidity = vizPmAssetFormValue(form, 'liquidity', chain, 'Начальная ликвидность', { positive: true });
+        const liquidityMilli = Math.round(Number(String(liquidity).split(' ')[0]) * 1000);
+        let lmsrB = 0;
+        if (marketType === 1) {
+          const raw = vizPmFormValue(form, 'lmsr_b');
+          lmsrB = raw === '' ? Math.max(1, Math.floor(liquidityMilli / Math.log(outcomes.length))) : vizPmIntFormValue(form, 'lmsr_b', 'LMSR b', { positive: true });
+        }
+        const bettingExpiration = vizPmInputToTimepoint(form.get('betting_expiration'));
+        const resultExpiration = vizPmInputToTimepoint(form.get('result_expiration'));
+        const oracleFee = vizPmIntFormValue(form, 'oracle_fee_percent', 'Комиссия оракула');
+        const oracleFixed = broadcast.validateAsset(chain, vizPmFormValue(form, 'oracle_fixed_fee') || '0.000 VIZ', [chain.liquidSymbol || 'VIZ'], 'Фикс. комиссия оракула');
+        const creatorFee = vizPmIntFormValue(form, 'creator_fee_percent', 'Комиссия создателя');
+        const liquidityFee = vizPmIntFormValue(form, 'liquidity_fee_percent', 'Комиссия провайдерам ликвидности');
+        const endogeneity = vizPmIntFormValue(form, 'endogeneity_tier', 'Категория эндогенности') || 1;
+        const disputeMode = vizPmFormValue(form, 'dispute_mode') === '1' ? 1 : 0;
+        const disputeResolver = disputeMode === 1 ? vizPmFormValue(form, 'dispute_resolver').replace(/^@/, '') : '';
+        if (disputeMode === 1 && !disputeResolver) throw new Error('Для режима спора «аккаунт» укажите резолвера.');
+        const disputePenalty = vizPmIntFormValue(form, 'dispute_penalty_percent', 'Штраф спора');
+        const timePenaltyType = Number(vizPmFormValue(form, 'time_penalty_type') || '0') || 0;
+        const timePenaltyValue = vizPmIntFormValue(form, 'time_penalty_value', 'Штраф времени');
+        const metadata = {
+          category: vizPmFormValue(form, 'category'),
+          subcategory: vizPmFormValue(form, 'subcategory'),
+          tags: vizPmFormValue(form, 'tags').split(',').map((item) => item.trim()).filter(Boolean),
+          description: vizPmFormValue(form, 'description')
+        };
+        const params = [from, oracle, marketType, outcomes, url, oracleFee, oracleFixed, creatorFee, liquidityFee, liquidity, lmsrB, bettingExpiration, resultExpiration, timePenaltyType, timePenaltyValue, 0, form.get('allow_early_resolution') ? true : false, form.get('allow_cancellation') ? true : false, form.get('allow_batch') ? true : false, form.get('allow_instant_bet') ? true : false, endogeneity, disputeMode, disputeResolver, disputePenalty, JSON.stringify(metadata), []];
+        return vizPmPrepared(chain, 'active', 'pmCreateMarket', params, { title: 'VIZ pm_create_market', amount: liquidity });
+      }
+    };
+  }
+
+  async function vizPmRenderMarket(chain, ctx, state) {
+    const id = Number(state.market);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      await vizPmRenderList(chain, ctx, state);
+      return;
+    }
+    const full = await vizPmApi(ctx, 'getMarketFull', [id, ctx.login || '']);
+    const market = (full && full.market) || {};
+    const outcomes = (full && full.outcomes) || [];
+    const weightSums = (full && full.weight_sums) || null;
+    const oracle = full && full.oracle;
+    const meta = full && full.meta;
+    const myPositions = (full && full.my_positions) || [];
+    const myLiquidity = (full && full.my_liquidity) || [];
+    const myLeverage = (full && full.my_leverage_positions) || [];
+    const kline = (await vizPmApiOptional(ctx, 'getMarketKline', [id, 0, 40], [])) || [];
+    const dispute = await vizPmApiOptional(ctx, 'getDispute', [id], null);
+    const disputeVotes = await vizPmApiOptional(ctx, 'getDisputeVotes', [id], null);
+    const props = await vizPmChainProps(ctx);
+
+    const labels = vizPmOutcomeLabels(outcomes);
+    const isBinary = Number(market.market_type) === 0;
+    appEl.innerHTML = `
+      <section class="panel viz-prediction-markets">
+        <p><a href="${escapeHtml(appHash({ chain: 'viz', app: 'prediction-markets', pmStatus: '1' }))}">← К списку рынков</a></p>
+        <h2>Рынок #${escapeHtml(String(id))}: ${escapeHtml(vizPmMarketTitle(market))}</h2>
+        <p class="muted">${escapeHtml(vizPmLabel(VIZ_PM_MARKET_TYPE, market.market_type))} · ${escapeHtml(vizPmLabel(VIZ_PM_MARKET_STATUS, market.status))} · выплаты: ${escapeHtml(vizPmLabel(VIZ_PM_PAYOUT_STATUS, market.payout_status))}</p>
+        ${market.url ? `<p><a href="${escapeHtml(String(market.url))}" target="_blank" rel="noopener">Источник рынка</a></p>` : ''}
+        <nav aria-label="Разделы рынка"><ul><li><a href="#viz-pm-market-data">Данные</a></li><li><a href="#viz-pm-market-outcomes">Исходы</a></li><li><a href="#viz-pm-market-bet">Ставка</a></li><li><a href="#viz-pm-market-manage">Управление ставками</a></li><li><a href="#viz-pm-market-liquidity">Ликвидность</a></li><li><a href="#viz-pm-market-leverage">Плечо</a></li><li><a href="#viz-pm-market-oracle">Оракул</a></li><li><a href="#viz-pm-market-dispute">Спор</a></li></ul></nav>
+        <section class="subpanel" id="viz-pm-market-data" aria-labelledby="viz-pm-market-data-heading">
+          <h3 id="viz-pm-market-data-heading">Данные рынка</h3>
+          ${vizPmKv([
+            ['Создатель', market.creator ? `@${escapeHtml(String(market.creator))}` : '—'],
+            ['Оракул', market.oracle ? `@${escapeHtml(String(market.oracle))}` : '—'],
+            ['Комиссия оракула', escapeHtml(vizPmBp(market.oracle_fee_percent))],
+            ['Комиссия создателя', escapeHtml(vizPmBp(market.creator_fee_percent)) + ' · ликвидность ' + escapeHtml(vizPmBp(market.liquidity_fee_percent))],
+            ['Банк ставок', escapeHtml(vizPmAssetViz(market.bets_sum))],
+            ['Ликвидность', escapeHtml(vizPmAssetViz(market.liquidity_sum))],
+            ['Резервы пула A/B', `${escapeHtml(vizPmAsset(market.reserve_a))} / ${escapeHtml(vizPmAsset(market.reserve_b))}`],
+            ['Создан', escapeHtml(vizPmDate(market.created_time))],
+            ['Ставки до', escapeHtml(vizPmDate(market.betting_expiration))],
+            ['Резолв не позже', escapeHtml(vizPmDate(market.result_expiration))],
+            ['Ранний резолв', market.allow_early_resolution ? 'да' : 'нет'],
+            ['Отмена ставок', market.allow_cancellation ? 'да' : 'нет'],
+            ['Пакетные ставки', market.allow_batch ? 'да' : 'нет'],
+            ['Мгновенные ставки', market.allow_instant_bet ? 'да' : 'нет'],
+            ['Категория эндогенности', escapeHtml(vizPmLabel(VIZ_PM_ENDT, market.endogeneity_tier))],
+            ['Режим спора', escapeHtml(vizPmLabel(VIZ_PM_DISPUTE_MODE, market.dispute_mode))],
+            ['Разрешённый исход', market.resolved_outcome >= 0 ? escapeHtml(String(market.resolved_outcome)) : '—']
+          ])}
+        </section>
+        <section class="subpanel" id="viz-pm-market-outcomes" aria-labelledby="viz-pm-market-outcomes-heading">
+          <h3 id="viz-pm-market-outcomes-heading">Исходы и котировки</h3>
+          ${vizPmOutcomesBlock(market, outcomes, weightSums)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-bet" aria-labelledby="viz-pm-market-bet-heading">
+          <h3 id="viz-pm-market-bet-heading">Ставка</h3>
+          <p>Ставка списывается с ликвидного баланса VIZ${ctx.liquidMax ? ` (доступно ${escapeHtml(ctx.liquidMax)})` : ''}. Мгновенная ставка исполняется сразу; пакетная ставится в очередь до конца эпохи (обычно ~60 секунд).</p>
+          ${vizPmBetForm(market, outcomes, ctx)}
+          ${vizPmCommitRevealForms(market, outcomes, ctx, props)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-manage" aria-labelledby="viz-pm-market-manage-heading">
+          <h3 id="viz-pm-market-manage-heading">Мои ставки и управление</h3>
+          ${vizPmMyPositionsBlock(myPositions)}
+          ${vizPmCancelBetForm(market)}
+          ${vizPmTransferPositionForm(market)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-liquidity" aria-labelledby="viz-pm-market-liquidity-heading">
+          <h3 id="viz-pm-market-liquidity-heading">Ликвидность рынка</h3>
+          <p>Ликвидность улучшает котировки и приносит комиссию провайдерам. Добавление — ликвидным VIZ.</p>
+          ${vizPmMyLiquidityBlock(myLiquidity)}
+          ${vizPmAddLiquidityForm(market, ctx)}
+          ${vizPmWithdrawLiquidityForm(market, myLiquidity)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-leverage" aria-labelledby="viz-pm-market-leverage-heading">
+          <h3 id="viz-pm-market-leverage-heading">Плечо</h3>
+          ${props && props.pm_leverage_enabled ? '<p>Плечо включено governance. Залог и заём списываются с ликвидного VIZ; заём облагается платой финансирования каждые 24 часа.</p>' : '<p class="muted">Плечо отключено в текущих параметрах сети; формы доступны, но нода отклонит операции, пока <code>pm_leverage_enabled</code> выключен.</p>'}
+          ${vizPmMyLeverageBlock(myLeverage)}
+          ${vizPmLeverageForms(market, outcomes, ctx, props)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-oracle" aria-labelledby="viz-pm-market-oracle-heading">
+          <h3 id="viz-pm-market-oracle-heading">Действия оракула</h3>
+          ${vizPmOracleInfoBlock(oracle)}
+          ${vizPmResolveForms(market, outcomes)}
+        </section>
+        <section class="subpanel" id="viz-pm-market-dispute" aria-labelledby="viz-pm-market-dispute-heading">
+          <h3 id="viz-pm-market-dispute-heading">Спор</h3>
+          ${vizPmDisputeBlock(dispute, disputeVotes)}
+          ${vizPmDisputeForms(market, outcomes, props)}
+        </section>
+        ${kline.length ? `<section class="subpanel" aria-labelledby="viz-pm-market-kline-heading"><h3 id="viz-pm-market-kline-heading">История котировок</h3>${vizPmKlineTable(kline)}</section>` : ''}
+      </section>
+    `;
+
+    const builders = Object.assign(
+      {},
+      vizPmMarketWriteBuilders(chain, market, outcomes, ctx, props)
+    );
+    vizPmBindForms(chain, builders);
+    vizPmAfterRender();
+    setStatus(`Рынок #${id} открыт. Ставки и ликвидность используют ликвидный VIZ через проверку и подтверждение.`, 'info');
+  }
+
+  function vizPmOutcomesBlock(market, outcomes, weightSums) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const quotes = vizPmPoolQuotes(market, labels);
+    const sumOutcomes = weightSums && Array.isArray(weightSums.outcomes) ? weightSums.outcomes : [];
+    const rows = (outcomes.length ? outcomes : labels.map((label, index) => ({ label, outcome_index: index }))).map((outcome, index) => {
+      const label = String(outcome.label || labels[index] || `Исход ${index}`);
+      const weight = sumOutcomes.find((item) => Number(item.outcome_index) === Number(outcome.outcome_index !== undefined ? outcome.outcome_index : index));
+      const quote = quotes.find((item) => item.label === label);
+      return [
+        escapeHtml(label),
+        escapeHtml(vizPmAsset(outcome.bets_sum || (weight && weight.bets_sum) || 0)),
+        escapeHtml(vizPmAsset(outcome.weight_sum || (weight && weight.weight_sum) || 0)),
+        quote ? `${quote.pct.toFixed(1)}%` : '—'
+      ];
+    });
+    return `${vizPmTable('Исходы рынка', ['Исход', 'Сумма ставок (VIZ)', 'Вес/токены (VIZ)', 'Котировка пула (оценка)'], rows)}
+      <p class="muted">Котировка пула — оценка по текущим резервам CPMM, не гарантированная цена.</p>`;
+  }
+
+  function vizPmBetForm(market, outcomes, ctx) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const isBinary = Number(market.market_type) === 0;
+    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : (isBinary ? [{ value: '0', label: 'Да / A' }, { value: '1', label: 'Нет / B' }] : []);
+    return vizPmOperation('Сделать ставку', 'viz-pm-bet-form', 'Ставка ликвидным VIZ', [
+      { id: 'viz-pm-bet-choice', name: 'choice', type: 'select', label: 'Исход', options, required: true },
+      { id: 'viz-pm-bet-amount', name: 'amount', type: 'text', label: 'Сумма ставки (VIZ)', required: true, placeholder: '10.000 VIZ', max: ctx.liquidMax },
+      { id: 'viz-pm-bet-mode', name: 'mode', type: 'select', label: 'Режим', options: [{ value: '0', label: 'Мгновенная' }, { value: '1', label: 'Пакетная (в очередь эпохи)' }] },
+      { id: 'viz-pm-bet-min', name: 'min_tokens', type: 'number', label: 'Минимум токенов (защита от проскальзывания, 0 = без)', min: 0, step: 1, value: '0' }
+    ], 'Проверка операции покажет параметры, отправка требует подтверждения.');
+  }
+
+  function vizPmCommitRevealForms(market, outcomes, ctx, props) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const isBinary = Number(market.market_type) === 0;
+    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : (isBinary ? [{ value: '0', label: 'Да / A' }, { value: '1', label: 'Нет / B' }] : []);
+    const noRevealFee = vizPmProp(props, 'pm_commit_no_reveal_penalty_percent');
+    return `${vizPmOperation('Скрытая ставка (commit)', 'viz-pm-commit-form', 'Commit-ставка', [
+      { id: 'viz-pm-commit-choice', name: 'choice', type: 'select', label: 'Исход', options, required: true },
+      { id: 'viz-pm-commit-amount', name: 'amount', type: 'text', label: 'Сумма (VIZ, = эскроу)', required: true, placeholder: '10.000 VIZ', max: ctx.liquidMax },
+      { id: 'viz-pm-commit-min', name: 'min_tokens', type: 'number', label: 'Минимум токенов', min: 0, step: 1, value: '0' },
+      { id: 'viz-pm-commit-salt', name: 'salt', type: 'text', label: 'Соль (секретная строка, запомните!)', required: true, placeholder: 'случайная строка' }
+    ], noRevealFee ? `Штраф за нераскрытие — ${vizPmBp(noRevealFee)} от эскроу.` : '')}
+    ${vizPmOperation('Раскрыть ставку (reveal)', 'viz-pm-reveal-form', 'Reveal-ставка', [
+      { id: 'viz-pm-reveal-id', name: 'commit_id', type: 'number', label: 'Номер commit-записи', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-reveal-choice', name: 'choice', type: 'select', label: 'Исход (как в commit)', options, required: true },
+      { id: 'viz-pm-reveal-amount', name: 'amount', type: 'text', label: 'Сумма (VIZ, как в commit)', required: true, placeholder: '10.000 VIZ' },
+      { id: 'viz-pm-reveal-salt', name: 'salt', type: 'text', label: 'Соль (как в commit)', required: true },
+      { id: 'viz-pm-reveal-min', name: 'min_tokens', type: 'number', label: 'Минимум токенов', min: 0, step: 1, value: '0' }
+    ], 'Соль, сумма и исход должны совпадать с commit, иначе эскроу сгорит.')}`;
+  }
+
+  function vizPmMyPositionsBlock(positions) {
+    if (!positions.length) return '<p class="muted">У выбранного аккаунта нет ставок на этом рынке.</p>';
+    const rows = positions.map((position) => [
+      escapeHtml(String(position.bet_id !== undefined ? position.bet_id : position.id || '')),
+      escapeHtml(vizPmBetSideLabel(position)),
+      escapeHtml(vizPmAsset(position.amount)),
+      escapeHtml(vizPmAsset(position.expected_payout !== undefined ? position.expected_payout : (position.resolved_amount || 0))),
+      escapeHtml(vizPmLabel(VIZ_PM_BET_STATUS, position.status))
+    ]);
+    return vizPmTable('Мои ставки', ['bet_id', 'Исход', 'Сумма (VIZ)', 'Ожид. выплата (VIZ)', 'Статус'], rows);
+  }
+
+  function vizPmBetSideLabel(position) {
+    if (Number(position.side) >= 0) return `Сторона ${position.side}`;
+    if (Number(position.outcome_index) >= 0) return `Исход ${position.outcome_index}`;
+    return '—';
+  }
+
+  function vizPmMyLiquidityBlock(liquidity) {
+    if (!liquidity.length) return '<p class="muted">У выбранного аккаунта нет ликвидности на этом рынке.</p>';
+    const rows = liquidity.map((item) => [
+      escapeHtml(String(item.id || '')),
+      escapeHtml(vizPmAsset(item.amount)),
+      escapeHtml(vizPmAsset(item.earned_fee || 0)),
+      escapeHtml(vizPmLabel(VIZ_PM_LIQUIDITY_STATUS, item.status))
+    ]);
+    return vizPmTable('Моя ликвидность рынка', ['liquidity_id', 'Вложено (VIZ)', 'Заработано (VIZ)', 'Статус'], rows);
+  }
+
+  function vizPmMyLeverageBlock(positions) {
+    if (!positions.length) return '';
+    const rows = positions.map((item) => [
+      escapeHtml(String(item.id || item.position_id || '')),
+      escapeHtml(vizPmAsset(item.collateral)),
+      escapeHtml(vizPmAsset(item.loan)),
+      escapeHtml(vizPmAsset(item.funding_paid || 0)),
+      escapeHtml(vizPmLabel(VIZ_PM_LEVERAGE_STATUS, item.status))
+    ]);
+    return vizPmTable('Мои позиции с плечом', ['position_id', 'Залог (VIZ)', 'Заём (VIZ)', 'Финансирование (VIZ)', 'Статус'], rows);
+  }
+
+  function vizPmCancelBetForm(market) {
+    return vizPmOperation('Отменить ставку', 'viz-pm-cancel-form', 'Отмена ставки', [
+      { id: 'viz-pm-cancel-id', name: 'bet_id', type: 'number', label: 'Номер ставки (bet_id)', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-cancel-min', name: 'min_return', type: 'number', label: 'Минимум возврата (0 = без)', min: 0, step: 1, value: '0' }
+    ], 'Доступно только если рынок разрешает отмену и на это настроена сеть.');
+  }
+
+  function vizPmTransferPositionForm(market) {
+    return vizPmOperation('Передать позицию', 'viz-pm-transfer-position-form', 'Передача позиции', [
+      { id: 'viz-pm-transfer-id', name: 'bet_id', type: 'number', label: 'Номер ставки (bet_id)', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-transfer-to', name: 'to', type: 'text', label: 'Кому (@)', required: true },
+      { id: 'viz-pm-transfer-amount', name: 'amount', type: 'number', label: 'Количество токенов', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-transfer-memo', name: 'memo', type: 'text', label: 'Memo' }
+    ]);
+  }
+
+  function vizPmAddLiquidityForm(market, ctx) {
+    return vizPmOperation('Добавить ликвидность', 'viz-pm-add-liquidity-form', 'Добавление ликвидности (VIZ)', [
+      { id: 'viz-pm-add-liquidity-amount', name: 'amount', type: 'text', label: 'Сумма (VIZ)', required: true, placeholder: '100.000 VIZ', max: ctx.liquidMax }
+    ], 'Списывается с ликвидного баланса VIZ.');
+  }
+
+  function vizPmWithdrawLiquidityForm(market, liquidity) {
+    const hint = liquidity.length ? `Ваши liquidity_id: ${liquidity.map((item) => item.id).join(', ')}.` : 'Вложите ликвидность, чтобы получить liquidity_id.';
+    return vizPmOperation('Вывести ликвидность', 'viz-pm-withdraw-liquidity-form', 'Вывод ликвидности', [
+      { id: 'viz-pm-withdraw-liquidity-id', name: 'liquidity_id', type: 'number', label: 'Номер позиции (liquidity_id)', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-withdraw-liquidity-amount', name: 'amount', type: 'text', label: 'Сумма к выводу (VIZ)', required: true, placeholder: '100.000 VIZ' }
+    ], hint);
+  }
+
+  function vizPmLeverageForms(market, outcomes, ctx, props) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label })) : [];
+    return `${vizPmOperation('Открыть позицию с плечом', 'viz-pm-leverage-open-form', 'Открытие плеча', [
+      { id: 'viz-pm-lev-open-outcome', name: 'outcome_index', type: 'select', label: 'Исход', options, required: true },
+      { id: 'viz-pm-lev-open-collateral', name: 'collateral', type: 'text', label: 'Залог (VIZ)', required: true, placeholder: '10.000 VIZ', max: ctx.liquidMax },
+      { id: 'viz-pm-lev-open-loan', name: 'loan', type: 'text', label: 'Заём (VIZ)', required: true, placeholder: '90.000 VIZ' },
+      { id: 'viz-pm-lev-open-min', name: 'min_tokens', type: 'number', label: 'Минимум токенов', min: 0, step: 1, value: '0' },
+      { id: 'viz-pm-lev-open-slippage', name: 'max_slippage_percent', type: 'number', label: 'Макс. проскальзывание, bp', min: 0, step: 1, value: String(vizPmProp(props, 'pm_leverage_max_slippage_percent') ? Number(vizPmProp(props, 'pm_leverage_max_slippage_percent')) * 100 : 1000) }
+    ], 'Проверьте котировку займа ниже перед отправкой.')}
+    ${vizPmOperation('Закрыть позицию с плечом', 'viz-pm-leverage-close-form', 'Закрытие плеча', [
+      { id: 'viz-pm-lev-close-id', name: 'position_id', type: 'number', label: 'Номер позиции', required: true, min: 1, step: 1 },
+      { id: 'viz-pm-lev-close-min', name: 'min_return', type: 'number', label: 'Минимальный возврат (0 = без)', min: 0, step: 1, value: '0' }
+    ])}
+    ${vizPmOperation('Конвертировать позицию', 'viz-pm-leverage-convert-form', 'Конвертация плеча в спот', [
+      { id: 'viz-pm-lev-convert-id', name: 'position_id', type: 'number', label: 'Номер позиции', required: true, min: 1, step: 1 }
+    ], `Стоимость конвертации задаётся сетью: ${vizPmProp(props, 'pm_conversion_profit_cost_percent')}% от нереализованной прибыли.`)}`;
+  }
+
+  function vizPmOracleInfoBlock(oracle) {
+    if (!oracle) return '<p class="muted">Данные оракула недоступны.</p>';
+    const source = oracle.oracle || oracle;
+    return vizPmKv([
+      ['Оракул', source.owner ? `@${escapeHtml(String(source.owner))}` : '—'],
+      ['Депозит', escapeHtml(String(source.insurance || ''))],
+      ['Комиссия', escapeHtml(vizPmBp(source.fee_percent))],
+      ['Рынков разрешено', escapeHtml(String(source.markets_resolved !== undefined ? source.markets_resolved : ''))],
+      ['Споров выиграно/проиграно', `${escapeHtml(String(source.disputes_won || 0))} / ${escapeHtml(String(source.disputes_lost || 0))}`],
+      ['Надёжность', oracle.reliability_score !== undefined ? escapeHtml(`${(Number(oracle.reliability_score) / 100).toFixed(2)}%`) : '—'],
+      ['Ждут резолва', escapeHtml(String(oracle.markets_awaiting_resolution !== undefined ? oracle.markets_awaiting_resolution : ''))]
+    ]);
+  }
+
+  function vizPmResolveForms(market, outcomes) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label: `${index}: ${label}` })) : [];
+    return `${vizPmOperation('Разрешить рынок', 'viz-pm-resolve-form', 'Резолв рынка (оракул)', [
+      { id: 'viz-pm-resolve-outcome', name: 'winning_outcome', type: 'select', label: 'Победный исход', options, required: true },
+      { id: 'viz-pm-resolve-url', name: 'decision_url', type: 'text', label: 'URL доказательства (до 256)', placeholder: 'https://...' },
+      { id: 'viz-pm-resolve-reason', name: 'decision_reason', type: 'textarea', label: 'Обоснование', rows: 2 }
+    ])}
+    ${vizPmOperation('Отметить «без спора»', 'viz-pm-no-contest-form', 'Рынок без спора', [
+      { id: 'viz-pm-no-contest-reason', name: 'reason', type: 'textarea', label: 'Причина (до 1024)', rows: 2, required: true }
+    ], 'Помечает рынок как не подлежащий разрешению и возвращает ставки.')}`;
+  }
+
+  function vizPmDisputeBlock(dispute, votes) {
+    if (!dispute) return '<p class="muted">Активного спора по рынку нет.</p>';
+    const parts = [vizPmKv([
+      ['Статус', escapeHtml(vizPmLabel(VIZ_PM_DISPUTE_STATUS, dispute.status))],
+      ['Оспоренный исход', dispute.proposed_outcome >= 0 ? escapeHtml(String(dispute.proposed_outcome)) : '—'],
+      ['Причина', escapeHtml(String(dispute.reason || ''))]
+    ])];
+    if (votes) {
+      parts.push(vizPmKv([
+        ['Голосов «поддержать оракула»', escapeHtml(vizPmAsset(votes.uphold_weight))],
+        ['Голосов «изменить исход»', escapeHtml(vizPmAsset(votes.challenge_weight))],
+        ['Кворум достигнут', votes.quorum_reached ? 'да' : 'нет'],
+        ['Ожидаемый исход', votes.expected_outcome >= 0 ? escapeHtml(String(votes.expected_outcome)) : '—']
+      ]));
+    }
+    return parts.join('');
+  }
+
+  function vizPmDisputeForms(market, outcomes, props) {
+    const labels = vizPmOutcomeLabels(outcomes);
+    const options = labels.length ? labels.map((label, index) => ({ value: String(index), label: `${index}: ${label}` })) : [];
+    const fee = vizPmProp(props, 'pm_dispute_fee');
+    return `${vizPmOperation('Создать спор', 'viz-pm-dispute-create-form', 'Создание спора' + (fee ? ` (комиссия ${fee})` : ''), [
+      { id: 'viz-pm-dispute-create-outcome', name: 'proposed_outcome', type: 'select', label: 'Правильный исход (предложение)', options, required: true },
+      { id: 'viz-pm-dispute-create-reason', name: 'reason', type: 'textarea', label: 'Обоснование (до 1024)', rows: 3, required: true }
+    ])}
+    ${vizPmOperation('Голосовать в споре', 'viz-pm-dispute-vote-form', 'Голос в споре (regular-ключ)', [
+      { id: 'viz-pm-dispute-vote-outcome', name: 'vote_outcome', type: 'select', label: 'Голос', options: [{ value: '-1', label: 'Поддержать оракула' }].concat(options) },
+      { id: 'viz-pm-dispute-vote-percent', name: 'vote_percent', type: 'number', label: 'Вес голоса, bp (10000=100%)', min: 0, step: 1, value: '10000' }
+    ], 'Голос подписывается regular-ключом VIZ.')}
+    ${vizPmOperation('Разрешить спор', 'viz-pm-dispute-resolve-form', 'Решение спора (резолвер)', [
+      { id: 'viz-pm-dispute-resolve-outcome', name: 'correct_outcome', type: 'select', label: 'Правильный исход', options, required: true },
+      { id: 'viz-pm-dispute-resolve-penalty', name: 'penalty_amount', type: 'text', label: 'Штраф (VIZ)', value: '0.000 VIZ' },
+      { id: 'viz-pm-dispute-resolve-ban-oracle', name: 'ban_oracle', type: 'checkbox', label: 'Забанить оракула' },
+      { id: 'viz-pm-dispute-resolve-ban-oracle-until', name: 'ban_oracle_until', type: 'datetime-local', label: 'Бан оракула до' },
+      { id: 'viz-pm-dispute-resolve-ban-creator', name: 'ban_creator', type: 'checkbox', label: 'Забанить создателя' },
+      { id: 'viz-pm-dispute-resolve-ban-creator-until', name: 'ban_creator_until', type: 'datetime-local', label: 'Бан создателя до' }
+    ])}
+    ${vizPmOperation('Ответ оракула на спор', 'viz-pm-dispute-respond-form', 'Ответ оракула', [
+      { id: 'viz-pm-dispute-respond-text', name: 'response', type: 'textarea', label: 'Ответ оракула (до 1024)', rows: 3, required: true }
+    ])}
+    ${vizPmOperation('Разбанить аккаунт', 'viz-pm-unban-form', 'Снятие бана', [
+      { id: 'viz-pm-unban-target', name: 'target', type: 'text', label: 'Аккаунт', required: true },
+      { id: 'viz-pm-unban-oracle', name: 'unban_oracle', type: 'checkbox', label: 'Снять бан оракула' },
+      { id: 'viz-pm-unban-creator', name: 'unban_creator', type: 'checkbox', label: 'Снять бан создателя' }
+    ])}`;
+  }
+
+  function vizPmKlineTable(kline) {
+    const points = kline.slice(-20).reverse();
+    const rows = points.map((point) => [
+      escapeHtml(vizPmDate(new Date(Number(point.timestamp) * 1000).toISOString())),
+      escapeHtml(vizPmLabel(VIZ_PM_KLINE_REASON, point.reason)),
+      escapeHtml(vizPmAsset(point.bets_sum)),
+      escapeHtml((Array.isArray(point.weights) ? point.weights : []).map((weight) => vizPmAsset(weight)).join(' / '))
+    ]);
+    return vizPmTable('Последние изменения котировок (свежие сверху)', ['Время', 'Причина', 'Банк ставок (VIZ)', 'Веса по исходам (VIZ)'], rows);
+  }
+
+  function vizPmMarketWriteBuilders(chain, market, outcomes, ctx, props) {
+    const marketId = Number(vizPmMarketId(market));
+    const isBinary = Number(market.market_type) === 0;
+    const choiceToSideOutcome = (choice) => {
+      const index = Number(choice);
+      if (isBinary) return { side: index === 1 ? 1 : 0, outcomeIndex: -1 };
+      return { side: -1, outcomeIndex: index };
+    };
+    return {
+      'viz-pm-bet-form': (form) => {
+        const from = vizPmSigner(chain, 'Ставка');
+        const { side, outcomeIndex } = choiceToSideOutcome(vizPmFormValue(form, 'choice'));
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма ставки', { positive: true });
+        const mode = vizPmFormValue(form, 'mode') === '1' ? 1 : 0;
+        const minTokens = vizPmIntFormValue(form, 'min_tokens', 'Минимум токенов');
+        return vizPmPrepared(chain, 'active', 'pmPlaceBet', [from, marketId, side, outcomeIndex, amount, minTokens, mode, []], { title: 'VIZ pm_place_bet', amount });
+      },
+      'viz-pm-commit-form': (form) => {
+        const from = vizPmSigner(chain, 'Commit-ставка');
+        const { side, outcomeIndex } = choiceToSideOutcome(vizPmFormValue(form, 'choice'));
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма эскроу', { positive: true });
+        const minTokens = vizPmIntFormValue(form, 'min_tokens', 'Минимум токенов');
+        const salt = vizPmFormValue(form, 'salt');
+        if (!salt) throw new Error('Введите соль для commit-ставки.');
+        const formatter = global.viz && global.viz.formatter;
+        if (!formatter || typeof formatter.predictionMarketCommitment !== 'function') {
+          throw new Error('Библиотека viz.formatter.predictionMarketCommitment недоступна: обновите viz-js-lib.');
+        }
+        const commitment = formatter.predictionMarketCommitment(marketId, from, side, outcomeIndex, amount, minTokens, salt);
+        const noRevealFee = Number(vizPmProp(props, 'pm_commit_no_reveal_penalty_percent')) || 0;
+        return vizPmPrepared(chain, 'active', 'pmCommitBet', [from, marketId, commitment, amount, noRevealFee, []], { title: 'VIZ pm_commit_bet', amount });
+      },
+      'viz-pm-reveal-form': (form) => {
+        const from = vizPmSigner(chain, 'Reveal-ставка');
+        const { side, outcomeIndex } = choiceToSideOutcome(vizPmFormValue(form, 'choice'));
+        const commitId = vizPmIntFormValue(form, 'commit_id', 'Номер commit-записи', { positive: true });
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма раскрытия', { positive: true });
+        const salt = vizPmFormValue(form, 'salt');
+        if (!salt) throw new Error('Введите соль из commit-ставки.');
+        const minTokens = vizPmIntFormValue(form, 'min_tokens', 'Минимум токенов');
+        return vizPmPrepared(chain, 'active', 'pmRevealBet', [from, commitId, side, outcomeIndex, amount, salt, minTokens, []], { title: 'VIZ pm_reveal_bet', amount });
+      },
+      'viz-pm-cancel-form': (form) => {
+        const from = vizPmSigner(chain, 'Отмена ставки');
+        const betId = vizPmIntFormValue(form, 'bet_id', 'Номер ставки', { positive: true });
+        const minReturn = vizPmIntFormValue(form, 'min_return', 'Минимум возврата');
+        return vizPmPrepared(chain, 'active', 'pmCancelBet', [from, betId, minReturn, []], { title: 'VIZ pm_cancel_bet' });
+      },
+      'viz-pm-transfer-position-form': (form) => {
+        const from = vizPmSigner(chain, 'Передача позиции');
+        const betId = vizPmIntFormValue(form, 'bet_id', 'Номер ставки', { positive: true });
+        const to = normalizeAccountInput(chain, vizPmFormValue(form, 'to'), 'Получатель');
+        const amount = vizPmIntFormValue(form, 'amount', 'Количество токенов', { positive: true });
+        const memo = vizPmFormValue(form, 'memo');
+        return vizPmPrepared(chain, 'active', 'pmTransferPosition', [from, betId, to, amount, memo, []], { title: 'VIZ pm_transfer_position', to, amount: `${amount} токенов` });
+      },
+      'viz-pm-add-liquidity-form': (form) => {
+        const from = vizPmSigner(chain, 'Ликвидность');
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма ликвидности', { positive: true });
+        return vizPmPrepared(chain, 'active', 'pmAddLiquidity', [from, marketId, amount, []], { title: 'VIZ pm_add_liquidity', amount });
+      },
+      'viz-pm-withdraw-liquidity-form': (form) => {
+        const from = vizPmSigner(chain, 'Ликвидность');
+        const liquidityId = vizPmIntFormValue(form, 'liquidity_id', 'Номер позиции', { positive: true });
+        const amount = vizPmAssetFormValue(form, 'amount', chain, 'Сумма вывода', { positive: true });
+        return vizPmPrepared(chain, 'active', 'pmWithdrawLiquidity', [from, liquidityId, amount, []], { title: 'VIZ pm_withdraw_liquidity', amount });
+      },
+      'viz-pm-resolve-form': (form) => {
+        const from = vizPmSigner(chain, 'Резолв');
+        const winning = vizPmIntFormValue(form, 'winning_outcome', 'Победный исход');
+        const decisionUrl = vizPmFormValue(form, 'decision_url');
+        const decisionReason = vizPmFormValue(form, 'decision_reason');
+        return vizPmPrepared(chain, 'active', 'pmResolveMarket', [from, marketId, winning, decisionUrl, decisionReason, []], { title: 'VIZ pm_resolve_market' });
+      },
+      'viz-pm-no-contest-form': (form) => {
+        const from = vizPmSigner(chain, 'Без спора');
+        const reason = vizPmFormValue(form, 'reason');
+        if (!reason) throw new Error('Введите причину «без спора».');
+        return vizPmPrepared(chain, 'active', 'pmNoContest', [from, marketId, reason, []], { title: 'VIZ pm_no_contest' });
+      },
+      'viz-pm-dispute-create-form': (form) => {
+        const from = vizPmSigner(chain, 'Спор');
+        const proposed = vizPmIntFormValue(form, 'proposed_outcome', 'Предложенный исход');
+        const reason = vizPmFormValue(form, 'reason');
+        if (!reason) throw new Error('Введите обоснование спора.');
+        return vizPmPrepared(chain, 'active', 'pmDisputeCreate', [from, marketId, proposed, reason, []], { title: 'VIZ pm_dispute_create' });
+      },
+      'viz-pm-dispute-vote-form': (form) => {
+        const from = vizPmSigner(chain, 'Голос в споре');
+        const voteOutcome = vizPmIntFormValue(form, 'vote_outcome', 'Голос');
+        const votePercent = vizPmIntFormValue(form, 'vote_percent', 'Вес голоса');
+        return vizPmPrepared(chain, 'regular', 'pmDisputeVote', [from, marketId, voteOutcome, votePercent, []], { title: 'VIZ pm_dispute_vote (regular)' });
+      },
+      'viz-pm-dispute-resolve-form': (form) => {
+        const from = vizPmSigner(chain, 'Резолвер спора');
+        const correct = vizPmIntFormValue(form, 'correct_outcome', 'Правильный исход');
+        const penalty = broadcast.validateAsset(chain, vizPmFormValue(form, 'penalty_amount') || '0.000 VIZ', [chain.liquidSymbol || 'VIZ'], 'Штраф');
+        const banOracle = form.get('ban_oracle') ? true : false;
+        const banOracleUntil = banOracle && vizPmFormValue(form, 'ban_oracle_until') ? vizPmInputToTimepoint(form.get('ban_oracle_until')) : '1970-01-01T00:00:00';
+        const banCreator = form.get('ban_creator') ? true : false;
+        const banCreatorUntil = banCreator && vizPmFormValue(form, 'ban_creator_until') ? vizPmInputToTimepoint(form.get('ban_creator_until')) : '1970-01-01T00:00:00';
+        return vizPmPrepared(chain, 'active', 'pmDisputeResolve', [from, marketId, correct, penalty, banOracle, banOracleUntil, banCreator, banCreatorUntil, []], { title: 'VIZ pm_dispute_resolve' });
+      },
+      'viz-pm-dispute-respond-form': (form) => {
+        const from = vizPmSigner(chain, 'Ответ оракула');
+        const response = vizPmFormValue(form, 'response');
+        if (!response) throw new Error('Введите ответ оракула.');
+        return vizPmPrepared(chain, 'active', 'pmDisputeOracleRespond', [from, marketId, response, []], { title: 'VIZ pm_dispute_oracle_respond' });
+      },
+      'viz-pm-unban-form': (form) => {
+        const from = vizPmSigner(chain, 'Снятие бана');
+        const target = normalizeAccountInput(chain, vizPmFormValue(form, 'target'), 'Аккаунт');
+        const unbanOracle = form.get('unban_oracle') ? true : false;
+        const unbanCreator = form.get('unban_creator') ? true : false;
+        return vizPmPrepared(chain, 'active', 'pmUnban', [from, target, unbanOracle, unbanCreator, []], { title: 'VIZ pm_unban', to: target });
+      },
+      'viz-pm-leverage-open-form': (form) => {
+        const from = vizPmSigner(chain, 'Плечо');
+        const outcomeIndex = vizPmIntFormValue(form, 'outcome_index', 'Исход');
+        const collateral = vizPmAssetFormValue(form, 'collateral', chain, 'Залог', { positive: true });
+        const loan = vizPmAssetFormValue(form, 'loan', chain, 'Заём', { positive: true });
+        const minTokens = vizPmIntFormValue(form, 'min_tokens', 'Минимум токенов');
+        const maxSlippage = vizPmIntFormValue(form, 'max_slippage_percent', 'Макс. проскальзывание');
+        return vizPmPrepared(chain, 'active', 'pmLeverageOpen', [from, marketId, outcomeIndex, collateral, loan, minTokens, maxSlippage, []], { title: 'VIZ pm_leverage_open' });
+      },
+      'viz-pm-leverage-close-form': (form) => {
+        const from = vizPmSigner(chain, 'Плечо');
+        const positionId = vizPmIntFormValue(form, 'position_id', 'Номер позиции', { positive: true });
+        const minReturn = vizPmIntFormValue(form, 'min_return', 'Минимальный возврат');
+        return vizPmPrepared(chain, 'active', 'pmLeverageClose', [from, positionId, minReturn, []], { title: 'VIZ pm_leverage_close' });
+      },
+      'viz-pm-leverage-convert-form': (form) => {
+        const from = vizPmSigner(chain, 'Плечо');
+        const positionId = vizPmIntFormValue(form, 'position_id', 'Номер позиции', { positive: true });
+        const conversion = Number(vizPmProp(props, 'pm_conversion_profit_cost_percent'));
+        if (!Number.isFinite(conversion)) throw new Error('Не удалось получить стоимость конвертации из параметров сети.');
+        return vizPmPrepared(chain, 'active', 'pmLeverageConvert', [from, positionId, conversion, []], { title: 'VIZ pm_leverage_convert' });
+      }
+    };
+  }
+
+  function vizPmBindOracleLookup(chain, ctx) {
+    const form = document.getElementById('viz-pm-oracle-lookup-form');
+    const result = document.getElementById('viz-pm-oracle-lookup');
+    if (form && result) {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const owner = String(new FormData(form).get('oracle') || '').trim().replace(/^@/, '');
+        if (!owner) { result.innerHTML = '<p class="muted">Введите логин оракула.</p>'; return; }
+        result.innerHTML = '<p>Загружаю оракула...</p>';
+        try {
+          const payload = await vizPmApi(ctx, 'getOracle', [owner]);
+          const oracle = payload && payload.oracle;
+          if (!oracle) { result.innerHTML = `<p class="muted">Оракул @${escapeHtml(owner)} не найден.</p>`; return; }
+          result.innerHTML = `${vizPmOracleInfoBlock(payload)}<p>Активных рынков: ${escapeHtml(String(payload.active_markets !== undefined ? payload.active_markets : ''))} · ждут резолва: ${escapeHtml(String(payload.markets_awaiting_resolution !== undefined ? payload.markets_awaiting_resolution : ''))}</p>`;
+        } catch (error) {
+          result.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+        }
+      });
+    }
+    const listButton = document.getElementById('viz-pm-oracle-list');
+    if (listButton && result) {
+      listButton.addEventListener('click', async () => {
+        result.innerHTML = '<p>Загружаю список оракулов...</p>';
+        try {
+          const oracles = await vizPmApi(ctx, 'listOracles', [0, 30]);
+          const rows = (Array.isArray(oracles) ? oracles : []).map((oracle) => [
+            escapeHtml(String(oracle.owner || '')),
+            escapeHtml(String(oracle.insurance || '')),
+            escapeHtml(vizPmBp(oracle.fee_percent)),
+            escapeHtml(String(oracle.markets_resolved !== undefined ? oracle.markets_resolved : '')),
+            escapeHtml(String(oracle.disputes_won || 0)) + ' / ' + escapeHtml(String(oracle.disputes_lost || 0))
+          ]);
+          result.innerHTML = vizPmTable('Оракулы', ['Оракул', 'Депозит', 'Комиссия', 'Разрешено', 'Споры +/−'], rows);
+        } catch (error) {
+          result.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+        }
+      });
+    }
+  }
+
+  function vizPmBindLazyPoolLoad(ctx) {
+    const stats = document.getElementById('viz-pm-lazy-stats');
+    if (!stats || !ctx) return;
+    (async () => {
+      try {
+        const pool = await vizPmApi(ctx, 'getLazyPool', []);
+        let deposit = null;
+        if (ctx.login) deposit = await vizPmApiOptional(ctx, 'getLazyDeposit', [ctx.login], null);
+        const rows = [
+          ['Всего shares', escapeHtml(String(pool.total_shares || 0))],
+          ['Свободный баланс', escapeHtml(vizPmAssetViz(pool.free_balance))],
+          ['Распределено', escapeHtml(vizPmAssetViz(pool.allocated_balance))],
+          ['Заработано', escapeHtml(vizPmAssetViz(pool.earned_balance))],
+          ['Награда за share', escapeHtml(String(pool.reward_per_share || 0))]
+        ];
+        if (deposit) rows.push(['Моё пополнение (shares)', escapeHtml(String(deposit.shares !== undefined ? deposit.shares : ''))]);
+        stats.innerHTML = vizPmKv(rows);
+      } catch (error) {
+        stats.innerHTML = `<p class="muted">Ленивый пул недоступен: ${escapeHtml(profiles.formatError(error))}</p>`;
+      }
+    })();
+  }
+
   const vizVmpPoolTokens = ['USDTE', 'USDCE', 'USDTBSC', 'USDCBSC', 'DAIE', 'DAIBSC', 'BTC', 'BTCBSC', 'ETH', 'MUSD', 'HUB', 'METAGARDEN', 'BIP'];
   const vizVmpCalcPairs = ['BIP/VIZCHAIN', 'USDTE/VIZCHAIN', 'USDTBSC/VIZCHAIN', 'USDCE/VIZCHAIN', 'USDCBSC/VIZCHAIN', 'DAIE/VIZCHAIN', 'DAIBSC/VIZCHAIN', 'BTC/VIZCHAIN', 'BTCBSC/VIZCHAIN', 'ETH/VIZCHAIN', 'MUSD/VIZCHAIN', 'HUB/VIZCHAIN'];
 
@@ -15079,6 +16259,8 @@ Memo key: ${keys.memo}`);
         renderVizPolls(chain);
       } else if (chain.id === 'viz' && effectiveAppId === 'projects') {
         renderVizProjects(chain);
+      } else if (chain.id === 'viz' && effectiveAppId === 'prediction-markets') {
+        await renderVizPredictionMarkets(chain, account);
       } else if (chain.id === 'viz' && effectiveAppId === 'custom-generator') {
         renderVizCustomGenerator(chain);
       } else if ((chain.id === 'golos' || isHiveOrSteem(chain)) && effectiveAppId === 'auto-upvoter') {

@@ -42,6 +42,7 @@
     { id: 'custom-generator', title: 'JSON-генератор', description: 'Генератор VIZ custom_json: локальная проверка JSON и отправка custom через общий подтверждаемый broadcast flow.', accountField: false },
     { id: 'polls', title: 'Опросы', description: 'VIZ polls: static-safe формы протокола viz-votes для createVote/voteing плюс документация backend-only списка/результатов.', accountField: false },
     { id: 'projects', title: 'Проекты', description: 'VIZ projects: static-safe paid transfer forms for viz-projects protocol plus documentation of backend-only catalog/task/news indexer.', accountField: false },
+    { id: 'prediction-markets', title: 'Рынки предсказаний', description: 'Рынки предсказаний VIZ (prediction_market_api): просмотр рынков, ставки и ликвидность ликвидным VIZ с кнопкой «Максимум», ленивый пул, оракулы, создание и разрешение рынков.', accountField: true },
     { id: 'top', title: 'Топ пользователей', description: 'Локальная загрузка топа VIZ через публичный RPC: SHARES, VIZ, делегации и вывод без backend-индексера.', accountField: false },
     { id: 'witnesses-rewards', title: 'Награды валидаторов', description: 'Список валидаторов VIZ через публичный RPC и документация legacy reward-колонок за текущий/предыдущий день и месяц без старого backend.', accountField: false },
     { id: 'randomblockchain', title: 'Случайный блокчейн', description: 'Детерминированный random по validator_signature/witness_signature двух публичных блоков VIZ.' },

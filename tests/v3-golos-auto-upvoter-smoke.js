@@ -25,7 +25,7 @@ assert(/авто/i.test(autoApp.title), 'Golos auto-upvoter title is Russian and
 assert(/posting/i.test(autoApp.description), 'Golos auto-upvoter description warns about posting key use');
 assert(/локаль/i.test(autoApp.description), 'Golos auto-upvoter description explains local browser runtime');
 assert(chainsSource.includes("id: 'auto-upvoter'"), 'Golos registry contains auto-upvoter id');
-assert(indexSource.includes('v3/js/app.js?v=20260913-viz-self-award-energy-percent'), 'index loads canonical v3/js/app.js runtime, not a stale app.* snapshot');
+assert(indexSource.includes('v3/js/app.js?v=20260915-viz-prediction-markets'), 'index loads canonical v3/js/app.js runtime, not a stale app.* snapshot');
 assert(!indexSource.includes('v3/js/app.wallet-notifications.js"></script>'), 'index does not load stale app.wallet-notifications runtime');
 assert(indexSource.includes('v3/js/auto-upvoter.js') && indexSource.indexOf('v3/js/auto-upvoter.js') < indexSource.indexOf('v3/js/app.js'), 'Auto-upvoter helper is loaded by index before app runtime');
 assert(appSource.includes("effectiveAppId === 'auto-upvoter'"), 'App router has dedicated auto-upvoter route');

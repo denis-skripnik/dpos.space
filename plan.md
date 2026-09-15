@@ -6306,3 +6306,29 @@ Completion contract:
 - verification: focused PWA/auto-upvoter smoke tests, all JavaScript syntax checks, full JS smoke suite, `git diff --check`, and local HTTP verification of the new markers.
 - constraints: preserve network-first runtime handling and do not add `app.js` to precache.
 - stop_when: a native Android API/bridge change is discovered that requires an APK rebuild.
+
+
+### VIZ prediction markets (Рынки предсказаний)
+
+Scope:
+- Add a VIZ-only service «Рынки предсказаний» built on the `prediction_market_api` plugin (Onix / HF14).
+- Read: market browsing by status/category, market detail (outcomes, pool quote, my positions/liquidity/leverage, kline, oracle, dispute), oracles, lazy pool, live governance params.
+- Write (explicit preview + confirm through the shared broadcast layer): `pm_place_bet`, `pm_commit_bet`/`pm_reveal_bet`, `pm_cancel_bet`, `pm_transfer_position`, `pm_add_liquidity`/`pm_withdraw_liquidity`, `pm_lazy_deposit`/`pm_lazy_withdraw`, `pm_create_market`, `pm_oracle_register`/`pm_oracle_update`/`pm_oracle_accept_market`, `pm_resolve_market`/`pm_no_contest`, `pm_dispute_create`/`pm_dispute_vote` (regular key)/`pm_dispute_resolve`/`pm_dispute_oracle_respond`/`pm_unban`, `pm_leverage_open`/`pm_leverage_close`/`pm_leverage_convert`.
+- Bets, market liquidity, oracle insurance and lazy-pool deposits are paid from the account liquid VIZ balance, with a «Максимум» fill button matching the wallet.
+
+Non-goals:
+- No changes to other chains or other VIZ apps; the route is registered only in `chains.js` `vizApps` and dispatched only for `chain.id === 'viz'`.
+- No new backend, no legacy private `viz-api` indexer, no unattended/background broadcasts.
+- No new auth/key storage; signing continues through the existing `<chain>_current_user` records and `broadcast.prepare`.
+
+Approach and constraints:
+- Replace `v3/vendor/viz/viz.min.js` with the viz-js-lib build (0.16.0) that ships the 23 `pm_*` builders and the `prediction_market_api` read methods. Verified as a strict superset of the previous public API (broadcast/api/auth/formatter/config keys) so existing VIZ flows keep working; commit-reveal uses `viz.formatter.predictionMarketCommitment`.
+- `pm_oracle_update` is sent as a raw `sendOperations` op with only the changed keys (optional fields stay unchanged); all other ops use the positional `pm*` builders with trailing `extensions: []`.
+- State (status/category/page/market) lives in the hash (`pmMarket`, `pmStatus`, `pmCategory`, `pmTag`, `pmPage`, `pmRisky`), reset on app/chain switch, so links are shareable and back/forward works.
+- Cache markers bumped: `index.html` app.js query -> `20260915-viz-prediction-markets`; `sw.js` `DPOS_CACHE_VERSION` -> `dpos-space-v3-20260915-viz-prediction-markets`. Focused PWA/auto-upvoter smoke expectations updated accordingly.
+
+Completion contract:
+- outcome: a VIZ user can browse real markets, open a market, place/cancel/commit/reveal bets, add/withdraw liquidity, use the lazy pool, manage oracles, create and resolve markets and disputes — with liquid VIZ «Максимум» on every VIZ-funded field. The route shows and works only in VIZ.
+- verification: `node --check v3/js/app.js v3/js/chains.js`, `for test in tests/*.js; do node "$test"; done`, `git diff --check`, and browser QA against `https://testnet.viz.world/` and `https://api.viz.world` (list/detail/bet preview, MAX button, console clean).
+- constraints: static runtime only, no live mainnet broadcast in tests, no change to existing broadcast semantics, no secret/key changes, preview+confirm remains mandatory.
+- stop_when: the node exposes a different pm_* field contract than the viz-js-lib 0.16.0 build, or the vendored library upgrade proves not backward compatible with existing VIZ flows.
