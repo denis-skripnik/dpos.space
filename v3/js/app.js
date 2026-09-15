@@ -678,7 +678,7 @@
   }
 
   function appUsesAuthorizedAccount(app) {
-    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'post', 'notifications', 'swap', 'my-coin', 'auto-upvoter', 'viz-self-award'].includes(app.id));
+    return Boolean(app && ['wallet', 'broadcast', 'manage', 'award', 'awards', 'donate', 'editor', 'feeds', 'post', 'notifications', 'swap', 'my-coin', 'auto-upvoter', 'prediction-markets', 'viz-self-award'].includes(app.id));
   }
 
   function legacyAppTarget(chain, appId) {
