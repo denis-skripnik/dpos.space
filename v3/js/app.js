@@ -12227,6 +12227,10 @@ Memo key: ${keys.memo}`);
     return `${vizPmAsset(milli)} VIZ`;
   }
 
+  function vizPmRate(raw) {
+    return (Number(raw || 0) / 1e9).toFixed(9);
+  }
+
   function vizPmBp(bp) {
     return `${(Number(bp || 0) / 100).toFixed(2)}%`;
   }
@@ -13113,7 +13117,7 @@ Memo key: ${keys.memo}`);
     const source = oracle.oracle || oracle;
     return vizPmKv([
       ['Оракул', source.owner ? `@${escapeHtml(String(source.owner))}` : '—'],
-      ['Депозит', escapeHtml(String(source.insurance || ''))],
+      ['Депозит', escapeHtml(vizPmAssetViz(source.insurance))],
       ['Комиссия', escapeHtml(vizPmBp(source.fee_percent))],
       ['Рынков разрешено', escapeHtml(String(source.markets_resolved !== undefined ? source.markets_resolved : ''))],
       ['Споров выиграно/проиграно', `${escapeHtml(String(source.disputes_won || 0))} / ${escapeHtml(String(source.disputes_lost || 0))}`],
@@ -13362,7 +13366,7 @@ Memo key: ${keys.memo}`);
           const oracles = await vizPmApi(ctx, 'listOracles', [0, 30]);
           const rows = (Array.isArray(oracles) ? oracles : []).map((oracle) => [
             escapeHtml(String(oracle.owner || '')),
-            escapeHtml(String(oracle.insurance || '')),
+            escapeHtml(vizPmAssetViz(oracle.insurance)),
             escapeHtml(vizPmBp(oracle.fee_percent)),
             escapeHtml(String(oracle.markets_resolved !== undefined ? oracle.markets_resolved : '')),
             escapeHtml(String(oracle.disputes_won || 0)) + ' / ' + escapeHtml(String(oracle.disputes_lost || 0))
@@ -13384,13 +13388,13 @@ Memo key: ${keys.memo}`);
         let deposit = null;
         if (ctx.login) deposit = await vizPmApiOptional(ctx, 'getLazyDeposit', [ctx.login], null);
         const rows = [
-          ['Всего shares', escapeHtml(String(pool.total_shares || 0))],
+          ['Всего shares', escapeHtml(vizPmAsset(pool.total_shares))],
           ['Свободный баланс', escapeHtml(vizPmAssetViz(pool.free_balance))],
           ['Распределено', escapeHtml(vizPmAssetViz(pool.allocated_balance))],
           ['Заработано', escapeHtml(vizPmAssetViz(pool.earned_balance))],
-          ['Награда за share', escapeHtml(String(pool.reward_per_share || 0))]
+          ['Награда за share (VIZ)', escapeHtml(vizPmRate(pool.reward_per_share))]
         ];
-        if (deposit) rows.push(['Моё пополнение (shares)', escapeHtml(String(deposit.shares !== undefined ? deposit.shares : ''))]);
+        if (deposit) rows.push(['Моё пополнение (shares)', escapeHtml(vizPmAsset(deposit.shares !== undefined ? deposit.shares : ''))]);
         stats.innerHTML = vizPmKv(rows);
       } catch (error) {
         stats.innerHTML = `<p class="muted">Ленивый пул недоступен: ${escapeHtml(profiles.formatError(error))}</p>`;
