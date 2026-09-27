@@ -10,13 +10,20 @@ Static v3 files:
 
 - `index.html` — static SPA entry point.
 - `v3/css/style.css` — v3-only styles.
+- `v3/js/i18n.js`, `v3/js/i18n-en.js` — first-party RU/EN interface localization; user-entered and blockchain content must remain unchanged.
+- `v3/js/vault.js`, `v3/js/vault-ui.js` — encrypted browser account vault, migration, unlock, lock, and backup UI.
+- `v3/js/native-bridge.js` — versioned asynchronous WebView/native bridge client.
 - `v3/js/chains.js` — supported chains, apps, nodes, and vendored library paths.
 - `v3/js/auth.js` — compatibility layer for old `localStorage` auth/account records.
+- `v3/js/bip39.js` — local mnemonic validation used at secret-entry boundaries.
 - `v3/js/broadcast.js` — operation prepare/broadcast helpers.
+- `v3/js/diagnostics.js`, `v3/js/diagnostics-ui.js` — sanitized bounded diagnostics journal and user-facing export route.
 - `v3/js/profiles.js` — read-only profile/account data loading.
 - `v3/js/history.js` — read-only account history loading and normalization.
 - `v3/js/notifications.js` — browser-local notification settings, history scans, unread state, and notification panel.
+- `v3/js/notification-inbox.js` — web/native notification-inbox merge and read-state UI.
 - `v3/js/auto-upvoter.js` — browser-tab Golos/Hive/Steem auto-upvoter planning and execution helpers.
+- `v3/js/golos-wallet-swap.js` — live Golos wallet-balance swap-link eligibility checks.
 - `v3/js/app.js` — accessible router and UI wiring.
 - `v3/js/pwa.js` — PWA/service-worker/notification panel and Android APK download copy.
 - `manifest.webmanifest`, `sw.js`, `v3/assets/icons/` — PWA shell, cache versioning, icons, and notification assets.
@@ -27,7 +34,7 @@ Static v3 files:
 
 Canonical runtime note:
 
-- `index.html` is the canonical runtime load order: `chains.js` → `auth.js` → `broadcast.js` → `profiles.js` → `history.js` → `notifications.js` → `auto-upvoter.js` → `pwa.js` → `app.js`.
+- `index.html` is the canonical runtime load order: `i18n-en.js` → `i18n.js` → vendored SJCL → `vault.js` → `native-bridge.js` → `chains.js` → `auth.js` → `bip39.js` → `broadcast.js` → `diagnostics.js` → `diagnostics-ui.js` → `profiles.js` → `history.js` → `notifications.js` → `notification-inbox.js` → `auto-upvoter.js` → `pwa.js` → `vault-ui.js` → `golos-wallet-swap.js` → `app.js`.
 - `app.js` is the only app runtime executed by `index.html`; sibling `app.*.js` files are historical snapshots/reference artifacts. `sw.js` still precaches `app.wallet-notifications.js`, but that does not execute it.
 
 Android app files:
@@ -66,11 +73,15 @@ The old PHP app tree was removed from branch `v3`. Do not add runtime dependenci
 - Real web broadcasts must stay behind explicit user action/confirmation. Automated tests must not send real mainnet transactions.
 - Operation previews/results and diagnostics must sanitize WIF/private/secret/token/password-looking values.
 - Wallet power inputs are human units: VIZ SHARES normalize to six decimals; Golos/Hive/Steem СГ/HP/SP convert to raw GESTS/VESTS through live chain rates.
+- Wallet monetary values are parsed and formatted as decimal strings, never rounded through JavaScript `Number`. Preserve token-specific precision and reject excess fractional digits instead of silently truncating them.
+- Wallet recipient shortcuts use the authorized account/address for the selected chain, never the account currently being viewed. Keep the visible accessible label `Мне` on all six wallet renderers.
+- Golos wallet swap links are asynchronous hints, not unconditional actions: exclude TIP balances, query the configured live node, require a real quote and a non-empty unsigned operation list, never quote above the balance, and do not modify a stale wallet view.
+- Golos/Hive/Steem editor sends leave an `aria-live` result and post link on the editor page after the modal closes. Dry runs must not claim publication; uncertain or failed confirmation offers `Проверить пост` rather than asserting success.
 - Returning a VIZ delegation prepares `delegate_vesting_shares` with `0.000000 SHARES`, not the displayed delegated amount; keep the shortcut disabled until `min_delegation_time` and retain preview/confirmation.
 
 ## Android app and native worker
 
-- Android package: `space.dpos.android`; current debug version after the latest work is `0.1.69-debug` / `versionCode 70`.
+- Current public Android release: `3.1.1` / `versionCode 79`, non-debuggable release build. Installed application ID remains `space.dpos.android.debug` with the historical certificate for update/data compatibility. Namespace/base ID is `space.dpos.android`; do not drop the `.debug` suffix or change signing without an explicit migration plan.
 - The APK loads the live site from `https://dpos.blinddev.xyz/`; JavaScript fixes require the public static site and service worker cache markers to be updated too.
 - Android manifest permissions include Internet/network state, POST_NOTIFICATIONS, foreground service/data sync, and BOOT_COMPLETED. `android:allowBackup` is false.
 - `BootReceiver` may restore only user-enabled workers after reboot; it must not start hidden background signing without visible worker state.
@@ -80,6 +91,7 @@ The old PHP app tree was removed from branch `v3`. Do not add runtime dependenci
 - `importWorkerSettings(json)` is for non-secret settings only; `importSecureKey(json)` is the only bridge path for private keys/seeds and returns metadata only.
 - Android WebView/passkey support depends on `.well-known/assetlinks.json`; current file is for `space.dpos.android.debug` and its debug certificate fingerprint.
 - User-facing diagnostics must be TalkBack-friendly: text status, headings, copyable support report, no icon-only meaning.
+- Blockchain event cards share one stable summary ID and a persistent native inbox; opening/dismissing is not reading. Explicit read-all clears the unread total. Retention must not reduce the total; event IDs are hashed before persistence. Global `#app=notifications` opens the native-backed inbox.
 - Foreground worker notifications must stay quiet: stable notification, low importance, no sound/vibration, and in-place status updates.
 - All worker entry points (`manual`, `foreground`, `periodic`, app-open autostart) must share the global no-overlap guard; `skipped_overlap` must not overwrite the last successful counters with zeroes.
 
@@ -117,11 +129,9 @@ The old PHP app tree was removed from branch `v3`. Do not add runtime dependenci
 ## PWA and APK maintenance
 
 - The PWA panel lives in `v3/js/pwa.js`; on Android it should recommend the APK for reliable background work and keep PWA framed as a live-tab/static web option.
-- Current stable download paths on the static site:
-  - `/downloads/dpos-space-latest-debug.apk`
-  - `/downloads/dpos-space-0.1.69-debug.apk`
+- Current stable download: `/downloads/dpos-space-3.1.1.apk`. Retain `/downloads/dpos-space-3.1.0.apk` as the prior stable artifact; the PWA panel points to the latest APK. All `/downloads/*.apk` must bypass service-worker caches.
 - Cache markers are coupled: for assets listed in both `index.html` and `DPOS_SHELL_ASSETS`, keep query strings identical and bump `DPOS_CACHE_VERSION`; `app.js` is network-first/runtime-cached, so its query lives only in `index.html` but still needs a cache-version bump when changed.
-- When changing APK version/link copy, update `ANDROID_APK_VERSION` in `pwa.js`, both download artifacts, the versioned `pwa.js` URL in `index.html` and `sw.js`, `DPOS_CACHE_VERSION`, and `tests/v3-pwa-smoke.js`.
+- When changing APK version/link copy, update `ANDROID_APK_VERSION` in `pwa.js`, the explicitly linked stable download artifact, the versioned `pwa.js` URL in `index.html` and `sw.js`, `DPOS_CACHE_VERSION`, and `tests/v3-pwa-smoke.js`.
 
 ## Commands
 
@@ -156,7 +166,7 @@ python3 -m http.server 8080
 ```
 
 - `tests/*.js` are standalone CommonJS source/VM smoke scripts, not an npm test-runner suite; many intentionally assert exact runtime strings and `plan.md` markers.
-- `.github/workflows/android-debug.yml` is the only CI workflow: on `v3` push/PR changes under `android/**` or the workflow itself it uses Java 17, runs `./gradlew test` and `assembleDebug`, and uploads the debug APK plus SHA-256. It does not run web smoke tests.
+- `.github/workflows/android-debug.yml` runs Gradle tests and assembles/uploads a debug APK for Android changes. `.github/workflows/web-checks.yml` runs `node tools/web-checks.cjs` for web/runtime/test/tool changes. Local checks remain required; an unpushed workflow has no remote CI evidence.
 
 ## Accessibility rules
 

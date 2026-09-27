@@ -26,7 +26,7 @@ assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 
 assert(appSource.includes("isCosmosChain(chain) && effectiveAppId === 'validators'"), 'Decimal validators route uses validators renderer');
 assert(appSource.includes('await renderCosmosValidators(chain)'), 'validators route dispatch calls renderCosmosValidators');
 
-const validatorsSlice = sliceBetween(appSource, 'async function renderCosmosValidators(chain) {', 'async function renderCosmosExplorer(chain, account)', 'Cosmos validators renderer');
+const validatorsSlice = sliceBetween(appSource, 'async function renderCosmosValidators(chain) {', 'async function renderCosmosExplorer(', 'Cosmos validators renderer');
 for (const marker of [
   "`${chain.apiBase}/validators/validators`",
   "Result",

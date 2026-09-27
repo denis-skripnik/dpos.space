@@ -1,20 +1,32 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260915-viz-prediction-markets';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20260927-release-3-1-1';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/css/style.css?v=20260727-posting-authority-preflight',
-  '/v3/js/chains.js?v=20260727-posting-authority-preflight',
-  '/v3/js/auth.js?v=20260727-posting-authority-preflight',
-  '/v3/js/broadcast.js?v=20260727-posting-authority-preflight',
-  '/v3/js/profiles.js?v=20260727-posting-authority-preflight',
-  '/v3/js/history.js?v=20260727-posting-authority-preflight',
-  '/v3/js/notifications.js?v=20260727-posting-authority-preflight',
-  '/v3/js/auto-upvoter.js?v=20260727-posting-authority-preflight',
-  '/v3/js/pwa.js?v=20260817-android-apk-download',
+  '/v3/js/i18n-en.js?v=20260923-editor-link',
+  '/v3/js/i18n.js?v=20260919-audit-integration',
+  '/v3/js/app.js?v=20260926-golos-donate-migration',
+  '/v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0',
+  '/v3/css/style.css?v=20260919-audit-integration',
+  '/v3/vendor/golos/sjcl.min.js',
+  '/v3/js/vault.js?v=20260919-audit-integration',
+  '/v3/js/vault-ui.js?v=20260919-audit-integration',
+  '/v3/js/native-bridge.js?v=20260921-notification-summary',
+  '/v3/js/chains.js?v=20260919-audit-integration',
+  '/v3/js/auth.js?v=20260919-audit-integration',
+  '/v3/js/bip39.js?v=20260919-audit-integration',
+  '/v3/js/broadcast.js?v=20260923-release-3-1-0',
+  '/v3/js/diagnostics.js?v=20260923-release-3-1-0',
+  '/v3/js/diagnostics-ui.js?v=20260921-notification-summary',
+  '/v3/js/profiles.js?v=20260919-audit-integration',
+  '/v3/js/history.js?v=20260919-audit-integration',
+  '/v3/js/notifications.js?v=20260921-notification-summary',
+  '/v3/js/notification-inbox.js?v=20260921-notification-summary',
+  '/v3/js/auto-upvoter.js?v=20260926-golos-donate',
+  '/v3/js/pwa.js?v=20260927-release-3-1-1',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'
@@ -34,6 +46,8 @@ self.addEventListener('activate', (event) => {
       .then((keys) => Promise.all(keys
         .filter((key) => key.startsWith('dpos-space-v3-') && key !== DPOS_CACHE_VERSION)
         .map((key) => caches.delete(key))))
+      .then(() => caches.open(DPOS_CACHE_VERSION))
+      .then((cache) => purgeFreshnessSensitiveEntries(cache))
       .then(() => self.clients.claim())
   );
 });
@@ -55,6 +69,23 @@ function isRuntimeAsset(request) {
   }
 }
 
+function isFreshnessSensitiveRequest(request) {
+  try {
+    const pathname = new URL(request.url).pathname;
+    return pathname.startsWith('/api/')
+      || (pathname.startsWith('/downloads/') && pathname.endsWith('.apk'));
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function purgeFreshnessSensitiveEntries(cache) {
+  const requests = await cache.keys();
+  await Promise.all(requests
+    .filter((request) => isFreshnessSensitiveRequest(request))
+    .map((request) => cache.delete(request)));
+}
+
 async function networkFirst(request) {
   const cache = await caches.open(DPOS_CACHE_VERSION);
   try {
@@ -69,6 +100,10 @@ async function networkFirst(request) {
   }
 }
 
+function networkOnly(request) {
+  return fetch(request, { cache: 'no-store' });
+}
+
 async function cacheFirst(request) {
   const cache = await caches.open(DPOS_CACHE_VERSION);
   const cached = await cache.match(request);
@@ -81,6 +116,10 @@ async function cacheFirst(request) {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET' || !sameOrigin(request)) return;
+  if (isFreshnessSensitiveRequest(request)) {
+    event.respondWith(networkOnly(request));
+    return;
+  }
   if (request.mode === 'navigate' || isRuntimeAsset(request)) {
     event.respondWith(networkFirst(request));
     return;

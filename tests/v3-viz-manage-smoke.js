@@ -1,5 +1,6 @@
 const fs = require('fs');
 const assert = require('assert');
+const vm = require('vm');
 
 const appSource = fs.readFileSync('v3/js/app.js', 'utf8');
 const chainsSource = fs.readFileSync('v3/js/chains.js', 'utf8');
@@ -88,8 +89,23 @@ const resetSlice = appSource.slice(appSource.indexOf('function generateVizResetK
 assert(!resetSlice.includes('Math.random'), 'VIZ reset key generation does not use Math.random');
 
 assert(appSource.includes('Owner/master WIF используется только в памяти') || appSource.includes('Owner WIF используется только в памяти'), 'VIZ manage warns that WIF is memory-only');
-assert(broadcastSource.includes("return [key, '[redacted]'];"), 'broadcast sanitizer redacts secret/wif/private fields');
-assert(broadcastSource.includes("typeof value === 'string' && isLikelyWif(value)"), 'broadcast sanitizer redacts WIF-looking strings');
+const sanitizerContext = { window: null, console };
+sanitizerContext.window = sanitizerContext;
+vm.createContext(sanitizerContext);
+vm.runInContext(fs.readFileSync('v3/js/bip39.js', 'utf8'), sanitizerContext, { filename: 'v3/js/bip39.js' });
+vm.runInContext(broadcastSource, sanitizerContext, { filename: 'v3/js/broadcast.js' });
+const sanitizedManagePreview = sanitizerContext.DposBroadcast.sanitizePrepared({
+  chain: 'viz',
+  from: 'alice',
+  authority: 'active',
+  operationName: 'accountUpdate',
+  params: [{ ownerWif: 'malformed-private-material', memo: 'public validator update' }],
+  meta: { password: 'preview-only', publicKey: 'VIZ1111111111111111111111111111111114T1Anm' }
+});
+assert.strictEqual(sanitizedManagePreview.params[0].ownerWif, '[redacted]', 'manage preview redacts secret fields even when the value is malformed');
+assert.strictEqual(sanitizedManagePreview.meta.password, '[redacted]', 'manage preview redacts credentials by behavior');
+assert.strictEqual(sanitizedManagePreview.params[0].memo, 'public validator update', 'manage preview preserves public operation data');
+assert.strictEqual(sanitizedManagePreview.meta.publicKey, 'VIZ1111111111111111111111111111111114T1Anm', 'manage preview preserves public keys');
 assert(appSource.includes('downloadTextFile(`viz-account-${name}.txt`') || appSource.includes('downloadTextFile(`viz-account-${account}.txt`'), 'private key backups are explicit downloads, not operation preview');
 
 const runtimeVizManageSlice = appSource.slice(appSource.indexOf('function renderManage'), appSource.indexOf('async function renderExplorer'));

@@ -22,7 +22,7 @@ for (const chain of Object.values(chains)) {
   assert(chain.libraryPath.startsWith('v3/vendor/'), `${chain.id}: libraryPath is vendored under v3`);
   assert(chain.cryptoPath.startsWith('v3/vendor/'), `${chain.id}: cryptoPath is vendored under v3`);
   if (chain.walletPath) assert(chain.walletPath.startsWith('v3/vendor/'), `${chain.id}: walletPath is vendored under v3`);
-  assert(fs.existsSync(path.join(root, chain.libraryPath)), `${chain.id}: libraryPath exists`);
+  assert(fs.existsSync(path.join(root, chain.libraryPath.split('?')[0])), `${chain.id}: libraryPath exists`);
   assert(fs.existsSync(path.join(root, chain.cryptoPath)), `${chain.id}: cryptoPath exists`);
   if (chain.walletPath) assert(fs.existsSync(path.join(root, chain.walletPath)), `${chain.id}: walletPath exists`);
 

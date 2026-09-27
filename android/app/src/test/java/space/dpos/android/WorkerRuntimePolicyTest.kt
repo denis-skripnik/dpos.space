@@ -43,6 +43,22 @@ class WorkerRuntimePolicyTest {
         assertEquals(listOf("send", "delegate", "nft"), decimal.notificationOps)
     }
 
+    @Test fun notificationSelectionDistinguishesMissingLegacyDefaultsFromExplicitNone() {
+        val legacy = WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","enableNotifications":true,"explicitConsent":true}""")
+        assertTrue(legacy.notificationOps.isNotEmpty())
+
+        val none = WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","enableNotifications":true,"explicitConsent":true,"notificationOps":[]}""")
+        assertTrue(none.notificationOps.isEmpty())
+    }
+
+    @Test fun nativeEnergyThresholdIsAlreadyBasisPointsAtLowBoundary() {
+        assertEquals(1, WorkerCommandPolicy.normalizeEnergyThreshold(1))
+        assertEquals(100, WorkerCommandPolicy.normalizeEnergyThreshold(100))
+        assertEquals(10_000, WorkerCommandPolicy.normalizeEnergyThreshold(10_000))
+        assertEquals(1, WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","enableAutoUpvoter":true,"explicitConsent":true,"minEnergy":1}""").minEnergy)
+        assertEquals(100, WorkerSettingsCodec.decodeImport("""{"chainId":"golos","account":"denis","enableAutoUpvoter":true,"explicitConsent":true,"minEnergy":100}""").minEnergy)
+    }
+
     @Test fun jsonImportRejectsSecretLikeFields() {
         val json = """{"chainId":"golos","account":"denis","explicitConsent":true,"enableNotifications":true,"postingKey":"not-a-real-key-fixture"}"""
         val result = WorkerSettingsCodec.decodeImport(json)

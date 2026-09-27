@@ -22,6 +22,7 @@ private val MINTER_ADDRESS = Regex("^Mx[0-9a-fA-F]{40}$")
 
 object MinterNativeSupport {
     const val CHAIN_ID = "minter"
+    const val MAINNET_CHAIN_ID = 1
     const val AUTHORITY = "seed"
     val supportedOperations: Set<String> = setOf("send")
 
@@ -35,22 +36,43 @@ object MinterNativeSupport {
     }
 
     fun validateSeed(seedPhrase: String): Boolean {
-        val words = seedPhrase.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        return words.size in 12..24
+        val normalized = Normalizer.normalize(seedPhrase.trim().lowercase(Locale.ROOT), Normalizer.Form.NFKD)
+        val words = normalized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        return runCatching { MnemonicCode.INSTANCE.check(words); true }.getOrDefault(false)
     }
 
-    fun signTransfer(request: MinterTransferRequest, seedPhrase: String, previewOnly: Boolean = true): MinterTransferResult {
+    fun previewUnsignedTransfer(request: MinterTransferRequest): JSONObject = JSONObject()
+        .put("ok", true)
+        .put("status", "preview_ready")
+        .put("chainId", CHAIN_ID)
+        .put("networkChainId", MAINNET_CHAIN_ID)
+        .put("previewOnly", true)
+        .put("broadcasted", false)
+        .put("request", request.copy(chainId = MAINNET_CHAIN_ID).sanitizedJson())
+        .put("unsignedTx", MinterTransferSigner.unsignedTransfer(request.copy(chainId = MAINNET_CHAIN_ID)))
+
+    fun consentDetails(request: MinterTransferRequest): JSONObject {
+        val checked = request.copy(chainId = MAINNET_CHAIN_ID)
+        return JSONObject()
+            .put("sender", checked.from ?: throw IllegalArgumentException("from is required"))
+            .put("network", "Minter mainnet (chain ID $MAINNET_CHAIN_ID)")
+            .put("recipient", checked.to)
+            .put("amount", "${BigDecimal(checked.amount).stripTrailingZeros().toPlainString()} coin #${checked.coinId}")
+            .put("maxFee", "0.01 × gas price ${checked.gasPrice} in gas coin #${checked.gasCoinId}")
+    }
+
+    private fun signTransfer(request: MinterTransferRequest, seedPhrase: String): MinterTransferResult {
         if (!validateSeed(seedPhrase)) return MinterTransferResult(false, "invalid_seed", "Minter seed phrase must contain 12-24 words; no signing attempted", request)
         val from = deriveAddress(seedPhrase)
         if (request.from != null && !from.equals(request.from, ignoreCase = true)) {
             return MinterTransferResult(false, "seed_address_mismatch", "seed-derived address does not match requested sender; no signing attempted", request, from = from)
         }
         val signedTx = MinterTransferSigner.sign(request.copy(from = from), seedPhrase)
-        return MinterTransferResult(true, if (previewOnly) "preview_ready" else "signed", if (previewOnly) "signed Minter transfer preview; not broadcast" else "signed Minter transfer ready for broadcaster", request.copy(from = from), from = from, signedTx = signedTx, previewOnly = previewOnly)
+        return MinterTransferResult(true, "signed", "signed Minter transfer ready for broadcaster", request.copy(from = from), from = from, signedTx = signedTx, previewOnly = false)
     }
 
     fun executeTransfer(request: MinterTransferRequest, seedPhrase: String, broadcaster: MinterBroadcaster): MinterTransferResult {
-        val signed = signTransfer(request, seedPhrase, previewOnly = false)
+        val signed = signTransfer(request, seedPhrase)
         if (!signed.ok || signed.signedTx.isNullOrBlank()) return signed
         return try {
             val response = broadcaster.broadcast(signed.signedTx)
@@ -142,7 +164,7 @@ data class MinterTransferRequest(
     val gasCoinId: Long = 0,
     val nonce: Long,
     val memo: String = "",
-    val chainId: Int = 1,
+    val chainId: Int = MinterNativeSupport.MAINNET_CHAIN_ID,
     val gasPrice: Long = 1
 ) {
     fun sanitizedJson(includeSignedTx: String? = null, status: String? = null): JSONObject {
@@ -208,7 +230,7 @@ object MinterTransferCodec {
             gasCoinId = gasCoinId,
             nonce = nonce,
             memo = obj.optString("memo", ""),
-            chainId = obj.optInt("minterChainId", 1),
+            chainId = MinterNativeSupport.MAINNET_CHAIN_ID,
             gasPrice = obj.optLong("gasPrice", 1L).coerceAtLeast(1L)
         )
     }
@@ -244,7 +266,9 @@ object MinterTransferSigner {
         return "0x" + encodeTransaction(request, signatureData).toHex()
     }
 
-    internal fun unsignedTransferForTest(request: MinterTransferRequest): String = "0x" + encodeTransaction(request, signatureData = ByteArray(0)).toHex()
+    internal fun unsignedTransferForTest(request: MinterTransferRequest): String = unsignedTransfer(request)
+
+    fun unsignedTransfer(request: MinterTransferRequest): String = "0x" + encodeTransaction(request, signatureData = ByteArray(0)).toHex()
 
     private fun encodeTransaction(request: MinterTransferRequest, signatureData: ByteArray): ByteArray {
         val data = Rlp.encodeList(

@@ -1,2 +1,5 @@
 .idea/
 .htaccess
+tools/decimal-sdk/node_modules/
+__pycache__/
+*.pyc

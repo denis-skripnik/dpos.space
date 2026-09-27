@@ -143,8 +143,11 @@ interface VoteBroadcaster {
 
 interface GolosRpcClient {
     fun getDynamicGlobalProperties(): JSONObject
+    /** VIZ-only read-only lookup; other chains keep their existing confirmation paths. */
+    fun getVizTransaction(transactionId: String): JSONObject? = null
     fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
+    fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? = null
     fun verifyAuthority(signedTransaction: JSONObject): Boolean
     fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject
     fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject
@@ -354,6 +357,13 @@ class GrapheneVoteSigner(
 class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos"), builder)
 
 class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val endpoint: String = spec.defaultRpcEndpoint) : GolosRpcClient {
+    override fun getVizTransaction(transactionId: String): JSONObject? {
+        if (spec.id != "viz") return null
+        require(transactionId.matches(Regex("[0-9a-fA-F]{40}"))) { "invalid transaction id" }
+        val transaction = postApi("operation_history", "get_transaction", JSONArray().put(transactionId)).optJSONObject("result") ?: return null
+        // Bind inclusion proof and LIB to the same endpoint (fallback keeps this envelope intact).
+        return transaction.put("_vizHead", getDynamicGlobalProperties())
+    }
     override fun getDynamicGlobalProperties(): JSONObject {
         val result = postApi("database_api", "get_dynamic_global_properties", JSONArray())
         return result.optJSONObject("result") ?: result
@@ -376,6 +386,20 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
 
     override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject =
         postApiRaw("database_api", "verify_authority", JSONArray().put(signedTransaction), throwOnRpcError = false)
+
+    override fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? {
+        if (spec.id != "golos") return null
+        val rows = postApi("social_network", "get_active_votes", JSONArray().put(author).put(permlink))
+            .getJSONArray("result")
+        for (index in 0 until rows.length()) {
+            val row = rows.getJSONObject(index)
+            if (row.optString("voter") == voter) {
+                // Golos `weight` is curation weight, NOT the voting percentage.
+                return row.opt("percent")?.toString()?.toIntOrNull()?.takeIf { it in -10000..10000 }
+            }
+        }
+        return null
+    }
 
     fun broadcastMethodName(): String = if (spec.asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"
 
@@ -423,9 +447,19 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
 }
 
 class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : GolosRpcClient {
+    override fun getVizTransaction(transactionId: String): JSONObject? {
+        // A node can lag in operation_history without a transport failure.
+        for (client in clients) {
+            val result = runCatching { client.getVizTransaction(transactionId) }.getOrNull()
+            if (result != null) return result
+        }
+        return null
+    }
     override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
     override fun getBlock(blockNumber: Long): JSONObject? = call("block") { it.getBlock(blockNumber) }
     override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
+    override fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? =
+        call("active vote") { it.getActiveVotePercent(author, permlink, voter) }
     override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityDetailed(signedTransaction).optBoolean("result", false)
     override fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject = call("verify authority") { it.verifyAuthorityDetailed(signedTransaction) }
     override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject = call("broadcast") { it.broadcastTransactionSynchronous(signedTransaction) }
@@ -483,13 +517,30 @@ class VoteRuntime(
     private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient),
     private val historyClient: GolosHistoryClient? = null,
     private val confirmationRetries: Int = 2,
-    private val confirmationDelayMs: Long = 1_500L
+    private val confirmationDelayMs: Long = 1_500L,
+    private val canAct: () -> Boolean = { true },
+    private val pendingStore: PendingBroadcastStore? = null
 ) {
+    private data class ConfirmationCheck(
+        val event: HistoryEvent? = null,
+        val status: String,
+        val detail: String,
+        val pagesScanned: Int = 0
+    )
+
     private fun buildHeaderLikeGolosJs(): BlockHeaderRef {
         val props = rpcClient.getDynamicGlobalProperties()
         val head = props.optLong("head_block_number")
         val previousBlock = rpcClient.getBlock(head - 2)
         return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock)
+    }
+
+    fun previewUnsigned(operation: VoteOperation): JSONObject {
+        val spec = GrapheneChainSpecs.requireVote(operation.chainId)
+        val transaction = GrapheneTransactionBuilder(spec).build(operation, buildHeaderLikeGolosJs())
+        return JSONObject().put("ok", true).put("status", "preview_ready")
+            .put("operation", operation.toJson()).put("unsignedTx", transaction)
+            .put("previewOnly", true).put("broadcasted", false)
     }
 
     fun preview(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
@@ -501,26 +552,109 @@ class VoteRuntime(
     }
 
     fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
+        if (!canAct()) return VoteBroadcastResult(false, "cancelled", operation, "worker permission was revoked before signing")
+        val fingerprint = "${operation.author}|${operation.permlink}|${operation.weight}"
+        pendingStore?.readPending("vote", operation.chainId, operation.voter)?.let { pending ->
+            val previousAuthor = pending.fingerprint.substringBefore('|')
+            val previousWeight = pending.fingerprint.substringAfterLast('|').toIntOrNull()
+            val previousPermlink = pending.fingerprint.substringAfter('|', "").substringBeforeLast('|', "")
+            val previous = if (previousAuthor.isNotBlank() && previousPermlink.isNotBlank() && previousWeight != null && previousWeight in -10000..10000)
+                operation.copy(author = previousAuthor, permlink = previousPermlink, weight = previousWeight) else null
+            val check = if (previous != null) confirmVote(previous, pending.historyBaseline, pending.transactionId)
+                else ConfirmationCheck(status = "unavailable", detail = "сохранённые параметры операции повреждены")
+            val diagnostics = pendingDiagnostics(pending, previous, check)
+            if (check.event != null && !pending.transactionId.isNullOrBlank()) {
+                pendingStore.clearPending("vote", operation.chainId, operation.voter)
+                if (pending.fingerprint == fingerprint) return VoteBroadcastResult(
+                    true,
+                    "broadcast_confirmed",
+                    operation,
+                    "Предыдущий голос за @${previous?.author}/${previous?.permlink} подтверждён в истории блокчейна на позиции #${check.event.index}; блокировка безопасно снята.",
+                    diagnostics = diagnostics
+                )
+            } else {
+                val oldTarget = if (previous != null) "@${previous.author}/${previous.permlink}, вес ${java.math.BigDecimal(previous.weight).movePointLeft(2).stripTrailingZeros().toPlainString()}%" else pending.fingerprint
+                val reason = if (pending.transactionId.isNullOrBlank())
+                    "Результат предыдущего голоса ($oldTarget) неизвестен: у сохранённой операции нет ID транзакции; совпадение полей или текущего веса не доказывает её личность (индексы истории разных узлов могут расходиться). Повторная отправка заблокирована. Скачайте журнал «Логи и диагностика» для ручной проверки; не сбрасывайте блокировку вслепую."
+                else if (check.status == "unavailable")
+                    "Результат предыдущего голоса ($oldTarget) неизвестен: проверка истории сейчас недоступна (${check.detail}). Повторная отправка заблокирована, чтобы не создать дубликат. Приложение повторит проверку в следующем цикле. Если ожидание сохраняется, скачайте журнал «Логи и диагностика»."
+                else
+                    "Результат предыдущего голоса ($oldTarget) неизвестен: в проверенных записях истории подтверждение пока не найдено (исходная позиция #${pending.historyBaseline}). Повторная отправка заблокирована, чтобы не создать дубликат. Это не подтверждение отказа сети. Приложение повторит проверку в следующем цикле; если ожидание сохраняется, скачайте журнал «Логи и диагностика»."
+                return VoteBroadcastResult(false, "broadcast_unknown", operation, reason, diagnostics = diagnostics)
+            }
+        }
+        // A fresh intent may be skipped before any send; this must never resolve a persisted unknown.
+        if (operation.chainId == "golos" && operation.weight != 0 &&
+            runCatching { rpcClient.getActiveVotePercent(operation.author, operation.permlink, operation.voter) }.getOrNull() == operation.weight) {
+            return VoteBroadcastResult(true, "already_voted", operation,
+                "Нужный голос за @${operation.author}/${operation.permlink} уже стоит в блокчейне; отправка не требуется.")
+        }
         val header = buildHeaderLikeGolosJs()
         val authorityCheck = verifyPostingAuthority(operation, keyRef, privateWif)
         if (authorityCheck != null) return authorityCheck
+        if (!canAct()) return VoteBroadcastResult(false, "cancelled", operation, "worker permission was revoked before signing")
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
         val signedWithAuthority = signed.copy(diagnostics = mergeDiagnostics(signed.diagnostics, authorityDiagnostics(operation, privateWif)))
         val nodeAuthority = nodeVerifyAuthority(operation, signedWithAuthority)
         if (nodeAuthority != null) return nodeAuthority
+        if (!canAct()) return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "worker permission was revoked before broadcast")
+        val baseline = try { historyClient?.let { TransactionConfirmation.baseline(it, operation.voter) } ?: -1L } catch (e: Exception) {
+            return signedWithAuthority.copy(ok = false, status = "confirmation_baseline_error", reason = "could not establish history baseline before broadcast: ${PayloadSanitizer.text(e.message, 180)}")
+        }
+        if (!canAct()) return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "worker permission was revoked during history lookup")
+        val pending = PendingBroadcastIntent("vote", operation.chainId, operation.voter, fingerprint, baseline,
+            transactionId = if (pendingStore != null) TransactionConfirmation.transactionId(GrapheneTransactionBuilder(GrapheneChainSpecs.requireVote(operation.chainId)).signingBytes(operation, header)) else null,
+            createdAtMs = System.currentTimeMillis())
+        pendingStore?.savePending(pending)
+        if (!canAct()) {
+            pendingStore?.clearPending("vote", operation.chainId, operation.voter)
+            return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
+        }
+        var sentPending = pending
         return try {
             val response = broadcaster.broadcast(signed.payload.signedTransaction)
-            val confirmation = confirmVote(operation)
-            if (confirmation != null) {
+            val txId = pending.transactionId
+            sentPending = pending.copy(state = PendingBroadcastState.UNKNOWN)
+            pendingStore?.savePending(sentPending)
+            val confirmationCheck = confirmVote(operation, baseline, txId)
+            val confirmation = confirmationCheck.event
+            if (confirmation != null && (pendingStore == null || !txId.isNullOrBlank())) {
+                pendingStore?.clearPending("vote", operation.chainId, operation.voter)
                 signedWithAuthority.copy(status = "broadcast_confirmed", reason = "vote confirmed in ${operation.chainId} history: @${operation.voter} -> @${operation.author}/${operation.permlink} at #${confirmation.index}", rpcResponse = response, diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, JSONObject().put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp)))
             } else if (historyClient != null) {
-                signedWithAuthority.copy(ok = false, status = "broadcast_unconfirmed", reason = "${operation.chainId} RPC accepted broadcast but vote was not found in account history after verification", rpcResponse = response)
+                val unknownPending = pending.copy(state = PendingBroadcastState.UNKNOWN, transactionId = txId)
+                val detail = pendingDiagnostics(unknownPending, operation, confirmationCheck)
+                val reason = if (confirmationCheck.status == "unavailable")
+                    "Результат отправки голоса за @${operation.author}/${operation.permlink}, вес ${java.math.BigDecimal(operation.weight).movePointLeft(2).stripTrailingZeros().toPlainString()}%, неизвестен: проверка истории недоступна (${confirmationCheck.detail}). Повторная отправка заблокирована. Приложение повторит проверку в следующем цикле. Если ожидание сохраняется, скачайте журнал «Логи и диагностика»."
+                else
+                    "Результат отправки голоса за @${operation.author}/${operation.permlink}, вес ${java.math.BigDecimal(operation.weight).movePointLeft(2).stripTrailingZeros().toPlainString()}%, неизвестен: RPC ответил без ошибки, но подтверждение после позиции #$baseline пока не найдено. Повторная отправка заблокирована. Следующий шаг: повторить проверку истории позже."
+                if (pendingStore == null) {
+                    signedWithAuthority.copy(ok = false, status = "broadcast_unconfirmed", reason = "${operation.chainId} RPC accepted broadcast but vote was not found in account history after verification", rpcResponse = response)
+                } else {
+                    signedWithAuthority.copy(ok = false, status = "broadcast_unknown", reason = reason, rpcResponse = response, diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, detail))
+                }
             } else {
                 signedWithAuthority.copy(status = "broadcast_sent", reason = "signed transaction was submitted to configured ${operation.chainId} RPC", rpcResponse = response)
             }
         } catch (e: Exception) {
-            classifyBroadcastFailure(operation, signedWithAuthority, e)
+            if (e is InterruptedException) Thread.currentThread().interrupt()
+            val unknown = sentPending.copy(state = PendingBroadcastState.UNKNOWN)
+            pendingStore?.savePending(unknown)
+            val classified = classifyBroadcastFailure(operation, signedWithAuthority, e)
+            if (pendingStore != null) {
+                val check = confirmVote(operation, baseline, unknown.transactionId)
+                val diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, pendingDiagnostics(unknown, operation, check))
+                if (check.event != null && !unknown.transactionId.isNullOrBlank()) {
+                    pendingStore.clearPending("vote", operation.chainId, operation.voter)
+                    signedWithAuthority.copy(ok = true, status = "broadcast_confirmed", reason = "Голос за @${operation.author}/${operation.permlink} подтверждён в истории на позиции #${check.event.index}, несмотря на ошибку ответа RPC.", diagnostics = diagnostics)
+                } else {
+                    val state = if (unknown.transactionId.isNullOrBlank()) "ID транзакции отсутствует; совпадение операции не доказывает её личность"
+                        else if (check.status == "unavailable") "проверка истории недоступна (${check.detail})" else "подтверждение в доступной истории пока не найдено"
+                    signedWithAuthority.copy(ok = false, status = "broadcast_unknown",
+                        reason = "Результат отправки голоса за @${operation.author}/${operation.permlink} неизвестен: ошибка ответа RPC (${PayloadSanitizer.text(e.message, 180)}); $state. Повторная отправка заблокирована. Приложение повторит проверку истории; не отправляйте этот голос повторно вслепую.", diagnostics = diagnostics)
+                }
+            } else classified
         }
     }
 
@@ -544,21 +678,88 @@ class VoteRuntime(
         )
     }
 
-    private fun confirmVote(operation: VoteOperation): HistoryEvent? {
-        val history = historyClient ?: return null
+    private fun confirmVote(operation: VoteOperation, baseline: Long, transactionId: String? = null): ConfirmationCheck {
+        if (transactionId.isNullOrBlank() && pendingStore != null)
+            return ConfirmationCheck(status = "identity_unavailable", detail = "ID транзакции отсутствует; поля операции и индекс истории не доказывают личность")
+        val history = historyClient ?: return ConfirmationCheck(status = "unavailable", detail = "клиент истории не настроен")
+        var lastCheck = ConfirmationCheck(status = "unavailable", detail = "проверка ещё не выполнена")
+        var totalPages = 0
         repeat(confirmationRetries.coerceAtLeast(1)) { attempt ->
             if (attempt > 0 && confirmationDelayMs > 0) Thread.sleep(confirmationDelayMs)
-            val rows = history.getAccountHistory(operation.voter, -1, 30)
-            val found = rows.asReversed().firstOrNull { event ->
-                event.type == "vote" &&
-                    event.data["voter"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.voter &&
-                    event.data["author"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.author &&
-                    event.data["permlink"].orEmpty() == operation.permlink &&
-                    event.data["weight"].orEmpty().toIntOrNull() == operation.weight
+            var from = -1L
+            var limit = 30
+            var pages = 0
+            try {
+                while (totalPages < 20) {
+                    if (!canAct() || Thread.currentThread().isInterrupted) return ConfirmationCheck(status = "unavailable", detail = "проверка отменена", pagesScanned = totalPages)
+                    val rows = history.getAccountHistory(operation.voter, from, limit)
+                    pages += 1
+                    totalPages += 1
+                    val found = TransactionConfirmation.findCurrent(rows, baseline, transactionId) { event ->
+                        event.type == "vote" &&
+                            event.data["voter"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.voter &&
+                            event.data["author"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.author &&
+                            event.data["permlink"].orEmpty() == operation.permlink &&
+                            event.data["weight"].orEmpty().toIntOrNull() == operation.weight
+                    }
+                    if (found != null) return ConfirmationCheck(found, "confirmed", "операция найдена в истории", pages)
+                    if (rows.isEmpty()) {
+                        lastCheck = ConfirmationCheck(status = "checked_not_found", detail = "в доступной истории операция не найдена", pagesScanned = totalPages)
+                        return@repeat
+                    }
+                    val oldest = rows.minOf { it.index }
+                    if (oldest <= baseline && transactionId.isNullOrBlank()) {
+                        lastCheck = ConfirmationCheck(status = "checked_not_found", detail = "операция не найдена после исходной позиции", pagesScanned = totalPages)
+                        return@repeat
+                    }
+                    val nextFrom = oldest - 1
+                    if (nextFrom < 1 || (from >= 0 && nextFrom >= from)) break
+                    from = nextFrom
+                    // Graphene rejects low `from` values paired with a larger limit.
+                    limit = minOf(30L, nextFrom.coerceAtLeast(1L)).toInt()
+                }
+                return ConfirmationCheck(status = "unavailable", detail = "полная область истории после исходной позиции не поместилась в безопасный лимит", pagesScanned = pages)
+            } catch (e: Exception) {
+                lastCheck = ConfirmationCheck(status = "unavailable", detail = PayloadSanitizer.text(e.message.orEmpty().ifBlank { e.javaClass.simpleName }, 180), pagesScanned = totalPages)
             }
-            if (found != null) return found
         }
+        return lastCheck
+    }
+
+    private fun extractTransactionId(response: JSONObject): String? {
+        listOf("transaction_id", "trx_id").forEach { key ->
+            response.optString(key).takeIf { it.isNotBlank() }?.let { return it }
+        }
+        val result = response.opt("result")
+        if (result is JSONObject) {
+            listOf("transaction_id", "trx_id").forEach { key ->
+                result.optString(key).takeIf { it.isNotBlank() }?.let { return it }
+            }
+        }
+        // Top-level `id` is the JSON-RPC request correlation id; generic result/id values are not trusted as transaction ids.
         return null
+    }
+
+    private fun pendingDiagnostics(pending: PendingBroadcastIntent, operation: VoteOperation?, check: ConfirmationCheck): JSONObject {
+        val pendingOperation = JSONObject()
+            .put("chain", pending.chainId)
+            .put("account", pending.account)
+            .put("author", operation?.author ?: JSONObject.NULL)
+            .put("permlink", operation?.permlink ?: JSONObject.NULL)
+            .put("weight", operation?.weight ?: JSONObject.NULL)
+            .put("pendingTxId", pending.transactionId ?: JSONObject.NULL)
+            .put("historyBaseline", pending.historyBaseline)
+        val confirmation = JSONObject()
+            .put("status", check.status)
+            .put("checked", check.status != "unavailable" && check.status != "identity_unavailable")
+            .put("detail", check.detail)
+            .put("pagesScanned", check.pagesScanned)
+        check.event?.let { confirmation.put("historyIndex", it.index).put("timestamp", it.timestamp) }
+        val nextStep = if (check.event != null && !pending.transactionId.isNullOrBlank()) "Сохранённая блокировка снята после подтверждения в истории."
+            else if (pending.transactionId.isNullOrBlank()) "ID транзакции отсутствует; автоматическая разблокировка невозможна. Скачайте журнал «Логи и диагностика» для ручной проверки; не отправляйте повторно вслепую."
+            else if (check.status == "unavailable") "Приложение повторит проверку истории. Если ожидание сохраняется, скачайте журнал «Логи и диагностика»; не отправляйте голос повторно вслепую."
+            else "Повторите проверку позже; автоматическая повторная отправка останется заблокированной до подтверждения."
+        return JSONObject().put("pendingOperation", pendingOperation).put("confirmation", confirmation).put("nextStep", nextStep)
     }
 
     private fun mergeDiagnostics(first: JSONObject?, second: JSONObject?): JSONObject? {

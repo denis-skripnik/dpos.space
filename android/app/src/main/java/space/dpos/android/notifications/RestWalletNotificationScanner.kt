@@ -115,21 +115,21 @@ class RestWalletHistoryClient(private val chainId: String) {
 }
 
 class RestWalletNotificationScanner(private val chainId: String, private val client: RestWalletHistoryClient = RestWalletHistoryClient(chainId)) {
-    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
+    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
         val rows = client.getTransactions(account, limit)
         return scan(account, cursor, rows, baselineDone, selectedOps)
     }
 
-    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
+    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
         val target = account.trim().lowercase()
         val sorted = rows.sortedBy { it.index }
         val newest = sorted.maxOfOrNull { it.index } ?: cursor ?: -1L
         if (!baselineDone) return newest to emptyList()
         val minIndex = cursor ?: -1L
-        val allowed = selectedOps.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+        val allowed = selectedOps?.map { it.trim().lowercase() }?.filter { it.isNotBlank() }?.toSet()
         val notifications = sorted
             .filter { it.index > minIndex }
-            .filter { allowed.isEmpty() || it.type.lowercase() in allowed }
+            .filter { allowed == null || it.type.lowercase() in allowed }
             .mapNotNull { toNotification(target, it) }
         return newest to notifications
     }

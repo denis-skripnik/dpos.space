@@ -14,7 +14,7 @@ data class AccountImportRequest(
     val enableVizSelfAward: Boolean = false,
     val autoStart: Boolean = false,
     val explicitConsent: Boolean,
-    val notificationOps: List<String> = emptyList(),
+    val notificationOps: List<String>? = null,
     val minEnergy: Int = 2500,
     val maxActionsPerTick: Int = 5,
     val intervalMinutes: Int = 15,
@@ -22,7 +22,12 @@ data class AccountImportRequest(
     val favorites: List<String> = emptyList(),
     val curatorMode: String = "repeat",
     val curatorCoefficient: Int = 100,
-    val favoritesPercent: Int = 100
+    val favoritesPercent: Int = 100,
+    val autoDonate: Boolean = false,
+    val autoDonatePool: String = "0 1",
+    val updateNotifications: Boolean = false,
+    val updateAutoUpvoter: Boolean = false,
+    val updateVizSelfAward: Boolean = false
 )
 
 data class ImportDecision(
@@ -42,7 +47,12 @@ data class ImportDecision(
     val favorites: List<String> = emptyList(),
     val curatorMode: String = "repeat",
     val curatorCoefficient: Int = 100,
-    val favoritesPercent: Int = 100
+    val favoritesPercent: Int = 100,
+    val autoDonate: Boolean = false,
+    val autoDonatePool: String = "0 1",
+    val updateNotifications: Boolean = false,
+    val updateAutoUpvoter: Boolean = false,
+    val updateVizSelfAward: Boolean = false
 )
 
 object WorkerCommandPolicy {
@@ -58,10 +68,15 @@ object WorkerCommandPolicy {
         if (!request.explicitConsent) return ImportDecision(false, "explicit opt-in is required before Android worker imports account settings")
         val isWalletNotificationChain = chain in RestWalletNotificationSpecs.supportedChains
         if (!accountPattern.matches(account) && !(isWalletNotificationChain && walletAddressPattern.matches(account))) return ImportDecision(false, "invalid account name")
-        if (!request.enableNotifications && !request.enableAutoUpvoter && !request.enableVizSelfAward) return ImportDecision(false, "nothing enabled; choose notifications, auto-upvoter, or VIZ self-award")
+        val hasFeatureUpdate = request.updateNotifications || request.updateAutoUpvoter || request.updateVizSelfAward
+        if (!request.enableNotifications && !request.enableAutoUpvoter && !request.enableVizSelfAward && !hasFeatureUpdate) return ImportDecision(false, "nothing enabled or explicitly disabled")
         if (request.enableNotifications && chain !in supportedNotificationChains) return ImportDecision(false, "unsupported chain for native notifications: $chain")
         if (request.enableAutoUpvoter && chain !in supportedAutoUpvoterChains) return ImportDecision(false, "unsupported chain for native auto-upvoter: $chain")
         if (request.enableVizSelfAward && chain != "viz") return ImportDecision(false, "VIZ self-award is supported only for viz")
+        if (request.autoDonate && chain != "golos") return ImportDecision(false, "auto-donate is supported only for Golos")
+        if (request.autoDonate && !request.enableAutoUpvoter) return ImportDecision(false, "auto-donate requires enabled auto-upvoter")
+        val pool = if (request.autoDonate) try { space.dpos.android.upvoter.GolosDonatePool.parse(request.autoDonatePool) }
+            catch (_: Exception) { return ImportDecision(false, "invalid Golos auto-donate percent/coefficient") } else null
         return ImportDecision(
             accepted = true,
             reason = "accepted",
@@ -79,7 +94,12 @@ object WorkerCommandPolicy {
             favorites = normalizeAccounts(request.favorites),
             curatorMode = normalizeCuratorMode(request.curatorMode),
             curatorCoefficient = request.curatorCoefficient.coerceIn(0, 100),
-            favoritesPercent = request.favoritesPercent.coerceIn(0, 100)
+            favoritesPercent = request.favoritesPercent.coerceIn(0, 100),
+            autoDonate = chain == "golos" && request.autoDonate,
+            autoDonatePool = pool?.let { "${it.percent.toPlainString()} ${it.coefficient.toPlainString()}" } ?: "0 1",
+            updateNotifications = request.updateNotifications || request.enableNotifications,
+            updateAutoUpvoter = request.updateAutoUpvoter || request.enableAutoUpvoter,
+            updateVizSelfAward = request.updateVizSelfAward || request.enableVizSelfAward
         )
     }
 
@@ -89,16 +109,16 @@ object WorkerCommandPolicy {
         .distinct()
 
     fun normalizeEnergyThreshold(value: Int): Int {
-        val normalized = if (value > 0 && value <= 100) value * 100 else value
-        return normalized.coerceIn(0, 10000)
+        return value.coerceIn(0, 10000)
     }
 
     fun normalizeCuratorMode(value: String): String = if (value.trim().lowercase() == "full") "full" else "repeat"
 
-    fun normalizeOps(values: List<String>, chainId: String): List<String> {
+    fun normalizeOps(values: List<String>?, chainId: String): List<String> {
         val allowed = GrapheneChainSpecs.find(chainId)?.notificationOps ?: RestWalletNotificationSpecs.notificationOps[chainId].orEmpty()
         if (allowed.isEmpty()) return emptyList()
-        return values.map { it.trim().lowercase() }.filter { it in allowed }.distinct().ifEmpty { allowed }
+        if (values == null) return allowed
+        return values.map { it.trim().lowercase() }.filter { it in allowed }.distinct()
     }
 
     fun hasSecretLikeFields(json: JSONObject): Boolean {
@@ -126,7 +146,7 @@ object WorkerSettingsCodec {
                     enableVizSelfAward = obj.optBoolean("enableVizSelfAward", false),
                     autoStart = obj.optBoolean("autoStart", false),
                     explicitConsent = obj.optBoolean("explicitConsent", false),
-                    notificationOps = readStringList(obj.opt("notificationOps")),
+                    notificationOps = if (obj.has("notificationOps")) readStringList(obj.opt("notificationOps")) else null,
                     minEnergy = obj.optInt("minEnergy", 2500),
                     maxActionsPerTick = obj.optInt("maxActionsPerTick", 5),
                     intervalMinutes = obj.optInt("intervalMinutes", 15),
@@ -134,7 +154,12 @@ object WorkerSettingsCodec {
                     favorites = readAccountList(obj.opt("favorites")),
                     curatorMode = obj.optString("curatorMode", "repeat"),
                     curatorCoefficient = obj.optInt("curatorCoefficient", 100),
-                    favoritesPercent = obj.optInt("favoritesPercent", 100)
+                    favoritesPercent = obj.optInt("favoritesPercent", 100),
+                    autoDonate = obj.optBoolean("autoDonate", false),
+                    autoDonatePool = obj.optString("autoDonatePool", "0 1"),
+                    updateNotifications = obj.has("enableNotifications"),
+                    updateAutoUpvoter = obj.has("enableAutoUpvoter"),
+                    updateVizSelfAward = obj.has("enableVizSelfAward")
                 )
             )
         } catch (e: Exception) {
@@ -149,6 +174,8 @@ object WorkerSettingsCodec {
         .put("account", decision.account)
         .put("enableNotifications", decision.enableNotifications)
         .put("enableAutoUpvoter", decision.enableAutoUpvoter)
+        .put("autoDonate", decision.autoDonate)
+        .put("autoDonatePool", decision.autoDonatePool)
         .put("enableVizSelfAward", decision.enableVizSelfAward)
         .put("autoStart", decision.autoStart)
         .put("notificationOps", JSONArray(decision.notificationOps))

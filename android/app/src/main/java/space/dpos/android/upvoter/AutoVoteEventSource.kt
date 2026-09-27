@@ -47,7 +47,8 @@ object AutoVoteEventMapper {
             author = author,
             permlink = permlink,
             weight = weight,
-            activeVotes = emptyList()
+            activeVotes = emptyList(),
+            sourceIndex = row.index
         )
     }
 
@@ -71,12 +72,21 @@ class AutoVoteEventCollector(
     private val historyClient: GolosHistoryClient,
     private val discussionClient: GolosDiscussionClient
 ) {
-    fun collect(settings: List<AccountSettings>, historyLimit: Int = 30, favoriteLimit: Int = 20): List<VoteEvent> {
+    fun collect(
+        settings: List<AccountSettings>,
+        historyLimit: Int = 30,
+        favoriteLimit: Int = 20,
+        curatorCursors: Map<String, Long> = emptyMap(),
+        onCuratorCursor: (String, Long) -> Unit = { _, _ -> }
+    ): List<VoteEvent> {
         val events = mutableListOf<VoteEvent>()
         val curators = settings.filter { it.enabled }.flatMap { it.curators }.map { it.trim().removePrefix("@").lowercase() }.filter { it.isNotBlank() }.distinct()
         val favorites = settings.filter { it.enabled }.flatMap { it.favorites }.map { it.trim().removePrefix("@").lowercase() }.filter { it.isNotBlank() }.distinct()
         for (curator in curators) {
-            historyClient.getAccountHistory(curator, -1L, historyLimit.coerceIn(1, 100)).mapNotNullTo(events) { AutoVoteEventMapper.historyVoteToCuratorEvent(it) }
+            val rows = historyClient.getAccountHistory(curator, -1L, historyLimit.coerceIn(1, 100))
+            val cursor = curatorCursors[curator] ?: -1L
+            rows.filter { it.index > cursor }.mapNotNullTo(events) { AutoVoteEventMapper.historyVoteToCuratorEvent(it) }
+            rows.maxOfOrNull { it.index }?.let { onCuratorCursor(curator, it) }
         }
         for (favorite in favorites) {
             discussionClient.getBlogPosts(favorite, favoriteLimit.coerceIn(1, 100)).mapNotNullTo(events) { AutoVoteEventMapper.blogPostToFavoriteEvent(it) }

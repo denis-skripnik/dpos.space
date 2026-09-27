@@ -7,6 +7,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.dpos.android.storage.EncryptedKeyRef
@@ -56,7 +57,19 @@ class VizSelfAwardPolicyTest {
         assertEquals(10, body.getInt("energy"))
         assertEquals(0, body.getLong("custom_sequence"))
         assertEquals(VIZ_SELF_AWARD_MEMO, body.getString("memo"))
-        assertEquals(0, body.getJSONArray("beneficiaries").length())
+        val beneficiaries = body.getJSONArray("beneficiaries")
+        assertEquals(1, beneficiaries.length())
+        assertEquals("denis-skripnik", beneficiaries.getJSONObject(0).getString("account"))
+        assertEquals(100, beneficiaries.getJSONObject(0).getInt("weight"))
+    }
+
+    @Test fun beneficiaryIsKeptWhenReceiverIsTheSameAccount() {
+        val body = VizSelfAwardOperation("denis-skripnik", 10).toJson()
+        assertEquals("denis-skripnik", body.getString("receiver"))
+        val beneficiaries = body.getJSONArray("beneficiaries")
+        assertEquals(1, beneficiaries.length())
+        assertEquals("denis-skripnik", beneficiaries.getJSONObject(0).getString("account"))
+        assertEquals(100, beneficiaries.getJSONObject(0).getInt("weight"))
     }
 
     @Test fun awardTransactionBytesMatchVizRpcGetTransactionHexFixture() {
@@ -64,7 +77,7 @@ class VizSelfAwardPolicyTest {
         val bytes = VizAwardTransactionBuilder(spec).signingBytes(VizSelfAwardOperation("denis", 10), header)
         val txHex = bytes.copyOfRange(32, bytes.size).joinToString("") { "%02x".format(it.toInt() and 0xff) }
         assertEquals(
-            "780001020304bc009265012f0564656e69730564656e69730a0000000000000000001a64706f732e73706163653a2056495a2073656c662d61776172640000",
+            "780001020304bc009265012f0564656e69730564656e69730a0000000000000000001a64706f732e73706163653a2056495a2073656c662d6177617264010e64656e69732d736b7269706e696b640000",
             txHex
         )
     }
@@ -81,10 +94,10 @@ class VizSelfAwardPolicyTest {
         val signer = VizAwardSigner(spec, VizAwardTransactionBuilder(spec))
         val result = signer.sign(VizSelfAwardOperation("denis", 10), EncryptedKeyRef("viz", "denis", "regular", "regular"), "5K7LhzBPYk63kLwdWFvmPaKLM69tkEu3enui2zEpU59vKnBEU32", header, includeDiagnostics = true)
         assertTrue(result.ok)
-        assertEquals("72c56ec8073b93959fe4a3b5745a6926eef4f0535abd757bcb3ade38a78c62f5", result.diagnostics!!.getString("signingDigestHex"))
-        assertEquals(3, result.diagnostics!!.getInt("canonicalNonce"))
+        assertEquals("9f8f6df413b28a8b75d49d75ae3c81817337e34f9fb1c4d2aecda8cac856564a", result.diagnostics!!.getString("signingDigestHex"))
+        assertEquals(0, result.diagnostics!!.getInt("canonicalNonce"))
         assertEquals(
-            "200ef95542ea44b43cf3d0f5b76e295d6640636f0e1af68354e9a3c45ebfedd028578e570a9662adcaa05fa768db3459ea5cd957f672cae02332effd9a078e5d30",
+            "1f2f16aba57f16440ccf3acb4c94e1d9f4f9f73a2be38abfba3b94a67b23ca5838434ef55824bbdf7ab9a4313c2def106cb9544d390261ef87da007a26640d72c4",
             result.signedTransaction!!.getJSONArray("signatures").getString(0)
         )
     }
@@ -119,8 +132,8 @@ class VizSelfAwardPolicyTest {
         val broadcaster = RecordingBroadcaster()
         val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster, historyClient = ConfirmingHistory("denis", 10), confirmationRetries = 1, confirmationDelayMs = 0)
         val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
-        assertTrue(result.ok)
-        assertEquals("broadcast_confirmed", result.status)
+        assertFalse(result.ok)
+        assertEquals("broadcast_unconfirmed", result.status)
         assertEquals(1, broadcaster.broadcastCount)
         val op = broadcaster.lastTx!!.getJSONArray("operations").getJSONArray(0).getJSONObject(1)
         assertEquals("denis", op.getString("initiator"))
@@ -156,6 +169,137 @@ class VizSelfAwardPolicyTest {
         assertEquals(0, broadcaster.broadcastCount)
     }
 
+    @Test fun differentAwardMemoCannotConfirmThisTransaction() {
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 10000), broadcaster,
+            historyClient = ConfirmingHistory("denis", 10, "other application"), confirmationRetries = 1, confirmationDelayMs = 0)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unconfirmed", result.status)
+    }
+
+    @Test fun historyAloneCannotConfirmNewFeePending() {
+        val pending = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            var intent: space.dpos.android.upvoter.PendingBroadcastIntent? = space.dpos.android.upvoter.PendingBroadcastIntent(
+                "self_award", "viz", "denis", "v2|5|$VIZ_SELF_AWARD_MEMO|denis-skripnik|100", 0, transactionId = "a".repeat(40)
+            )
+            override fun readPending(kind: String, chainId: String, account: String) = intent
+            override fun savePending(value: space.dpos.android.upvoter.PendingBroadcastIntent) { intent = value }
+            override fun clearPending(kind: String, chainId: String, account: String) { intent = null }
+        }
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(
+                HistoryEvent(42, "award", mapOf("initiator" to account, "receiver" to account, "energy" to "5", "memo" to VIZ_SELF_AWARD_MEMO, "trx_id" to "a".repeat(40), "beneficiaries" to "[{\"account\":\"denis-skripnik\",\"weight\":100}]"), "2026-08-15T00:00:00")
+            )
+        }
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 9000), RecordingBroadcaster(), historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unknown", result.status)
+        assertNotNull(pending.intent)
+    }
+
+    @Test fun newFeePendingIsNotMisconfirmedByLegacyAwardWithoutBeneficiary() {
+        val pending = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            var intent: space.dpos.android.upvoter.PendingBroadcastIntent? = space.dpos.android.upvoter.PendingBroadcastIntent(
+                "self_award", "viz", "denis", "v2|5|$VIZ_SELF_AWARD_MEMO|denis-skripnik|100", 0, transactionId = "a".repeat(40)
+            )
+            override fun readPending(kind: String, chainId: String, account: String) = intent
+            override fun savePending(value: space.dpos.android.upvoter.PendingBroadcastIntent) { intent = value }
+            override fun clearPending(kind: String, chainId: String, account: String) { intent = null }
+        }
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(
+                HistoryEvent(42, "award", mapOf("initiator" to account, "receiver" to account, "energy" to "5", "memo" to VIZ_SELF_AWARD_MEMO, "trx_id" to "a".repeat(40), "beneficiaries" to "[]"), "2026-08-15T00:00:00")
+            )
+        }
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 9000), RecordingBroadcaster(), historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unknown", result.status)
+        assertTrue(pending.intent != null)
+    }
+
+    @Test fun oldHistoryMatchingEnergyCannotConfirmIdOnlyPending() {
+        val pending = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            var intent: space.dpos.android.upvoter.PendingBroadcastIntent? = space.dpos.android.upvoter.PendingBroadcastIntent("self_award", "viz", "denis", "5|$VIZ_SELF_AWARD_MEMO", 0, transactionId = "a".repeat(40))
+            override fun readPending(kind: String, chainId: String, account: String) = intent
+            override fun savePending(value: space.dpos.android.upvoter.PendingBroadcastIntent) { intent = value }
+            override fun clearPending(kind: String, chainId: String, account: String) { intent = null }
+        }
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(
+                HistoryEvent(42, "award", mapOf("initiator" to account, "receiver" to account, "energy" to "5", "memo" to VIZ_SELF_AWARD_MEMO, "trx_id" to "a".repeat(40)), "2026-08-15T00:00:00"))
+        }
+        val broadcaster = RecordingBroadcaster()
+        val runtime = VizSelfAwardRuntime(FakeRpc(energy = 9000), broadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+        val result = runtime.execute("denis", 9500, EncryptedKeyRef("viz", "denis", "regular", "regular"), deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", result.status)
+        assertNotNull(pending.intent)
+        assertEquals(0, broadcaster.broadcastCount)
+    }
+
+    @Test fun computedTransactionIdMatchesPublicVizRpcHistoryAndTransactionHex() {
+        // api.viz.world read-only get_transaction_hex + get_account_history, viz-projects.
+        val unsigned = "c8d6fa01fb191835b76a012f0c76697a2d70726f6a656374730c76697a2d70726f6a656374730a0000000000000000001a64706f732e73706163653a2056495a2073656c662d6177617264010e64656e69732d736b7269706e696b640000"
+        val bytes = ByteArray(unsigned.length / 2) { unsigned.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+        assertEquals("3041da881521594d1de9a5aec18b7a091f1e48f5",
+            space.dpos.android.upvoter.TransactionConfirmation.transactionId(ByteArray(32) + bytes))
+    }
+
+    @Test fun divergentVizNodeIndicesRecoverOnlyByExactTransactionIdAcrossPages() {
+        val tx = "a".repeat(40)
+        val pending = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            var intent: space.dpos.android.upvoter.PendingBroadcastIntent? = space.dpos.android.upvoter.PendingBroadcastIntent(
+                "self_award", "viz", "viz-projects", "v2|10|$VIZ_SELF_AWARD_MEMO|denis-skripnik|100", 540,
+                transactionId = tx, createdAtMs = 1790399970000L)
+            override fun readPending(kind: String, chainId: String, account: String) = intent
+            override fun savePending(intent: space.dpos.android.upvoter.PendingBroadcastIntent) { this.intent = intent }
+            override fun clearPending(kind: String, chainId: String, account: String) { intent = null }
+        }
+        var pages = 0
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+                pages++
+                return if (from == -1L) (540L..570L).map { HistoryEvent(it, "validator_reward", mapOf("trx_id" to "0".repeat(40))) }
+                else listOf(HistoryEvent(538, "award", mapOf("initiator" to account, "receiver" to account,
+                    "energy" to "10", "memo" to VIZ_SELF_AWARD_MEMO,
+                    "beneficiaries" to "[{\"account\":\"denis-skripnik\",\"weight\":100}]", "trx_id" to tx)))
+            }
+        }
+        val broadcaster = RecordingBroadcaster()
+        val result = VizSelfAwardRuntime(FakeRpc(10000), broadcaster, historyClient = history,
+            confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+            .execute("viz-projects", 9500, EncryptedKeyRef("viz", "viz-projects", "regular", "regular"), deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", result.status)
+        assertNotNull(pending.intent)
+        assertEquals(0, broadcaster.broadcastCount)
+        assertEquals(0, pages) // VIZ never scans account-history pages.
+    }
+
+    @Test fun legacyOperationOnlyPendingCannotBeProvenFromDifferentNodeIndex() {
+        val pending = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            var intent: space.dpos.android.upvoter.PendingBroadcastIntent? = space.dpos.android.upvoter.PendingBroadcastIntent(
+                "self_award", "viz", "viz-projects", "v2|10|$VIZ_SELF_AWARD_MEMO|denis-skripnik|100", 535)
+            override fun readPending(kind: String, chainId: String, account: String) = intent
+            override fun savePending(intent: space.dpos.android.upvoter.PendingBroadcastIntent) { this.intent = intent }
+            override fun clearPending(kind: String, chainId: String, account: String) { intent = null }
+        }
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(HistoryEvent(537, "award",
+                mapOf("initiator" to account, "receiver" to account, "energy" to "10", "memo" to VIZ_SELF_AWARD_MEMO,
+                    "trx_id" to "a".repeat(40), "beneficiaries" to "[{\"account\":\"denis-skripnik\",\"weight\":100}]")))
+        }
+        val broadcaster = RecordingBroadcaster()
+        val result = VizSelfAwardRuntime(FakeRpc(10000), broadcaster, historyClient = history,
+            confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+            .execute("viz-projects", 9500, EncryptedKeyRef("viz", "viz-projects", "regular", "regular"), deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", result.status)
+        assertNotNull(pending.intent)
+        assertEquals(0, broadcaster.broadcastCount)
+        assertTrue(result.reason.contains("stale"))
+    }
+
     private class FakeRpc(
         private val energy: Int,
         private val regularPublicKey: String = GraphenePublicKey.fromWif(deterministicNonSecretWif(), "VIZ"),
@@ -187,10 +331,20 @@ class VizSelfAwardPolicyTest {
     }
 
     companion object {
-        private class ConfirmingHistory(private val account: String, private val energy: Int) : GolosHistoryClient {
-        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
-            HistoryEvent(42, "award", mapOf("initiator" to this.account, "receiver" to this.account, "energy" to energy.toString()), "2026-08-15T00:00:00")
-        )
+        private class ConfirmingHistory(private val account: String, private val energy: Int, private val memo: String = VIZ_SELF_AWARD_MEMO) : GolosHistoryClient {
+        private var calls = 0
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+            calls += 1
+            return if (calls == 1) emptyList() else listOf(
+                HistoryEvent(42, "award", mapOf(
+                    "initiator" to this.account,
+                    "receiver" to this.account,
+                    "energy" to energy.toString(),
+                    "memo" to memo,
+                    "beneficiaries" to "[{\"account\":\"denis-skripnik\",\"weight\":100}]"
+                ), "2026-08-15T00:00:00")
+            )
+        }
     }
 
     private fun deterministicNonSecretWif(): String = ECKey.fromPrivate(BigInteger("2"), true).getPrivateKeyAsWiF(MainNetParams.get())

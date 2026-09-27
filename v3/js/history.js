@@ -378,7 +378,7 @@
       type: item.type || item.tx_type || item.transaction_type || item.message_type || 'transaction',
       data: item.data || item.message || item,
       timestamp: item.timestamp || item.time || item.created_at || '',
-      trxId: item.hash || item.tx_hash || item.id || '',
+      trxId: [item.hash, item.tx_hash, item.transactionHash, item.transaction_hash, item.txhash, item.Hash, item.TxHash, item.id].find(value => (typeof value === 'string' && value.trim() !== '') || (typeof value === 'number' && Number.isSafeInteger(value))) ?? '',
       block: item.block || item.block_id || item.blockId || item.block_number || item.height || '',
       raw: item
     }));

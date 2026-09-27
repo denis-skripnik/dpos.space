@@ -29,7 +29,7 @@ assert(appSource.includes("dpos_hive_auto_upvoter_settings") || appSource.includ
 assert(appSource.includes('В ${escapeHtml(chain.title)} донатов нет') && appSource.includes('только vote-операции'), 'Hive UI explicitly states donations are unavailable and only votes are sent');
 assert(appSource.includes('isGolos ? `<div class="field">') && appSource.includes('Личный пул автодоната GOLOS'), 'Golos donate controls are guarded by isGolos');
 assert(appSource.includes('const donateLink = isGolos && action && action.author'), 'manual donate links are hidden for Hive');
-assert(appSource.includes('const donateAction = isGolos && action && action.donate && action.donate.enabled'), 'scanner donate enrichment is disabled for Hive');
+assert(appSource.includes('let donateAction = action;') && appSource.includes('if (isGolos && action && action.donate && action.donate.enabled)'), 'scanner donate enrichment is disabled for Hive');
 assert(appSource.includes('socialPostPageUrl(chain, action && action.author, action && action.permlink)'), 'Hive auto-upvoter feed links to the in-app Hive post viewer');
 assert(appSource.includes('getDiscussionsByBlog') && appSource.includes('getDiscussionsByCreated') && appSource.includes('getAccountHistory') && appSource.includes('getContent'), 'Hive scanner adapter uses public condenser RPC methods');
 assert(planSource.includes('### Scoped plan: Hive/Steem auto-upvoter without donations'), 'plan records Hive/Steem auto-upvoter scope');
@@ -39,9 +39,15 @@ const planned = helpers.planActionsForEvents([
   { account: 'alice', enabled: true, curators: ['curator'], favorites: ['favorite'], favoritesPercent: 42, autoDonate: false }
 ], [
   { kind: 'curator_vote', voter: 'curator', author: 'target', permlink: 'vote', weight: 8000, accountEnergy: 9000 },
-  { kind: 'favorite_post', author: 'favorite', permlink: 'post', activeVotes: [] }
+  { kind: 'favorite_post', author: 'favorite', permlink: 'post', accountEnergy: 9000, activeVotes: [] }
 ], { seen: new Set() });
 assert(planned.length >= 2, 'generic helper still plans Hive vote actions');
 assert(planned.every((action) => !action.donate), 'Hive planned actions have no donate payload when autoDonate is false');
+
+const malformed = helpers.planActionsForEvents([{ account: 'alice', enabled: true, favorites: ['favorite'], autoDonate: true, autoDonateCap: '50 1', currentEnergy: 10000 }],
+  [{ kind: 'favorite_post', author: 'favorite', permlink: 'malformed-import', accountEnergy: 10000 }],
+  { seen: new Set(), chainId: 'hive' });
+assert.strictEqual(malformed.length, 1, 'hive still plans a normal vote with malformed imported donate config');
+assert(malformed.every((action) => !action.donate), 'hive chain boundary strips malformed donate settings before execution');
 
 console.log('v3 Hive auto-upvoter smoke passed');

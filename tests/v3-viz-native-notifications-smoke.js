@@ -11,7 +11,7 @@ assert(chainsSource.includes("{ id: 'notifications', title: 'Уведомлен�
 assert(notificationsSource.includes("viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award']"), 'VIZ browser notification ops are explicit');
 assert(appSource.includes("notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications'"), 'notifications route is dispatched by helper support, not VIZ-only hardcode');
 const vizNotificationsSlice = appSource.slice(appSource.indexOf('function renderNotificationsPage'), appSource.indexOf('async function renderRoute'));
-assert(vizNotificationsSlice.includes('data-android-notifications-settings') && vizNotificationsSlice.includes('enableAutoUpvoter: false') && vizNotificationsSlice.includes('notificationOps: currentSettings.ops'), 'Android notifications are notifications-only and receive selected op filters');
+// Notification-only payloads and exact filters are exercised by v3-notification-consent-lifecycle.js.
 assert(vizNotificationsSlice.includes('уведомления используют эти же фильтры'), 'Android notifications use the normal notifications page with the same filters');
 assert(vizNotificationsSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('startWorker'") && vizNotificationsSlice.includes("callAndroidWorkerBridge('checkNow'"), 'VIZ notifications page syncs and starts Android notifications internally');
 assert(!vizNotificationsSlice.includes('data-android-import-viz-notifications') && !vizNotificationsSlice.includes('data-android-start-worker') && !vizNotificationsSlice.includes('data-android-check-now'), 'VIZ notifications UI exposes no separate native import/start/check buttons');

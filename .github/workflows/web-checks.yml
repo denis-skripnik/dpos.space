@@ -1,0 +1,35 @@
+name: Web checks
+
+on:
+  push:
+    branches: [v3]
+    paths:
+      - 'index.html'
+      - 'sw.js'
+      - 'v3/**'
+      - 'tests/**'
+      - 'tools/**'
+      - '.github/workflows/web-checks.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'sw.js'
+      - 'v3/**'
+      - 'tests/**'
+      - 'tools/**'
+      - '.github/workflows/web-checks.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  web-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Syntax and behavioral web regression tests
+        run: node tools/web-checks.cjs

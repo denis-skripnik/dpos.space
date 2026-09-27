@@ -19,7 +19,7 @@ class AutoVoteEventSourceTest {
         assertTrue(decision.accepted)
         assertEquals(listOf("alice", "bob"), decision.curators)
         assertEquals(listOf("carol", "dan"), decision.favorites)
-        assertEquals(8000, decision.minEnergy)
+        assertEquals(80, decision.minEnergy) // Native payloads are already basis points.
         assertEquals("full", decision.curatorMode)
         assertEquals(50, decision.curatorCoefficient)
         assertEquals(75, decision.favoritesPercent)
@@ -42,6 +42,29 @@ class AutoVoteEventSourceTest {
         assertEquals(2, plan.actions.size)
         assertEquals(5000, plan.actions[0].weight)
         assertEquals(8000, plan.actions[1].weight)
+    }
+
+    @Test fun plannerDeduplicatesSameTargetWithinOnePlanAcrossSources() {
+        val settings = AccountSettings("denis", enabled = true, curators = listOf("alice", "bob"))
+        val events = listOf(
+            space.dpos.android.upvoter.VoteEvent("curator_vote", "alice", "target", "post", 10000),
+            space.dpos.android.upvoter.VoteEvent("curator_vote", "bob", "target", "post", 5000)
+        )
+        val plan = AutoUpvoterPlanner().plan(listOf(settings), events)
+        assertEquals(1, plan.actions.size)
+        assertTrue(plan.skips.single().startsWith("duplicate:"))
+    }
+
+    @Test fun collectorFiltersEventsAtOrBeforePersistedCuratorCursor() {
+        val collector = AutoVoteEventCollector(FakeHistory(), FakeDiscussions())
+        val advanced = mutableMapOf<String, Long>()
+        val events = collector.collect(
+            listOf(AccountSettings("denis", enabled = true, curators = listOf("alice"))),
+            curatorCursors = mapOf("alice" to 1L),
+            onCuratorCursor = { curator, index -> advanced[curator] = index }
+        )
+        assertTrue(events.none { it.kind == "curator_vote" })
+        assertEquals(1L, advanced["alice"])
     }
 
     @Test fun parsesBlogPostsAndActiveVotes() {

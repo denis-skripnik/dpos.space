@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "space.dpos.android"
     compileSdk = 35
+    testOptions.unitTests.isIncludeAndroidResources = true
 
     buildFeatures {
         buildConfig = true
@@ -15,10 +16,17 @@ android {
         applicationId = "space.dpos.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 70
-        versionName = "0.1.69"
+        versionCode = 80
+        versionName = "3.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DPOS_WEB_URL", "\"https://dpos.blinddev.xyz/\"")
+        // Operator-supplied base64 raw Ed25519 public key; absent means updater disabled.
+        val releasePin = providers.gradleProperty("dposReleasePublicKey").orNull ?: ""
+        require(releasePin.isEmpty() || Regex("[A-Za-z0-9+/]{43}=").matches(releasePin))
+        buildConfigField("String", "DPOS_RELEASE_PUBLIC_KEY", "\"$releasePin\"")
+        // Independently pinned from installed 3.1.1; never accept a candidate-repo file/property override.
+        val historicCert = "86b51e10c666cf9c2c4ecdea8407ec068380fb242adb2fae5d237351768f3b27"
+        buildConfigField("String", "DPOS_HISTORIC_CERT", "\"$historicCert\"")
     }
 
     compileOptions {
@@ -32,6 +40,11 @@ android {
 
     buildTypes {
         release {
+            // This stable build intentionally upgrades the installed 0.1.76 debug app.
+            // Keep the package and certificate compatible until a separately planned
+            // migration to a production application ID and signing key is available.
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

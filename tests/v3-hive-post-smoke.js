@@ -37,7 +37,7 @@ const hiveRuntimeSlice = [
 assert(!appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')"), 'Hive /post no longer aliases to editor');
 assert(hive.apps.some((app) => app.id === 'post' && /пост/i.test(app.title)), 'Hive post viewer route is registered');
 assert(hive.apps.some((app) => app.id === 'feeds' && /лент/i.test(app.title)), 'Hive feeds route is registered');
-assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Hive post route to social post viewer');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state, isCurrentRoute)'), 'router dispatches Hive post route to social post viewer');
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Hive feeds route');
 assert(appSource.includes("effectiveAppId === 'editor'") && appSource.includes('renderEditor(chain, state)'), 'router still dispatches editor app to renderer');
 assert(appSource.includes("const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain))") && !appSource.includes("const canEditPost = chain.id === 'golos'"), 'Hive own post page edit links are not Golos-only');

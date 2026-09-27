@@ -19,7 +19,7 @@ const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 assert(!appSource.includes("post: 'editor'"), 'Golos post route is not shadowed by the editor alias');
 assert(chains.golos.apps.some((app) => app.id === 'post' && /пост/i.test(app.title)), 'Golos post page route is registered');
 assert(chainsSource.includes("id: 'post'") && chainsSource.includes('Просмотр поста'), 'chains registry exposes readable Golos post app');
-assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'post'") && appSource.includes('renderGolosPostPage(chain, state)'), 'router dispatches Golos post route');
+assert(appSource.includes("chain.id === 'golos' && effectiveAppId === 'post'") && appSource.includes('renderGolosPostPage(chain, state, isCurrentRoute)'), 'router dispatches Golos post route with stale-render protection');
 
 for (const marker of [
   'function golosPostPageUrl',
@@ -70,8 +70,8 @@ assert.strictEqual(discussionEvent.title, 'Nice readable title', 'favorite-post 
 assert(Array.isArray(discussionEvent.activeVotes) && discussionEvent.activeVotes[0].voter === 'alice', 'favorite-post event preserves active_votes for duplicate-vote checks');
 
 const planned = helpers.planActionsForEvents([
-  { account: 'alice', enabled: true, favorites: ['favorite'], favoritesPercent: 100 },
-  { account: 'bob', enabled: true, favorites: ['favorite'], favoritesPercent: 100 }
+  { account: 'alice', enabled: true, currentEnergy: 10000, favorites: ['favorite'], favoritesPercent: 100 },
+  { account: 'bob', enabled: true, currentEnergy: 10000, favorites: ['favorite'], favoritesPercent: 100 }
 ], [discussionEvent], { seen: new Set() });
 assert(!planned.some((action) => action.account === 'alice'), 'already-voted account is skipped before broadcast');
 assert(planned.some((action) => action.account === 'bob' && action.title === 'Nice readable title'), 'not-yet-voted account keeps planned action with title');

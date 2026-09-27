@@ -27,7 +27,7 @@ assert(legacyUserinfo.includes('get_dynamic_global_properties') && legacyUserinf
 assert(legacyHistoryJs.includes("'receive_award'") && legacyHistoryJs.includes("'paid_subscribe'"), 'legacy VIZ history operation map inspected');
 
 assert(chainsSource.includes("id: 'profiles'") && chainsSource.includes("Профили"), 'profiles app is registered in v3 chain apps');
-assert(appSource.includes('async function renderProfileRoute(chain, account)'), 'v3 has dedicated profile route renderer');
+childProcess.execFileSync(process.execPath, [path.join(__dirname, 'v3-route-generation.js')], { encoding: 'utf8', timeout: 15000 });
 assert(appSource.includes('function vizLegacyProfileLinks(account)'), 'VIZ profiles expose a legacy subpage to static history-link mapper');
 assert(appSource.includes("'Переводы средств'") && appSource.includes("transfer,transfer_to_vesting,create_invite,claim_invite_balance,use_invite_balance"), 'VIZ transfers subpage maps to public history filters');
 assert(appSource.includes("'Соц. капитал'") && appSource.includes("delegate_vesting_shares,transfer_to_vesting,withdraw_vesting,return_vesting_delegation"), 'VIZ shares subpage maps to history filters');

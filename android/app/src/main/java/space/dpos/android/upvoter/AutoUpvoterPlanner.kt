@@ -7,9 +7,9 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-data class AccountSettings(val account: String, val enabled: Boolean, val curators: List<String> = emptyList(), val favorites: List<String> = emptyList(), val minEnergy: Int = 2500, val curatorMode: String = "repeat", val curatorCoefficient: Int = 100, val favoritesPercent: Int = 100, val currentEnergy: Int? = null, val maxActionsPerTick: Int = 5)
-data class VoteEvent(val kind: String, val voter: String = "", val author: String, val permlink: String, val weight: Int = 10000, val activeVotes: List<String> = emptyList())
-data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?, val maxBroadcastsPerTick: Int = Int.MAX_VALUE)
+data class AccountSettings(val account: String, val enabled: Boolean, val curators: List<String> = emptyList(), val favorites: List<String> = emptyList(), val minEnergy: Int = 2500, val curatorMode: String = "repeat", val curatorCoefficient: Int = 100, val favoritesPercent: Int = 100, val currentEnergy: Int? = null, val maxActionsPerTick: Int = 5, val chainId: String = "golos", val donatePool: GolosDonatePool? = null)
+data class VoteEvent(val kind: String, val voter: String = "", val author: String, val permlink: String, val weight: Int = 10000, val activeVotes: List<String> = emptyList(), val sourceIndex: Long = -1L)
+data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?, val maxBroadcastsPerTick: Int = Int.MAX_VALUE, val donatePool: GolosDonatePool? = null)
 data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>)
 
 object PreviewVoteLog {
@@ -34,6 +34,7 @@ class AutoUpvoterPlanner {
     fun plan(settings: List<AccountSettings>, events: List<VoteEvent>, seen: Set<String> = emptySet()): VotePlan {
         val actions = mutableListOf<PlannedVote>()
         val skips = mutableListOf<String>()
+        val plannedKeys = seen.toMutableSet()
         val energy = settings.associate { it.account to it.currentEnergy }.toMutableMap()
         for (event in events) {
             for (account in settings.filter { it.enabled }) {
@@ -44,7 +45,7 @@ class AutoUpvoterPlanner {
                 }
                 if (!matched) continue
                 val key = "${account.account}|${event.author}|${event.permlink}"
-                if (key in seen || event.activeVotes.any { it.equals(account.account, true) }) { skips += "duplicate:$key"; continue }
+                if (key in plannedKeys || event.activeVotes.any { it.equals(account.account, true) }) { skips += "duplicate:$key"; continue }
                 val weight = if (event.kind == "curator_vote") {
                     if (account.curatorMode == "full") 10000 else (abs(event.weight) * account.curatorCoefficient / 100.0).roundToInt().coerceIn(1, 10000)
                 } else {
@@ -54,7 +55,8 @@ class AutoUpvoterPlanner {
                 val projected = current?.let { estimateEnergyAfter(it, weight) }
                 if (current != null && (current < account.minEnergy || (projected != null && projected < account.minEnergy))) { skips += "energy:$key"; continue }
                 if (projected != null) energy[account.account] = projected
-                actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected, account.maxActionsPerTick.coerceAtLeast(0))
+                actions += PlannedVote(account.account, event.author, event.permlink, weight, event.kind, projected, account.maxActionsPerTick.coerceAtLeast(0), if (account.chainId == "golos") account.donatePool else null)
+                plannedKeys += key
             }
         }
         return VotePlan(actions, skips)

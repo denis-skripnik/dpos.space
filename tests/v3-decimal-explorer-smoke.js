@@ -24,9 +24,9 @@ assert(decimalApps.includes('Просмотр адресов, транзакци
 assert(chainsSource.includes("apiBase: 'https://api.decimalchain.com/api/v1'"), 'Decimal public API base is configured');
 
 assert(appSource.includes("isCosmosChain(chain) && effectiveAppId === 'explorer'"), 'Decimal explorer route uses Cosmos explorer renderer');
-assert(appSource.includes('await renderCosmosExplorer(chain, account)'), 'explorer route dispatch calls renderCosmosExplorer');
+assert(appSource.includes('await renderCosmosExplorer(chain, account, isCurrentRoute)'), 'explorer route dispatch calls renderCosmosExplorer with stale-render protection');
 
-const explorerSlice = sliceBetween(appSource, 'async function renderCosmosExplorer(chain, account) {', 'function renderCosmosCalculator(chain)', 'Cosmos explorer renderer', { last: true });
+const explorerSlice = sliceBetween(appSource, 'async function renderCosmosExplorer(chain, account, isCurrentRoute) {', 'function renderCosmosCalculator(chain)', 'Cosmos explorer renderer', { last: true });
 for (const marker of [
   'Decimal проводник',
   'Введите номер блока или хэш-сумму транзакции',
@@ -42,7 +42,7 @@ for (const marker of [
   assert(explorerSlice.includes(marker), `Decimal explorer renderer preserves marker: ${marker}`);
 }
 
-const overviewSlice = sliceBetween(appSource, 'async function loadDecimalExplorerOverview(chain) {', 'async function renderCosmosExplorer(chain, account)', 'Decimal explorer overview helpers');
+const overviewSlice = sliceBetween(appSource, 'async function loadDecimalExplorerOverview(chain) {', 'async function renderCosmosExplorer(chain, account, isCurrentRoute)', 'Decimal explorer overview helpers');
 for (const marker of [
   "fetchJsonText(`${chain.apiBase}/blocks?limit=10&offset=0`, 'Decimal blocks API')",
   "fetchJsonText(`${chain.apiBase}/rpc/node_info`, 'Decimal node info API')",

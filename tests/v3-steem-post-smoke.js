@@ -11,7 +11,7 @@ const planSource = fs.readFileSync('plan.md', 'utf8');
 assert(!appSource.includes("if ((chain.id === 'hive' || chain.id === 'steem') && appId === 'post')"), 'Steem /post no longer aliases to editor');
 assert(chainsSource.includes("steem: {") && chainsSource.includes("const steemApps = socialApps.concat") && chainsSource.includes("apps: apps(steemApps)"), 'Steem uses social app set plus Steem-specific additions');
 assert(chainsSource.includes("id: 'post'") && chainsSource.includes("id: 'feeds'"), 'Steem social app set exposes post viewer and feeds');
-assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state)'), 'router dispatches Steem post route to social post viewer');
+assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'post'") && appSource.includes('renderSocialPostPage(chain, state, isCurrentRoute)'), 'router dispatches Steem post route to social post viewer');
 assert(appSource.includes("isHiveOrSteem(chain) && effectiveAppId === 'feeds'") && appSource.includes('renderSocialFeedsPage(chain, state)'), 'router dispatches Steem feeds route');
 assert(appSource.includes("'editor'" ) && appSource.includes('appUsesAuthorizedAccount'), 'editor route keeps authorized-account context');
 assert(appSource.includes('function buildGenericEditorOperations'), 'Steem editor has shared operation builder');

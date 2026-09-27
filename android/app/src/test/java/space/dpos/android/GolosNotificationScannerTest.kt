@@ -8,6 +8,12 @@ import space.dpos.android.notifications.GolosNotificationScanner
 import space.dpos.android.notifications.HistoryEvent
 
 class GolosNotificationScannerTest {
+    @Test fun explicitEmptySelectionProducesNoNotifications() {
+        val rows = listOf(HistoryEvent(1, "transfer", mapOf("from" to "alice", "to" to "denis", "amount" to "1 GOLOS")))
+        val (_, notifications) = GolosNotificationScanner().scan("denis", 0, rows, baselineDone = true, selectedOps = emptyList())
+        assertTrue(notifications.isEmpty())
+    }
+
     @Test fun firstRunBaselinesWithoutSpam() {
         val scanner = GolosNotificationScanner()
         val (cursor, notifications) = scanner.scan("denis", null, listOf(HistoryEvent(7, "comment", mapOf("author" to "alice", "parent_author" to "denis"))), baselineDone = false)

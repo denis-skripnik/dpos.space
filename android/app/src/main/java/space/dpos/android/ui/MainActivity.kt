@@ -17,30 +17,42 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONArray
 import org.json.JSONObject
 import space.dpos.android.BuildConfig
+import space.dpos.android.DposApplication
 import space.dpos.android.bridge.DposAndroidBridge
+import space.dpos.android.bridge.AndroidBridgeProtocol
+import space.dpos.android.bridge.BridgeTransportPolicy
+import space.dpos.android.core.PayloadSanitizer
 import space.dpos.android.core.RoutePolicy
 import space.dpos.android.notifications.NotificationHelper
 import space.dpos.android.runtime.WorkerSettingsCodec
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.GrapheneChainSpecs
 import space.dpos.android.worker.DposForegroundService
+import space.dpos.android.update.NativeUpdater
+import java.nio.charset.StandardCharsets
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private lateinit var androidBridge: DposAndroidBridge
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var diagnosticExport: PendingDiagnosticExport? = null
     private var runtimeCacheRefreshPending = false
     private var runtimeCacheRefreshInjected = false
+    private lateinit var nativeUpdater: NativeUpdater
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        nativeUpdater = NativeUpdater(this)
         title = "DPoS Space"
         NotificationHelper.ensureChannels(this)
         requestNotificationsIfNeeded()
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         webView = WebView(this)
         runtimeCacheRefreshPending = shouldRefreshRuntimeCache()
         if (runtimeCacheRefreshPending) webView.clearCache(true)
@@ -89,7 +101,12 @@ class MainActivity : Activity() {
                 refreshRuntimeCachesAfterAppUpdate(view, url)
             }
         }
-        webView.addJavascriptInterface(DposAndroidBridge(this) { JSONObject(workerStatusString()) }, "DposAndroid")
+        androidBridge = DposAndroidBridge(
+            this,
+            statusProvider = { JSONObject(workerStatusString()) },
+            diagnosticSaver = ::requestDiagnosticSave
+        )
+        installOriginScopedBridge()
         val route = intent.getStringExtra(NotificationHelper.EXTRA_ROUTE)
         webView.loadUrl(RoutePolicy.toLiveUrl(route))
     }
@@ -100,7 +117,34 @@ class MainActivity : Activity() {
         webView.loadUrl(RoutePolicy.toLiveUrl(route))
     }
 
+    override fun onStart() {
+        super.onStart()
+        DposApplication.resumeEnabledWorker(this, "app foregrounded")
+        nativeUpdater.check()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == DIAGNOSTIC_EXPORT_REQUEST_CODE) {
+            val pending = diagnosticExport
+            diagnosticExport = null
+            if (pending == null) return
+            val uri = data?.data
+            if (resultCode != RESULT_OK || uri == null) {
+                pending.callback(JSONObject().put("ok", false).put("cancelled", true))
+                return
+            }
+            val result = runCatching {
+                contentResolver.openOutputStream(uri, "w")?.use { output ->
+                    output.write(pending.report.toByteArray(StandardCharsets.UTF_8))
+                    output.flush()
+                } ?: throw IllegalStateException("selected document could not be opened")
+                JSONObject().put("ok", true).put("filename", pending.filename)
+            }.getOrElse { error ->
+                JSONObject().put("ok", false).put("error", PayloadSanitizer.text(error.message, 240))
+            }
+            pending.callback(result)
+            return
+        }
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
             val callback = fileChooserCallback
             fileChooserCallback = null
@@ -111,9 +155,56 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        nativeUpdater.close()
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
+        diagnosticExport?.callback(JSONObject().put("ok", false).put("cancelled", true))
+        diagnosticExport = null
+        if (::androidBridge.isInitialized) androidBridge.close()
         super.onDestroy()
+    }
+
+    private fun installOriginScopedBridge() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
+        WebViewCompat.addWebMessageListener(
+            webView,
+            BridgeTransportPolicy.JS_OBJECT_NAME,
+            setOf(BridgeTransportPolicy.ALLOWED_ORIGIN)
+        ) { _, message, sourceOrigin, isMainFrame, replyProxy ->
+            val origin = sourceOrigin.toString()
+            if (!BridgeTransportPolicy.accepts(origin, isMainFrame)) return@addWebMessageListener
+            val raw = message.data ?: return@addWebMessageListener
+            val request = runCatching { AndroidBridgeProtocol.decodeRequest(raw) }.getOrElse { error ->
+                val id = runCatching { JSONObject(raw).optString("id") }.getOrDefault("").takeIf { it.isNotBlank() } ?: "invalid"
+                replyProxy.postMessage(AndroidBridgeProtocol.failure(id, "invalid_request", error.message ?: "invalid request").toString())
+                return@addWebMessageListener
+            }
+            androidBridge.dispatch(request) { response ->
+                runOnUiThread { replyProxy.postMessage(response.toString()) }
+            }
+        }
+    }
+
+    private fun requestDiagnosticSave(report: String, callback: (JSONObject) -> Unit) {
+        runOnUiThread {
+            if (diagnosticExport != null) {
+                callback(JSONObject().put("ok", false).put("reason", "A diagnostic save is already in progress"))
+                return@runOnUiThread
+            }
+            val filename = "dpos-space-diagnostics-${System.currentTimeMillis()}.log"
+            diagnosticExport = PendingDiagnosticExport(report, filename, callback)
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TITLE, filename)
+            }
+            try {
+                startActivityForResult(intent, DIAGNOSTIC_EXPORT_REQUEST_CODE)
+            } catch (error: ActivityNotFoundException) {
+                diagnosticExport = null
+                callback(JSONObject().put("ok", false).put("error", PayloadSanitizer.text(error.message, 240)))
+            }
+        }
     }
 
     private fun shouldRefreshRuntimeCache(): Boolean {
@@ -203,6 +294,7 @@ class MainActivity : Activity() {
             .put("lastRunSummary", store.exportLastRunSummary() ?: JSONObject.NULL)
             .put("appVersionName", BuildConfig.VERSION_NAME)
             .put("appVersionCode", BuildConfig.VERSION_CODE)
+            .put("bridgeVersion", BridgeTransportPolicy.BRIDGE_VERSION)
             .put("vizBroadcastMethod", if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous")
             .put("webUrl", BuildConfig.DPOS_WEB_URL)
             .put("permissionNotifications", NotificationHelper.canPost(this))
@@ -219,5 +311,12 @@ class MainActivity : Activity() {
 
     companion object {
         private const val FILE_CHOOSER_REQUEST_CODE = 2001
+        private const val DIAGNOSTIC_EXPORT_REQUEST_CODE = 2002
     }
+
+    private data class PendingDiagnosticExport(
+        val report: String,
+        val filename: String,
+        val callback: (JSONObject) -> Unit
+    )
 }

@@ -17,15 +17,28 @@
     };
   }
 
+  function vaultState() {
+    return global.DposVault && typeof global.DposVault.status === 'function' ? global.DposVault.status().state : 'absent';
+  }
+
+  function usesVault() {
+    return ['locked', 'unlocked', 'error'].includes(vaultState());
+  }
+
+  function readStored(key, fallback) {
+    if (usesVault()) return global.DposVault.read(key);
+    return safeJsonParse(global.localStorage.getItem(key), fallback);
+  }
+
   function getUsers(chain) {
     const keys = getKeys(chain);
-    const users = safeJsonParse(global.localStorage.getItem(keys.users), []);
+    const users = readStored(keys.users, []);
     return Array.isArray(users) ? users : [];
   }
 
   function getCurrentUser(chain) {
     const keys = getKeys(chain);
-    return safeJsonParse(global.localStorage.getItem(keys.current), null);
+    return readStored(keys.current, null);
   }
 
   function getUserLogin(user) {
@@ -68,6 +81,19 @@
   }
 
   function saveUser(chain, user) {
+    if (global.DposVault && typeof global.DposVault.mutate === 'function') {
+      return global.DposVault.mutate((records) => {
+        const keys = getKeys(chain);
+        const users = Array.isArray(records[keys.users]) ? records[keys.users] : [];
+        if (users.some((item) => hasSameStoredIdentity(chain, item, user))) {
+          throw new Error(`Аккаунт ${getUserLogin(user)} уже добавлен. Чтобы изменить ключи, сначала удалите старую запись.`);
+        }
+        users.push(user);
+        records[keys.users] = users;
+        records[keys.current] = toLegacyCurrentUser(chain, user);
+        return user;
+      });
+    }
     const users = getUsers(chain);
     if (users.some((item) => hasSameStoredIdentity(chain, item, user))) {
       throw new Error(`Аккаунт ${getUserLogin(user)} уже добавлен. Чтобы изменить ключи, сначала удалите старую запись.`);
@@ -80,6 +106,19 @@
   }
 
   function removeUser(chain, login, type) {
+    if (global.DposVault && typeof global.DposVault.mutate === 'function') {
+      return global.DposVault.mutate((records) => {
+        const keys = getKeys(chain);
+        const users = Array.isArray(records[keys.users]) ? records[keys.users] : [];
+        const nextUsers = users.filter((user) => !(getUserLogin(user) === login && getUserType(user) === type));
+        records[keys.users] = nextUsers;
+        const current = records[keys.current];
+        if (current && getUserLogin(current) === login && getUserType(current) === type) {
+          records[keys.current] = nextUsers[0] ? toLegacyCurrentUser(chain, nextUsers[0]) : null;
+        }
+        return nextUsers;
+      });
+    }
     const users = getUsers(chain);
     const nextUsers = users.filter((user) => !(getUserLogin(user) === login && getUserType(user) === type));
     setUsers(chain, nextUsers);
@@ -99,6 +138,16 @@
 
   function getSeedChains() {
     const result = [];
+    if (usesVault()) {
+      const records = global.DposVault.read();
+      Object.keys(records).filter((key) => key.endsWith('_users')).forEach((key) => {
+        const users = records[key];
+        if (Array.isArray(users) && users.some((user) => user && user.seed)) {
+          result.push({ chainId: key.slice(0, -'_users'.length), users: users.filter((user) => user && user.seed) });
+        }
+      });
+      return result;
+    }
     for (let index = 0; index < global.localStorage.length; index += 1) {
       const key = global.localStorage.key(index);
       if (!key || !key.endsWith('_users')) continue;
@@ -185,6 +234,16 @@
   }
 
   function selectUser(chain, login, type) {
+    if (global.DposVault && typeof global.DposVault.mutate === 'function') {
+      return global.DposVault.mutate((records) => {
+        const keys = getKeys(chain);
+        const users = Array.isArray(records[keys.users]) ? records[keys.users] : [];
+        const user = users.find((item) => getUserLogin(item) === login && getUserType(item) === type);
+        if (!user) throw new Error(`Аккаунт ${login} не найден в ${keys.users}.`);
+        records[keys.current] = toLegacyCurrentUser(chain, user);
+        return user;
+      });
+    }
     const users = getUsers(chain);
     const user = users.find((item) => getUserLogin(item) === login && getUserType(item) === type);
 

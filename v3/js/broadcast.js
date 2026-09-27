@@ -129,8 +129,92 @@
   }
 
   function isLikelyMnemonic(value) {
-    const words = String(value || '').trim().split(/\s+/).filter(Boolean);
-    return words.length >= 12 && words.length <= 24;
+    return Boolean(global.DposBip39 && global.DposBip39.isValidMnemonic(value));
+  }
+
+  const EMBEDDED_WIF_PATTERN = /5[1-9A-HJ-NP-Za-km-z]{45,55}/g;
+  const EMBEDDED_JSON_CREDENTIAL_PATTERN = /("(?:private(?:key)?|wif|secret|seed(?:phrase)?|mnemonic|password|passphrase|credential(?:s)?|api[_-]?(?:key|token)|access[_-]?token|auth[_-]?token|bearer|authorization)"\s*:\s*)"(?:\\.|[^"\\])*"/gi;
+  const SENSITIVE_FIELD_PATTERN = /(?:^|_)(?:private(?:key)?|wif|secret|seed(?:phrase)?|mnemonic|password|passphrase|credential|api[_-]?key|access[_-]?token|auth[_-]?token|bearer)(?:$|_)/i;
+  const INLINE_CREDENTIAL_PATTERN = /(\b(?:password|passphrase|api[_ -]?(?:key|token)|access[_ -]?token|auth[_ -]?token|credential)\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)/gi;
+  const BEARER_PATTERN = /(\bBearer\s+)[a-z0-9._~+\/-]+=*/gi;
+  const SENSITIVE_FIELD_NAMES = new Set([
+    'private', 'privatekey', 'wif', 'secret', 'seed', 'seedphrase', 'mnemonic',
+    'password', 'passphrase', 'credential', 'credentials', 'apikey', 'apitoken',
+    'accesstoken', 'authtoken', 'bearer', 'authorization'
+  ]);
+  const SENSITIVE_FIELD_SUFFIX_PATTERN = /(?:privatekey|wif|secret|seedphrase|mnemonic|password|passphrase|credentials?|apikey|apitoken|accesstoken|authtoken|bearer|authorization)$/;
+
+  function redactDiagnosticString(value) {
+    const text = String(value);
+    const trimmed = text.trim();
+    if (/^[{[]/.test(trimmed)) {
+      try {
+        return JSON.stringify(sanitizeDiagnostic(JSON.parse(trimmed)));
+      } catch (error) {
+        // Keep malformed RPC text useful and apply inline redaction below.
+      }
+    }
+    if (isLikelyWif(trimmed)) return '[redacted-wif]';
+    if (isLikelyMnemonic(trimmed)) return '[redacted-seed]';
+    let redacted = text
+      .replace(EMBEDDED_WIF_PATTERN, '[redacted-wif]')
+      .replace(INLINE_CREDENTIAL_PATTERN, '$1[redacted]')
+      .replace(BEARER_PATTERN, '$1[redacted]')
+      .replace(EMBEDDED_JSON_CREDENTIAL_PATTERN, '$1"[redacted]"');
+    const ranges = global.DposBip39 ? global.DposBip39.findMnemonicRanges(redacted) : [];
+    for (let index = ranges.length - 1; index >= 0; index -= 1) {
+      const range = ranges[index];
+      redacted = `${redacted.slice(0, range.start)}[redacted-seed]${redacted.slice(range.end)}`;
+    }
+    return redacted;
+  }
+
+  function shouldRedactField(key, value) {
+    const field = String(key);
+    const normalized = field.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (/private|wif|secret|seed|mnemonic|password|passphrase|credential/i.test(field) || SENSITIVE_FIELD_PATTERN.test(field) || SENSITIVE_FIELD_NAMES.has(normalized) || SENSITIVE_FIELD_SUFFIX_PATTERN.test(normalized)) return true;
+    if (!/^token$/i.test(field)) return false;
+    const text = String(value || '').trim();
+    return text.length > 24 && !/^(?:0x|dx)[0-9a-f]{40}$/i.test(text);
+  }
+
+  function sanitizeDiagnostic(value, seen) {
+    if (typeof value === 'string') return redactDiagnosticString(value);
+    if (!value || typeof value !== 'object') return value;
+    const visited = seen || new WeakSet();
+    if (visited.has(value)) return '[circular]';
+    visited.add(value);
+    if (Array.isArray(value)) return value.map((item) => sanitizeDiagnostic(item, visited));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      shouldRedactField(key, item) ? '[redacted]' : sanitizeDiagnostic(item, visited)
+    ]));
+  }
+
+  function containsSecret(value) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (value.match(INLINE_CREDENTIAL_PATTERN) || value.match(BEARER_PATTERN)) return true;
+      if (isLikelyWif(trimmed) || EMBEDDED_WIF_PATTERN.test(value)) {
+        EMBEDDED_WIF_PATTERN.lastIndex = 0;
+        return true;
+      }
+      EMBEDDED_WIF_PATTERN.lastIndex = 0;
+      if (isLikelyMnemonic(trimmed)) return true;
+      if (global.DposBip39 && global.DposBip39.findMnemonicRanges(value).length) return true;
+      if (EMBEDDED_JSON_CREDENTIAL_PATTERN.test(value)) {
+        EMBEDDED_JSON_CREDENTIAL_PATTERN.lastIndex = 0;
+        return true;
+      }
+      EMBEDDED_JSON_CREDENTIAL_PATTERN.lastIndex = 0;
+      if (/^[{[]/.test(trimmed)) {
+        try { return containsSecret(JSON.parse(trimmed)); } catch (error) { return false; }
+      }
+      return false;
+    }
+    if (Array.isArray(value)) return value.some(containsSecret);
+    if (!value || typeof value !== 'object') return false;
+    return Object.entries(value).some(([key, item]) => shouldRedactField(key, item) || containsSecret(item));
   }
 
   function getAuthorityObject(account, authority) {
@@ -204,6 +288,57 @@
   }
 
 
+  function hasValidBech32Checksum(value, expectedHrp) {
+    const text = String(value || '');
+    if (!text || text !== text.toLowerCase() || text.length > 90) return false;
+    const separator = text.lastIndexOf('1');
+    if (separator < 1 || separator + 7 > text.length) return false;
+    const hrp = text.slice(0, separator);
+    if (hrp !== expectedHrp) return false;
+    const charset = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const values = [];
+    for (let i = 0; i < hrp.length; i += 1) values.push(hrp.charCodeAt(i) >> 5);
+    values.push(0);
+    for (let i = 0; i < hrp.length; i += 1) values.push(hrp.charCodeAt(i) & 31);
+    for (const character of text.slice(separator + 1)) {
+      const index = charset.indexOf(character);
+      if (index < 0) return false;
+      values.push(index);
+    }
+    let checksum = 1;
+    for (const value of values) {
+      const top = checksum >>> 25;
+      checksum = ((checksum & 0x1ffffff) << 5) ^ value;
+      if (top & 1) checksum ^= 0x3b6a57b2;
+      if (top & 2) checksum ^= 0x26508e6d;
+      if (top & 4) checksum ^= 0x1ea119fa;
+      if (top & 8) checksum ^= 0x3d4233dd;
+      if (top & 16) checksum ^= 0x2a1462b3;
+    }
+    return checksum === 1;
+  }
+
+  function decimalBech32ToEvmAddress(value, expectedHrp) {
+    const text = String(value || '').trim();
+    if (!hasValidBech32Checksum(text, expectedHrp)) return '';
+    const charset = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const separator = text.lastIndexOf('1');
+    const words = Array.from(text.slice(separator + 1, -6), (character) => charset.indexOf(character));
+    const bytes = [];
+    let accumulator = 0;
+    let bits = 0;
+    for (const word of words) {
+      accumulator = (accumulator << 5) | word;
+      bits += 5;
+      while (bits >= 8) {
+        bits -= 8;
+        bytes.push((accumulator >> bits) & 0xff);
+      }
+    }
+    if (bytes.length !== 20 || (bits > 0 && ((accumulator << (8 - bits)) & 0xff) !== 0)) return '';
+    return `0x${bytes.map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+
   function validateAddress(chain, value, label) {
     const text = String(value || '').trim();
     const patterns = {
@@ -213,6 +348,11 @@
     if (!patterns[chain.id] || !patterns[chain.id].test(text)) {
       throw new Error(`${label || 'Address'} должен быть корректным ${chain.title} address.`);
     }
+    if (chain.id === 'decimal' && /^d0/.test(text)) {
+      if (!hasValidBech32Checksum(text, 'd0')) {
+        throw new Error(`${label || 'Address'} должен иметь корректную Decimal checksum.`);
+      }
+    }
     return text;
   }
 
@@ -220,8 +360,8 @@
     const text = String(value || '').trim();
     if (!text) throw new Error(`${label || 'Валидатор'} is required.`);
     if (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text)) return text;
-    if (/^[A-Za-z0-9:_./+-]{8,128}$/.test(text)) return text;
-    throw new Error(`${label || 'Валидатор'} должен быть non-empty Decimal validator id/address.`);
+    if (/^d0valoper[0-9a-z]+$/.test(text) && hasValidBech32Checksum(text, 'd0valoper')) return text;
+    throw new Error(`${label || 'Валидатор'} должен быть EVM address или корректным d0valoper address.`);
   }
 
   function validateCoinSymbol(value, label) {
@@ -272,8 +412,9 @@
   function operationWarnings(prepared) {
     const warnings = [];
     const text = JSON.stringify(prepared.params || []);
-    if (/5[1-9A-HJ-NP-Za-km-z]{45,55}/.test(text)) {
-      warnings.push('В параметрах операции обнаружена строка, похожая на private WIF. Проверьте memo/поля перед отправкой.');
+    const publicPayload = publicPayloadFor(prepared);
+    if (publicPayload !== null && publicPayload !== undefined && containsSecret(publicPayload)) {
+      warnings.push('В публичных параметрах операции обнаружен возможный секрет (WIF/seed/credential). Проверьте memo/custom payload: реальная отправка будет остановлена.');
     }
     if (/memo/i.test(text) && text.length > 2048) {
       warnings.push('Memo/JSON выглядит длинным: проверьте, что это не приватные данные.');
@@ -281,7 +422,51 @@
     return warnings;
   }
 
-  function createPrepared(chain, from, authority, privateKey, operationName, params, meta) {
+  function publicPayloadFor(prepared) {
+    const params = prepared && prepared.params || [];
+    if (prepared.operationName === 'transfer') return params[3];
+    if (prepared.operationName === 'award') return params[4];
+    if (prepared.operationName === 'fixedAward') return params[5];
+    if (prepared.operationName === 'custom') return params[2];
+    if (prepared.operationName === 'sendOperations') {
+      return (params[0] || []).map((operation) => operation && operation[1] && {
+        memo: operation[1].memo,
+        json: operation[1].json,
+        json_metadata: operation[1].json_metadata,
+        posting_json_metadata: operation[1].posting_json_metadata,
+        body: operation[1].body
+      });
+    }
+    return null;
+  }
+
+  function assertNoPublicSecrets(prepared) {
+    const payload = publicPayloadFor(prepared || {});
+    if (payload !== null && payload !== undefined && containsSecret(payload)) {
+      throw new Error('Отправка остановлена: публичный memo/custom payload содержит возможный секрет (WIF/seed/credential). Удалите секрет и повторите проверку.');
+    }
+  }
+
+  function vizAwardBeneficiaries(rows) {
+    if (!Array.isArray(rows)) throw new Error('JSON beneficiaries должен быть массивом.');
+    const result = rows.map(row => ({ account: validateAccountName({ id: 'viz' }, row.account, 'Бенефициар'), weight: Number(row.weight) }));
+    if (result.some(row => !Number.isInteger(row.weight) || row.weight <= 0) || new Set(result.map(row => row.account)).size !== result.length) {
+      throw new Error('Бенефициары должны быть уникальными, с положительным целым весом.');
+    }
+    const service = result.find(row => row.account === 'denis-skripnik');
+    if (service) service.weight = Math.max(100, service.weight);
+    else result.push({ account: 'denis-skripnik', weight: 100 });
+    if (result.reduce((sum, row) => sum + row.weight, 0) > 10000) throw new Error('Суммарный вес beneficiaries не должен превышать 100%.');
+    return result.sort((a, b) => a.account < b.account ? -1 : a.account > b.account ? 1 : 0);
+  }
+
+  function createPrepared(chain, from, authority, privateKey, operationName, params, meta, guard) {
+    const vizAward = chain.id === 'viz' && (operationName === 'award' || operationName === 'fixedAward');
+    if (vizAward) {
+      params = params.slice();
+      const index = operationName === 'award' ? 5 : 6;
+      params[index] = vizAwardBeneficiaries(params[index] || []);
+    }
     const prepared = {
       chain: chain.id,
       from,
@@ -291,11 +476,20 @@
       meta: Object.assign({ warnings: [] }, meta || {})
     };
     prepared.meta.warnings = prepared.meta.warnings.concat(operationWarnings(prepared));
+    if (vizAward) prepared.meta.warnings.push('Бенефициарские отчисления сервису: 1% награды — @denis-skripnik (включены в список бенефициаров).');
 
     Object.defineProperty(prepared, 'getPrivateKey', {
       enumerable: false,
       value() {
+        if (guard && global.DposVault) global.DposVault.assertGuard(guard);
         return privateKey;
+      }
+    });
+    Object.defineProperty(prepared, 'assertValid', {
+      enumerable: false,
+      value() {
+        if (guard && global.DposVault) global.DposVault.assertGuard(guard);
+        return true;
       }
     });
 
@@ -304,21 +498,23 @@
 
   function prepare(chain, requestedAuthority, operationName, params, meta) {
     const user = global.DposAuth.getCurrentUser(chain);
+    const guard = global.DposVault && global.DposVault.status().state === 'unlocked' ? global.DposVault.issueGuard(chain, user) : null;
     if (chain.id === 'viz' && global.DposAuth.getUserType(user) === 'vizonator') {
       const login = global.DposAuth.getUserLogin(user);
       if (!login) throw new Error('Vizonator-аккаунт не выбран или расширение не вернуло login.');
       const authority = getAuthorityName(chain, requestedAuthority);
       return createPrepared(chain, login, authority, '', operationName, params, Object.assign({ signerType: 'vizonator', warnings: [
         'Операция будет отправлена через расширение Vizonator после отдельного подтверждения. Локальный WIF не используется.'
-      ] }, meta || {}));
+      ] }, meta || {}), guard);
     }
     const keys = decryptLegacyKey(chain, user, requestedAuthority);
-    return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta);
+    return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta, guard);
   }
 
   function prepareForUser(chain, user, requestedAuthority, operationName, params, meta) {
     const keys = decryptLegacyKey(chain, user, requestedAuthority);
-    return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta);
+    const guard = global.DposVault && global.DposVault.status().state === 'unlocked' ? global.DposVault.issueGuard(chain, user) : null;
+    return createPrepared(chain, keys.login, keys.authority, keys.privateKey, operationName, params, meta, guard);
   }
 
   function prepareWithPrivateKey(chain, from, requestedAuthority, privateKey, operationName, params, meta) {
@@ -328,7 +524,15 @@
       throw new Error('Для этой invite/service операции нужен приватный WIF подписанта. Он используется только в памяти для broadcast и не сохраняется.');
     }
     const authority = getAuthorityName(chain, requestedAuthority);
-    return createPrepared(chain, signer, authority, key, operationName, params, meta);
+    let guard = null;
+    if (global.DposVault) {
+      const vaultStatus = global.DposVault.status().state;
+      if (vaultStatus === 'locked' || vaultStatus === 'error') {
+        throw new Error('Vault заблокирован. Разблокируйте его перед подготовкой приватного ключа.');
+      }
+      if (vaultStatus === 'unlocked') guard = global.DposVault.issueGuard();
+    }
+    return createPrepared(chain, signer, authority, key, operationName, params, meta, guard);
   }
 
   function prepareExternal(chain, operationName, params, meta) {
@@ -338,9 +542,21 @@
   }
 
   function amountToWeiString(amount) {
-    const text = validateAmount(amount, 'Сумма');
+    return amountToDecimalUnitsString(amount, 18, 'Сумма');
+  }
+
+  function amountToDecimalUnitsString(amount, decimals, label, allowZero = false) {
+    const raw = String(amount ?? '').trim().replace(',', '.');
+    const text = allowZero && /^0+(?:\.0+)?$/.test(raw) ? raw : validateAmount(amount, label || 'Сумма');
+    const precision = Number(decimals);
+    if (!Number.isSafeInteger(precision) || precision < 0 || precision > 255) {
+      throw new Error('Decimal token precision is unavailable or invalid.');
+    }
     const [whole, frac = ''] = text.split('.');
-    return `${whole}${frac.padEnd(18, '0')}`.replace(/^0+(?=\d)/, '');
+    if (frac.length > precision) {
+      throw new Error(`${label || 'Сумма'} превышает precision токена: максимум ${precision} знаков после точки.`);
+    }
+    return `${whole}${frac.padEnd(precision, '0')}`.replace(/^0+(?=\d)/, '') || '0';
   }
 
   function decimalToMinimalString(amount, label, allowZero) {
@@ -406,6 +622,60 @@
     return String(error && (error.message || error)).includes(`Only for ${type}`);
   }
 
+  function toDecimalEvmAddress(sdk, value, label) {
+    const address = String(value || '').trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(address)) return address;
+    if (/^dx[0-9a-fA-F]{40}$/.test(address)) return `0x${address.slice(2)}`;
+    if (/^d0[0-9a-z]{39}$/.test(address)) {
+      if (!hasValidBech32Checksum(address, 'd0') || (typeof sdk.verifyAddress === 'function' && !sdk.verifyAddress(address, 'd0'))) {
+        throw new Error(`${label || 'Decimal address'} содержит некорректную checksum.`);
+      }
+      const decoded = decimalBech32ToEvmAddress(address, 'd0');
+      if (decoded) return decoded;
+    }
+    throw new Error(`${label || 'Decimal address'} должен преобразовываться в EVM address 0x.`);
+  }
+
+  function toDecimalValidatorEvmAddress(sdk, value) {
+    const address = String(value || '').trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(address)) return address;
+    if (/^dx[0-9a-fA-F]{40}$/.test(address)) return `0x${address.slice(2)}`;
+    if (/^d0valoper[0-9a-z]+$/.test(address)) {
+      if (typeof sdk.verifyAddress === 'function' && !sdk.verifyAddress(address, 'd0valoper')) {
+        throw new Error('Decimal validator содержит некорректную checksum.');
+      }
+      const decoded = decimalBech32ToEvmAddress(address, 'd0valoper');
+      if (decoded) return decoded;
+    }
+    throw new Error('Decimal validator должен преобразовываться в EVM address 0x.');
+  }
+
+  async function resolveDecimalToken(evm, sdk, coin) {
+    const value = String(coin || '').trim();
+    let address = value;
+    if (!/^(0x|dx)[0-9a-fA-F]{40}$/.test(value)) {
+      const symbol = validateCoinSymbol(value, 'Decimal token');
+      if (typeof evm.getAddressTokenBySymbol !== 'function') {
+        throw new Error('Decimal SDK не поддерживает поиск token contract по ticker.');
+      }
+      const found = await evm.getAddressTokenBySymbol(symbol);
+      address = found && typeof found === 'object' ? (found.address || found.token || found.contract) : found;
+    }
+    const tokenAddress = toDecimalEvmAddress(sdk, address, 'Decimal token contract');
+    if (/^0x0{40}$/i.test(tokenAddress)) throw new Error(`Decimal token ${value || '[пусто]'} не найден.`);
+    if (typeof evm.getContract !== 'function') throw new Error('Decimal SDK не позволяет проверить precision токена.');
+    const token = await evm.getContract(tokenAddress, evm.abis && evm.abis.token);
+    const contract = token && (token.contract || token);
+    if (!contract || typeof contract.decimals !== 'function') {
+      throw new Error('Decimal token contract не сообщает precision; отправка остановлена.');
+    }
+    const decimals = Number(String(await contract.decimals()));
+    if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 255) {
+      throw new Error('Decimal token contract вернул некорректную precision.');
+    }
+    return { address: tokenAddress, decimals };
+  }
+
   async function executeDecimal(chain, prepared) {
     const sdk = getClient(chain);
     if (!sdk.Wallet || !sdk.DecimalEVM) throw new Error('Библиотека Decimal недоступна.');
@@ -413,62 +683,104 @@
     const networkId = chain.network === 'testnet' ? 'testnet' : 'mainnet';
     const network = sdk.DecimalNetworks ? sdk.DecimalNetworks[networkId] : undefined;
     const evm = new sdk.DecimalEVM(wallet, network);
-    if (typeof evm.connect === 'function') {
-      try { await evm.connect(); } catch (error) { /* optional in browser build */ }
-    }
+    // SDK methods initialize their own contract pack; native DEL needs none.
     const p = prepared.params[0] || {};
+    const validator = /^decimal(?:Delegate|Unbond)/.test(prepared.operationName)
+      ? toDecimalValidatorEvmAddress(sdk, p.validator)
+      : '';
     let txPayload;
     if (prepared.operationName === 'decimalSend') {
-      txPayload = p.coin === 'DEL' && typeof evm.sendDEL === 'function'
-        ? await evm.sendDEL({ to: p.to, amount: amountToWeiString(p.amount) })
-        : await evm.transferToken({ to: p.to, coin: p.coin, amount: amountToWeiString(p.amount) });
+      const recipient = toDecimalEvmAddress(sdk, p.to, 'Получатель');
+      if (String(p.coin || '').toUpperCase() === 'DEL') {
+        if (typeof evm.sendDEL !== 'function') throw new Error('Decimal SDK не поддерживает sendDEL.');
+        txPayload = await evm.sendDEL(recipient, amountToWeiString(p.amount));
+      } else {
+        if (typeof evm.transferToken !== 'function') throw new Error('Decimal SDK не поддерживает transferToken.');
+        const token = await resolveDecimalToken(evm, sdk, p.coin);
+        const amount = amountToDecimalUnitsString(p.amount, token.decimals, 'Сумма');
+        txPayload = await evm.transferToken(token.address, recipient, amount);
+      }
     } else if (prepared.operationName === 'decimalDelegate') {
-      txPayload = p.coin === 'DEL' && typeof evm.delegateDEL === 'function'
-        ? await evm.delegateDEL(p.validator, BigInt(amountToWeiString(p.amount)))
-        : await evm.delegateToken(p.validator, p.coin, BigInt(amountToWeiString(p.amount)));
+      if (String(p.coin || '').toUpperCase() === 'DEL') {
+        if (typeof evm.delegateDEL !== 'function') throw new Error('Decimal SDK не поддерживает delegateDEL.');
+        txPayload = await evm.delegateDEL(validator, amountToWeiString(p.amount));
+      } else {
+        if (typeof evm.delegateToken !== 'function' || typeof evm.getSignPermitToken !== 'function' || typeof evm.getDecimalContractAddress !== 'function') {
+          throw new Error('Decimal SDK не поддерживает безопасную token delegation через permit.');
+        }
+        const token = await resolveDecimalToken(evm, sdk, p.coin);
+        const amount = amountToDecimalUnitsString(p.amount, token.decimals, 'Stake');
+        const delegation = await evm.getDecimalContractAddress('delegation');
+        const sign = await evm.getSignPermitToken(token.address, delegation, amount);
+        txPayload = await evm.delegateToken(validator, token.address, amount, sign);
+      }
     } else if (prepared.operationName === 'decimalUnbond') {
-      const coinAddress = p.coin === 'DEL' ? '0x0000000000000000000000000000000000000000' : p.coin;
-      txPayload = await evm.withdrawStakeToken(p.validator, coinAddress, amountToWeiString(p.amount));
+      if (typeof evm.withdrawStakeToken !== 'function') throw new Error('Decimal SDK не поддерживает withdrawStakeToken.');
+      if (String(p.coin || '').toUpperCase() === 'DEL') {
+        txPayload = await evm.withdrawStakeToken(validator, '0x0000000000000000000000000000000000000000', amountToWeiString(p.amount));
+      } else {
+        const token = await resolveDecimalToken(evm, sdk, p.coin);
+        txPayload = await evm.withdrawStakeToken(validator, token.address, amountToDecimalUnitsString(p.amount, token.decimals, 'Stake'));
+      }
     } else if (prepared.operationName === 'decimalCreateToken') {
-      txPayload = await evm.createToken(p);
+      if (typeof evm.createTokenReserveless !== 'function') throw new Error('Decimal SDK не поддерживает createTokenReserveless.');
+      const name = String(p.title || p.name || '').trim();
+      if (!name) throw new Error('Название Decimal token обязательно.');
+      const symbol = validateCoinSymbol(p.symbol, 'Symbol');
+      const initialMint = amountToWeiString(p.initSupply);
+      const cap = amountToWeiString(p.maxSupply);
+      if (BigInt(cap) < BigInt(initialMint)) throw new Error('Максимальная эмиссия не может быть меньше начальной.');
+      txPayload = await evm.createTokenReserveless(name, symbol, true, true, initialMint, cap, '');
     } else if (prepared.operationName === 'decimalDelegateNFT') {
       const nft = normalizeDecimalNftParams(p);
-      if (typeof evm.delegateDRC721 !== 'function' || typeof evm.delegateDRC1155 !== 'function') {
-        throw new Error('Decimal SDK не поддерживает delegateDRC721/delegateDRC1155 в загруженной сборке.');
+      if (typeof evm.delegateDRC721 !== 'function' || typeof evm.delegateDRC1155 !== 'function' || typeof evm.getDecimalContractAddress !== 'function') {
+        throw new Error('Decimal SDK не поддерживает Decimal NFT delegation.');
       }
+      const delegation = await evm.getDecimalContractAddress('delegation-nft');
       try {
-        txPayload = await evm.delegateDRC721(nft.validator, nft.collection, nft.nftId);
+        if (typeof evm.getSignPermitDRC721 !== 'function') throw new Error('Decimal SDK не поддерживает DRC721 permit.');
+        const sign = await evm.getSignPermitDRC721(nft.collection, delegation, nft.nftId);
+        txPayload = await evm.delegateDRC721(validator, nft.collection, nft.nftId, sign);
       } catch (error) {
         if (!isOnlyForNftTypeError(error, 'DRC721')) throw error;
-        txPayload = await evm.delegateDRC1155(nft.validator, nft.collection, nft.nftId, nft.amount);
+        if (typeof evm.getSignPermitDRC1155 !== 'function') throw new Error('Decimal SDK не поддерживает DRC1155 permit.');
+        const sign = await evm.getSignPermitDRC1155(nft.collection, delegation);
+        txPayload = await evm.delegateDRC1155(validator, nft.collection, nft.nftId, nft.amount, sign);
       }
     } else if (prepared.operationName === 'decimalUnbondNFT') {
       const nft = normalizeDecimalNftParams(p);
       if (typeof evm.withdrawStakeNFT !== 'function') {
         throw new Error('Decimal SDK не поддерживает withdrawStakeNFT в загруженной сборке.');
       }
-      txPayload = await evm.withdrawStakeNFT(nft.validator, nft.collection, nft.nftId, nft.amount);
+      txPayload = await evm.withdrawStakeNFT(validator, nft.collection, nft.nftId, nft.amount);
     } else if (prepared.operationName === 'decimalConvert') {
       const isFromDEL = String(p.from || '').toUpperCase() === 'DEL';
       const isToDEL = String(p.to || '').toUpperCase() === 'DEL';
       if (isFromDEL && isToDEL) throw new Error('Decimal convert DEL → DEL is not valid.');
-      const amountIn = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.amount), Number(p.fromDecimals || 18)) : decimalToMinimalString(p.amount, 'Decimal convert amount');
-      const amountOutMin = typeof evm.parseUnits === 'function' ? evm.parseUnits(String(p.minAmount || '0'), Number(p.toDecimals || 18)) : decimalToMinimalString(p.minAmount || '0', 'Минимальная сумма получения', true);
-      const recipient = wallet.evmAddress || wallet.address;
+      const fromToken = isFromDEL ? null : await resolveDecimalToken(evm, sdk, p.from);
+      const toToken = isToDEL ? null : await resolveDecimalToken(evm, sdk, p.to);
+      const amountIn = amountToDecimalUnitsString(p.amount, fromToken ? fromToken.decimals : 18, 'Decimal convert amount');
+      const amountOutMin = amountToDecimalUnitsString(p.minAmount || '0', toToken ? toToken.decimals : 18, 'Минимальная сумма получения', true);
+      const recipient = wallet.evmAddress;
+      if (!/^0x[0-9a-fA-F]{40}$/.test(String(recipient || ''))) throw new Error('Decimal wallet не предоставил EVM recipient address.');
       if (!isFromDEL && isToDEL) {
         if (typeof evm.sellExactTokensForDEL !== 'function') throw new Error('Продажа токена за DEL недоступна в загруженной библиотеке Decimal.');
-        txPayload = await evm.sellExactTokensForDEL(p.from, amountIn, amountOutMin, recipient);
+        txPayload = await evm.sellExactTokensForDEL(fromToken.address, amountIn, amountOutMin, recipient);
       } else if (isFromDEL && !isToDEL) {
         if (typeof evm.buyTokenForExactDEL !== 'function') throw new Error('Покупка токена за DEL недоступна в загруженной библиотеке Decimal.');
-        txPayload = await evm.buyTokenForExactDEL(p.to, amountIn, amountOutMin, recipient);
+        txPayload = await evm.buyTokenForExactDEL(toToken.address, amountIn, amountOutMin, recipient);
       } else {
-        if (typeof evm.convertToken !== 'function') throw new Error('Конвертация токенов недоступна в загруженной библиотеке Decimal.');
-        txPayload = await evm.convertToken(p.from, p.to, amountIn, amountOutMin, recipient);
+        if (typeof evm.convertToken !== 'function' || typeof evm.getSignPermitToken !== 'function' || typeof evm.getDecimalContractAddress !== 'function') {
+          throw new Error('Конвертация токенов через permit недоступна в загруженной библиотеке Decimal.');
+        }
+        const tokenCenter = await evm.getDecimalContractAddress('token-center');
+        const sign = await evm.getSignPermitToken(fromToken.address, tokenCenter, amountIn);
+        txPayload = await evm.convertToken(fromToken.address, toToken.address, amountIn, amountOutMin, recipient, sign);
       }
     } else {
       throw new Error(`Операция Decimal ${prepared.operationName} пока недоступна.`);
     }
-    return typeof evm.broadcast === 'function' ? evm.broadcast(txPayload) : txPayload;
+    return txPayload;
   }
 
   async function executeVizonator(prepared) {
@@ -561,6 +873,7 @@
   }
 
   async function broadcast(chain, prepared, options) {
+    if (prepared && typeof prepared.assertValid === 'function') prepared.assertValid();
     const settings = Object.assign({ dryRun: false, confirmExecute: false }, options);
 
     if (settings.dryRun) {
@@ -581,6 +894,8 @@
     if (!settings.confirmExecute && !autoConsentAllowed) {
       throw new Error('Реальный broadcast требует явного подтверждения в UI.');
     }
+
+    assertNoPublicSecrets(prepared);
 
     if (chain.id === 'viz' && prepared.meta && prepared.meta.signerType === 'vizonator') {
       return executeVizonator(prepared);
@@ -653,29 +968,7 @@
   }
 
   function sanitizeValue(value) {
-    if (typeof value === 'string' && isLikelyWif(value)) {
-      return '[redacted-wif]';
-    }
-
-    if (typeof value === 'string' && isLikelyMnemonic(value)) {
-      return '[redacted-seed]';
-    }
-
-    if (Array.isArray(value)) {
-      return value.map(sanitizeValue);
-    }
-
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => {
-      if (/private|wif|secret|seed|mnemonic/i.test(key)) {
-        return [key, '[redacted]'];
-      }
-
-      return [key, sanitizeValue(item)];
-    }));
+    return sanitizeDiagnostic(value);
   }
 
   function sanitizePrepared(prepared) {
@@ -690,15 +983,7 @@
   }
 
   function sanitizeResult(value) {
-    if (Array.isArray(value)) {
-      return value.map(sanitizeResult);
-    }
-
-    if (!value || typeof value !== 'object') {
-      return typeof value === 'string' && isLikelyWif(value) ? '[redacted-wif]' : value;
-    }
-
-    return sanitizeValue(value);
+    return sanitizeDiagnostic(value);
   }
 
   global.DposBroadcast = Object.freeze({
@@ -712,6 +997,7 @@
     prepareExternal,
     prepareForUser,
     prepareWithPrivateKey,
+    sanitizeDiagnostic,
     sanitizePrepared,
     sanitizeResult,
     validateAccountName,

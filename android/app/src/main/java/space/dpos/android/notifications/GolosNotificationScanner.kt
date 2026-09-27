@@ -88,6 +88,7 @@ object GolosHistoryRpc {
                 val key = keys.next()
                 data[key] = dataObject.opt(key)?.toString().orEmpty()
             }
+            item.optString("trx_id").takeIf { it.isNotBlank() }?.let { data["trx_id"] = it }
             if (index >= 0 && type.isNotBlank()) rows += HistoryEvent(index, type, data, item.optString("timestamp"))
         }
         return rows
@@ -95,19 +96,21 @@ object GolosHistoryRpc {
 }
 
 class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = null, private val chainId: String = "golos") {
-    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
-        val rows = historyClient?.getAccountHistory(account, cursor ?: -1L, limit).orEmpty()
+    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
+        // Graphene `from` is a backwards history endpoint, not our last-seen cursor.
+        // Always ask for the newest page; scan() applies the local high-water mark.
+        val rows = historyClient?.getAccountHistory(account, -1L, limit).orEmpty()
         return scan(account, cursor, rows, baselineDone, selectedOps)
     }
 
-    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String> = emptyList()): Pair<Long, List<DposEventNotification>> {
+    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
         val target = account.trim().removePrefix("@").lowercase()
         val sorted = rows.sortedBy { it.index }
         val newest = sorted.maxOfOrNull { it.index } ?: cursor ?: -1L
         if (!baselineDone) return newest to emptyList()
         val minIndex = cursor ?: -1L
-        val allowed = selectedOps.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
-        val notifications = sorted.filter { it.index > minIndex }.filter { allowed.isEmpty() || it.type.lowercase() in allowed }.mapNotNull { toNotification(target, it) }
+        val allowed = selectedOps?.map { it.trim().lowercase() }?.filter { it.isNotBlank() }?.toSet()
+        val notifications = sorted.filter { it.index > minIndex }.filter { allowed == null || it.type.lowercase() in allowed }.mapNotNull { toNotification(target, it) }
         return newest to notifications
     }
 

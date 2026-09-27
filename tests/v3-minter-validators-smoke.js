@@ -22,7 +22,7 @@ assert(minterApps.includes('Просмотр списка валидаторов
 assert(appSource.includes("isCosmosChain(chain) && effectiveAppId === 'validators'"), 'Minter validators route uses validators renderer');
 assert(appSource.includes('await renderCosmosValidators(chain)'), 'validators route dispatch calls renderCosmosValidators');
 
-const validatorsSlice = sliceBetween(appSource, 'async function renderCosmosValidators(chain) {', 'async function renderCosmosExplorer(chain, account)', 'Cosmos validators renderer');
+const validatorsSlice = sliceBetween(appSource, 'async function renderCosmosValidators(chain) {', 'async function renderCosmosExplorer(', 'Cosmos validators renderer');
 for (const marker of [
   "chain.id === 'minter' ? `${chain.explorerBase}/validators`",
   'Number(validator.status) === 2',

@@ -131,6 +131,30 @@ class AutoVoteRuntimePolicyTest {
         assertTrue(report.skipped.none { it.startsWith("limit:") })
     }
 
+    @Test fun unresolvedPendingVoteProducesOneProblemAndDefersOtherCandidates() {
+        var reads = 0
+        val pending = space.dpos.android.upvoter.PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|1000", 0L)
+        val store = object : space.dpos.android.upvoter.PendingBroadcastStore {
+            override fun readPending(kind: String, chainId: String, account: String): space.dpos.android.upvoter.PendingBroadcastIntent? { reads++; return pending }
+            override fun savePending(intent: space.dpos.android.upvoter.PendingBroadcastIntent) { error("No new send allowed") }
+            override fun clearPending(kind: String, chainId: String, account: String) { error("Unknown result must not be cleared") }
+        }
+        val broadcaster = RecordingBroadcaster()
+        val plan = AutoUpvoterPlanner().plan(
+            listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000)),
+            listOf("first", "second", "third").map { VoteEvent("favorite_post", author = "alice", permlink = it) }
+        )
+        val report = AutoVoteRuntime(VoteRuntime(FakeRpc(), signer = FakeSigner(), broadcaster = broadcaster, pendingStore = store), FakeKeyProvider()).execute(plan)
+        assertEquals(3, report.candidates)
+        assertEquals(1, report.attempted)
+        assertEquals(1, report.results.size)
+        assertEquals("broadcast_unknown", report.results.single().status)
+        assertEquals(1, reads)
+        assertEquals(0, broadcaster.broadcastCount)
+        assertEquals(1, report.skipSummary["broadcast_unknown"])
+        assertEquals(2, report.skipSummary["pending_confirmation"])
+    }
+
     private fun planWithOneAction() = AutoUpvoterPlanner().plan(
         listOf(AccountSettings("denis", enabled = true, favorites = listOf("alice"), currentEnergy = 10000)),
         listOf(VoteEvent("favorite_post", author = "alice", permlink = "post"))

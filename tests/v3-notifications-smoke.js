@@ -37,11 +37,16 @@ assert(cssSource.includes('.notifications-panel') && cssSource.includes('.notifi
 assert(planSource.includes('верхняя панель уведомлений'), 'plan documents notifications scope');
 
 const storage = new Map();
+let expectedOps = ['transfer'];
+let trackedUsers = [{ login: 'denis-skripnik' }];
+let scanMode = 'normal';
+let releaseHungScan;
 const context = {
   console,
   URLSearchParams,
-  setTimeout: () => 0,
-  clearTimeout: () => {},
+  setTimeout,
+  clearTimeout,
+  __dposNotificationScanTimeoutMs: 20,
   localStorage: {
     get length() { return storage.size; },
     key(index) { return Array.from(storage.keys())[index] || null; },
@@ -56,7 +61,7 @@ const context = {
   },
   DposChains: { golos: { id: 'golos', title: 'Golos' } },
   DposAuth: {
-    getUsers() { return [{ login: 'denis-skripnik' }]; },
+    getUsers() { return trackedUsers; },
     getUserLogin(user) { return user.login; }
   },
   DposProfiles: {
@@ -76,8 +81,9 @@ const context = {
     formatDate(value) { return value; },
     fetchAccountHistory: async (chain, account, options) => {
       assert(chain && chain.config && chain.config.id === 'golos', 'notifications scan passes connected chain to history fetcher');
-      assert(account === 'denis-skripnik', 'notifications scan fetches saved account');
-      assert(options && Array.isArray(options.ops) && options.ops.length === 1 && options.ops.includes('transfer'), 'notifications scan requests selected per-account notification ops');
+      assert(options && Array.isArray(options.ops) && options.ops.join(',') === expectedOps.join(','), 'notifications scan requests the exact selected per-account notification ops');
+      if (scanMode === 'hang-first' && account === 'denis-skripnik') return new Promise((resolve) => { releaseHungScan = resolve; });
+      if (scanMode === 'hang-first' && account === 'alice') return [{ index: 5, type: 'transfer', timestamp: '2026-05-14', data: { from: 'bob', to: 'alice', amount: '1 GOLOS' } }];
       return [];
     }
   }
@@ -94,6 +100,9 @@ assert(api.supportsChain({ id: 'minter', title: 'Minter' }), 'Minter wallet noti
 assert(api.supportsChain({ id: 'decimal', title: 'Decimal' }), 'Decimal wallet notifications are supported through public history API');
 assert(api.defaultOps({ id: 'minter' }).includes('multisend'), 'Minter notification filters include multisend');
 assert(api.defaultOps({ id: 'decimal' }).includes('multisend'), 'Decimal notification filters include multisend');
+assert.strictEqual(api.getSettings(context.DposChains.golos, 'legacy-account').ops.length, api.defaultOps(context.DposChains.golos).length, 'missing notification selection retains legacy defaults');
+api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: [], androidNative: true, intervalMinutes: 20 });
+assert.strictEqual(api.getSettings(context.DposChains.golos, 'denis-skripnik').ops.length, 0, 'explicit empty notification selection persists as none');
 api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: ['transfer'], androidNative: true, intervalMinutes: 20 });
 assert.strictEqual(Array.from(api.getSettings(context.DposChains.golos, 'denis-skripnik').ops).join(','), 'transfer', 'notification operation filters persist per chain/account');
 const tracked = api.getTrackedAccounts(context.DposChains.golos);
@@ -187,8 +196,22 @@ assert.strictEqual(api.countUnread({ direction: 'incoming' }), 0, 'mark all read
 api.scanAll({ golos: { id: 'golos', title: 'Golos', libraryGlobal: 'golos', libraryPath: 'missing-golos.js' } }, { collectInitial: true }).then((items) => {
   assert(Array.isArray(items), 'scanAll returns an array even when a notification account fails');
   assert(items.errors && items.errors.length === 1, 'scanAll reports isolated notification scan failures without throwing');
+  api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: [], androidNative: true, intervalMinutes: 20 });
+  expectedOps = [];
   return api.scanAccount(context.DposChains.golos, 'denis-skripnik', { limit: 5, collectInitial: true });
-}).then(() => {
+}).then(async () => {
+  api.saveSettings(context.DposChains.golos, 'denis-skripnik', { ops: ['transfer'] });
+  api.saveSettings(context.DposChains.golos, 'alice', { ops: ['transfer'] });
+  expectedOps = ['transfer'];
+  trackedUsers = [{ login: 'denis-skripnik' }, { login: 'alice' }];
+  scanMode = 'hang-first';
+  const found = await api.scanAll({ golos: context.DposChains.golos }, { collectInitial: true });
+  assert(found.errors && found.errors.length === 1, 'a timed-out account is isolated as an error');
+  assert(found.some((item) => item.account === 'alice'), 'scan continues to later accounts after one account times out');
+  releaseHungScan([{ index: 99, type: 'transfer', data: { from: 'bob', to: 'denis-skripnik', amount: '2 GOLOS' } }]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const persisted = JSON.parse(storage.get(api.STORAGE_KEY));
+  assert(!persisted.accounts['golos:denis-skripnik'], 'timed-out scan cannot later commit its cursor or notifications');
   console.log('v3-notifications-smoke passed');
 }).catch((error) => {
   console.error(error);

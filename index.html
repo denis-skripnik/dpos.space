@@ -2,6 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; font-src 'self' data:; frame-src https://datalens.yandex https://datalens.yandex.ru https://datalens.yandex.cloud https://www.youtube.com https://www.youtube-nocookie.com; worker-src 'self' blob:; manifest-src 'self';">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dpos space</title>
   <meta name="description" content="DPoS инструменты: профили, кошельки, история и безопасная подготовка операций.">
@@ -12,29 +14,23 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/v3/assets/icons/dpos-space-192.png">
-  <link rel="stylesheet" href="v3/css/style.css?v=20260727-posting-authority-preflight">
-  <!-- Yandex.Metrika counter -->
-  <script type="text/javascript">
-    (function(m,e,t,r,i,k,a){
-      m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-      m[i].l=1*new Date();
-      for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-      k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=110419299', 'ym');
-
-    ym(110419299, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
-  </script>
-  <noscript><div><img src="https://mc.yandex.ru/watch/110419299" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-  <!-- /Yandex.Metrika counter -->
+  <link rel="stylesheet" href="v3/css/style.css?v=20260919-audit-integration">
 </head>
 <body>
-  <header class="site-header">
+  <header class="site-header" data-i18n-root>
     <p class="eyebrow">Dpos space</p>
+    <div class="field">
+      <label for="language-select">Язык / Language</label>
+      <select id="language-select" aria-label="Язык / Language" translate="no">
+        <option value="ru" lang="ru">Русский</option>
+        <option value="en" lang="en">English</option>
+      </select>
+    </div>
     <h1>Инструменты для DPoS блокчейнов</h1>
     <p>Профили, аккаунты, кошельки, история и безопасная подготовка операций Golos, VIZ, Steem, Hive, Minter и Decimal.</p>
   </header>
 
-  <nav class="panel" aria-label="Навигация по инструментам">
+  <nav class="panel" aria-label="Навигация по инструментам" data-i18n-root>
     <form id="route-form" class="route-form">
       <div class="field">
         <label for="chain-select">Блокчейн</label>
@@ -69,42 +65,56 @@
     </form>
   </nav>
 
-  <aside id="notifications-panel" class="notifications-panel" aria-label="Уведомления" hidden></aside>
+  <aside id="notifications-panel" class="notifications-panel" aria-label="Уведомления" hidden data-i18n-root></aside>
 
-  <p id="status" class="status" role="status" aria-live="polite">Готово.</p>
+  <button type="button" id="vault-lock" data-i18n-root class="secondary" hidden>Заблокировать аккаунты</button>
+  <p id="status" data-i18n-root class="status" role="status" aria-live="polite">Готово.</p>
 
-  <main id="app" tabindex="-1">
+  <main id="app" tabindex="-1" data-vault-required data-i18n-root>
     <section class="panel">
       <h2>Загрузка</h2>
       <p>Если страница не обновилась автоматически, включите JavaScript.</p>
     </section>
   </main>
 
-  <aside id="pwa-panel" class="pwa-shell" aria-label="Приложение и локальные уведомления"></aside>
+  <aside id="pwa-panel" class="pwa-shell" aria-label="Приложение и локальные уведомления" data-i18n-root></aside>
 
-  <footer class="site-footer">
+  <footer class="site-footer" data-i18n-root>
+    <p>DPoS Space 3.1.1</p>
     <p>Операции не отправляются без явного подтверждения. Приватные ключи не показываются в проверке операции и ответах сети.</p>
     <p class="footer-links">
       <a href="https://github.com/denis-skripnik/dpos.space" target="_blank" rel="noopener noreferrer">GitHub проекта</a>
       <span aria-hidden="true">·</span>
       <a href="#app=backup">Резервное копирование</a>
       <span aria-hidden="true">·</span>
+      <a href="#app=diagnostics">Логи и диагностика</a>
+      <span aria-hidden="true">·</span>
       <a href="https://t.me/blind_dev_chat" target="_blank" rel="noopener noreferrer">Чат поддержки</a>
       <span aria-hidden="true">·</span>
       Автор: <a href="https://x.com/denis_skripnik" target="_blank" rel="noopener noreferrer">X @denis_skripnik</a>
     </p>
-    <div id="ytWidget" class="translate-widget" aria-label="Перевод сайта"></div>
+
   </footer>
 
-  <script src="https://translate.yandex.net/website-widget/v1/widget.js?widgetId=ytWidget&pageLang=ru&widgetTheme=light&autoMode=true" type="text/javascript" async></script>
-  <script src="v3/js/chains.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/auth.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/broadcast.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/profiles.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/history.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/notifications.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/auto-upvoter.js?v=20260727-posting-authority-preflight"></script>
-  <script src="v3/js/pwa.js?v=20260817-android-apk-download"></script>
-  <script src="v3/js/app.js?v=20260915-viz-prediction-markets"></script>
+  <script src="v3/js/i18n-en.js?v=20260923-editor-link"></script>
+  <script src="v3/js/i18n.js?v=20260919-audit-integration"></script>
+  <script src="v3/vendor/golos/sjcl.min.js"></script>
+  <script src="v3/js/vault.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/native-bridge.js?v=20260921-notification-summary"></script>
+  <script src="v3/js/chains.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/auth.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/bip39.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/broadcast.js?v=20260923-release-3-1-0"></script>
+  <script src="v3/js/diagnostics.js?v=20260923-release-3-1-0"></script>
+  <script src="v3/js/diagnostics-ui.js?v=20260921-notification-summary"></script>
+  <script src="v3/js/profiles.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/history.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/notifications.js?v=20260921-notification-summary"></script>
+  <script src="v3/js/notification-inbox.js?v=20260921-notification-summary"></script>
+  <script src="v3/js/auto-upvoter.js?v=20260926-golos-donate"></script>
+  <script src="v3/js/pwa.js?v=20260927-release-3-1-1"></script>
+  <script src="v3/js/vault-ui.js?v=20260919-audit-integration"></script>
+  <script src="v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0"></script>
+  <script src="v3/js/app.js?v=20260926-golos-donate-migration"></script>
 </body>
 </html>

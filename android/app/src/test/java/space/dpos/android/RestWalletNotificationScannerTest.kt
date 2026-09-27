@@ -4,10 +4,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import space.dpos.android.notifications.HistoryEvent
 import space.dpos.android.notifications.RestWalletHistoryClient
 import space.dpos.android.notifications.RestWalletNotificationScanner
 
 class RestWalletNotificationScannerTest {
+    @Test fun explicitEmptySelectionProducesNoNotifications() {
+        val rows = listOf(HistoryEvent(1, "send", mapOf("from" to "mx1111111111111111111111111111111111111111", "to" to "mxf85ceccfe2112e88be58162c43f5ec959672ab54")))
+        val (_, notifications) = RestWalletNotificationScanner("minter").scan("Mxf85ceccfe2112e88be58162c43f5ec959672ab54", 0, rows, baselineDone = true, selectedOps = emptyList())
+        assertTrue(notifications.isEmpty())
+    }
+
     @Test fun minterSendFixtureBecomesWalletNotificationWithoutNetwork() {
         val client = RestWalletHistoryClient("minter")
         val rows = client.parseTransactions("""

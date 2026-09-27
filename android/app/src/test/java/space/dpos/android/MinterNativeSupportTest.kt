@@ -31,6 +31,14 @@ class MinterNativeSupportTest {
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "dx0000000000000000000000000000000000000000", "posting", "posting", fixtureSeed, explicitConsent = true)).accepted)
     }
 
+    @Test fun minterImportRejectsBadBip39ChecksumAndDerivedAddressMismatch() {
+        val badChecksum = List(12) { "abandon" }.joinToString(" ")
+        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", fixtureAddress, "seed", "seed", badChecksum, true)).accepted)
+        val mismatch = SecureKeyImportPolicy.validate(SecureKeyImportRequest("minter", "Mx0000000000000000000000000000000000000000", "seed", "seed", fixtureSeed, true))
+        assertFalse(mismatch.accepted)
+        assertTrue(mismatch.reason.contains("match", ignoreCase = true))
+    }
+
     @Test fun derivesMinterAddressFromDeterministicNonSecretMnemonicLikeBrowserVendorWallet() {
         assertEquals(fixtureAddress, MinterNativeSupport.deriveAddress(fixtureSeed))
     }
@@ -56,7 +64,7 @@ class MinterNativeSupportTest {
         assertTrue(signed.length >= 220)
     }
 
-    @Test fun previewProducesSignedPayloadButNeverBroadcastsOrPrintsSeed() {
+    @Test fun previewProducesUnsignedPayloadWithoutReadingOrPrintingSeed() {
         val request = MinterTransferRequest(
             from = fixtureAddress,
             to = "Mx0000000000000000000000000000000000000001",
@@ -65,12 +73,13 @@ class MinterNativeSupportTest {
             gasCoinId = 0,
             nonce = 1
         )
-        val result = MinterNativeSupport.signTransfer(request, fixtureSeed, previewOnly = true)
-        val json = result.toJson().toString()
-        assertTrue(result.ok)
-        assertEquals("preview_ready", result.status)
+        val result = MinterNativeSupport.previewUnsignedTransfer(request)
+        val json = result.toString()
+        assertTrue(result.getBoolean("ok"))
+        assertEquals("preview_ready", result.getString("status"))
         assertTrue(json.contains("\"broadcasted\":false"))
-        assertTrue(json.contains("\"signedTx\""))
+        assertFalse(json.contains("\"signedTx\""))
+        assertTrue(json.contains("\"unsignedTx\""))
         assertFalse(json.contains(fixtureSeed))
     }
 

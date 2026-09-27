@@ -234,7 +234,7 @@
       description: 'Decimal Chain: адреса, кошелёк, валидаторы, монеты, NFT и swap.',
       defaultAccount: 'dx0000000000000000000000000000000000000000',
       libraryGlobal: 'DecimalSDK',
-      libraryPath: 'v3/vendor/decimal/decimal-sdk-web.js',
+      libraryPath: 'v3/vendor/decimal/decimal-sdk-web.js?v=2.1.1-audit-integration',
       cryptoPath: 'v3/vendor/decimal/sjcl.min.js',
       apiBase: 'https://api.decimalchain.com/api/v1',
       gateUrl: 'https://mainnet-gate.decimalchain.com/api/',

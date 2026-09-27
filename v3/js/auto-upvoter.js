@@ -13,6 +13,32 @@
   const AUTO_DONATE_MIN_TOTAL = 0.5;
   const AUTO_DONATE_AUTHOR_SHARE = 0.998;
 
+  function cancellationRequested(options) {
+    return Boolean(options && typeof options.isCancelled === 'function' && options.isCancelled());
+  }
+
+  function createCancellationController() {
+    let generation = 0;
+    return Object.freeze({
+      snapshot() { return generation; },
+      cancel() { generation += 1; return generation; },
+      isCancelled(snapshot) { return snapshot !== generation; }
+    });
+  }
+
+  function createNonOverlappingRunner(run) {
+    let active = false;
+    return async function runSingleFlight(...args) {
+      if (active) return null;
+      active = true;
+      try {
+        return await run(...args);
+      } finally {
+        active = false;
+      }
+    };
+  }
+
   function normalizeList(value) {
     if (Array.isArray(value)) return value.map((item) => String(item || '').trim().replace(/^@/, '')).filter(Boolean);
     return String(value || '').split(/[\s,;]+/).map((item) => item.trim().replace(/^@/, '')).filter(Boolean);
@@ -41,11 +67,19 @@
     return Math.max(0, Math.min(10000, Math.round(clampedEnergy - usedEnergy)));
   }
 
+  function basisPointEnergy(raw) {
+    if (raw === undefined || raw === null || typeof raw === 'boolean' || (typeof raw === 'string' && !raw.trim())) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? Math.max(0, Math.min(10000, value)) : null;
+  }
+
   function currentAccountEnergy(account, options) {
     const raw = account && (account.voting_power ?? account.votingPower ?? account.energy ?? account.charge);
-    const value = Number(raw);
-    if (!Number.isFinite(value)) return null;
-    const base = value > 100 ? value : value * 100;
+    const value = basisPointEnergy(raw);
+    if (value === null) return null;
+    // These Graphene RPC fields are basis points, even when the battery is
+    // almost empty. Display/input percentages belong at the UI boundary.
+    const base = Math.max(0, Math.min(10000, value));
     const lastVoteTime = Date.parse(account && (account.last_vote_time || account.last_vote || account.last_vote_time_string || ''));
     if (!Number.isFinite(lastVoteTime)) return Math.max(0, Math.min(10000, Math.round(base)));
     const opts = options || {};
@@ -57,23 +91,25 @@
 
   function withCurrentAccountEnergy(settings, accountRecord) {
     const currentEnergy = currentAccountEnergy(accountRecord);
-    if (!Number.isFinite(currentEnergy)) return settings;
     return Object.assign({}, settings, { currentEnergy });
   }
 
-  async function enrichSettingsWithCurrentEnergy(accountSettings, adapter) {
+  async function enrichSettingsWithCurrentEnergy(accountSettings, adapter, options) {
     const normalized = (Array.isArray(accountSettings) ? accountSettings : []).map(normalizeAccountSettings);
-    if (!adapter || typeof adapter.getAccount !== 'function') return normalized;
+    if (!adapter || typeof adapter.getAccount !== 'function') return normalized.map((account) => Object.assign({}, account, { currentEnergy: null }));
     const enriched = [];
     for (const account of normalized) {
+      if (cancellationRequested(options)) break;
       if (!account.enabled || !account.account) {
         enriched.push(account);
         continue;
       }
       try {
-        enriched.push(withCurrentAccountEnergy(account, await adapter.getAccount(account.account)));
+        const accountRecord = await adapter.getAccount(account.account);
+        if (cancellationRequested(options)) break;
+        enriched.push(withCurrentAccountEnergy(account, accountRecord));
       } catch (error) {
-        enriched.push(account);
+        enriched.push(Object.assign({}, account, { currentEnergy: null }));
       }
     }
     return enriched;
@@ -127,11 +163,11 @@
   }
 
   function hasEnoughAccountEnergy(account, event, weight) {
-    const energy = account && Number.isFinite(Number(account.currentEnergy))
+    const energy = account && Object.prototype.hasOwnProperty.call(account, 'currentEnergy')
       ? account.currentEnergy
       : event && (event.accountEnergy ?? event.votingPower ?? event.charge);
-    const normalized = Number(energy);
-    if (!Number.isFinite(normalized)) return true;
+    const normalized = basisPointEnergy(energy);
+    if (normalized === null) return false;
     const projected = Number.isFinite(Number(weight)) ? estimateVoteEnergyAfter(normalized, weight) : normalized;
     return normalized >= account.minEnergy && (!Number.isFinite(Number(projected)) || projected >= account.minEnergy);
   }
@@ -273,14 +309,18 @@
       throw new Error('Golos discussion/blog RPC method is unavailable; favorite-post scanner cannot run.');
     }
     for (const curator of curators) {
+      if (cancellationRequested(options)) break;
       const rows = await adapter.getAccountHistory(curator, settings.historyLimit);
+      if (cancellationRequested(options)) break;
       (Array.isArray(rows) ? rows : []).forEach((row) => {
         const event = historyRowToCuratorVoteEvent(row);
         if (event) events.push(event);
       });
     }
     for (const favorite of favorites) {
+      if (cancellationRequested(options)) break;
       const rows = await adapter.getFavoritePosts(favorite, settings.favoriteLimit);
+      if (cancellationRequested(options)) break;
       (Array.isArray(rows) ? rows : []).forEach((row) => {
         const event = discussionRowToFavoritePostEvent(row, favorite);
         if (event) events.push(event);
@@ -291,11 +331,13 @@
 
   function planActionsForEvents(accountSettings, events, state) {
     const seen = state && state.seen instanceof Set ? state.seen : new Set(state && state.seen || []);
-    const accounts = (Array.isArray(accountSettings) ? accountSettings : []).map(normalizeAccountSettings).filter((account) => account.enabled && account.account);
+    const accounts = (Array.isArray(accountSettings) ? accountSettings : []).map(normalizeAccountSettings).map((account) =>
+      state && state.chainId && state.chainId !== 'golos' ? Object.assign({}, account, { autoDonate: false, autoDonateCap: '0 1' }) : account
+    ).filter((account) => account.enabled && account.account);
     const energyBudget = new Map();
     accounts.forEach((account) => {
-      const current = Number(account.currentEnergy);
-      if (Number.isFinite(current)) energyBudget.set(account.account, Math.max(0, Math.min(10000, current)));
+      const current = basisPointEnergy(account.currentEnergy);
+      if (current !== null) energyBudget.set(account.account, current);
     });
     const rows = [];
     (Array.isArray(events) ? events : []).forEach((event) => {
@@ -443,12 +485,11 @@
   }
 
   function buildDonateMemo(type, action) {
-    return JSON.stringify({
-      app: 'dpos.space/auto-upvoter',
+    return { app: 'dpos.space', version: 1, target: {
       type,
       author: String(action && action.author || '').trim().replace(/^@/, ''),
       permlink: String(action && action.permlink || '').trim()
-    });
+    } };
   }
 
   function buildDonateOperations(action) {
@@ -485,6 +526,7 @@
   }
 
   async function broadcastPlannedAction(chain, action, options) {
+    if (cancellationRequested(options)) return { cancelled: true };
     if (!global.DposBroadcast) throw new Error('DposBroadcast helper is unavailable.');
     const broadcastStatus = assertBroadcastAvailable(chain);
     if (!action || action.type !== 'vote') throw new Error('Only planned vote actions are supported in the first auto-upvoter MVP.');
@@ -495,14 +537,17 @@
     }
     const broadcastOptions = Object.assign({ confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' }, options || {});
     broadcastOptions.confirmExecute = false;
-    const donationOperations = buildDonateOperations(action);
+    const donationOperations = chain && chain.id === 'golos' ? buildDonateOperations(action) : [];
+    if (cancellationRequested(options)) return { cancelled: true };
     const prepared = global.DposBroadcast.prepareForUser(chain, user, 'posting', 'vote', [
       action.account,
       action.author,
       action.permlink,
       action.weight
     ], { feature: 'golos-auto-upvoter', source: action.source });
+    if (cancellationRequested(options)) return { cancelled: true };
     const result = await global.DposBroadcast.broadcast(chain, prepared, broadcastOptions);
+    if (cancellationRequested(options)) return { cancelled: true, vote: result };
     const donations = [];
     const donateSkipped = [];
     if (donationOperations.length && !broadcastStatus.canDonate) {
@@ -510,13 +555,16 @@
       return { vote: result, donations, donateSkipped };
     }
     for (const operation of donationOperations) {
+      if (cancellationRequested(options)) return { cancelled: true, vote: result, donations, donateSkipped };
       try {
         const donatePrepared = global.DposBroadcast.prepareForUser(chain, user, 'posting', operation.operationName, operation.params, {
           feature: 'golos-auto-upvoter',
           source: action.source,
           autoDonate: true
         });
+        if (cancellationRequested(options)) return { cancelled: true, vote: result, donations, donateSkipped };
         donations.push(await global.DposBroadcast.broadcast(chain, donatePrepared, broadcastOptions));
+        if (cancellationRequested(options)) return { cancelled: true, vote: result, donations, donateSkipped };
       } catch (error) {
         donateSkipped.push({
           reason: 'donate_failed',
@@ -534,14 +582,18 @@
     const results = [];
     const feed = Array.isArray(settings.feed) ? settings.feed : null;
     for (const action of (Array.isArray(actions) ? actions : [])) {
+      if (cancellationRequested(settings)) break;
       try {
-        const result = await settings.broadcaster(chain, action, settings.broadcastOptions || {});
+        const broadcasterOptions = Object.assign({}, settings.broadcastOptions || {}, { isCancelled: settings.isCancelled });
+        const result = await settings.broadcaster(chain, action, broadcasterOptions);
         const row = { ok: true, action, result };
         results.push(row);
         if (feed) {
-          if (result && result.skipped) continue;
+          if (result && (result.skipped || result.cancelled)) continue;
           feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
         }
+        if (result && result.cancelled) break;
+        if (cancellationRequested(settings)) break;
       } catch (error) {
         const row = { ok: false, action, error };
         results.push(row);
@@ -562,7 +614,10 @@
     const tickState = state && typeof state === 'object' ? state : {};
     if (!(tickState.seen instanceof Set)) tickState.seen = new Set(tickState.seen || []);
     const events = await collectEventsFromAdapter(adapter, accountSettings, options);
-    const settingsWithEnergy = await enrichSettingsWithCurrentEnergy(accountSettings, adapter);
+    if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
+    const settingsWithEnergy = await enrichSettingsWithCurrentEnergy(accountSettings, adapter, options);
+    if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
+    tickState.chainId = chain && chain.id;
     const actions = planActionsForEvents(settingsWithEnergy, events, tickState);
     markActionsSeen(tickState, actions);
     const results = await executePlannedActions(chain, actions, tickState, options);
@@ -577,6 +632,8 @@
     calculateDonateFromEmission,
     claimRunnerLocks,
     collectEventsFromAdapter,
+    createCancellationController,
+    createNonOverlappingRunner,
     currentAccountEnergy,
     dedupePlannedActions,
     discussionRowToFavoritePostEvent,

@@ -56,8 +56,14 @@ object SecureKeyImportPolicy {
         if (!aliasPattern.matches(alias)) return SecureKeyImportDecision(false, "invalid key alias")
         if (chain == MinterNativeSupport.CHAIN_ID) {
             if (!MinterNativeSupport.validateSeed(secret)) return SecureKeyImportDecision(false, "invalid Minter seed phrase format")
+            if (!MinterNativeSupport.deriveAddress(secret).equals(request.account.trim(), ignoreCase = true)) {
+                return SecureKeyImportDecision(false, "Minter seed-derived address does not match the requested account")
+            }
         } else if (chain == DecimalNativeSupport.CHAIN_ID) {
             if (!DecimalNativeSupport.validateSeed(secret)) return SecureKeyImportDecision(false, "invalid Decimal seed phrase format")
+            if (!DecimalNativeSupport.deriveWallet(secret).matches(request.account.trim())) {
+                return SecureKeyImportDecision(false, "Decimal seed-derived address does not match the requested account")
+            }
         } else if (!wifLike.matches(secret)) return SecureKeyImportDecision(false, "invalid private key format")
 
         return SecureKeyImportDecision(

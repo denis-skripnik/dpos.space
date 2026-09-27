@@ -13,6 +13,17 @@ import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
 import java.util.concurrent.atomic.AtomicBoolean
 
+internal fun foregroundCompletionStatus(summary: WorkerRunSummary): String {
+    val counters = "; аккаунтов: ${summary.accountsChecked}; vote сейчас: ${summary.autoUpvoterBroadcasted}; всего vote: ${summary.totalAutoUpvoterBroadcasted}; VIZ сейчас: ${summary.vizSelfAwardBroadcasted}; всего VIZ: ${summary.totalVizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}"
+    return when {
+        !summary.ok && summary.errors.isNotEmpty() && summary.errors.all { it.contains("broadcast_unknown") } &&
+            (summary.autoUpvoterSkipSummary["broadcast_unknown"] ?: 0) > 0 -> "проверка завершена; голосование приостановлено до подтверждения прежней отправки$counters"
+        !summary.ok -> "проверка завершена с ошибками$counters"
+        summary.status == "pending_confirmation" -> "Подтверждается"
+        else -> "проверка завершена$counters"
+    }
+}
+
 class DposForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunning = AtomicBoolean(false)
@@ -38,8 +49,7 @@ class DposForegroundService : Service() {
                     if (summary.status == "skipped_overlap") {
                         updateForegroundStatus("предыдущая проверка ещё идёт; последний успешный статус сохраняется")
                     } else {
-                        val status = if (summary.ok) "проверка завершена" else "проверка завершена с ошибками"
-                        updateForegroundStatus("$status; аккаунтов: ${summary.accountsChecked}; vote сейчас: ${summary.autoUpvoterBroadcasted}; всего vote: ${summary.totalAutoUpvoterBroadcasted}; VIZ сейчас: ${summary.vizSelfAwardBroadcasted}; всего VIZ: ${summary.totalVizSelfAwardBroadcasted}; ошибок: ${summary.errors.size}")
+                        updateForegroundStatus(foregroundCompletionStatus(summary))
                     }
                 } catch (e: Exception) {
                     WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
@@ -64,7 +74,9 @@ class DposForegroundService : Service() {
         val store = WorkerStore(this)
         when (intent?.action) {
             ACTION_STOP -> {
+                WorkerCancellation.cancelAll()
                 store.setWorkerEnabled(false)
+                WorkManager.getInstance(applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
                 store.appendLog("foreground service stop requested")
                 handler.removeCallbacks(tick)
                 stopSelf()
@@ -86,6 +98,7 @@ class DposForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        WorkerCancellation.cancelAll()
         handler.removeCallbacks(tick)
         WorkerStore(this).appendLog("foreground service stopped")
         isRunning = false

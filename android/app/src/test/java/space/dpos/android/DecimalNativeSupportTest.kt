@@ -32,6 +32,14 @@ class DecimalNativeSupportTest {
         assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", fixtureAddress, "seed", "seed", "not a seed", explicitConsent = true)).accepted)
     }
 
+    @Test fun decimalImportRejectsBadBip39ChecksumAndMismatchForEverySupportedAddressFormat() {
+        val badChecksum = List(12) { "abandon" }.joinToString(" ")
+        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", fixtureAddress, "seed", "seed", badChecksum, true)).accepted)
+        assertFalse(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "0x0000000000000000000000000000000000000000", "seed", "seed", fixtureSeed, true)).accepted)
+        assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", fixtureEvmAddress, "seed", "seed", fixtureSeed, true)).accepted)
+        assertTrue(SecureKeyImportPolicy.validate(SecureKeyImportRequest("decimal", "dx9858effd232b4033e47d90003d41ec34ecaeda94", "seed", "seed", fixtureSeed, true)).accepted)
+    }
+
     @Test fun derivesDecimalD0AndEvmAddressesFromVendorDocumentedPath() {
         val wallet = DecimalNativeSupport.deriveWallet(fixtureSeed)
         assertEquals(fixtureAddress, wallet.address)
@@ -41,7 +49,7 @@ class DecimalNativeSupportTest {
         assertTrue(wallet.matches("dx9858effd232b4033e47d90003d41ec34ecaeda94"))
     }
 
-    @Test fun signsDeterministicLegacyEvmDelTransferPreviewWithoutBroadcastOrSeedLeak() {
+    @Test fun createsDeterministicUnsignedEvmDelTransferPreviewWithoutSeedAccess() {
         val request = DecimalTransferRequest(
             from = fixtureAddress,
             to = "d01qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3a0c7h",
@@ -55,13 +63,13 @@ class DecimalNativeSupportTest {
             "0xec80850ba43b7400825208940000000000000000000000000000000000000000880de0b6b3a7640000804b8080",
             DecimalTransferSigner.unsignedTransferForTest(request)
         )
-        val result = DecimalNativeSupport.previewTransfer(request, fixtureSeed)
-        val json = result.toJson().toString()
-        assertTrue(result.ok)
-        assertEquals("preview_ready", result.status)
+        val result = DecimalNativeSupport.previewUnsignedTransfer(request)
+        val json = result.toString()
+        assertTrue(result.getBoolean("ok"))
+        assertEquals("preview_ready", result.getString("status"))
         assertTrue(json.contains("\"broadcasted\":false"))
-        assertTrue(json.contains("\"nativeSupport\":\"sendDELPreview\""))
-        assertTrue(json.contains("\"signedTx\""))
+        assertFalse(json.contains("\"signedTx\""))
+        assertTrue(json.contains("\"unsignedTx\""))
         assertFalse(json.contains(fixtureSeed))
     }
 

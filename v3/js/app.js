@@ -29,6 +29,42 @@
   const MINTER_LONG_POOL_URL = 'https://api-minter.mnst.club/v2/swap_pool/0/2782';
   const IMGUR_CLIENT_ID = '372d5f766d47d1d';
   const RECENT_ACCOUNT_LIMIT = 15;
+  const MONETARY_INPUT_PATTERN = '[0-9]+(?:[.,][0-9]+)?';
+  const FINANCIAL_PATTERN_INPUT_IDS = Object.freeze(['minter-swap-amount', 'minter-swap-min', 'decimal-convert-amount', 'decimal-convert-min']);
+  let routeRenderGeneration = 0;
+
+  async function awaitRouteTask(epoch, task) {
+    const assertCurrent = () => {
+      if (epoch !== routeRenderGeneration) {
+        const error = new Error('Route render cancelled');
+        error.code = 'DPOS_STALE_ROUTE';
+        throw error;
+      }
+    };
+    assertCurrent();
+    const result = await task();
+    assertCurrent();
+    return result;
+  }
+
+  function monetaryInputAttributes() {
+    return `inputmode="decimal" pattern="${MONETARY_INPUT_PATTERN}"`;
+  }
+
+  function walletDecimalParts(value, precision) {
+    const text = String(value ?? '').trim().replace(',', '.');
+    const match = text.match(/^(\d+)(?:\.(\d+))?$/);
+    if (!match) throw new Error('Сумма должна быть неотрицательным числом.');
+    const fraction = match[2] || '';
+    if (fraction.length > precision) throw new Error(`Сумма должна содержать не более ${precision} знаков после запятой.`);
+    return [match[1].replace(/^0+(?=\d)/, '') || '0', fraction];
+  }
+
+  function walletExactAsset(value, precision, symbol) {
+    const [whole, fraction] = walletDecimalParts(value, precision);
+    const amount = precision ? `${whole}.${fraction.padEnd(precision, '0')}` : whole;
+    return `${amount} ${String(symbol || '').trim().toUpperCase()}`.trim();
+  }
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -39,9 +75,25 @@
       .replaceAll("'", '&#039;');
   }
 
+  function sanitizeDiagnostic(value) {
+    return broadcast && typeof broadcast.sanitizeDiagnostic === 'function'
+      ? broadcast.sanitizeDiagnostic(value)
+      : value;
+  }
+
+  function diagnosticText(value) {
+    const sanitized = sanitizeDiagnostic(value);
+    return typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
+  }
+
+  function formatDiagnosticError(error) {
+    return diagnosticText(profiles.formatError(error));
+  }
+
   function setStatus(message, state) {
-    statusEl.textContent = message;
+    statusEl.textContent = state === 'error' ? diagnosticText(message) : message;
     statusEl.dataset.state = state || 'info';
+    if (global.DposDiagnostics) void global.DposDiagnostics.record(state === 'error' ? 'error' : 'info', 'ui.status', message);
   }
 
 
@@ -401,7 +453,7 @@
       <textarea id="editor-body" name="body" rows="12" required aria-describedby="editor-markdown-help editor-markdown-status">${body}</textarea>
       <p id="editor-markdown-help" class="muted">Markdown-редактор: кнопки форматируют выделенный текст, поле остаётся обычным textarea. Горячие клавиши: Ctrl+B, Ctrl+I, Ctrl+K. Изображение из буфера обмена можно вставить через Ctrl+V — оно загрузится в Imgur и добавится в место курсора.</p>
       <p id="editor-markdown-status" class="muted" role="status" aria-live="polite">Редактор Markdown готов.</p>
-      <div id="editor-preview" class="markdown-preview" hidden aria-live="polite"></div>
+      <div id="editor-preview" data-i18n-skip class="markdown-preview" hidden aria-live="polite"></div>
     </div>`;
   }
 
@@ -465,7 +517,7 @@
           setEditorStatus(fromClipboard ? `Изображение из буфера обмена загружено и вставлено в текст поста: ${link}` : `Фото загружено и вставлено в текст поста: ${link}`);
           if (!preview.hidden) updatePreview();
         } catch (error) {
-          setEditorStatus(`${fromClipboard ? 'Не удалось загрузить изображение из буфера обмена' : 'Не удалось загрузить фото'}: ${profiles.formatError(error)}`);
+          setEditorStatus(`${fromClipboard ? 'Не удалось загрузить изображение из буфера обмена' : 'Не удалось загрузить фото'}: ${formatDiagnosticError(error)}`);
         } finally {
           if (uploadButton) uploadButton.disabled = false;
           if (imageInput) imageInput.value = '';
@@ -545,7 +597,7 @@
     return state;
   }
 
-  const APP_SCOPED_HASH_PARAMS = ['longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants', 'pmMarket', 'pmStatus', 'pmCategory', 'pmTag', 'pmPage', 'pmRisky', 'pmAnchor'];
+  const APP_SCOPED_HASH_PARAMS = ['token', 'sellSymbol', 'buySymbol', 'longPage', 'long_page', 'date', 'coin', 'kind', 'value', 'ops', 'query', 'awardPage', 'searchPage', 'searchType', 'feed', 'author', 'permlink', 'parentAuthor', 'parentPermlink', 'block1', 'block2', 'participants', 'pmMarket', 'pmStatus', 'pmCategory', 'pmTag', 'pmPage', 'pmRisky', 'pmAnchor'];
 
   function navigate(nextState) {
     const current = parseHash();
@@ -582,6 +634,12 @@
     if (sharedScripts.has(src)) return sharedScripts.get(src);
     if (loadedScripts.has(src)) return Promise.resolve();
     const existing = document.querySelector && document.querySelector(`script[src="${src}"]`);
+    // The shell loads Golos SJCL synchronously before app.js. Its load event
+    // has already fired; waiting for it again would leave Golos routes pending.
+    if (existing && existing.dataset && src === (chains.golos && chains.golos.cryptoPath)
+      && global.sjcl && typeof global.sjcl.encrypt === 'function' && typeof global.sjcl.decrypt === 'function') {
+      existing.dataset.dposLoaded = 'true';
+    }
     if (existing && existing.dataset && existing.dataset.dposLoaded === 'true') {
       loadedScripts.add(src);
       const resolved = Promise.resolve();
@@ -750,15 +808,15 @@
       const type = auth.getUserType(user);
       const label = type && type !== 'standard' && type !== 'seed' ? `${login} (${type})` : login;
       const value = savedAccountValue(user);
-      return `<option value="${escapeHtml(value)}" ${value === currentValue ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option data-i18n-skip value="${escapeHtml(value)}" ${value === currentValue ? 'selected' : ''}>${escapeHtml(label)}</option>`;
     }).join('');
   }
 
-  function selectSavedAccount(chain, value) {
+  async function selectSavedAccount(chain, value) {
     const [type, ...loginParts] = String(value || '').split(':');
     const login = loginParts.join(':');
     if (!login) return '';
-    auth.selectUser(chain, login, type || 'standard');
+    await auth.selectUser(chain, login, type || 'standard');
     return login;
   }
 
@@ -783,8 +841,8 @@
     if (!rows || !rows.length) return '<li>Нет данных.</li>';
     return rows.map(([label, value]) => {
       const rendered = Array.isArray(value)
-        ? (value.length ? `<ul>${value.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '')
-        : (typeof value === 'object' && value !== null ? `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>` : escapeHtml(value));
+        ? (value.length ? `<ul>${value.map((item) => `<li data-i18n-skip>${escapeHtml(item)}</li>`).join('')}</ul>` : '')
+        : (typeof value === 'object' && value !== null ? `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>` : `<span data-i18n-skip>${escapeHtml(value)}</span>`);
       return `<li><strong>${escapeHtml(label)}:</strong> ${rendered}</li>`;
     }).join('');
   }
@@ -867,7 +925,7 @@
     return `
       <details>
         <summary>${escapeHtml(title)} (${items.length})</summary>
-        <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+        <ul>${items.map((item) => `<li data-i18n-skip>${escapeHtml(item)}</li>`).join('')}</ul>
       </details>`;
   }
 
@@ -887,19 +945,19 @@
     const cleanAuthor = String(author || '').trim().replace(/^@/, '');
     const cleanPermlink = String(permlink || '').trim();
     if (!cleanAuthor || !cleanPermlink) return '';
-    return `<a href="${escapeHtml(appHash({ chain: 'golos', app: 'post', author: cleanAuthor, permlink: cleanPermlink }))}">${escapeHtml(label || `@${cleanAuthor}/${cleanPermlink}`)}</a>`;
+    return `<a data-i18n-skip href="${escapeHtml(appHash({ chain: 'golos', app: 'post', author: cleanAuthor, permlink: cleanPermlink }))}">${escapeHtml(label || `@${cleanAuthor}/${cleanPermlink}`)}</a>`;
   }
 
   function renderGolosDonateMemoHtml(memo) {
     if (memo === undefined || memo === null || memo === '') return '';
-    if (typeof memo !== 'object') return escapeHtml(memo);
+    if (typeof memo !== 'object') return `<span data-i18n-skip>${escapeHtml(memo)}</span>`;
     const target = memo.target && typeof memo.target === 'object' ? memo.target : {};
     const rows = [];
     const postLink = golosPostRouteLink(target.author, target.permlink);
     if (postLink) rows.push(`<li><strong>Пост:</strong> ${postLink}</li>`);
-    if (target.type) rows.push(`<li><strong>Тип:</strong> ${escapeHtml(target.type === 'fee_donate' ? 'комиссия доната' : target.type)}</li>`);
-    if (memo.comment) rows.push(`<li><strong>Комментарий:</strong> ${escapeHtml(memo.comment)}</li>`);
-    if (memo.app) rows.push(`<li><strong>Приложение:</strong> ${escapeHtml(memo.app)}${memo.version ? ` v${escapeHtml(memo.version)}` : ''}</li>`);
+    if (target.type) rows.push(`<li><strong>Тип:</strong> ${target.type === 'fee_donate' ? 'комиссия доната' : `<span data-i18n-skip>${escapeHtml(target.type)}</span>`}</li>`);
+    if (memo.comment) rows.push(`<li><strong>Комментарий:</strong> <span data-i18n-skip>${escapeHtml(memo.comment)}</span></li>`);
+    if (memo.app) rows.push(`<li><strong>Приложение:</strong> <span data-i18n-skip>${escapeHtml(memo.app)}</span>${memo.version ? ` <span data-i18n-skip>v${escapeHtml(memo.version)}</span>` : ''}</li>`);
     if (!rows.length) return `<pre>${escapeHtml(JSON.stringify(memo, null, 2))}</pre>`;
     return `<ul class="compact-list">${rows.join('')}</ul>`;
   }
@@ -932,7 +990,7 @@
   function accountLink(chain, account) {
     const value = String(account || '').trim().replace(/^@/, '');
     if (!value) return '';
-    return `<a href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: value }))}">${chain.id === 'minter' || chain.id === 'decimal' ? escapeHtml(value) : `@${escapeHtml(value)}`}</a>`;
+    return `<a data-i18n-skip href="${escapeHtml(appHash({ chain: chain.id, app: 'profiles', account: value }))}">${chain.id === 'minter' || chain.id === 'decimal' ? escapeHtml(value) : `@${escapeHtml(value)}`}</a>`;
   }
 
   function getPathValue(item, paths) {
@@ -1025,7 +1083,7 @@
     const summary = summarizeMinterMultisend(rowOrTx);
     if (!summary.count) return '';
     const totals = formatMinterMultisendTotals(summary);
-    return `<p><strong>Всего:</strong> ${escapeHtml(totals)}. <strong>Получателей:</strong> ${escapeHtml(summary.count)}</p><ol>${summary.entries.map((entry) => `<li>${renderAccountCell(chain, entry.to)} — ${escapeHtml(entry.value)} ${escapeHtml(entry.coin)}</li>`).join('')}</ol>`;
+    return `<p><strong>Всего:</strong> <span data-i18n-skip>${escapeHtml(totals)}</span>. <strong>Получателей:</strong> <span data-i18n-skip>${escapeHtml(summary.count)}</span></p><ol>${summary.entries.map((entry) => `<li>${renderAccountCell(chain, entry.to)} — <span data-i18n-skip>${escapeHtml(entry.value)} ${escapeHtml(entry.coin)}</span></li>`).join('')}</ol>`;
   }
 
   function renderTransactionDetailsHtml(row, chain) {
@@ -1033,16 +1091,16 @@
     if (chain && chain.id === 'minter' && Number(row.type) === 13) return renderMinterMultisendDetailsHtml(chain, row);
     const details = row.memo || transactionDetails(row);
     if (details === undefined || details === null || details === '') return '';
-    if (typeof details === 'object') return `<pre>${escapeHtml(JSON.stringify(details, null, 2))}</pre>`;
-    return escapeHtml(details);
+    if (typeof details === 'object') return `<pre data-i18n-skip>${escapeHtml(JSON.stringify(details, null, 2))}</pre>`;
+    return `<span data-i18n-skip>${escapeHtml(details)}</span>`;
   }
 
   function renderAccountCell(chain, value) {
     const text = String(value || '').trim();
     if (!text) return '';
-    if (chain.id === 'minter') return /^Mx[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : escapeHtml(text);
-    if (chain.id === 'decimal') return (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text) || /^d0[0-9a-z]{39}$/.test(text)) ? accountLink(chain, text) : escapeHtml(text);
-    return /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/i.test(text) ? accountLink(chain, text) : escapeHtml(text);
+    if (chain.id === 'minter') return /^Mx[0-9a-fA-F]{40}$/.test(text) ? accountLink(chain, text) : `<span data-i18n-skip>${escapeHtml(text)}</span>`;
+    if (chain.id === 'decimal') return (/^(dx|0x)[0-9a-fA-F]{40}$/.test(text) || /^d0[0-9a-z]{39}$/.test(text)) ? accountLink(chain, text) : `<span data-i18n-skip>${escapeHtml(text)}</span>`;
+    return /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/i.test(text) ? accountLink(chain, text) : `<span data-i18n-skip>${escapeHtml(text)}</span>`;
   }
 
   function renderTransactionsTable(items, chain, options = {}) {
@@ -1077,7 +1135,7 @@
               <td><code>${escapeHtml(row.type)}</code><br><span class="muted">${escapeHtml(history.operationTitle(row.type))}</span></td>
               <td>${renderAccountCell(chain, row.from)}</td>
               <td>${multisend && multisend.count ? escapeHtml(recipient) : recipient}</td>
-              <td>${escapeHtml(amount)}</td>
+              <td data-i18n-skip>${escapeHtml(amount)}</td>
               <td class="longtext">${detailsHtml}</td>
               <td>${row.block ? explorerLink(chain, 'block', row.block, String(row.block)) : ''}</td>
               <td>${row.trxId ? explorerLink(chain, 'tx', row.trxId, String(row.trxId).slice(0, 12)) : ''}</td>
@@ -1103,7 +1161,7 @@
       if (label === 'twitter' && !/^https?:\/\//i.test(text)) href = `https://x.com/${text.replace(/^@/, '')}`;
       if (label === 'github' && !/^https?:\/\//i.test(text)) href = `https://github.com/${text.replace(/^@/, '')}`;
       const linked = /^https?:\/\//i.test(href) ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
-      return `<li><strong>${escapeHtml(label)}:</strong> ${linked}</li>`;
+      return `<li><strong>${escapeHtml(label)}:</strong> <span data-i18n-skip>${linked}</span></li>`;
     }).join('');
     return `<details open><summary>Социальные ссылки из metadata</summary><ul>${links}</ul></details>`;
   }
@@ -1354,7 +1412,7 @@
         await navigator.clipboard.writeText(nonce);
         status.textContent = 'Nonce скопирован в буфер обмена.';
       } catch (error) {
-        status.textContent = `Не удалось скопировать nonce автоматически: ${error && error.message ? error.message : error}`;
+        status.textContent = `Не удалось скопировать nonce автоматически: ${formatDiagnosticError(error)}`;
       }
     });
   }
@@ -1376,7 +1434,7 @@
           ? entries.map(([coin, amount]) => `<li>${escapeHtml(Number(amount).toFixed(5))} ${escapeHtml(coin)}</li>`).join('')
           : '<li>Rewards за выбранный период не найдены.</li>';
       } catch (error) {
-        result.innerHTML = `<li>Не удалось загрузить rewards: ${escapeHtml(error && error.message ? error.message : error)}</li>`;
+        result.innerHTML = `<li>Не удалось загрузить rewards: ${escapeHtml(formatDiagnosticError(error))}</li>`;
       }
     });
   }
@@ -1389,18 +1447,18 @@
 
     appEl.innerHTML = `
       <section class="panel">
-        <h2>${escapeHtml(profile.chain)}: ${profile.chainId === 'minter' || profile.chainId === 'decimal' ? escapeHtml(profile.name) : `@${escapeHtml(profile.name)}`}</h2>
+        <h2 data-i18n-skip>${escapeHtml(profile.chain)}: ${profile.chainId === 'minter' || profile.chainId === 'decimal' ? escapeHtml(profile.name) : `@${escapeHtml(profile.name)}`}</h2>
         <p><strong>Нода/API:</strong> ${escapeHtml(profile.node)}</p>
         <article class="card">
           <h3>Кратко</h3>
           <ul>
-            ${showDisplayName ? `<li><strong>Отображаемое имя:</strong> ${escapeHtml(profile.displayName)}</li>` : ''}
-            ${profile.about ? `<li><strong>О себе:</strong> ${escapeHtml(profile.about)}</li>` : ''}
-            ${profile.location ? `<li><strong>Локация:</strong> ${escapeHtml(profile.location)}</li>` : ''}
-            ${profile.website ? `<li><strong>Сайт:</strong> <a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener">${escapeHtml(profile.website)}</a></li>` : ''}
+            ${showDisplayName ? `<li><strong>Отображаемое имя:</strong> <span data-i18n-skip>${escapeHtml(profile.displayName)}</span></li>` : ''}
+            ${profile.about ? `<li><strong>О себе:</strong> <span data-i18n-skip>${escapeHtml(profile.about)}</span></li>` : ''}
+            ${profile.location ? `<li><strong>Локация:</strong> <span data-i18n-skip>${escapeHtml(profile.location)}</span></li>` : ''}
+            ${profile.website ? `<li><strong>Сайт:</strong> <a data-i18n-skip href="${escapeHtml(profile.website)}" target="_blank" rel="noopener">${escapeHtml(profile.website)}</a></li>` : ''}
             ${profile.created ? `<li><strong>Создан:</strong> ${escapeHtml(profile.created)}</li>` : ''}
             ${profile.lastVoteTime ? `<li><strong>Последнее голосование/награда:</strong> ${escapeHtml(profile.lastVoteTime)}</li>` : ''}
-            ${profile.proxy ? `<li><strong>Прокси:</strong> ${escapeHtml(profile.proxy)}</li>` : ''}
+            ${profile.proxy ? `<li><strong>Прокси:</strong> <span data-i18n-skip>${escapeHtml(profile.proxy)}</span></li>` : ''}
           </ul>
         </article>
         ${renderProfileMedia(profile)}
@@ -1512,7 +1570,7 @@
   }
 
   function amountFromBalance(raw) {
-    const match = String(raw || '').match(/\d+(?:\.\d+)?\s+[A-Z]+/);
+    const match = String(raw || '').match(/\d+(?:\.\d+)?/);
     return match ? match[0] : '';
   }
 
@@ -1613,7 +1671,7 @@
       }
       return parseGolosUiaBalanceRows(await callGolosBalancesRpc(connection, account), account);
     } catch (error) {
-      return [['UIA балансы', `Не удалось загрузить UIA balances: ${profiles.formatError(error)}`, { kind: 'uia-status' }]];
+      return [['UIA балансы', `Не удалось загрузить UIA balances: ${formatDiagnosticError(error)}`, { kind: 'uia-status' }]];
     }
   }
 
@@ -1804,14 +1862,112 @@
         if (button.dataset.fillSelected) {
           const select = root.querySelector(`#${button.dataset.fillSelected}`);
           const option = select && select.selectedOptions && select.selectedOptions[0];
-          target.value = option && option.dataset.max ? amountFromBalance(option.dataset.max) : '';
+          const raw = option && option.dataset.max ? option.dataset.max : '';
+          target.value = amountFromBalance(raw);
+          target.dataset.walletAssetSymbol = (String(raw).match(/\s([A-Z][A-Z0-9.]*)\s*$/) || [])[1] || '';
+          const assetSelect = target.parentElement && target.parentElement.querySelector('[data-wallet-asset-select]');
+          if (assetSelect && target.dataset.walletAssetSymbol) assetSelect.value = target.dataset.walletAssetSymbol;
           target.focus();
           return;
         }
-        target.value = button.dataset.fillValue || '';
+        const raw = button.dataset.fillValue || '';
+        target.value = target.type === 'number' ? (amountFromBalance(raw) || raw) : raw;
+        target.dataset.walletAssetSymbol = (String(raw).match(/\s([A-Z][A-Z0-9.]*)\s*$/) || [])[1] || '';
+        const assetSelect = target.parentElement && target.parentElement.querySelector('[data-wallet-asset-select]');
+        if (assetSelect && target.dataset.walletAssetSymbol) assetSelect.value = target.dataset.walletAssetSymbol;
         target.focus();
       });
     });
+  }
+
+  function walletMonetaryPrecision(chain, input) {
+    if (/request-id|interest|decimals|crr/i.test(input.id || '')) return null;
+    if (/nft-amount/i.test(input.id || '')) return 0;
+    if (/^(vesting|shares|power)$/.test(input.name || '')) return 6;
+    if (chain.id === 'minter' || chain.id === 'decimal') return 18;
+    return 3;
+  }
+
+  function enhanceWalletForms(chain, root, authorizedRecipient) {
+    if (!root) return;
+    const recipient = String(authorizedRecipient || '').trim().replace(/^@/, '');
+    root.querySelectorAll('.operation-modal-source form input:not([type="hidden"])').forEach((input) => {
+      const recipientField = /^(to|delegatee|receiver|newOwner)$/.test(input.name || '')
+        && !/(swap|convert|liquidity)-(from|to)|coin[01]?$/i.test(input.id || '');
+      if (recipientField && !input.parentElement.querySelector('[data-wallet-fill-me]')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Мне';
+        button.dataset.walletFillMe = input.id || input.name;
+        if (!recipient || input.id === 'minter-hub-to') {
+          button.disabled = true;
+          const help = document.createElement('small');
+          help.textContent = input.id === 'minter-hub-to' ? 'Укажите свой адрес в сети назначения: адрес Minter сюда не подходит.' : 'Выберите и разблокируйте свой аккаунт для подстановки адреса.';
+          input.insertAdjacentElement('afterend', help);
+        }
+        button.addEventListener('click', () => { input.value = recipient; input.focus(); });
+        input.insertAdjacentElement('afterend', button);
+      }
+
+      if (!/^(amount|vesting|liquid|debt|hubFee|min|minAmount|volume0|volume1|max|reserve|initSupply|maxSupply|stake|value|fee|quantity|price)$/.test(input.name || '')) return;
+      const precision = walletMonetaryPrecision(chain, input);
+      if (precision === null) return;
+      input.value = amountFromBalance(input.value) || input.value;
+      input.placeholder = amountFromBalance(input.placeholder);
+      const label = input.parentElement.querySelector('label');
+      if (label) label.textContent = label.textContent.replace('Сумма с символом', 'Сумма');
+      input.type = 'number';
+      input.min = '0';
+      input.step = precision === 0 ? '1' : `0.${'0'.repeat(Math.max(0, precision - 1))}1`;
+      input.inputMode = 'decimal';
+      input.dataset.walletPrecision = String(precision);
+      if (chain.debtSymbol && input.name === 'amount' && /wallet-(transfer|savings)/.test(input.id || '')) {
+        const select = document.createElement('select');
+        select.dataset.walletAssetSelect = input.id || input.name;
+        select.setAttribute('aria-label', 'Токен суммы');
+        [chain.liquidSymbol, chain.debtSymbol].filter(Boolean).forEach((symbol) => {
+          const option = document.createElement('option');
+          option.value = symbol;
+          option.textContent = symbol;
+          select.appendChild(option);
+        });
+        input.dataset.walletAssetSymbol = chain.liquidSymbol;
+        select.addEventListener('change', () => { input.dataset.walletAssetSymbol = select.value; });
+        input.insertAdjacentElement('beforebegin', select);
+      }
+    });
+
+    if (chain.id === 'golos') {
+      root.querySelectorAll('select[name="token"], #wallet-golos-uia-withdraw-way').forEach((select) => {
+        const sync = () => {
+          const option = select.selectedOptions && select.selectedOptions[0];
+          const form = select.closest('form');
+          const input = form && form.querySelector('input[name="amount"]');
+          if (!input) return;
+          delete input.dataset.walletAssetSymbol;
+          const max = option && option.dataset.max || '';
+          const fraction = (String(max).match(/\.(\d+)/) || [])[1];
+          const precision = fraction ? fraction.length : (/^\d+\s+[A-Z]/.test(max) ? 0 : 3);
+          input.step = precision ? `0.${'0'.repeat(precision - 1)}1` : '1';
+          input.dataset.walletPrecision = String(precision);
+        };
+        select.addEventListener('change', sync);
+        sync();
+      });
+    }
+    if (chain.id === 'decimal') {
+      const decimals = root.querySelector('#decimal-convert-from-decimals');
+      const amount = root.querySelector('#decimal-convert-amount');
+      if (decimals && amount) {
+        const sync = () => {
+          const precision = Math.max(0, Math.min(36, Number(decimals.value) || 0));
+          amount.step = precision ? `0.${'0'.repeat(precision - 1)}1` : '1';
+          amount.dataset.walletPrecision = String(precision);
+        };
+        decimals.addEventListener('input', sync);
+        sync();
+      }
+    }
   }
 
   function walletQuickActionButton(label, formId, fills) {
@@ -1835,7 +1991,10 @@
           const id = key.slice('walletFill'.length).replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).replace(/^-/, '');
           const field = root.querySelector(`#${id}`);
           if (!field) return;
-          field.value = value;
+          field.value = amountFromBalance(value) || value;
+          field.dataset.walletAssetSymbol = (String(value).match(/\s([A-Z][A-Z0-9.]*)\s*$/) || [])[1] || '';
+          const assetSelect = field.parentElement && field.parentElement.querySelector('[data-wallet-asset-select]');
+          if (assetSelect && field.dataset.walletAssetSymbol) assetSelect.value = field.dataset.walletAssetSymbol;
           if (!target) target = field;
         });
         if (!target) target = form.querySelector('input:not([type="hidden"]), textarea, select, button[type="submit"]');
@@ -1877,7 +2036,14 @@
   }
 
   function normalizeAssetInput(chain, value, symbols, label) {
-    return broadcast.validateAsset(chain, value, symbols, label);
+    const allowed = (Array.isArray(symbols) ? symbols : [symbols]).filter(Boolean).map((item) => String(item).toUpperCase());
+    const text = String(value || '').trim().replace(',', '.');
+    const match = text.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z0-9.]+)?$/);
+    if (!match) throw new Error(`${label || 'Сумма'}: введите неотрицательное число.`);
+    const symbol = String(match[2] || allowed[0] || '').toUpperCase();
+    if (!allowed.includes(symbol)) throw new Error(`${label || 'Сумма'}: допустимый токен ${allowed.join(' или ')}.`);
+    const precision = symbol === String(chain.vestingSymbol || '').toUpperCase() ? 6 : 3;
+    return walletExactAsset(match[1], precision, symbol);
   }
 
   function normalizeHumanAssetInput(chain, value, symbol, label, options) {
@@ -1888,11 +2054,16 @@
     if (!/^\d+(?:\.\d{1,18})?$/.test(withoutSymbol)) {
       throw new Error(`${label || 'Сумма'}: введите число${assetSymbol ? `, например 100000 или 100000.000000 ${assetSymbol}` : ''}.`);
     }
-    const number = Number(withoutSymbol);
-    if (!Number.isFinite(number) || number < 0 || (!settings.allowZero && number === 0)) {
+    const parts = withoutSymbol.match(/^(\d+)(?:\.(\d+))?$/);
+    const whole = parts[1].replace(/^0+(?=\d)/, '') || '0';
+    const fraction = parts[2] || '';
+    if (fraction.length > settings.decimals) throw new Error(`${label || 'Сумма'}: не более ${settings.decimals} знаков после запятой.`);
+    const isZero = /^0+$/.test(whole) && (!fraction || /^0+$/.test(fraction));
+    if (!settings.allowZero && isZero) {
       throw new Error(`${label || 'Сумма'}: нужно ${settings.allowZero ? 'неотрицательное' : 'положительное'} число.`);
     }
-    return `${number.toFixed(settings.decimals)} ${assetSymbol}`;
+    const amount = settings.decimals ? `${whole}.${fraction.padEnd(settings.decimals, '0')}` : whole;
+    return `${amount} ${assetSymbol}`;
   }
 
   function normalizeVizSharingRatePercent(value) {
@@ -1958,11 +2129,11 @@
   async function normalizeGolosTokenAmount(chain, amount, symbol, label) {
     const token = normalizeGolosTokenSymbol(symbol, 'Токен');
     const text = String(amount || '').trim().replace(',', '.').replace(new RegExp(`\\s${token}$`, 'i'), '');
-    if (!/^\d+(?:\.\d+)?$/.test(text) || Number(text) <= 0) {
+    if (!/^\d+(?:\.\d+)?$/.test(text) || /^0+(?:\.0+)?$/.test(text)) {
       throw new Error(`${label || 'Сумма'}: нужно положительное число.`);
     }
     const precision = await fetchGolosAssetPrecision(chain, token);
-    return `${Number(text).toFixed(precision)} ${token}`;
+    return walletExactAsset(text, precision, token);
   }
 
   async function encodeGolosMemoIfNeeded(chain, to, memo, privateKey) {
@@ -2125,6 +2296,61 @@
     return client.auth.getPrivateKeys(account, seed, ['master', 'active', 'regular', 'memo']);
   }
 
+  function validateVizResetPublicKey(value, label) {
+    const client = global.viz;
+    const publicKey = typeof value === 'string' ? value.trim() : '';
+    if (!client || !client.auth || typeof client.auth.isPubkey !== 'function') {
+      throw new Error('viz.auth.isPubkey недоступен: публичные ключи сброса нельзя проверить безопасно.');
+    }
+    let valid = false;
+    try { valid = Boolean(publicKey && client.auth.isPubkey(publicKey)); } catch (error) { valid = false; }
+    if (!valid) throw new Error(`${label} публичный ключ VIZ некорректен.`);
+    return publicKey;
+  }
+
+  function vizFullKeyResetRevision(accountRecord) {
+    return JSON.stringify([
+      accountRecord && accountRecord.name,
+      accountRecord && (accountRecord.master_authority || accountRecord.master),
+      accountRecord && (accountRecord.active_authority || accountRecord.active),
+      accountRecord && (accountRecord.regular_authority || accountRecord.regular),
+      accountRecord && accountRecord.memo_key,
+      accountRecord && accountRecord.json_metadata
+    ]);
+  }
+
+  function buildVizFullKeyReset(accountRecord, account, keys) {
+    if (!accountRecord || accountRecord.name !== account) throw new Error('Не удалось подтвердить аккаунт для сброса ключей.');
+    if (!(accountRecord.master_authority || accountRecord.master) || !(accountRecord.active_authority || accountRecord.active) || !(accountRecord.regular_authority || accountRecord.regular)) {
+      throw new Error('Не удалось загрузить текущие master, active и regular authority; сброс ключей остановлен.');
+    }
+    if (typeof accountRecord.memo_key !== 'string' || typeof accountRecord.json_metadata !== 'string') {
+      throw new Error('Не удалось загрузить точные memo key и json_metadata; сброс ключей остановлен.');
+    }
+    const masterPubkey = validateVizResetPublicKey(keys && keys.masterPubkey, 'Master');
+    const activePubkey = validateVizResetPublicKey(keys && keys.activePubkey, 'Active');
+    const regularPubkey = validateVizResetPublicKey(keys && keys.regularPubkey, 'Regular');
+    const memoPubkey = validateVizResetPublicKey(keys && keys.memoPubkey, 'Memo');
+    return {
+      args: [
+        account,
+        { weight_threshold: 1, account_auths: [], key_auths: [[masterPubkey, 1]] },
+        { weight_threshold: 1, account_auths: [], key_auths: [[activePubkey, 1]] },
+        { weight_threshold: 1, account_auths: [], key_auths: [[regularPubkey, 1]] },
+        memoPubkey,
+        accountRecord.json_metadata
+      ],
+      expectedRevision: vizFullKeyResetRevision(accountRecord)
+    };
+  }
+
+  function assertVizFullKeyResetCurrent(expectedRevision, accountRecord, account) {
+    if (!accountRecord || accountRecord.name !== account) throw new Error('Аккаунт для сброса изменился после подготовки. Обновите предварительную проверку.');
+    if (typeof accountRecord.json_metadata !== 'string' || vizFullKeyResetRevision(accountRecord) !== expectedRevision) {
+      throw new Error('Права, memo key или metadata изменились после подготовки. Обновите предварительную проверку.');
+    }
+  }
+
   function generateGolosResetKeys(account) {
     const client = global.golos;
     if (!client || !client.auth || typeof client.auth.getPrivateKeys !== 'function') {
@@ -2159,10 +2385,116 @@
         const parts = line.split(/[:=\s]+/).filter(Boolean);
         if (parts.length < 2) throw new Error(`Account auth должен быть в формате account=weight: ${line}`);
         const account = parts[0].replace(/^@/, '');
-        const weight = Number.parseInt(parts[1], 10);
+        const weight = Number(parts[1]);
         if (!account || !Number.isFinite(weight) || weight <= 0) throw new Error(`Некорректный account auth: ${line}`);
         return [account, weight];
       });
+  }
+
+  function formatVizAuthority(authority) {
+    const value = authority || {};
+    const accountAuths = (Array.isArray(value.account_auths) ? value.account_auths : []).map((item) => `@${item[0]}: ${item[1]}`);
+    const keyAuths = (Array.isArray(value.key_auths) ? value.key_auths : []).map((item) => `${item[0]}: ${item[1]}`);
+    return `порог ${Number(value.weight_threshold) || 0}; account_auths: ${accountAuths.join(', ') || 'нет'}; key_auths: ${keyAuths.join(', ') || 'нет'}`;
+  }
+
+  function buildVizAuthorityUpdate(accountRecord, kind, threshold, accountAuths) {
+    const selectedKind = kind === 'active' ? 'active' : 'regular';
+    const active = authorityObjectFor({ id: 'viz' }, accountRecord, 'active');
+    const regular = authorityObjectFor({ id: 'viz' }, accountRecord, 'regular');
+    if (!active || !regular) throw new Error('Не удалось загрузить текущие active и regular authority; изменение остановлено.');
+    if (!accountRecord || typeof accountRecord.memo_key !== 'string' || typeof accountRecord.json_metadata !== 'string') {
+      throw new Error('Не удалось загрузить memo key и metadata; изменение остановлено.');
+    }
+    const nextThreshold = Number(threshold);
+    if (!Number.isInteger(nextThreshold) || nextThreshold < 1 || nextThreshold > 4294967295) throw new Error('Некорректный порог authority.');
+    const nextAccountAuths = Array.isArray(accountAuths) ? accountAuths.map((item) => [item[0], Number(item[1])]) : [];
+    const names = new Set();
+    for (const [name, weight] of nextAccountAuths) {
+      if (!Number.isInteger(weight) || weight < 1 || weight > 65535) throw new Error('Вес account auth должен быть целым от 1 до 65535.');
+      if (names.has(name)) throw new Error('Повторяющиеся account auth недопустимы.');
+      names.add(name);
+    }
+    const availableWeight = nextAccountAuths.reduce((sum, item) => sum + (Number.isFinite(item[1]) && item[1] > 0 ? item[1] : 0), 0);
+    if (!nextAccountAuths.length) throw new Error('Добавьте хотя бы один account auth для multisig.');
+    if (availableWeight < nextThreshold) throw new Error(`Суммарный вес ${availableWeight} меньше порога ${nextThreshold}; authority будет недостижим.`);
+    const before = selectedKind === 'active' ? active : regular;
+    const replacement = { weight_threshold: nextThreshold, account_auths: nextAccountAuths, key_auths: [] };
+    return {
+      active: selectedKind === 'active' ? replacement : undefined,
+      regular: selectedKind === 'regular' ? replacement : undefined,
+      memoKey: accountRecord.memo_key,
+      jsonMetadata: accountRecord.json_metadata,
+      diff: `${selectedKind} authority — До: ${formatVizAuthority(before)}. После: ${formatVizAuthority(replacement)}.`
+    };
+  }
+
+  const vizInviteBatches = new Map();
+  function getVizInviteBatchState(account) {
+    if (!vizInviteBatches.has(account)) vizInviteBatches.set(account, createVizInviteBatchState());
+    return vizInviteBatches.get(account);
+  }
+  global.addEventListener('beforeunload', event => {
+    if (Array.from(vizInviteBatches.values()).some(hasUnbackedVizInvites)) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+  global.addEventListener('dpos-vault-lock', () => vizInviteBatches.clear());
+
+  function createVizInviteBatchState() {
+    return { invites: [], batchId: 0, backedUpBatchId: null, count: 0, amount: '' };
+  }
+
+  function hasUnbackedVizInvites(state) {
+    return Boolean(state && state.invites.length && state.backedUpBatchId !== state.batchId);
+  }
+
+  function downloadVizInviteBatch(state, download) {
+    if (!state || !state.invites.length) throw new Error('Сначала сгенерируйте invite secrets.');
+    download(state.invites.map(item => item.secret).join('\r\n'));
+  }
+
+  function resetVizInviteBatch(state) {
+    if (hasUnbackedVizInvites(state)) throw new Error('Сначала сохраните backup текущей партии и подтвердите сохранение.');
+    state.invites = [];
+    state.backedUpBatchId = null;
+    state.count = 0;
+    state.amount = '';
+  }
+
+  function generateVizInviteBatch(state, details, generateSecret, publicFromSecret) {
+    if (hasUnbackedVizInvites(state)) throw new Error('Сначала сохраните backup текущей партии и подтвердите сохранение.');
+    const size = Math.max(1, Math.min(50, Math.trunc(Number(details && details.count) || 1)));
+    state.batchId += 1;
+    state.backedUpBatchId = null;
+    state.count = size;
+    state.amount = String(details && details.amount || '');
+    state.invites = Array.from({ length: size }, () => {
+      const secret = generateSecret();
+      return { secret, publicKey: publicFromSecret(secret) };
+    });
+    return state.invites;
+  }
+
+  function acknowledgeVizInviteBatchBackup(state) {
+    if (!state || !Array.isArray(state.invites) || !state.invites.length) throw new Error('Сначала сгенерируйте invite secrets.');
+    state.backedUpBatchId = state.batchId;
+    return state.invites.map((item) => item.secret);
+  }
+
+  function buildVizCreateInviteOperations(state, details) {
+    const count = Math.max(1, Math.min(50, Math.trunc(Number(details && details.count) || 1)));
+    const amount = String(details && details.amount || '');
+    if (!state || !Array.isArray(state.invites) || state.invites.length !== count || state.count !== count || state.amount !== amount) {
+      throw new Error('Сначала сгенерируйте именно эту партию invite secrets.');
+    }
+    if (state.backedUpBatchId !== state.batchId) throw new Error('Скачайте и подтвердите backup именно этой партии invite secrets перед отправкой.');
+    return state.invites.map((item) => ['create_invite', {
+      creator: details.account,
+      balance: details.amount,
+      invite_key: item.publicKey
+    }]);
   }
 
   function parseSignedTransactionJson(value) {
@@ -2300,7 +2632,7 @@
       fillFormValue(form, 'select_tags', tags);
       if (result) result.textContent = 'Текущий профиль загружен из json_metadata. При отправке v3 сохранит остальные поля metadata.';
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2341,7 +2673,7 @@
         if (hint && !keys.length) hint.textContent = chain.id === 'viz' ? 'Текущий ключ — null-key остановленного валидатора; сохранённого ключа активации пока нет.' : 'Текущий ключ — null-key остановленного делегата; сохранённого ключа активации пока нет.';
       }
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2380,7 +2712,7 @@
         });
       });
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2423,7 +2755,7 @@
       bindButtons(historyList);
       if (result) result.textContent = 'Worker requests загружены: активные заявки отдельно от истории.';
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2447,7 +2779,7 @@
       const back = document.getElementById('manage-worker-detail-back');
       if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
     } catch (error) {
-      page.innerHTML = `<p class="error">${escapeHtml(profiles.formatError(error))}</p><button type="button" id="manage-worker-detail-back">← Вернуться к управлению</button>`;
+      page.innerHTML = `<p class="error">${escapeHtml(formatDiagnosticError(error))}</p><button type="button" id="manage-worker-detail-back">← Вернуться к управлению</button>`;
       const back = document.getElementById('manage-worker-detail-back');
       if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
     }
@@ -2490,7 +2822,7 @@
       bindButtons(activeList);
       bindButtons(historyList);
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2510,7 +2842,7 @@
       const back = document.getElementById('viz-committee-detail-back');
       if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
     } catch (error) {
-      page.innerHTML = `<p class="error">${escapeHtml(profiles.formatError(error))}</p><button type="button" id="viz-committee-detail-back">← Вернуться к управлению</button>`;
+      page.innerHTML = `<p class="error">${escapeHtml(formatDiagnosticError(error))}</p><button type="button" id="viz-committee-detail-back">← Вернуться к управлению</button>`;
       const back = document.getElementById('viz-committee-detail-back');
       if (back) back.addEventListener('click', () => { page.hidden = true; page.innerHTML = ''; });
     }
@@ -2725,7 +3057,7 @@
       const proxyNotice = state.proxy ? `<p class="notice">У аккаунта установлен proxy <strong>${escapeHtml(state.proxy)}</strong>. Ручное ${chain.id === 'viz' ? 'голосование за валидаторов' : 'witness voting'} конфликтует с proxy; сначала снимите proxy, если нужно голосовать вручную.</p>` : '';
       result.innerHTML = `${proxyNotice}<fieldset><legend>${chain.id === 'viz' ? 'Валидаторы' : 'Делегаты'}</legend><div class="witness-choice-grid">${witnesses.map((row) => renderWitnessChoice(chain, row, state)).join('')}</div></fieldset>`;
     } catch (error) {
-      if (result) result.textContent = profiles.formatError(error);
+      if (result) result.textContent = formatDiagnosticError(error);
     }
   }
 
@@ -2890,47 +3222,89 @@
     }, 2500);
   }
 
-  function bindOperationForm(chain, formId, buildPrepared) {
+  const activeOperationForms = new WeakMap();
+
+  function walletOperationFormData(form) {
+    const data = new FormData(form);
+    form.querySelectorAll('input[data-wallet-asset-symbol]').forEach((input) => {
+      const symbol = String(input.dataset.walletAssetSymbol || '').trim();
+      if (input.name && input.value && symbol) data.set(input.name, `${input.value} ${symbol}`);
+    });
+    return data;
+  }
+
+  function createOperationSubmitHandler(options) {
+    const form = options.form;
+    return async function submitOperation(event) {
+      event.preventDefault();
+      if (activeOperationForms.has(form)) return null;
+      const runToken = {};
+      activeOperationForms.set(form, runToken);
+      const buttons = Array.from(form.querySelectorAll('button[type="submit"]'));
+      buttons.forEach((button) => { button.disabled = true; });
+      const submitter = event.submitter;
+      const intent = submitter && submitter.value === 'send' ? 'send' : 'preview';
+      const snapshot = options.makeFormData(form);
+      try {
+        await options.loadDependencies();
+        const prepared = await options.buildPrepared(snapshot, { intent, submitter, form });
+        if (intent === 'preview') {
+          const result = await options.broadcast(options.chain, prepared, { dryRun: true });
+          options.setResult(form, result.message, 'ok', prepared);
+          return result;
+        }
+        const confirmed = options.confirm(`Отправить реальную транзакцию?\n${options.summary(prepared)}\nПроверьте получателя, сумму и memo перед отправкой.`);
+        if (!confirmed) {
+          options.setResult(form, 'Отправка отменена пользователем. Данные операции показаны ниже.', 'info', prepared);
+          return null;
+        }
+        options.setResult(form, 'Подключаю публичную ноду для broadcast...', 'loading', prepared);
+        await options.connect(options.chain);
+        if (typeof prepared.beforeBroadcast === 'function') await prepared.beforeBroadcast();
+        options.setResult(form, 'Отправляю транзакцию в сеть...', 'loading', prepared);
+        const hashAtSend = options.getHash();
+        const result = await options.broadcast(options.chain, prepared, { dryRun: false, confirmExecute: true });
+        options.setResult(form, 'Транзакция отправлена. Обновляю балансы и историю...', 'ok', prepared, result);
+        options.refresh(hashAtSend);
+        return result;
+      } catch (error) {
+        options.setResult(form, options.formatError(error), 'error');
+        return null;
+      } finally {
+        if (activeOperationForms.get(form) === runToken) {
+          activeOperationForms.delete(form);
+          buttons.forEach((button) => { button.disabled = false; });
+        }
+      }
+    };
+  }
+
+  function bindOperationForm(chain, formId, buildPrepared, feedback) {
     const form = document.getElementById(formId);
     if (!form) return;
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try {
+    const handler = createOperationSubmitHandler({
+      chain,
+      form,
+      makeFormData: walletOperationFormData,
+      loadDependencies: async () => {
         await loadScript(chain.cryptoPath);
         await loadScript(chain.walletPath);
         await loadScript(chain.libraryPath);
-        const submitter = event.submitter;
-        const intent = submitter && submitter.value === 'send' ? 'send' : 'preview';
-        const prepared = await buildPrepared(new FormData(form), { intent, submitter, form });
-
-        if (intent === 'preview') {
-          const result = await broadcast.broadcast(chain, prepared, { dryRun: true });
-          setOperationResult(form, result.message, 'ok', prepared);
-          return;
-        }
-
-        const confirmed = global.confirm(`Отправить реальную транзакцию?\n${operationSummary(prepared)}\nПроверьте получателя, сумму и memo перед отправкой.`);
-        if (!confirmed) {
-          setOperationResult(form, 'Отправка отменена пользователем. Данные операции показаны ниже.', 'info', prepared);
-          return;
-        }
-
-        if (submitter) submitter.disabled = true;
-        setOperationResult(form, 'Подключаю публичную ноду для broadcast...', 'loading', prepared);
-        await profiles.connect(chain);
-        setOperationResult(form, 'Отправляю транзакцию в сеть...', 'loading', prepared);
-        const hashAtSend = global.location.hash;
-        const result = await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: true });
-        setOperationResult(form, 'Транзакция отправлена. Обновляю балансы и историю...', 'ok', prepared, result);
-        refreshRouteAfterBroadcast(hashAtSend);
-      } catch (error) {
-        setOperationResult(form, profiles.formatError(error), 'error');
-      } finally {
-        const buttons = form.querySelectorAll('button[type="submit"]');
-        buttons.forEach((button) => { button.disabled = false; });
-      }
+      },
+      buildPrepared,
+      broadcast: (targetChain, prepared, settings) => feedback
+        ? feedback.broadcast((c, p, s) => broadcast.broadcast(c, p, s), targetChain, prepared, settings)
+        : broadcast.broadcast(targetChain, prepared, settings),
+      connect: (targetChain) => profiles.connect(targetChain),
+      confirm: (message) => global.confirm(message),
+      summary: operationSummary,
+      setResult: setOperationResult,
+      refresh: feedback ? () => {} : refreshRouteAfterBroadcast,
+      getHash: () => global.location.hash,
+      formatError: (error) => formatDiagnosticError(error)
     });
+    form.addEventListener('submit', handler);
   }
 
   function keyStatusText(status) {
@@ -3021,9 +3395,10 @@
   }
 
   async function renderAccounts(chain) {
-    await loadScript(chain.cryptoPath);
-    if (chain.walletPath) await loadScript(chain.walletPath);
-    if (chain.id === 'minter' || chain.id === 'decimal') await loadScript(chain.libraryPath);
+    const capturedRouteEpoch = routeRenderGeneration;
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
+    if (chain.walletPath) await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.walletPath)));
+    if (chain.id === 'minter' || chain.id === 'decimal') await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.libraryPath)));
     const users = auth.getUsers(chain);
     const current = auth.getCurrentUser(chain);
     const currentLogin = auth.getUserLogin(current);
@@ -3048,7 +3423,7 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: сохранённые аккаунты</h2>
-        <p>Используются сохранённые в браузере аккаунты для этой сети. Ключи шифруются старой схемой localStorage и не показываются после сохранения.</p>
+        <p>Используются сохранённые в браузере аккаунты для этой сети. Ключи защищены паролем или passkey и не показываются после сохранения.</p>
         ${currentLogin ? `<p><strong>Текущий аккаунт:</strong> @${escapeHtml(currentLogin)}. ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, current)))}</p>` : '<p><strong>Текущий аккаунт не выбран.</strong></p>'}
         ${users.length ? `
           <form id="legacy-account-form">
@@ -3079,7 +3454,7 @@
             <button type="submit">Проверить и сохранить</button>
           </form>
         `}
-        <p class="notice">Ключи/seed сохраняются локально в браузере, не отправляются на сервер и не показываются после сохранения. Перед сохранением v3 проверяет authority аккаунта, где это применимо, и пишет те же ключи localStorage, что старая версия.</p>
+        <p class="notice">Ключи/seed сохраняются локально в браузере, не отправляются на сервер и не показываются после сохранения. Перед сохранением проверяются права ключа, где это применимо. Данные хранятся в защищённом хранилище этого устройства.</p>
       </section>
     `;
 
@@ -3093,7 +3468,7 @@
 
     const form = document.getElementById('legacy-account-form');
     if (form) {
-      form.addEventListener('submit', (event) => {
+      form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const selected = form.querySelector('input[name="legacy-account"]:checked');
         if (!selected) {
@@ -3101,23 +3476,36 @@
           return;
         }
         const user = users[Number(selected.value)];
-        auth.selectUser(chain, auth.getUserLogin(user), auth.getUserType(user));
+        try { await auth.selectUser(chain, auth.getUserLogin(user), auth.getUserType(user)); }
+        catch (error) { showAccountMessage(formatDiagnosticError(error), 'error'); return; }
         accountInput.value = auth.getUserLogin(user);
         navigate({ chain: chain.id, app: 'accounts', account: auth.getUserLogin(user) });
         showAccountMessage(`Аккаунт @${auth.getUserLogin(user)} выбран.`, 'ok');
       });
 
-      form.addEventListener('click', (event) => {
+      form.addEventListener('click', async (event) => {
         const button = event.target.closest('[data-delete-account]');
         if (!button) return;
         const user = users[Number(button.dataset.deleteAccount)];
         if (!user) return;
         const login = auth.getUserLogin(user);
-        const confirmed = global.confirm(`Удалить аккаунт ${login} из списка ${chain.title}? Ключи в localStorage для этой записи будут удалены из списка.`);
+        const confirmed = global.confirm(`Удалить аккаунт ${login} из списка ${chain.title}? Сохранённые ключи этой записи будут удалены из защищённого хранилища.`);
         if (!confirmed) return;
-        auth.removeUser(chain, login, auth.getUserType(user));
-        showAccountMessage(`Аккаунт @${login} удалён из списка.`, 'ok');
-        renderAccounts(chain);
+        button.disabled = true;
+        try {
+          if (nativeAndroidWorkerBridge() && androidNativeAutoVoteSupported(chain)) {
+            const revoked = await callAndroidWorkerBridge('syncAutoUpvoterSettings', { explicitConsent: true, accounts: [{ chainId: chain.id, account: login, enabled: false, removeGrant: true }] });
+            if (!revoked.ok) throw new Error(revoked.reason || 'Не удалось отозвать фоновое разрешение Android.');
+          }
+          if (nativeAndroidWorkerBridge() && chain.id === 'viz') {
+            const revoked = await callAndroidWorkerBridge('syncVizSelfAwardSettings', { account: login, enabled: false, autoStart: false, explicitConsent: true });
+            if (!revoked.ok) throw new Error(revoked.reason || 'Не удалось отключить самонаграждение Android.');
+          }
+          await auth.removeUser(chain, login, auth.getUserType(user));
+          showAccountMessage(`Аккаунт @${login} удалён из списка.`, 'ok');
+          await renderAccounts(chain);
+        } catch (error) { showAccountMessage(formatDiagnosticError(error), 'error'); }
+        finally { button.disabled = false; }
       });
     }
 
@@ -3140,13 +3528,13 @@
           if (activeKey && !keyMatchesAuthority(client, activeKey, authorityObjectFor(chain, account, 'active'))) throw new Error('active-ключ не найден в active authority аккаунта.');
           const keys = { active: activeKey };
           keys[regularOrPosting] = mainKey;
-          auth.saveUser(chain, auth.createKeyUser(chain, login, keys));
+          await auth.saveUser(chain, auth.createKeyUser(chain, login, keys));
           keyForm.reset();
           accountInput.value = login;
           showAccountMessage(`Аккаунт @${login} добавлен и выбран.`, 'ok');
           navigate({ chain: chain.id, app: 'accounts', account: login });
         } catch (error) {
-          showAccountMessage(profiles.formatError(error), 'error');
+          showAccountMessage(formatDiagnosticError(error), 'error');
         } finally {
           if (submitter) submitter.disabled = false;
         }
@@ -3155,20 +3543,20 @@
 
     const seedForm = document.getElementById('seed-account-form');
     if (seedForm) {
-      seedForm.addEventListener('submit', (event) => {
+      seedForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         try {
           const data = new FormData(seedForm);
           const login = String(data.get('login') || '').trim();
           const seed = String(data.get('seed') || '').trim();
           if (!seedMnemonicIsValid(chain, seed)) throw new Error('Seed-фраза невалидна. Проверьте её, пожалуйста.');
-          auth.saveUser(chain, auth.createSeedUser(chain, login, seed));
+          await auth.saveUser(chain, auth.createSeedUser(chain, login, seed));
           seedForm.reset();
           accountInput.value = login;
           showAccountMessage(`Seed-аккаунт ${login} добавлен и выбран.`, 'ok');
           navigate({ chain: chain.id, app: 'accounts', account: login });
         } catch (error) {
-          showAccountMessage(profiles.formatError(error), 'error');
+          showAccountMessage(formatDiagnosticError(error), 'error');
         }
       });
     }
@@ -3183,14 +3571,14 @@
           document.getElementById('generated-seed-extra').textContent = generated.extra || '';
           showAccountMessage('Новый seed сгенерирован локально. Сохраните seed отдельно до использования.', 'info');
         } catch (error) {
-          showAccountMessage(profiles.formatError(error), 'error');
+          showAccountMessage(formatDiagnosticError(error), 'error');
         }
       });
     }
 
     const importForm = document.getElementById('seed-import-form');
     if (importForm) {
-      importForm.addEventListener('submit', (event) => {
+      importForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         try {
           const selected = String(new FormData(importForm).get('account') || '');
@@ -3200,12 +3588,12 @@
           const sourceUser = sourceUsers && sourceUsers.users[Number(indexText)];
           if (!sourceUser) throw new Error('Исходный seed-аккаунт не найден.');
           const imported = Object.assign({}, sourceUser, { importFrom: sourceChain });
-          auth.saveUser(chain, imported);
+          await auth.saveUser(chain, imported);
           accountInput.value = auth.getUserLogin(imported);
           showAccountMessage(`Seed-аккаунт ${auth.getUserLogin(imported)} импортирован из ${sourceChain.toUpperCase()} и выбран.`, 'ok');
           navigate({ chain: chain.id, app: 'accounts', account: auth.getUserLogin(imported) });
         } catch (error) {
-          showAccountMessage(profiles.formatError(error), 'error');
+          showAccountMessage(formatDiagnosticError(error), 'error');
         }
       });
     }
@@ -3260,7 +3648,7 @@
       const items = await history.fetchAccountHistory(connection, account, { limit: 100 });
       walletItems = history.getWalletOperations(chain, items).slice(0, 50);
     } catch (error) {
-      walletHistoryError = profiles.formatError(error);
+      walletHistoryError = formatDiagnosticError(error);
     }
     return { current, profile, balanceRows, walletItems, walletHistoryError };
   }
@@ -3328,17 +3716,18 @@
     try {
       data.delegations = await fetchVizDelegationsWithNodeFallback(chain, { client: global[chain.libraryGlobal], node: data.profile.node }, account);
     } catch (error) {
-      data.delegations.error = profiles.formatError(error);
+      data.delegations.error = formatDiagnosticError(error);
       data.delegations.unavailable = true;
     }
     return data;
   }
 
   async function renderGrapheneWallet(chain, account, options) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю кошелёк ${chain.title}: @${account}...`, 'loading');
 
-    const data = await loadGrapheneWalletData(chain, account, options);
+    const data = await awaitRouteTask(capturedRouteEpoch, async () => (loadGrapheneWalletData(chain, account, options)));
     const formsHtml = options.renderForms(chain, data.profile);
 
     appEl.innerHTML = `
@@ -3357,23 +3746,26 @@
     `;
 
     options.bindForms(chain, data.profile);
+    enhanceWalletForms(chain, appEl, auth.getCurrentLogin(chain));
     bindMaxButtons(appEl);
     setStatus(`Кошелёк @${account} загружен: доступны проверка операций, кнопки «Максимум» и отправка в сеть.`, 'ok');
   }
 
-  async function renderGolosWallet(chain, account) {
+  async function renderGolosWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька Golos</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю Golos-кошелёк @${account}...`, 'loading');
 
     const data = await loadGrapheneWalletData(chain, account, { loadExtraBalances: fetchGolosUiaBalances });
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const uiaGateways = await fetchGolosUiaGateways(chain, data.balanceRows);
     try {
       data.delegations = await fetchGolosDelegations({ client: global[chain.libraryGlobal] }, account);
       data.delegationsError = '';
     } catch (error) {
-      data.delegations = { delegated: [], received: [], error: profiles.formatError(error) };
-      data.delegationsError = profiles.formatError(error);
+      data.delegations = { delegated: [], received: [], error: formatDiagnosticError(error) };
+      data.delegationsError = formatDiagnosticError(error);
     }
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const formsHtml = renderGolosWalletForms(chain, data.profile, data.balanceRows, uiaGateways, data.delegations);
 
     appEl.innerHTML = `
@@ -3391,18 +3783,34 @@
       </section>
     `;
 
+    if (global.DposGolosWalletSwap) {
+      const walletSwapBalances = [
+        { symbol: 'GOLOS', amount: data.profile.raw && data.profile.raw.balance, balanceType: 'main' },
+        { symbol: 'GBG', amount: data.profile.raw && (data.profile.raw.sbd_balance || data.profile.raw.gbg_balance), balanceType: 'main' },
+        ...(data.balanceRows || []).filter((row) => row && row[2] && row[2].kind === 'uia')
+          .map((row) => ({ symbol: row[2].symbol, amount: row[1], balanceType: row[2].balanceType }))
+      ].filter((balance) => balance.amount);
+      void global.DposGolosWalletSwap.attach(appEl, {
+        chain: Object.assign({}, chain, { wsEndpoint: bestGolosRpcNode(chain) }), account,
+        balances: walletSwapBalances, ensureDex: ensureGolosDex,
+        loadAssets: async () => (await loadGolosSwapAccountAssets(chain, account)).assets,
+        isCurrent: () => typeof isCurrentRoute !== 'function' || isCurrentRoute()
+      }).catch(() => { /* Quote availability must not break the wallet. */ });
+    }
     bindGolosWalletForms(chain, data.profile, uiaGateways, data.delegations);
+    enhanceWalletForms(chain, appEl, auth.getCurrentLogin(chain));
     bindMaxButtons(appEl);
     bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`Golos-кошелёк @${account} загружен: СГ и UIA/TIP-балансы отображены, операции доступны только через проверку и подтверждение.`, 'ok');
   }
 
-  async function renderVizWallet(chain, account) {
+  async function renderVizWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька VIZ</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю VIZ-кошелёк @${account}...`, 'loading');
 
     const data = await loadVizWalletData(chain, account);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const formsHtml = renderVizWalletForms(chain, data.profile, data.delegations);
 
     appEl.innerHTML = `
@@ -3421,17 +3829,19 @@
     `;
 
     bindVizWalletForms(chain, data.profile);
+    enhanceWalletForms(chain, appEl, auth.getCurrentLogin(chain));
     bindMaxButtons(appEl);
     bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`VIZ-кошелёк @${account} загружен: VIZ/SHARES, делегирования, invite и transfer templates доступны через проверку и подтверждение.`, 'ok');
   }
 
-  async function renderHiveWallet(chain, account) {
+  async function renderHiveWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька Hive</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю Hive-кошелёк @${account}...`, 'loading');
 
     const data = await loadHiveWalletData(chain, account);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const formsHtml = renderHiveWalletForms(chain, data.profile, data.delegations);
 
     appEl.innerHTML = `
@@ -3450,6 +3860,7 @@
     `;
 
     bindHiveWalletForms(chain, data.profile, data.delegations);
+    enhanceWalletForms(chain, appEl, auth.getCurrentLogin(chain));
     bindMaxButtons(appEl);
     bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
@@ -3481,7 +3892,7 @@
       data.delegationsError = '';
     } catch (error) {
       data.delegations = [];
-      data.delegationsError = profiles.formatError(error);
+      data.delegationsError = formatDiagnosticError(error);
     }
     return data;
   }
@@ -3511,16 +3922,17 @@
       data.delegationsError = '';
     } catch (error) {
       data.delegations = [];
-      data.delegationsError = profiles.formatError(error);
+      data.delegationsError = formatDiagnosticError(error);
     }
     return data;
   }
 
-  async function renderSteemWallet(chain, account) {
+  async function renderSteemWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel"><h2>Загрузка кошелька Steem</h2><p>Подключаю публичную ноду...</p></section>';
     setStatus(`Загружаю Steem-кошелёк @${account}...`, 'loading');
 
     const data = await loadSteemWalletData(chain, account);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const formsHtml = renderSteemWalletForms(chain, data.profile, data.delegations);
 
     appEl.innerHTML = `
@@ -3539,17 +3951,18 @@
     `;
 
     bindSteemWalletForms(chain, data.profile, data.delegations);
+    enhanceWalletForms(chain, appEl, auth.getCurrentLogin(chain));
     bindMaxButtons(appEl);
     bindGrapheneWalletQuickActions(appEl);
     bindCopyButtons(appEl);
     setStatus(`Steem-кошелёк @${account} загружен: STEEM/SBD/SP, делегирования, rewards и savings доступны через проверку и подтверждение.`, 'ok');
   }
 
-  async function renderGrapheneWalletByChain(chain, account) {
-    if (chain.id === 'golos') return renderGolosWallet(chain, account);
-    if (chain.id === 'viz') return renderVizWallet(chain, account);
-    if (chain.id === 'hive') return renderHiveWallet(chain, account);
-    if (chain.id === 'steem') return renderSteemWallet(chain, account);
+  async function renderGrapheneWalletByChain(chain, account, isCurrentRoute) {
+    if (chain.id === 'golos') return renderGolosWallet(chain, account, isCurrentRoute);
+    if (chain.id === 'viz') return renderVizWallet(chain, account, isCurrentRoute);
+    if (chain.id === 'hive') return renderHiveWallet(chain, account, isCurrentRoute);
+    if (chain.id === 'steem') return renderSteemWallet(chain, account, isCurrentRoute);
     throw new Error(`Кошелёк ${chain.title} не поддерживается этим маршрутом.`);
   }
 
@@ -3773,7 +4186,7 @@
     const builtIns = getGolosBuiltInTemplates(kind, token, login);
     const custom = readGolosCustomTemplates(kind, token);
     const builtInOptions = builtIns.map((item) => `<option value="${escapeHtml(item.id)}" data-builtin="1" data-to="${escapeHtml(item.to)}" data-memo="${escapeHtml(item.memo)}" data-in="${escapeHtml(item.in || '')}">${escapeHtml(item.name)}</option>`).join('');
-    const customOptions = custom.map((item, index) => `<option value="${index + 1}" data-to="${escapeHtml(item.to || '')}" data-memo="${escapeHtml(item.memo || '')}" data-in="${escapeHtml(item.in || '')}">${escapeHtml(item.name)}</option>`).join('');
+    const customOptions = custom.map((item, index) => `<option data-i18n-skip value="${index + 1}" data-to="${escapeHtml(item.to || '')}" data-memo="${escapeHtml(item.memo || '')}" data-in="${escapeHtml(item.in || '')}">${escapeHtml(item.name)}</option>`).join('');
     return `<div class="field"><label for="${selectId}">Шаблон ${kind === 'transfer' ? 'перевода' : 'доната'} (${escapeHtml(token)})</label><select id="${selectId}" data-template-select="${kind}" data-template-token="${escapeHtml(token)}"><option value="">Выберите шаблон</option>${builtInOptions}${customOptions}</select> <button type="button" data-template-remove="${kind}" data-template-token="${escapeHtml(token)}" data-template-select-id="${selectId}" hidden>Удалить текущий шаблон</button></div>`;
   }
 
@@ -3784,10 +4197,10 @@
     const panels = depositGateways.map((gateway, index) => {
       const deposit = gateway.deposit;
       const extras = [deposit.min_amount && `Минимальная сумма: ${deposit.min_amount}`, deposit.fee && `Комиссия: ${deposit.fee}`].filter(Boolean);
-      let body = deposit.details ? `<p>${escapeHtml(deposit.details)}</p>` : '';
+      let body = deposit.details ? `<p data-i18n-skip>${escapeHtml(deposit.details)}</p>` : '';
       if (extras.length) body += `<ul>${extras.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
       if (String(deposit.to_type || '').toLowerCase() === 'fixed') {
-        body = '<p>Данные для пополнения:</p><ul>';
+        body += '<p>Данные для пополнения:</p><ul>';
         if (deposit.to_fixed) body += `<li>Адрес/получатель: <code>${escapeHtml(deposit.to_fixed)}</code> ${copyButton(deposit.to_fixed, 'адрес')}</li>`;
         if (deposit.memo_fixed) body += `<li>Memo: <code>${escapeHtml(deposit.memo_fixed)}</code> ${copyButton(deposit.memo_fixed, 'memo')}</li>`;
         body += '</ul>';
@@ -3809,11 +4222,16 @@
     const withdrawGateways = getGolosGatewayOptions(gateways, 'withdraw')
       .filter((gateway) => gateway.withdraw.account && gateway.withdraw.ways.length && mainBalances.has(gateway.symbol));
     if (!withdrawGateways.length) return '';
-    const options = withdrawGateways.flatMap((gateway) => gateway.withdraw.ways.map((way, index) => `<option value="${escapeHtml(gateway.symbol)}:${index}" data-token="${escapeHtml(gateway.symbol)}" data-max="${escapeHtml(mainBalances.get(gateway.symbol) || '')}" data-account="${escapeHtml(gateway.withdraw.account)}" data-prefix="${escapeHtml(way.prefix || '')}" data-memo-label="${escapeHtml(way.memo || 'Данные для вывода')}" data-postfix-label="${escapeHtml(way.postfix_title || '')}" data-postfix-placeholder="${escapeHtml(way.postfix || '')}">${escapeHtml(gateway.symbol)} — ${escapeHtml(way.name || `Способ ${index + 1}`)} — максимум ${escapeHtml(mainBalances.get(gateway.symbol) || '')}</option>`)).join('');
+    const options = withdrawGateways.flatMap((gateway) => gateway.withdraw.ways.map((way, index) => `<option value="${escapeHtml(gateway.symbol)}:${index}" data-token="${escapeHtml(gateway.symbol)}" data-max="${escapeHtml(mainBalances.get(gateway.symbol) || '')}" data-account="${escapeHtml(gateway.withdraw.account)}" data-prefix="${escapeHtml(way.prefix || '')}" data-memo-label="${escapeHtml(way.memo || '')}" data-postfix-label="${escapeHtml(way.postfix_title || '')}" data-postfix-placeholder="${escapeHtml(way.postfix || '')}">${escapeHtml(gateway.symbol)} — ${escapeHtml(way.name || `Способ ${index + 1}`)} — максимум ${escapeHtml(mainBalances.get(gateway.symbol) || '')}</option>`)).join('');
     const descriptions = withdrawGateways.map((gateway) => {
       const w = gateway.withdraw;
-      const extras = [w.details, w.min_amount && `Минимальная сумма: ${w.min_amount}`, w.fee && `Комиссия: ${w.fee}`, `Аккаунт шлюза: ${w.account}`].filter(Boolean);
-      return `<li><strong>${escapeHtml(gateway.symbol)}:</strong> ${extras.map((item) => escapeHtml(item)).join('; ')}</li>`;
+      const extras = [
+        w.details && `<span data-i18n-skip>${escapeHtml(w.details)}</span>`,
+        w.min_amount && `<span>Минимальная сумма: ${escapeHtml(w.min_amount)}</span>`,
+        w.fee && `<span>Комиссия: ${escapeHtml(w.fee)}</span>`,
+        `<span>Аккаунт шлюза: ${escapeHtml(w.account)}</span>`
+      ].filter(Boolean);
+      return `<li><strong data-i18n-skip>${escapeHtml(gateway.symbol)}</strong>: ${extras.join('; ')}</li>`;
     }).join('');
     return operationDetails('UIA withdraw / вывод через gateways', `
       <form id="wallet-golos-uia-withdraw-form" class="stacked-form">
@@ -3830,6 +4248,33 @@
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset>
       </form>`);
+  }
+
+  function syncGolosWithdrawFields(withdrawWay, root = document) {
+    if (!withdrawWay) return;
+    const option = withdrawWay.selectedOptions && withdrawWay.selectedOptions[0];
+    if (!option) return;
+    const mainLabel = root.querySelector('[data-withdraw-main-label]');
+    const memoLabel = option.dataset.memoLabel || '';
+    if (mainLabel) {
+      mainLabel.toggleAttribute('data-i18n-skip', Boolean(memoLabel));
+      mainLabel.textContent = memoLabel || 'Данные для вывода';
+    }
+    const postfixField = root.querySelector('[data-withdraw-postfix-field]');
+    const postfixLabel = root.querySelector('[data-withdraw-postfix-label]');
+    const postfixInput = root.querySelector('#wallet-golos-uia-withdraw-postfix');
+    const customPostfixLabel = option.dataset.postfixLabel || '';
+    const customPostfixPlaceholder = option.dataset.postfixPlaceholder || '';
+    const hasPostfix = Boolean(customPostfixLabel || customPostfixPlaceholder);
+    if (postfixField) postfixField.hidden = !hasPostfix;
+    if (postfixLabel) {
+      postfixLabel.toggleAttribute('data-i18n-skip', Boolean(customPostfixLabel));
+      postfixLabel.textContent = customPostfixLabel || 'Дополнительно';
+    }
+    if (postfixInput) {
+      postfixInput.toggleAttribute('data-i18n-skip', Boolean(customPostfixPlaceholder));
+      postfixInput.placeholder = customPostfixPlaceholder;
+    }
   }
 
   function renderGolosWalletForms(chain, profile, balanceRows, uiaGateways, delegations) {
@@ -4801,18 +5246,7 @@
 
     const withdrawWay = document.getElementById('wallet-golos-uia-withdraw-way');
     const syncWithdrawFields = () => {
-      if (!withdrawWay) return;
-      const option = withdrawWay.selectedOptions && withdrawWay.selectedOptions[0];
-      if (!option) return;
-      const mainLabel = document.querySelector('[data-withdraw-main-label]');
-      if (mainLabel) mainLabel.textContent = option.dataset.memoLabel || 'Данные для вывода';
-      const postfixField = document.querySelector('[data-withdraw-postfix-field]');
-      const postfixLabel = document.querySelector('[data-withdraw-postfix-label]');
-      const postfixInput = document.getElementById('wallet-golos-uia-withdraw-postfix');
-      const hasPostfix = Boolean(option.dataset.postfixLabel || option.dataset.postfixPlaceholder);
-      if (postfixField) postfixField.hidden = !hasPostfix;
-      if (postfixLabel) postfixLabel.textContent = option.dataset.postfixLabel || 'Дополнительно';
-      if (postfixInput) postfixInput.placeholder = option.dataset.postfixPlaceholder || '';
+      syncGolosWithdrawFields(withdrawWay);
     };
     if (withdrawWay) {
       withdrawWay.addEventListener('change', syncWithdrawFields);
@@ -4847,7 +5281,7 @@
           const input = document.getElementById('wallet-golos-create-invite-secret');
           if (input) input.value = generateGolosInviteSecret();
         } catch (error) {
-          setStatus(profiles.formatError(error), 'error');
+          setStatus(formatDiagnosticError(error), 'error');
         }
       });
     }
@@ -5118,7 +5552,7 @@
           const input = document.getElementById('wallet-viz-create-invite-secret');
           if (input) input.value = generateVizInviteSecret();
         } catch (error) {
-          setStatus(profiles.formatError(error), 'error');
+          setStatus(formatDiagnosticError(error), 'error');
         }
       });
     }
@@ -5138,7 +5572,7 @@
           const info = await new Promise((resolve, reject) => api.getInviteByKey(publicKey, (error, data) => error ? reject(error) : resolve(data)));
           if (result) result.textContent = info && info.receiver ? `Invite уже получил @${info.receiver}. Баланс: ${info.balance || 'n/a'}.` : `Invite доступен. Баланс: ${(info && info.balance) || 'n/a'}, creator: ${(info && info.creator) || 'n/a'}.`;
         } catch (error) {
-          if (result) result.textContent = `Не удалось проверить invite: ${profiles.formatError(error)}`;
+          if (result) result.textContent = `Не удалось проверить invite: ${formatDiagnosticError(error)}`;
         }
       });
     }
@@ -5566,7 +6000,8 @@
   }
 
   async function renderBroadcast(chain) {
-    await loadScript(chain.cryptoPath);
+    const capturedRouteEpoch = routeRenderGeneration;
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
     const current = auth.getCurrentUser(chain);
     const keys = broadcast.getAvailableKeys(chain, current);
     appEl.innerHTML = `
@@ -5683,7 +6118,7 @@
     const energy = state.energy || '1';
     const customSequence = state.custom_sequence || '0';
     const memo = state.memo || '';
-    const beneficiaries = state.beneficiaries || '';
+    const beneficiaries = state.beneficiaries || 'denis-skripnik:1';
     const payout = state.payout || '';
     const isFixed = state.isFixed === 'on' || state.isFixed === '1' || state.isFixed === 'true';
     const awardLink = buildVizAwardLink({ target, energy, custom_sequence: customSequence, memo, beneficiaries, payout, isFixed: isFixed ? 'on' : '' });
@@ -5774,7 +6209,7 @@
         <div class="field"><label for="url-payout">payout</label><input id="url-payout" name="payout" type="text" value="${escapeHtml(state.payout || '')}"></div>
         <div class="field"><label for="url-custom-sequence">custom_sequence</label><input id="url-custom-sequence" name="custom_sequence" type="number" min="0" value="${escapeHtml(state.custom_sequence || '0')}"></div>
         <div class="field"><label for="url-memo">Memo</label><input id="url-memo" name="memo" type="text" value="${escapeHtml(state.memo || '')}"></div>
-        <div class="field"><label for="url-beneficiaries">beneficiaries</label><textarea id="url-beneficiaries" name="beneficiaries" rows="3">${escapeHtml(state.beneficiaries || '')}</textarea></div>
+        <div class="field"><label for="url-beneficiaries">beneficiaries</label><textarea id="url-beneficiaries" name="beneficiaries" rows="3">${escapeHtml(state.beneficiaries || 'denis-skripnik:1')}</textarea></div>
         <button type="submit">Сформировать url</button>
       </form>
       <div class="field"><label for="viz-award-generated-link">Сформированный url награды</label><textarea id="viz-award-generated-link" rows="3" readonly>${escapeHtml(link)}</textarea></div>
@@ -5832,7 +6267,7 @@
         if (finalCode) finalCode.value = snippet.final;
         if (result) result.textContent = 'Код формы обновлён.';
       } catch (error) {
-        if (result) result.textContent = profiles.formatError(error);
+        if (result) result.textContent = formatDiagnosticError(error);
       }
     };
     form.addEventListener('input', update);
@@ -5855,7 +6290,7 @@
           <div class="field"><label for="builder-custom-sequence">Номер Custom операции</label><input id="builder-custom-sequence" name="custom_sequence_value" type="number" min="0" value="0"></div>
           <div class="field"><label for="builder-note-mode">Memo field mode</label><select id="builder-note-mode" name="note_mode"><option value="one">Однострочное поле</option><option value="many">Многострочное поле</option></select></div>
           <div class="field"><label for="builder-memo">Memo по умолчанию</label><input id="builder-memo" name="memo" type="text" value="Заметка"></div>
-          <label class="inline-choice"><input id="builder-app-beneficiary-enabled" name="app_beneficiary_enabled" type="checkbox"> Бенефициарские отчисления приложению</label>
+          <input id="builder-app-beneficiary-enabled" name="app_beneficiary_enabled" type="hidden" value="on"><p>Бенефициарские отчисления приложению</p>
           <div class="field"><label for="builder-app-beneficiary">Логин приложения бенефициара</label><input id="builder-app-beneficiary" name="app_beneficiary" type="text" value="denis-skripnik"></div>
           <div class="field"><label for="builder-app-beneficiary-percent">Процент приложения бенефициара</label><input id="builder-app-beneficiary-percent" name="app_beneficiary_percent" type="number" min="0" max="100" value="1"></div>
           <label class="inline-choice"><input id="builder-user-beneficiary-enabled" name="user_beneficiary_enabled" type="checkbox"> Возврат прибыли пользователю</label>
@@ -5897,6 +6332,7 @@
     appEl.innerHTML = `
       <section class="panel">
         <h2>VIZ: награды</h2>
+        <p class="notice">Бенефициарские отчисления сервису: 1% награды — @denis-skripnik. Добавляются автоматически, без отдельной галочки.</p>
         ${vizAwardNav(page)}
         ${body}
       </section>`;
@@ -6006,41 +6442,85 @@
     }).filter((row) => row.account);
   }
 
-  function syncAndroidVizSelfAwardRows(rows) {
+  async function syncAndroidVizSelfAwardRows(rows) {
     if (!nativeAndroidWorkerBridge()) return 0;
+    const assertStarting = captureAndroidStartGuard();
     const items = Array.isArray(rows) ? rows.filter((item) => item && item.account) : [];
     for (const row of items) {
-      const syncResult = callAndroidWorkerBridge('syncVizSelfAwardSettings', {
+      const syncResult = await callAndroidWorkerBridge('syncVizSelfAwardSettings', {
         account: row.account,
         enabled: Boolean(row.enabled),
         autoStart: Boolean(row.autoStart) && Boolean(row.enabled),
         minEnergy: row.minEnergy,
         explicitConsent: true
       });
+      assertStarting();
       if (!syncResult || !syncResult.ok) throw new Error(syncResult && (syncResult.reason || syncResult.status) || `sync failed for @${row.account}`);
     }
     return items.length;
   }
 
-  function autoSyncStoredVizSelfAwardForAndroid() {
+  async function autoSyncStoredVizSelfAwardForAndroid() {
     if (!nativeAndroidWorkerBridge()) return null;
     const rows = storedVizSelfAwardRows(chains.viz);
     if (!rows.length) return null;
     const enabled = rows.filter((row) => row.enabled).length;
-    syncAndroidVizSelfAwardRows(rows);
+    await syncAndroidVizSelfAwardRows(rows);
     return { rows: rows.length, enabled };
   }
 
   function getVizSelfAwardRuntime() {
     if (!global.__dposVizSelfAwardRuntime || typeof global.__dposVizSelfAwardRuntime !== 'object') {
-      global.__dposVizSelfAwardRuntime = { running: false, interval: null, feed: [], settings: [] };
+      global.__dposVizSelfAwardRuntime = { running: false, interval: null, feed: [], settings: [], cancelGeneration: 0, tickPromise: null };
     }
     if (!Array.isArray(global.__dposVizSelfAwardRuntime.feed)) global.__dposVizSelfAwardRuntime.feed = [];
     return global.__dposVizSelfAwardRuntime;
   }
 
+  function runBrowserAutomationSingleFlight(runtime, promiseKey, generation, createAdapter, runWithAdapter) {
+    if (runtime[promiseKey]) return Promise.resolve(null);
+    const isCancelled = () => generation !== runtime.cancelGeneration || !runtime.running;
+    const promise = (async () => {
+      const adapter = await createAdapter();
+      if (isCancelled()) return null;
+      return runWithAdapter(adapter, isCancelled);
+    })();
+    runtime[promiseKey] = promise;
+    return promise.finally(() => {
+      if (runtime[promiseKey] === promise) runtime[promiseKey] = null;
+    });
+  }
+
+  function cancelBrowserRuntime(runtime, intervalKey) {
+    if (!runtime || typeof runtime !== 'object') return null;
+    runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+    runtime.running = false;
+    if (runtime[intervalKey]) clearInterval(runtime[intervalKey]);
+    runtime[intervalKey] = null;
+    return runtime.scanPromise || runtime.tickPromise || null;
+  }
+
+  function cancelAllBrowserAutomation() {
+    const pending = [];
+    const vizPending = cancelBrowserRuntime(global.__dposVizSelfAwardRuntime, 'interval');
+    if (vizPending) pending.push(vizPending);
+    const runtimes = global.__dposAutoUpvoterRuntimes || {};
+    Object.keys(runtimes).forEach((chainId) => {
+      const runtime = runtimes[chainId];
+      const scanPending = cancelBrowserRuntime(runtime, 'scannerInterval');
+      if (runtime && runtime.runnerLock && global.DposGolosAutoUpvoter && typeof global.DposGolosAutoUpvoter.releaseRunnerLocks === 'function') {
+        const lock = runtime.runnerLock;
+        global.DposGolosAutoUpvoter.releaseRunnerLocks(chains[chainId] || { id: chainId }, lock.accounts, lock.owner);
+        runtime.runnerLock = null;
+      }
+      if (scanPending) pending.push(scanPending);
+    });
+    return Promise.allSettled(pending);
+  }
+
   async function renderVizSelfAward(chain) {
-    await loadScript(chain.cryptoPath);
+    const capturedRouteEpoch = routeRenderGeneration;
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
     const users = auth.getUsers(chain);
     const hasAndroidWorkerBridge = Boolean(nativeAndroidWorkerBridge());
     const stored = readVizSelfAwardSettings();
@@ -6065,6 +6545,7 @@
 
     appEl.innerHTML = `<section class="panel" aria-labelledby="viz-self-award-heading">
       <h2 id="viz-self-award-heading">VIZ: автонаграда себе</h2>
+      <p class="notice">Бенефициарские отчисления сервису: 1% награды — @denis-skripnik. Добавляются автоматически, без отдельной галочки.</p>
       <p>Сервис не даёт энергии простаивать на 100%: выбранные сохранённые аккаунты периодически награждают сами себя, если энергия выше заданного минимума.</p>
       <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические VIZ award без подтверждения каждой награды. Используется regular-ключ, сохранённый в разделе «Аккаунты».</p>
       <p id="viz-self-award-energy-help"><strong>Что вводить:</strong> обычный процент энергии — например 95, 99 или 99.9. Это нижняя граница запаса, а не размер награды. При 95% сервис не будет тратить энергию ниже 95%; при 99% сохранит не меньше 99%; при 99.9% награда возможна только почти при полном запасе. За одну проверку тратится максимум 0.1% энергии и только часть выше выбранной границы. Если энергия равна выбранному порогу или ниже, сервис ничего не отправляет. Внутренние значения 9500 и 9900 вводить не нужно.</p>
@@ -6079,7 +6560,8 @@
           <div class="field actions"><button type="button" id="viz-self-award-apply-all">Скопировать минимум на все аккаунты</button></div>
         </div>
         ${accountCards}
-        <label class="inline-choice"><input id="viz-self-award-auto-start" name="autoStart" type="checkbox" value="1" ${stored.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <label class="inline-choice" hidden><input id="viz-self-award-auto-start" name="autoStart" type="checkbox" value="1" ${stored.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <p class="muted">В Android включённые функции автоматически возобновляются при открытии приложения.</p>
         <p class="muted">Если включено, APK при открытии проверит сохранённые настройки и сам запустит native worker для выбранных аккаунтов.</p>
         <div class="actions">
           <button type="button" id="viz-self-award-start">Запустить Start</button>
@@ -6103,7 +6585,7 @@
       if (!feed) return;
       const rows = [];
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
-      runtime.feed.slice(-30).reverse().forEach((entry) => rows.push(`<div>${escapeHtml(entry)}</div>`));
+      runtime.feed.slice(-30).reverse().forEach((entry) => rows.push(`<div data-i18n-skip>${escapeHtml(entry)}</div>`));
       feed.innerHTML = rows.length ? rows.join('') : 'Остановлено. Реальных наград без кнопки Start нет.';
     }
 
@@ -6130,27 +6612,33 @@
       return auth.getUsers(chain).find((user) => auth.getUserLogin(user) === normalized);
     }
 
-    function syncAndroidVizSelfAwardSettings(settings) {
-      return syncAndroidVizSelfAwardRows(settings);
+    async function syncAndroidVizSelfAwardSettings(settings) {
+      return await syncAndroidVizSelfAwardRows(settings);
     }
 
     async function startAndroidVizSelfAward(settings) {
+      const assertStarting = captureAndroidStartGuard();
+      const runGeneration = runtime.cancelGeneration;
+      const assertActive = () => { assertStarting(); if (runtime.cancelGeneration !== runGeneration) throw new Error("Запуск отменён."); };
       const rows = Array.isArray(settings) ? settings : [];
       const selected = rows.filter((row) => row.enabled && row.account);
       if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
       await loadScript(chain.libraryPath);
+      assertActive();
       await loadScript(chain.cryptoPath);
+      assertActive();
       for (const row of selected) {
         const user = findUser(row.account);
         if (!user) throw new Error(`Аккаунт @${row.account} не найден в сохранённых аккаунтах.`);
         const decrypted = broadcast.decryptLegacyKey(chain, user, 'regular');
         const accountInfo = await fetchChainAccount(chain, row.account);
+      assertActive();
         const client = global[chain.libraryGlobal];
         if (!keyMatchesAuthority(client, decrypted.privateKey, authorityObjectFor(chain, accountInfo, 'regular'))) {
           throw new Error(`Сохранённый regular-ключ @${row.account} не найден в regular authority аккаунта. Обновите ключ в разделе «Аккаунты».`);
         }
         try {
-          const keyResult = callAndroidWorkerBridge('importSecureKey', {
+          const keyResult = await callAndroidWorkerBridge('importSecureKey', {
             chainId: 'viz',
             account: row.account,
             authority: 'regular',
@@ -6158,15 +6646,19 @@
             secret: decrypted.privateKey,
             explicitConsent: true
           });
+          assertActive();
           if (!keyResult || !keyResult.ok) throw new Error(keyResult && (keyResult.reason || keyResult.status) || 'secure key import failed');
         } finally {
           decrypted.privateKey = '';
         }
       }
-      syncAndroidVizSelfAwardSettings(rows);
-      const started = callAndroidWorkerBridge('startWorker');
+      await syncAndroidVizSelfAwardSettings(rows);
+      assertActive();
+      const started = await callAndroidWorkerBridge('startWorker');
+      assertActive();
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
-      const check = callAndroidWorkerBridge('checkNow');
+      const check = await callAndroidWorkerBridge('checkNow');
+      assertActive();
       appendFeed(`Android native VIZ self-award включён: ${selected.length} аккаунтов. ${renderAndroidCheckSummary(check, selected.length)}`);
       return Object.assign({}, started, check, { workerEnabled: true, running: true });
     }
@@ -6177,15 +6669,24 @@
       return new Map((Array.isArray(rows) ? rows : []).map((row) => [String(row && row.name || '').trim().replace(/^@/, ''), row]));
     }
 
-    async function runTick(settings) {
+    async function runTick(settings, generation) {
+      if (runtime.tickPromise) return null;
+      const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
+      const isCancelled = () => runGeneration !== runtime.cancelGeneration || !runtime.running;
+      const execute = async () => {
       const selected = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row.enabled && row.account);
       if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
       await loadScript(chain.libraryPath);
+      if (isCancelled()) return null;
       await loadScript(chain.cryptoPath);
+      if (isCancelled()) return null;
       await profiles.connect(chain);
+      if (isCancelled()) return null;
       const accountMap = await fetchVizAccounts(selected.map((row) => row.account));
+      if (isCancelled()) return null;
       let sent = 0;
       for (const row of selected) {
+        if (isCancelled()) break;
         try {
           const account = accountMap.get(row.account);
           const liveEnergy = currentVizEnergy(account);
@@ -6201,6 +6702,7 @@
           }
           const user = findUser(row.account);
           if (!user) throw new Error(`аккаунт @${row.account} не найден в сохранённых аккаунтах`);
+          if (isCancelled()) break;
           const prepared = broadcast.prepareForUser(chain, user, 'regular', 'award', [row.account, row.account, spend, 0, VIZ_SELF_AWARD_MEMO, []], {
             title: 'VIZ self-award',
             feature: 'viz-self-award',
@@ -6208,17 +6710,29 @@
             energy: spend,
             warnings: ['Автоматическая self-award операция VIZ: initiator и receiver совпадают.']
           });
+          if (isCancelled()) break;
           await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: false, autoConsent: 'viz-self-award-start' });
+          if (isCancelled()) break;
           sent += 1;
           appendFeed(`OK @${row.account}: self-award ${(spend / 100).toFixed(2)}%, энергия была ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
         } catch (error) {
-          appendFeed(`ERROR @${row.account}: ${profiles.formatError(error)}`);
+          appendFeed(`ERROR @${row.account}: ${formatDiagnosticError(error)}`);
         }
       }
-      renderFeed(`Проверка VIZ self-award завершена: аккаунтов ${selected.length}, наград отправлено ${sent}. Следующая проверка через 7 минут 12 секунд.`);
+      if (!isCancelled()) renderFeed(`Проверка VIZ self-award завершена: аккаунтов ${selected.length}, наград отправлено ${sent}. Следующая проверка через 7 минут 12 секунд.`);
+      return { selected: selected.length, sent, cancelled: isCancelled() };
+      };
+      const promise = execute();
+      runtime.tickPromise = promise;
+      try {
+        return await promise;
+      } finally {
+        if (runtime.tickPromise === promise) runtime.tickPromise = null;
+      }
     }
 
     function stop(message) {
+      runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
       if (runtime.interval) clearInterval(runtime.interval);
       runtime.interval = null;
       runtime.running = false;
@@ -6248,23 +6762,27 @@
           const selected = settings.filter((row) => row.enabled && row.account);
           if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
           runtime.running = true;
+          runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+          const runGeneration = runtime.cancelGeneration;
           runtime.settings = settings;
           startButton.disabled = true;
           stopButton.disabled = false;
           appendFeed(`Запуск VIZ self-award для ${selected.map((row) => `@${row.account}`).join(', ')}. Memo: ${VIZ_SELF_AWARD_MEMO}`);
           if (hasAndroidWorkerBridge) {
             await startAndroidVizSelfAward(settings);
+            if (runGeneration !== runtime.cancelGeneration) return;
             runtime.running = true;
             runtime.settings = settings;
             setStatus('VIZ автонаграда себе запущена в Android-приложении.', 'ok');
             return;
           }
-          await runTick(settings);
+          await runTick(settings, runGeneration);
+          if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           if (runtime.interval) clearInterval(runtime.interval);
           runtime.interval = setInterval(() => {
-            runTick(runtime.settings).catch((error) => {
-              appendFeed(`Ошибка проверки: ${profiles.formatError(error)}`);
-              setStatus(`Ошибка VIZ автонаграды: ${profiles.formatError(error)}`, 'error');
+            runTick(runtime.settings, runGeneration).catch((error) => {
+              appendFeed(`Ошибка проверки: ${formatDiagnosticError(error)}`);
+              setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
             });
           }, VIZ_SELF_AWARD_TICK_MS);
           setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
@@ -6272,13 +6790,14 @@
           runtime.running = false;
           startButton.disabled = false;
           stopButton.disabled = true;
-          if (feed) feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
-          setStatus(`Ошибка VIZ автонаграды: ${profiles.formatError(error)}`, 'error');
+          if (feed) feed.textContent = `Ошибка запуска: ${formatDiagnosticError(error)}`;
+          setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
         }
       });
-      stopButton.addEventListener('click', () => {
+      stopButton.addEventListener('click', async () => {
+        stop('Остановка запрошена. Уже отправленную транзакцию отменить нельзя.');
         if (hasAndroidWorkerBridge) {
-          const result = callAndroidWorkerBridge('stopWorker');
+          const result = await callAndroidWorkerBridge('stopWorker');
           appendFeed(`Android-приложение остановило автонаграду: ${result && result.status ? result.status : 'ok'}`);
         }
         stop('Остановлено пользователем. Новых автонаград не будет.');
@@ -6287,18 +6806,24 @@
 
     let androidStatusRendered = false;
     if (hasAndroidWorkerBridge) {
-      const status = callAndroidWorkerBridge('getWorkerStatus');
+      const assertStarting = captureAndroidStartGuard();
+      const status = await awaitRouteTask(capturedRouteEpoch, async () => (callAndroidWorkerBridge('getWorkerStatus')));
+      assertStarting();
       const settings = collectSettings();
       const selected = settings.filter((row) => row.enabled && row.account);
       if (stored.autoStart && selected.length) {
         try {
-          syncAndroidVizSelfAwardSettings(settings);
-          const startResult = callAndroidWorkerBridge('startWorker');
-          const check = callAndroidWorkerBridge('checkNow');
+          await awaitRouteTask(capturedRouteEpoch, async () => (syncAndroidVizSelfAwardSettings(settings)));
+          assertStarting();
+          const startResult = await awaitRouteTask(capturedRouteEpoch, async () => (callAndroidWorkerBridge('startWorker')));
+          assertStarting();
+          const check = await awaitRouteTask(capturedRouteEpoch, async () => (callAndroidWorkerBridge('checkNow')));
+          assertStarting();
           appendFeed(`Android native VIZ self-award auto-sync: синхронизировано ${settings.length} аккаунтов, включено ${selected.length}. ${renderAndroidCheckSummary(check, selected.length)}`);
           if (!startResult || !startResult.ok) appendFeed(`Android worker auto-start warning: ${startResult && (startResult.reason || startResult.status) || 'неизвестный ответ'}`);
         } catch (error) {
-          appendFeed(`Android native VIZ self-award auto-sync error: ${profiles.formatError(error)}`);
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+          appendFeed(`Android native VIZ self-award auto-sync error: ${formatDiagnosticError(error)}`);
         }
       }
       if (status && (status.workerEnabled || status.running || status.logs)) {
@@ -6327,9 +6852,22 @@
   }
 
   const GOLOS_AUTO_UPVOTER_SETTINGS_KEY = 'dpos_golos_auto_upvoter_settings';
+  const AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION = 2;
 
   function autoUpvoterSettingsKey(chain) {
     return chain && chain.id === 'golos' ? GOLOS_AUTO_UPVOTER_SETTINGS_KEY : `dpos_${chain && chain.id || 'social'}_auto_upvoter_settings`;
+  }
+
+  function autoUpvoterEnergyPercent(value, legacyUnits) {
+    if (value === undefined || value === null || String(value).trim() === '') return '25';
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '25';
+    const percent = legacyUnits && numeric > 100 ? numeric / 100 : numeric;
+    return String(Math.round(Math.max(0, Math.min(100, percent)) * 100) / 100);
+  }
+
+  function autoUpvoterPercentToBasisPoints(value) {
+    return Math.round(Number(autoUpvoterEnergyPercent(value, false)) * 100);
   }
 
   function readGolosAutoUpvoterSettings(chain) {
@@ -6337,11 +6875,42 @@
     try {
       const parsed = JSON.parse(global.localStorage.getItem(autoUpvoterSettingsKey(chain)) || '{}');
       if (!parsed || typeof parsed !== 'object') return {};
-      const accounts = parsed.accounts && typeof parsed.accounts === 'object' ? parsed.accounts : {};
-      return { accounts, autoStart: Boolean(parsed.autoStart) };
+      const storedAccounts = parsed.accounts && typeof parsed.accounts === 'object' ? parsed.accounts : {};
+      const percentSchema = parsed.schemaVersion === AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION && parsed.minEnergyUnit === 'percent';
+      const accounts = {};
+      Object.entries(storedAccounts).forEach(([account, settings]) => {
+        if (!settings || typeof settings !== 'object') return;
+        accounts[account] = Object.assign({}, settings, { minEnergy: autoUpvoterEnergyPercent(settings.minEnergy, !percentSchema) });
+      });
+      const result = { accounts, autoStart: Boolean(parsed.autoStart), schemaVersion: AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION, minEnergyUnit: 'percent' };
+      if (!percentSchema) global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify(Object.assign({}, parsed, result)));
+      return result;
     } catch (error) {
       return {};
     }
+  }
+
+  async function migrateSavedGolosDonateOnOpen() {
+    if (!nativeAndroidWorkerBridge() || !global.DposVault || global.DposVault.status().state !== 'unlocked') return [];
+    const chain = chains.golos;
+    if (!chain) return [];
+    // This is a saved opt-in only, never a form default or a full worker grant import.
+    const saved = readGolosAutoUpvoterSettings(chain);
+    const accounts = saved.accounts && typeof saved.accounts === 'object' ? saved.accounts : {};
+    const eligible = auth.getUsers(chain).map(user => auth.getUserLogin(user)).filter(account => {
+      const row = accounts[account];
+      return /^[a-z0-9.-]{3,32}$/.test(account) && row && row.enabled === true && row.autoDonate === true;
+    });
+    const results = [];
+    for (const account of eligible) {
+      const row = accounts[account];
+      const pool = String(row.autoDonateCap || '').trim();
+      const parts = pool.split(/\s+/);
+      if (parts.length !== 2 || parts.some(part => !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(part)) ||
+          !(Number(parts[0]) > 0 && Number(parts[0]) <= 100 && Number(parts[1]) > 0 && Number(parts[1]) <= 10)) continue;
+      results.push(await callAndroidWorkerBridge('migrateGolosDonateSettings', { account, pool }));
+    }
+    return results;
   }
 
   function splitAutoDonatePoolSettings(value, fallbackPercent, fallbackCoefficient) {
@@ -6368,17 +6937,22 @@
         enabled: Boolean(row.enabled),
         curators: String(row.curators || ''),
         favorites: String(row.favorites || ''),
-        minEnergy: String(row.minEnergy || '2500'),
+        minEnergy: autoUpvoterEnergyPercent(row && row.minEnergy, false),
         curatorMode: String(row.curatorMode || 'repeat'),
         curatorCoefficient: String(row.curatorCoefficient || '100'),
         favoritesPercent: String(row.favoritesPercent || '100'),
-        autoDonate: Boolean(row.autoDonate),
+        autoDonate: chain.id === 'golos' && Boolean(row.autoDonate),
         autoDonatePoolPercent: pool.percent,
         autoDonatePoolCoefficient: pool.coefficient,
         autoDonateCap: joinAutoDonatePoolSettings(pool.percent, pool.coefficient)
       };
     });
-    global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({ accounts, autoStart: Boolean(autoStart) }));
+    global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({
+      schemaVersion: AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION,
+      minEnergyUnit: 'percent',
+      accounts,
+      autoStart: Boolean(autoStart)
+    }));
   }
 
   function getAutoUpvoterRuntime(chain) {
@@ -6395,7 +6969,9 @@
         scannerState: { seen: new Set(), feed: [] },
         manualVoteState: new Map(),
         running: false,
-        settings: null
+        settings: null,
+        cancelGeneration: 0,
+        scanPromise: null
       };
     }
     const runtime = global.__dposAutoUpvoterRuntimes[chainId];
@@ -6408,29 +6984,33 @@
 
 
   function nativeAndroidWorkerBridge() {
-    const bridge = global.DposAndroid;
-    if (!bridge || typeof bridge !== 'object') return null;
-    return bridge;
+    const bridge = global.DposNative;
+    return bridge && typeof bridge.available === 'function' && bridge.available() ? bridge : null;
   }
 
   function parseAndroidBridgeResult(value) {
     if (value && typeof value === 'object') return value;
     try { return JSON.parse(String(value || '{}')); } catch (error) {
-      return { ok: false, reason: String(value || error && error.message || 'invalid Android bridge response') };
+      return { ok: false, reason: diagnosticText(String(value || error && error.message || 'invalid Android bridge response')) };
     }
   }
 
-  function callAndroidWorkerBridge(method, payload) {
+  let androidStopGeneration = 0;
+  function captureAndroidStartGuard() {
+    const generation = androidStopGeneration;
+    return () => { if (generation !== androidStopGeneration) throw new Error('Запуск Android отменён.'); };
+  }
+
+  async function callAndroidWorkerBridge(method, payload) {
+    if (method === 'stopWorker') androidStopGeneration += 1;
     const bridge = nativeAndroidWorkerBridge();
-    if (!bridge || typeof bridge[method] !== 'function') {
-      return { ok: false, reason: 'Android native bridge is unavailable in this browser/PWA session.' };
-    }
-    const arg = payload === undefined ? undefined : JSON.stringify(payload);
-    const raw = arg === undefined ? bridge[method]() : bridge[method](arg);
-    return parseAndroidBridgeResult(raw);
+    if (!bridge) return { ok: false, reason: 'Безопасный мост Android недоступен. При необходимости обновите приложение.' };
+    try { return parseAndroidBridgeResult(await bridge.request(method, payload)); }
+    catch (error) { return { ok: false, reason: diagnosticText(error.message || 'Android не подтвердил действие.') }; }
   }
 
   function renderAndroidWorkerStatus(result) {
+    result = sanitizeDiagnostic(result);
     if (!result || typeof result !== 'object') return 'Статус фоновой проверки в Android пока недоступен.';
     const enabled = result.workerEnabled ? 'включена' : 'выключена';
     const running = result.running ? 'сейчас работает' : 'сейчас остановлена';
@@ -6460,6 +7040,7 @@
   }
 
   function androidWorkerDiagnosticText(result, max = 4000) {
+    result = sanitizeDiagnostic(result);
     if (!result || typeof result !== 'object') return 'Android worker logs: статус недоступен.';
     const appendWithinBudget = (parts, text, reserve = 0) => {
       const current = parts.join('\n');
@@ -6502,6 +7083,7 @@
   }
 
   function renderAndroidCheckSummary(result, fallbackAccounts) {
+    result = sanitizeDiagnostic(result);
     if (!result || typeof result !== 'object') return 'Фактический результат проверки не получен.';
     if (result.ok === false) {
       const reason = result.reason || (Array.isArray(result.errors) && result.errors[0]) || 'неизвестная ошибка';
@@ -6564,7 +7146,8 @@
   }
 
   async function renderGolosAutoUpvoter(chain) {
-    await loadScript(chain.cryptoPath);
+    const capturedRouteEpoch = routeRenderGeneration;
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
     const isGolos = chain.id === 'golos';
     const users = DposAuth.getUsers(chain);
     const helper = global.DposGolosAutoUpvoter;
@@ -6591,8 +7174,9 @@
         </div>
         <div class="field-grid">
           <div class="field">
-            <label for="auto-upvoter-min-energy-${index}">Минимальная батарейка голоса: % или шкала 0–10000 (80 = 80%, 8000 = 80%)</label>
-            <input id="auto-upvoter-min-energy-${index}" name="minEnergy" type="number" min="0" max="10000" step="1" value="2500">
+            <label for="auto-upvoter-min-energy-${index}">Минимальная батарейка голоса, %</label>
+            <input id="auto-upvoter-min-energy-${index}" name="minEnergy" type="number" min="0" max="100" step="0.01" value="25">
+            <small>Введите процент от 0 до 100. Например, 25 означает 25%.</small>
           </div>
           <div class="field">
             <label for="auto-upvoter-curator-mode-${index}">Режим куратора</label>
@@ -6615,11 +7199,11 @@
           <div class="field-grid" data-auto-donate-settings hidden>
             <div class="field">
               <label for="auto-upvoter-auto-donate-percent-${index}">Личный пул, % дневной эмиссии</label>
-              <input id="auto-upvoter-auto-donate-percent-${index}" name="autoDonatePoolPercent" type="number" min="0" step="0.1" value="0" placeholder="10">
+              <input id="auto-upvoter-auto-donate-percent-${index}" name="autoDonatePoolPercent" type="number" min="0" max="100" step="0.1" value="0" placeholder="10">
             </div>
             <div class="field">
               <label for="auto-upvoter-auto-donate-coefficient-${index}">Коэффициент уменьшения доната</label>
-              <input id="auto-upvoter-auto-donate-coefficient-${index}" name="autoDonatePoolCoefficient" type="number" min="0" step="0.1" value="1" placeholder="1.1">
+              <input id="auto-upvoter-auto-donate-coefficient-${index}" name="autoDonatePoolCoefficient" type="number" min="0" max="10" step="0.1" value="1" placeholder="1.1">
             </div>
             <input name="autoDonateCap" type="hidden" value="0 1">
             <p class="muted">Как в старом боте, но разделено на два поля: при 100% апвоте тратится заданный процент дневной эмиссии, коэффициент нелинейно уменьшает донат при меньшем проценте голоса. 0% или пустой процент = донат не отправляется. Минимальная отправка — 0.5 GOLOS; 99.8% автору, 0.2% комиссия — @denis-skripnik.</p>
@@ -6635,7 +7219,8 @@
       ${isGolos ? '<p class="muted">Автодонат использует старую схему личного пула: % дневной эмиссии при 100% апвоте и коэффициент нелинейного уменьшения по фактическому весу голоса. Сначала vote, затем донат автору поста (99.8%) и комиссия 0.2% на @denis-skripnik с memo fee_donate. Минимум для отправки — 0.5 GOLOS.</p>' : `<p class="muted">В ${escapeHtml(chain.title)} донатов нет: Start отправляет только автоматические vote-операции за любимых авторов и повтор голосов кураторов.</p>`}
       ${users.length ? `<form id="auto-upvoter-form">${accountCards}
         <p id="auto-upvoter-battery-controls" class="muted">Перед запуском/остановкой: батарейка появится после выбора аккаунтов и нажатия Start.</p>
-        <label class="inline-choice"><input id="auto-upvoter-auto-start" name="autoStart" type="checkbox" value="1" ${storedSettings.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <label class="inline-choice" hidden><input id="auto-upvoter-auto-start" name="autoStart" type="checkbox" value="1" ${storedSettings.autoStart ? 'checked' : ''}> Запускать автоматически при открытии Android-приложения</label>
+        <p class="muted">В Android включённые функции автоматически возобновляются при открытии приложения.</p>
         <p class="muted">Если включено, APK при открытии проверит сохранённые настройки и сам запустит native worker для выбранных аккаунтов.</p>
         <div class="actions">
           <button type="button" id="auto-upvoter-start">Запустить Start</button>
@@ -6737,7 +7322,7 @@
         const message = entry && entry.message ? entry.message : String(entry || '');
         const action = entry && entry.action;
         const postLink = action && action.author && action.permlink
-          ? ` <a href="${escapeHtml(autoUpvoterPostUrl(action))}" target="_blank" rel="noopener">${escapeHtml(autoUpvoterActionLabel(action))}</a>`
+          ? ` <a data-i18n-skip href="${escapeHtml(autoUpvoterPostUrl(action))}" target="_blank" rel="noopener">${escapeHtml(autoUpvoterActionLabel(action))}</a>`
           : '';
         const donateLink = isGolos && action && action.author && !autoUpvoterActionHasDonate(entry)
           ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}" target="_blank" rel="noopener">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
@@ -6745,7 +7330,7 @@
         const diagnostics = entry && entry.diagnostics && typeof entry.diagnostics === 'object'
           ? ` <span class="muted">Android key: ${escapeHtml(entry.diagnostics.derivedPublicKey || 'н/д')}; authority: ${escapeHtml(Array.isArray(entry.diagnostics.authorityPublicKeys) ? entry.diagnostics.authorityPublicKeys.join(', ') : '')}</span>`
           : '';
-        rows.push(`<div>${escapeHtml(message)}${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}${diagnostics}</div>`);
+        rows.push(`<div><span data-i18n-skip>${escapeHtml(message)}</span>${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}${diagnostics}</div>`);
       });
       feed.innerHTML = rows.length > 1 ? rows.join('') : `${rows.join('')}<p>Сканер запущен, событий пока нет.</p>`;
     }
@@ -6804,45 +7389,57 @@
         const byName = new Map((Array.isArray(accounts) ? accounts : []).map((account) => [String(account && account.name || account && account.account || '').trim().replace(/^@/, ''), account]));
         runtime.batterySummary = enabledAccounts.map((name) => `@${name}: ${formatAutoUpvoterBattery(byName.get(name))}`).join('; ');
       } catch (error) {
-        runtime.batterySummary = `не удалось загрузить: ${profiles.formatError(error)}`;
+        runtime.batterySummary = `не удалось загрузить: ${formatDiagnosticError(error)}`;
       }
       updateAutoUpvoterBatteryControls();
       return runtime.batterySummary;
     }
 
-    async function runAutoUpvoterScan(settings) {
-      const adapter = await createAutoUpvoterAdapter();
-      const tick = await helper.runScannerTick(chain, settings, adapter, runtime.scannerState, {
-        feed: runtime.scannerState.feed,
-        broadcaster: async (scanChain, action) => {
-          const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
-          if (hasGolosVoteFrom(content || action, action.account)) {
-            return { skipped: true, reason: 'already-voted' };
-          }
-          const liveAccount = await adapter.getAccount(action.account).catch(() => null);
-          const liveEnergy = helper && typeof helper.currentAccountEnergy === 'function' ? helper.currentAccountEnergy(liveAccount) : null;
-          const minEnergy = Number(action.minEnergy);
-          if (Number.isFinite(minEnergy) && minEnergy > 0 && !Number.isFinite(liveEnergy)) {
-            return { skipped: true, reason: 'battery-unavailable', minEnergy };
-          }
-          if (Number.isFinite(liveEnergy) && Number.isFinite(minEnergy)) {
-            const projectedEnergy = helper.estimateVoteEnergyAfter(liveEnergy, action.weight);
-            if (liveEnergy < minEnergy || (Number.isFinite(projectedEnergy) && projectedEnergy < minEnergy)) {
-              return { skipped: true, reason: 'low-battery', currentEnergy: liveEnergy, projectedEnergy, minEnergy };
+    async function runAutoUpvoterScan(settings, generation) {
+      const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
+      return runBrowserAutomationSingleFlight(runtime, 'scanPromise', runGeneration, createAutoUpvoterAdapter, async (adapter, isCancelled) => {
+        const tick = await helper.runScannerTick(chain, settings, adapter, runtime.scannerState, {
+          isCancelled,
+          feed: runtime.scannerState.feed,
+          broadcaster: async (scanChain, action) => {
+            const isActionCancelled = () => isCancelled() || Boolean(runtime.revokedAccounts && runtime.revokedAccounts.has(action.account));
+            if (isActionCancelled()) return { cancelled: true };
+            const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
+            if (isActionCancelled()) return { cancelled: true };
+            if (hasGolosVoteFrom(content || action, action.account)) {
+              return { skipped: true, reason: 'already-voted' };
             }
+            const liveAccount = await adapter.getAccount(action.account).catch(() => null);
+            if (isActionCancelled()) return { cancelled: true };
+            const liveEnergy = helper && typeof helper.currentAccountEnergy === 'function' ? helper.currentAccountEnergy(liveAccount) : null;
+            const minEnergy = Number(action.minEnergy);
+            if (Number.isFinite(minEnergy) && minEnergy > 0 && !Number.isFinite(liveEnergy)) {
+              return { skipped: true, reason: 'battery-unavailable', minEnergy };
+            }
+            if (Number.isFinite(liveEnergy) && Number.isFinite(minEnergy)) {
+              const projectedEnergy = helper.estimateVoteEnergyAfter(liveEnergy, action.weight);
+              if (liveEnergy < minEnergy || (Number.isFinite(projectedEnergy) && projectedEnergy < minEnergy)) {
+                return { skipped: true, reason: 'low-battery', currentEnergy: liveEnergy, projectedEnergy, minEnergy };
+              }
+            }
+            let donateAction = action;
+            if (isGolos && action && action.donate && action.donate.enabled) {
+              const donateAccount = liveAccount || await adapter.getAccount(action.account);
+              if (isActionCancelled()) return { cancelled: true };
+              const dynamicProperties = await adapter.getDynamicGlobalProperties();
+              if (isActionCancelled()) return { cancelled: true };
+              donateAction = helper.enrichActionDonateFromEmission(action, donateAccount, dynamicProperties);
+            }
+            if (isActionCancelled()) return { cancelled: true };
+            return helper.broadcastPlannedAction(scanChain, donateAction, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start', isCancelled: isActionCancelled });
           }
-          const donateAction = isGolos && action && action.donate && action.donate.enabled
-            ? helper.enrichActionDonateFromEmission(
-              action,
-              liveAccount || await adapter.getAccount(action.account),
-              await adapter.getDynamicGlobalProperties()
-            )
-            : action;
-          return helper.broadcastPlannedAction(scanChain, donateAction, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start' });
-        }
+        });
+        if (!tick || isCancelled()) return tick;
+        await loadAutoUpvoterBatterySummary(settings);
+        if (isCancelled()) return tick;
+        renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${runtime.scannerState.seen.size}.`);
+        return tick;
       });
-      await loadAutoUpvoterBatterySummary(settings);
-      renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${runtime.scannerState.seen.size}.`);
     }
 
     async function sendManualVoteFromFeed(button, percent) {
@@ -6921,8 +7518,8 @@
         if (unvoteButton) {
           sendManualUnvoteFromFeed(unvoteButton).catch((error) => {
             unvoteButton.disabled = false;
-            appendScannerFeed(`Ошибка отмены апвота: ${profiles.formatError(error)}`);
-            setStatus(`Ошибка отмены апвота: ${profiles.formatError(error)}`, 'error');
+            appendScannerFeed(`Ошибка отмены апвота: ${formatDiagnosticError(error)}`);
+            setStatus(`Ошибка отмены апвота: ${formatDiagnosticError(error)}`, 'error');
           });
           return;
         }
@@ -6931,14 +7528,16 @@
           const select = wrapper && wrapper.querySelector ? wrapper.querySelector('[data-auto-upvoter-percent]') : null;
           sendManualVoteFromFeed(voteButton, select && select.value).catch((error) => {
             voteButton.disabled = false;
-            appendScannerFeed(`Ошибка ручного голоса: ${profiles.formatError(error)}`);
-            setStatus(`Ошибка ручного голоса: ${profiles.formatError(error)}`, 'error');
+            appendScannerFeed(`Ошибка ручного голоса: ${formatDiagnosticError(error)}`);
+            setStatus(`Ошибка ручного голоса: ${formatDiagnosticError(error)}`, 'error');
           });
         }
       });
     }
 
     function stopAutoUpvoter(message) {
+      const pending = runtime.scanPromise;
+      runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
       if (runtime.scannerInterval) {
         clearInterval(runtime.scannerInterval);
         runtime.scannerInterval = null;
@@ -6951,7 +7550,7 @@
       runtime.running = false;
       runtime.settings = null;
       runtime.hiddenNoticeSent = false;
-      startButton.disabled = false;
+      startButton.disabled = Boolean(pending);
       stopButton.disabled = true;
       renderScannerFeed(message || 'Остановлен. Активных runner-состояний нет.');
       setStatus(`${chain.title} автоапвоутер остановлен.`, 'info');
@@ -6961,6 +7560,7 @@
           tag: `${chain.id}-auto-upvoter-stop`
         });
       }
+      return Promise.resolve(pending).catch(() => undefined).finally(() => { startButton.disabled = false; });
     }
 
     function syncAutoDonatePoolVisibility(card) {
@@ -6992,7 +7592,7 @@
           enabled: Boolean(card.querySelector('[name="enabled"]').checked),
           curators: card.querySelector('[name="curators"]').value,
           favorites: card.querySelector('[name="favorites"]').value,
-          minEnergy: card.querySelector('[name="minEnergy"]').value,
+          minEnergy: autoUpvoterEnergyPercent(card.querySelector('[name="minEnergy"]').value, false),
           curatorMode: card.querySelector('[name="curatorMode"]').value,
           curatorCoefficient: card.querySelector('[name="curatorCoefficient"]').value,
           favoritesPercent: card.querySelector('[name="favoritesPercent"]').value,
@@ -7070,19 +7670,21 @@
         enableAutoUpvoter: true,
         autoStart: Boolean(row.autoStart) && Boolean(row.enabled),
         explicitConsent: true,
-        minEnergy: helper && typeof helper.normalizeAccountSettings === 'function' ? helper.normalizeAccountSettings(row).minEnergy : (Number(row.minEnergy) || 2500),
+        minEnergy: autoUpvoterPercentToBasisPoints(row.minEnergy),
         maxActionsPerTick: 5,
         intervalMinutes: 15,
         curators: row.curators,
         favorites: row.favorites,
         curatorMode: row.curatorMode === 'full' ? 'full' : 'repeat',
         curatorCoefficient: Number(row.curatorCoefficient) || 100,
-        favoritesPercent: Number(row.favoritesPercent) || 100
+        favoritesPercent: Number(row.favoritesPercent) || 100,
+        autoDonate: chain.id === 'golos' && Boolean(row.autoDonate),
+        autoDonatePool: chain.id === 'golos' ? String(row.autoDonateCap || '0 1') : '0 1'
       };
     }
 
     async function refreshAndroidWorkerStatus() {
-      const result = callAndroidWorkerBridge('getWorkerStatus');
+      const result = await callAndroidWorkerBridge('getWorkerStatus');
       updateAndroidWorkerStatus(result);
       return result;
     }
@@ -7090,13 +7692,13 @@
     async function copyAndroidWorkerDiagnostics() {
       const status = document.getElementById('support-copy-diagnostics-status');
       try {
-        const result = callAndroidWorkerBridge('getWorkerStatus');
+        const result = await callAndroidWorkerBridge('getWorkerStatus');
         updateAndroidWorkerStatus(result);
         const text = androidWorkerDiagnosticText(result, 4000);
         await navigator.clipboard.writeText(text);
         if (status) status.textContent = `Диагностический отчёт скопирован: ${text.length} символов. Отправьте этот текст разработчику.`;
       } catch (error) {
-        if (status) status.textContent = `Не удалось скопировать диагностический отчёт: ${profiles.formatError(error)}`;
+        if (status) status.textContent = `Не удалось скопировать диагностический отчёт: ${formatDiagnosticError(error)}`;
       }
     }
 
@@ -7108,50 +7710,65 @@
       return auth.getUsers(chain).find((user) => auth.getUserLogin(user) === normalized);
     }
 
-    async function syncAndroidWorkerFromForm(settings) {
+    async function syncAndroidWorkerFromForm(settings, startGeneration) {
+      const assertAndroidStarting = captureAndroidStartGuard();
+      const assertStarting = () => { assertAndroidStarting(); if (runtime.cancelGeneration !== startGeneration) throw new Error('Запуск отменён.'); };
+      assertStarting();
       if (!nativeAutoVoteSupported) throw new Error(androidNativeUnsupportedReason(chain));
+      const fullState = auth.getUsers(chain).map(user => {
+        const account = auth.getUserLogin(user);
+        const configured = settings.find(row => row.account === account);
+        return { chainId: chain.id, account, enabled: Boolean(configured && configured.enabled) };
+      });
+      const synced = await callAndroidWorkerBridge('syncAutoUpvoterSettings', { accounts: fullState, explicitConsent: true });
+      assertStarting();
+      if (!synced.ok) throw new Error(synced.reason || 'Не удалось синхронизировать разрешения Android.');
       const rows = selectedAndroidWorkerAccounts(settings);
       if (!rows.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
-      const results = [];
+      const configurations = [];
+      try {
       for (const row of rows) {
         const user = findStoredAutoUpvoterUser(row.account);
         if (!user) throw new Error(`Аккаунт @${row.account} не найден в локальном хранилище авторизации.`);
         const decrypted = broadcast.decryptLegacyKey(chain, user, 'posting');
         const accountInfo = await fetchChainAccount(chain, row.account);
+        assertStarting();
         const client = global[chain.libraryGlobal];
         if (!keyMatchesAuthority(client, decrypted.privateKey, authorityObjectFor(chain, accountInfo, 'posting'))) {
           throw new Error(`Сохранённый posting-ключ @${row.account} не найден в posting authority аккаунта. Обновите ключ в разделе «Аккаунты» перед запуском Android автоапвоутера.`);
         }
-        try {
-          const keyResult = callAndroidWorkerBridge('importSecureKey', {
-            chainId: chain.id,
-            account: row.account,
-            authority: 'posting',
-            alias: 'posting',
-            secret: decrypted.privateKey,
-            explicitConsent: true
-          });
-          if (!keyResult || !keyResult.ok) throw new Error(keyResult && (keyResult.reason || keyResult.status) || 'secure key import failed');
-          const settingsResult = callAndroidWorkerBridge('importWorkerSettings', androidImportPayload(row));
-          results.push(settingsResult);
-          if (!settingsResult || !settingsResult.ok) throw new Error(settingsResult && (settingsResult.reason || settingsResult.status) || 'settings import failed');
-        } finally {
-          decrypted.privateKey = '';
-        }
+        configurations.push({
+          keyImport: { chainId: chain.id, account: row.account, authority: 'posting', alias: 'posting', secret: decrypted.privateKey, explicitConsent: true },
+          settings: androidImportPayload(row)
+        });
+        decrypted.privateKey = '';
       }
-      const started = callAndroidWorkerBridge('startWorker');
+      for (const configuration of configurations) {
+        assertStarting();
+        const importedKey = await callAndroidWorkerBridge('importSecureKey', configuration.keyImport);
+        assertStarting();
+        if (!importedKey.ok) throw new Error(importedKey.reason || 'Не удалось сохранить ключ в Android.');
+        const importedSettings = await callAndroidWorkerBridge('importWorkerSettings', configuration.settings);
+        assertStarting();
+        if (!importedSettings.ok) throw new Error(importedSettings.reason || 'Не удалось сохранить настройки Android.');
+      }
+      assertStarting();
+      const started = await callAndroidWorkerBridge('startWorker');
       if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start worker failed');
-      const ok = results.filter((row) => row && row.ok).length;
-      const check = callAndroidWorkerBridge('checkNow');
+      const ok = configurations.length;
+      assertStarting();
+      const check = await callAndroidWorkerBridge('checkNow');
+      assertStarting();
       if (!check) throw new Error('проверка Android не выполнена');
       const merged = Object.assign({}, started, check, { activeAccounts: ok, workerEnabled: true, running: true });
       updateAndroidWorkerStatus(merged);
       appendAndroidWorkerFeed(check);
-      appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${results.length} аккаунтов синхронизировано. ${renderAndroidCheckSummary(check, ok)}`);
+      appendScannerFeed(`Фоновая проверка в Android включена: ${ok}/${configurations.length} аккаунтов синхронизировано. ${renderAndroidCheckSummary(check, ok)}`);
       return merged;
+      } finally { configurations.forEach(row => { row.keyImport.secret = ''; }); }
     }
 
-    async function startAndroidAutoUpvoter(settings) {
+    async function startAndroidAutoUpvoter(settings, startGeneration) {
       const accounts = selectedAndroidWorkerAccounts(settings).map((row) => row.account);
       if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
       startButton.disabled = true;
@@ -7159,8 +7776,10 @@
       setStatus(`${chain.title} автоапвоутер запускается в Android: проверяю аккаунты и ключи...`, 'loading');
       appendScannerFeed(`START: синхронизация Android worker для ${accounts.map((account) => `@${account}`).join(', ')}.`);
       await loadAutoUpvoterBatterySummary(settings);
+      if (runtime.cancelGeneration !== startGeneration) return;
       renderScannerFeed('Перед запуском фоновой проверки: текущая батарейка загружена.');
-      const result = await syncAndroidWorkerFromForm(settings);
+      const result = await syncAndroidWorkerFromForm(settings, startGeneration);
+      if (runtime.cancelGeneration !== startGeneration) return;
       runtime.running = true;
       runtime.settings = settings;
       runtime.hiddenNoticeSent = false;
@@ -7177,7 +7796,7 @@
     }
 
     async function stopAndroidAutoUpvoter() {
-      const result = callAndroidWorkerBridge('stopWorker');
+      const result = await callAndroidWorkerBridge('stopWorker');
       runtime.running = false;
       runtime.settings = null;
       startButton.disabled = false;
@@ -7205,6 +7824,17 @@
           syncAutoDonatePoolVisibility(event.target.closest('[data-auto-upvoter-account]'));
         }
         persistAutoUpvoterSettings();
+        if (event && event.target && event.target.name === 'enabled' && !event.target.checked) {
+          const card = event.target.closest('[data-auto-upvoter-account]');
+          const account = card && card.dataset.autoUpvoterAccount;
+          // Revoke immediately; a slow balance request must not delay this action.
+          if (!runtime.revokedAccounts) runtime.revokedAccounts = new Set();
+          if (account) runtime.revokedAccounts.add(account);
+          if (account && hasAndroidWorkerBridge && nativeAutoVoteSupported) {
+            void callAndroidWorkerBridge('syncAutoUpvoterSettings', { explicitConsent: true, accounts: [{ chainId: chain.id, account, enabled: false }] })
+              .then(result => { if (!result.ok) setStatus(result.reason || 'Не удалось отключить аккаунт в Android.', 'error'); });
+          }
+        }
       });
     }
 
@@ -7221,16 +7851,26 @@
 
     if (startButton && form && helper) {
       startButton.addEventListener('click', async () => {
+        if (runtime.starting || runtime.running) return;
+        runtime.starting = true;
+        runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+        const startGeneration = runtime.cancelGeneration;
+        runtime.revokedAccounts = new Set();
+        startButton.disabled = true;
+        stopButton.disabled = false;
         try {
           await loadScript(chain.libraryPath);
+          if (runtime.cancelGeneration !== startGeneration) return;
           await loadScript(chain.cryptoPath);
+          if (runtime.cancelGeneration !== startGeneration) return;
           const settings = collectSettings();
           if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
-            await startAndroidAutoUpvoter(settings);
+            await startAndroidAutoUpvoter(settings, startGeneration);
             return;
           }
           const availability = helper.assertBroadcastAvailable(chain);
           await loadAutoUpvoterBatterySummary(settings);
+          if (runtime.cancelGeneration !== startGeneration) return;
           renderScannerFeed('Перед запуском: текущая батарейка загружена.');
           runtime.runners = helper.upsertRunnerState(runtime.runners, settings);
           const accounts = Object.keys(runtime.runners);
@@ -7238,20 +7878,23 @@
           runtime.runnerLock = helper.claimRunnerLocks(chain, accounts, runtime.runnerLock && runtime.runnerLock.owner);
           if (runtime.scannerInterval) clearInterval(runtime.scannerInterval);
           runtime.running = true;
+          runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+          const runGeneration = runtime.cancelGeneration;
           runtime.settings = settings;
           runtime.hiddenNoticeSent = false;
           startButton.disabled = true;
           stopButton.disabled = false;
           appendScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
-          await runAutoUpvoterScan(settings);
+          await runAutoUpvoterScan(settings, runGeneration);
+          if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           runtime.scannerInterval = setInterval(() => {
             if (runtime.runnerLock) runtime.runnerLock = helper.claimRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
-            runAutoUpvoterScan(settings).catch((error) => {
-              appendScannerFeed(`Ошибка scan: ${profiles.formatError(error)}`);
-              setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+            runAutoUpvoterScan(settings, runGeneration).catch((error) => {
+              appendScannerFeed(`Ошибка scan: ${formatDiagnosticError(error)}`);
+              setStatus(`Ошибка автоапвоутера: ${formatDiagnosticError(error)}`, 'error');
               if (pwa && typeof pwa.notify === 'function') {
                 pwa.notify('Ошибка автоапвоутера', {
-                  body: `${chain.title}: ${profiles.formatError(error)}`,
+                  body: `${chain.title}: ${formatDiagnosticError(error)}`,
                   tag: `${chain.id}-auto-upvoter-error`,
                   renotify: true
                 });
@@ -7277,24 +7920,31 @@
           runtime.settings = null;
           startButton.disabled = false;
           stopButton.disabled = true;
-          feed.textContent = `Ошибка запуска: ${profiles.formatError(error)}`;
-          setStatus(`Ошибка автоапвоутера: ${profiles.formatError(error)}`, 'error');
+          feed.textContent = `Ошибка запуска: ${formatDiagnosticError(error)}`;
+          setStatus(`Ошибка автоапвоутера: ${formatDiagnosticError(error)}`, 'error');
           if (pwa && typeof pwa.notify === 'function') {
             pwa.notify('Ошибка запуска автоапвоутера', {
-              body: `${chain.title}: ${profiles.formatError(error)}`,
+              body: `${chain.title}: ${formatDiagnosticError(error)}`,
               tag: `${chain.id}-auto-upvoter-start-error`,
               renotify: true
             });
           }
+        } finally {
+          runtime.starting = false;
+          startButton.disabled = runtime.running;
+          stopButton.disabled = !runtime.running;
         }
       });
       stopButton.addEventListener('click', async () => {
-        await loadAutoUpvoterBatterySummary(collectSettings());
         if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
-          await stopAndroidAutoUpvoter();
+          runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+          runtime.running = false;
+          startButton.disabled = false;
+          stopButton.disabled = true;
+          Promise.resolve(stopAndroidAutoUpvoter()).catch((error) => setStatus(`Ошибка остановки Android автоапвоутера: ${formatDiagnosticError(error)}`, 'error'));
           return;
         }
-        stopAutoUpvoter('Перед остановкой: текущая батарейка загружена. Остановлен. Local active-tab scanner очищен; новых отправок не будет.');
+        await stopAutoUpvoter('Остановлен немедленно. Local active-tab scanner очищен; новых отправок не будет.');
       });
     } else if (feed) {
       feed.textContent = 'Ошибка: модуль DposGolosAutoUpvoter не загружен.';
@@ -7439,10 +8089,10 @@
     const teaser = markdownToTextPreview(row && row.body, 320);
     const voted = hasGolosVoteFrom(row, auth.getCurrentLogin(chain));
     return `<article class="card golos-feed-card" data-golos-feed-card data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
-      <h3><a href="${escapeHtml(golosFeedPostUrl(row))}">${escapeHtml(title)}</a></h3>
+      <h3><a data-i18n-skip href="${escapeHtml(golosFeedPostUrl(row))}">${escapeHtml(title)}</a></h3>
       <p class="muted">${accountLink(chain, author)} · ${escapeHtml(golosContentDate(row))} · ${escapeHtml(golosFeedActionStats(row))}</p>
-      <p>${escapeHtml(teaser)}</p>
-      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<a href="${escapeHtml(golosFeedTagUrl(tag))}">${escapeHtml(golosFeedTagLabel(tag))}</a>`).join(', ')}</p>` : ''}
+      <p data-i18n-skip>${escapeHtml(teaser)}</p>
+      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<a data-i18n-skip href="${escapeHtml(golosFeedTagUrl(tag))}">${escapeHtml(golosFeedTagLabel(tag))}</a>`).join(', ')}</p>` : ''}
       <p class="actions">
         <button type="button" data-golos-feed-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже лайкали' : 'Лайк 100%'}</button>
         <button type="button" class="secondary" data-golos-feed-repost data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Репост с подтверждением</button>
@@ -7452,6 +8102,7 @@
   }
 
   async function renderGolosFeedsPage(chain, state = {}) {
+    const capturedRouteEpoch = routeRenderGeneration;
     const storedSettings = readGolosFeedsSettings();
     const hasFeedParam = Object.prototype.hasOwnProperty.call(state, 'feed') && state.feed;
     const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
@@ -7492,8 +8143,8 @@
     const result = document.getElementById('golos-feeds-result');
     try {
       setStatus('Загружаю Golos ленту...', 'loading');
-      const connection = await getConnection(chain);
-      const rows = await loadGolosFeedRows(chain, { ...state, feed: feedKind, account, tag }, connection);
+      const connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+      const rows = await awaitRouteTask(capturedRouteEpoch, async () => (loadGolosFeedRows(chain, { ...state, feed: feedKind, account, tag }, connection)));
       const cards = (Array.isArray(rows) ? rows : []).map((row) => renderGolosFeedCard(chain, row)).filter(Boolean);
       const selectedBaseLabel = (GOLOS_FEED_KINDS.find(([id]) => id === feedKind) || GOLOS_FEED_KINDS[0])[1];
       const selectedLabel = feedKind === 'tag' ? `${selectedBaseLabel}: ${tag ? golosFeedTagLabel(tag) : 'без тега (все посты)'}` : selectedBaseLabel;
@@ -7501,8 +8152,9 @@
       bindGolosFeedActions(chain);
       setStatus(`Golos лента «${selectedLabel}» загружена.`, 'ok');
     } catch (error) {
-      if (result) result.innerHTML = `<p class="warning">${escapeHtml(profiles.formatError(error))}</p>`;
-      setStatus(`Ошибка загрузки ленты Golos: ${profiles.formatError(error)}`, 'error');
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+      if (result) result.innerHTML = `<p class="warning">${escapeHtml(formatDiagnosticError(error))}</p>`;
+      setStatus(`Ошибка загрузки ленты Golos: ${formatDiagnosticError(error)}`, 'error');
     }
   }
 
@@ -7528,7 +8180,7 @@
           button.textContent = 'Лайк отправлен';
           setStatus('Лайк отправлен в сеть.', 'ok');
         } catch (error) {
-          setStatus(`Ошибка лайка: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка лайка: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -7554,7 +8206,7 @@
           button.textContent = 'Репост отправлен';
           setStatus('Репост отправлен в сеть.', 'ok');
         } catch (error) {
-          setStatus(`Ошибка репоста: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка репоста: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -7657,7 +8309,7 @@
     try {
       const [promotedRows, accounts] = await Promise.all([
         fetchPromotedDiscussions(connection, { tag: '', limit: 20 }).catch((error) => {
-          info.error = `Не удалось загрузить текущую промо-очередь: ${profiles.formatError(error)}`;
+          info.error = `Не удалось загрузить текущую промо-очередь: ${formatDiagnosticError(error)}`;
           return [];
         }),
         profiles.apiCall(connection, 'getAccounts', [[login]]).catch(() => [])
@@ -7669,7 +8321,7 @@
       info.maxAmount = balance || formatPostPromotionAsset(0, symbol);
       info.maxNumber = postPromotionAssetNumber(info.maxAmount, symbol);
     } catch (error) {
-      info.error = profiles.formatError(error);
+      info.error = formatDiagnosticError(error);
     }
     return info;
   }
@@ -7699,7 +8351,7 @@
     </details>`;
   }
 
-  async function renderGolosPostPage(chain, state = {}) {
+  async function renderGolosPostPage(chain, state = {}, isCurrentRoute) {
     const author = String(state.author || '').trim().replace(/^@/, '');
     const permlink = String(state.permlink || '').trim();
     if (!author || !permlink) throw new Error('Для страницы поста нужны author и permlink в hash-параметрах.');
@@ -7707,19 +8359,21 @@
     setStatus(`Загружаю пост @${author}/${permlink}...`, 'loading');
     const connection = await getConnection(chain);
     const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadGolosRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
     await loadScript(chain.cryptoPath);
     const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
     const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
     appEl.innerHTML = `<section class="panel golos-post-page" data-golos-post-page>
       <article class="card">
-        <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
+        <h2 data-i18n-skip>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code></p>
-        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
+        <div class="markdown-preview post-body" data-i18n-skip>${markdownToPreviewHtml(post.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('golos-post', author, permlink, voted)}
           ${renderPostPromotionForm(chain, author, permlink, promotionInfo)}
@@ -7770,8 +8424,8 @@
     const editForm = canEdit ? `<div class="reply-slot" hidden data-golos-comment-edit-slot>${renderGolosCommentForm(`golos-edit-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), parentAuthor, parentPermlink, { mode: 'edit', author, permlink, body: comment.body || '' })}</div>` : '';
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
-        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
-        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
+        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a data-i18n-skip href="${escapeHtml(golosPostPageUrl(author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
+        <div class="markdown-preview comment-body" data-i18n-skip>${markdownToPreviewHtml(comment.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('golos-post', author, permlink, voted)}
           ${golosDonateLink(author, 'Донат коммента')}
@@ -7888,8 +8542,8 @@
           if (submit) submit.disabled = true;
           await submitPostPromotion(chain, form);
         } catch (error) {
-          setOperationResult(form, profiles.formatError(error), 'error');
-          setStatus(`Ошибка продвижения: ${profiles.formatError(error)}`, 'error');
+          setOperationResult(form, formatDiagnosticError(error), 'error');
+          setStatus(`Ошибка продвижения: ${formatDiagnosticError(error)}`, 'error');
         } finally {
           if (submit) submit.disabled = false;
         }
@@ -7918,7 +8572,7 @@
         try {
           await submitPostVote(chain, form, { ensureDependencies: true, title: 'Golos post/comment vote', feature: 'golos-post-page' });
         } catch (error) {
-          setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка голоса: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -7946,8 +8600,8 @@
           if (result) result.textContent = mode === 'edit' ? 'Правка комментария отправлена. Обновите страницу поста после индексации RPC.' : 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
           setStatus(mode === 'edit' ? 'Правка комментария отправлена в сеть.' : 'Комментарий отправлен в сеть.', 'ok');
         } catch (error) {
-          if (result) result.textContent = profiles.formatError(error);
-          setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
+          if (result) result.textContent = formatDiagnosticError(error);
+          setStatus(`Ошибка комментария: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -8055,10 +8709,10 @@
     const teaser = markdownToTextPreview(row && row.body, 320);
     const voted = hasGolosVoteFrom(row, auth.getCurrentLogin(chain));
     return `<article class="card social-feed-card" data-social-feed-card data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">
-      <h3><a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}">${escapeHtml(title)}</a></h3>
+      <h3><a data-i18n-skip href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}">${escapeHtml(title)}</a></h3>
       <p class="muted">${accountLink(chain, author)} · ${escapeHtml(golosContentDate(row))} · ${escapeHtml(socialFeedActionStats(row))}</p>
-      <p>${escapeHtml(teaser)}</p>
-      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(', ')}</p>` : ''}
+      <p data-i18n-skip>${escapeHtml(teaser)}</p>
+      ${tags.length ? `<p class="muted">Теги: ${tags.map((tag) => `<span data-i18n-skip>${escapeHtml(tag)}</span>`).join(', ')}</p>` : ''}
       <p class="actions">
         <button type="button" data-social-feed-vote data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}" ${voted ? 'disabled' : ''}>${voted ? 'Вы уже лайкали' : 'Лайк 100%'}</button>
         <button type="button" class="secondary" data-social-feed-repost data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Репост с подтверждением</button>
@@ -8068,6 +8722,7 @@
   }
 
   async function renderSocialFeedsPage(chain, state = {}) {
+    const capturedRouteEpoch = routeRenderGeneration;
     const storedSettings = readSocialFeedsSettings(chain);
     const hasFeedParam = Object.prototype.hasOwnProperty.call(state, 'feed') && state.feed;
     const hasAccountParam = Object.prototype.hasOwnProperty.call(state, 'account') && state.account;
@@ -8108,16 +8763,17 @@
     const result = document.getElementById('social-feeds-result');
     try {
       setStatus(`Загружаю ${chainTitle} ленту...`, 'loading');
-      const connection = await getConnection(chain);
-      const rows = await loadSocialFeedRows(chain, { ...state, feed: feedKind, account }, connection);
+      const connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+      const rows = await awaitRouteTask(capturedRouteEpoch, async () => (loadSocialFeedRows(chain, { ...state, feed: feedKind, account }, connection)));
       const cards = (Array.isArray(rows) ? rows : []).map((row) => renderSocialFeedCard(chain, row)).filter(Boolean);
       const selectedLabel = (SOCIAL_FEED_KINDS.find(([id]) => id === feedKind) || SOCIAL_FEED_KINDS[0])[1];
       result.innerHTML = cards.length ? `<h3>${escapeHtml(selectedLabel)}</h3>${cards.join('')}` : `<p class="muted">В этой ленте сейчас нет постов.</p>`;
       bindSocialFeedActions(chain);
       setStatus(`${chainTitle} лента «${selectedLabel}» загружена.`, 'ok');
     } catch (error) {
-      if (result) result.innerHTML = `<p class="warning">${escapeHtml(profiles.formatError(error))}</p>`;
-      setStatus(`Ошибка загрузки ленты ${chainTitle}: ${profiles.formatError(error)}`, 'error');
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+      if (result) result.innerHTML = `<p class="warning">${escapeHtml(formatDiagnosticError(error))}</p>`;
+      setStatus(`Ошибка загрузки ленты ${chainTitle}: ${formatDiagnosticError(error)}`, 'error');
     }
   }
 
@@ -8143,7 +8799,7 @@
           button.textContent = 'Лайк отправлен';
           setStatus('Лайк отправлен в сеть.', 'ok');
         } catch (error) {
-          setStatus(`Ошибка лайка: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка лайка: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -8169,13 +8825,13 @@
           button.textContent = 'Репост отправлен';
           setStatus('Репост отправлен в сеть.', 'ok');
         } catch (error) {
-          setStatus(`Ошибка репоста: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка репоста: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
   }
 
-  async function renderSocialPostPage(chain, state = {}) {
+  async function renderSocialPostPage(chain, state = {}, isCurrentRoute) {
     const author = String(state.author || '').trim().replace(/^@/, '');
     const permlink = String(state.permlink || '').trim();
     if (!author || !permlink) throw new Error('Для страницы поста нужны author и permlink в hash-параметрах.');
@@ -8184,19 +8840,21 @@
     setStatus(`Загружаю пост @${author}/${permlink}...`, 'loading');
     const connection = await getConnection(chain);
     const post = await profiles.apiCall(connection, 'getContent', [author, permlink]);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     if (!post || !post.author) throw new Error(`Пост @${author}/${permlink} не найден.`);
     const replies = await loadSocialRepliesTree(connection, author, permlink, 0, 4);
     const currentLogin = auth.getCurrentLogin(chain);
     await loadScript(chain.cryptoPath);
     const promotionInfo = await fetchPostPromotionInfo(chain, connection, currentLogin);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     const voted = hasGolosVoteFrom(post, currentLogin);
     const canEditPost = (chain.id === 'golos' || isHiveOrSteem(chain)) && currentLogin && String(post.author || author).toLowerCase() === String(currentLogin).toLowerCase();
     const editPostLink = canEditPost ? appHash({ chain: chain.id, app: 'editor', author: post.author || author, permlink: post.permlink || permlink }) : '';
     appEl.innerHTML = `<section class="panel social-post-page" data-social-post-page>
       <article class="card">
-        <h2>${escapeHtml(golosContentTitle(post, permlink))}</h2>
+        <h2 data-i18n-skip>${escapeHtml(golosContentTitle(post, permlink))}</h2>
         <p class="muted">${accountLink(chain, post.author || author)} · ${escapeHtml(golosContentDate(post))} · <code>${escapeHtml(post.permlink || permlink)}</code> · ${escapeHtml(socialFeedActionStats(post))}</p>
-        <div class="markdown-preview post-body">${markdownToPreviewHtml(post.body || '', chain)}</div>
+        <div class="markdown-preview post-body" data-i18n-skip>${markdownToPreviewHtml(post.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('social-post', author, permlink, voted)}
           ${renderPostPromotionForm(chain, author, permlink, promotionInfo)}
@@ -8246,8 +8904,8 @@
     const editForm = canEdit ? `<div class="reply-slot" hidden data-social-comment-edit-slot>${renderSocialCommentForm(`social-edit-form-${escapeHtml(author)}-${escapeHtml(permlink)}`.replace(/[^a-zA-Z0-9_-]/g, '-'), parentAuthor, parentPermlink, { mode: 'edit', author, permlink, body: comment.body || '' })}</div>` : '';
     return `<li class="comment-node" data-comment-author="${escapeHtml(author)}" data-comment-permlink="${escapeHtml(permlink)}">
       <article>
-        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
-        <div class="markdown-preview comment-body">${markdownToPreviewHtml(comment.body || '', chain)}</div>
+        <p><strong>${accountLink(chain, author)}</strong> · <span class="muted">${escapeHtml(golosContentDate(comment))}</span> · <a data-i18n-skip href="${escapeHtml(socialPostPageUrl(chain, author, permlink))}" target="_blank" rel="noopener">${escapeHtml(author)}/${escapeHtml(title)}</a></p>
+        <div class="markdown-preview comment-body" data-i18n-skip>${markdownToPreviewHtml(comment.body || '', chain)}</div>
         <div class="actions">
           ${renderPostVoteForm('social-post', author, permlink, voted)}
           <button type="button" data-social-comment-reply data-author="${escapeHtml(author)}" data-permlink="${escapeHtml(permlink)}">Ответить</button>
@@ -8297,7 +8955,7 @@
         try {
           await submitPostVote(chain, form, { title: `${chain.id} post/comment vote`, feature: `${chain.id}-post-page` });
         } catch (error) {
-          setStatus(`Ошибка голоса: ${profiles.formatError(error)}`, 'error');
+          setStatus(`Ошибка голоса: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
@@ -8324,20 +8982,22 @@
           if (result) result.textContent = mode === 'edit' ? 'Правка комментария отправлена. Обновите страницу поста после индексации RPC.' : 'Комментарий отправлен. Обновите страницу поста, чтобы увидеть его после индексации RPC.';
           setStatus(mode === 'edit' ? 'Правка комментария отправлена в сеть.' : 'Комментарий отправлен в сеть.', 'ok');
         } catch (error) {
-          if (result) result.textContent = profiles.formatError(error);
-          setStatus(`Ошибка комментария: ${profiles.formatError(error)}`, 'error');
+          if (result) result.textContent = formatDiagnosticError(error);
+          setStatus(`Ошибка комментария: ${formatDiagnosticError(error)}`, 'error');
         }
       });
     });
   }
 
   async function renderGolosDonate(chain, state = {}) {
+    const capturedRouteEpoch = routeRenderGeneration;
     let assets = [];
     try {
-      const connection = await getConnection(chain);
+      const connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
       const api = connection.client && connection.client.api;
-      assets = api && typeof api.getAssetsAsync === 'function' ? await fetchAllGolosAssets(api, 200) : [];
+      assets = api && typeof api.getAssetsAsync === 'function' ? await awaitRouteTask(capturedRouteEpoch, async () => (fetchAllGolosAssets(api, 200))) : [];
     } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
       console.warn('Golos donate token list was not loaded:', error);
     }
     const selectedToken = state.token || chain.liquidSymbol || 'GOLOS';
@@ -8582,7 +9242,7 @@
         ? `Можно опубликовать без штрафа: ${quota.text}`
         : 'Не удалось рассчитать лимит постов без штрафа: в ответе аккаунта нет post_bandwidth/last_post.';
     } catch (error) {
-      quotaEl.textContent = `Не удалось рассчитать лимит постов без штрафа: ${profiles.formatError(error)}`;
+      quotaEl.textContent = `Не удалось рассчитать лимит постов без штрафа: ${formatDiagnosticError(error)}`;
     }
   }
 
@@ -8691,7 +9351,7 @@
           setEditorEditOnlyVisibility(form, true);
           report(`Пост @${target.author}/${target.permlink} загружен через публичный RPC. При отправке будет broadcast comment без comment_options.`);
         } catch (error) {
-          report(profiles.formatError(error));
+          report(formatDiagnosticError(error));
         }
       });
     }
@@ -8736,9 +9396,40 @@
         setEditorEditOnlyVisibility(form, true);
         report(`Пост загружен для редактирования: @${target.author}/${target.permlink}. При отправке будет broadcast comment без comment_options.`);
       } catch (error) {
-        report(profiles.formatError(error));
+        report(formatDiagnosticError(error));
       }
     });
+  }
+
+  function createEditorPublicationFeedback(chain, container, readPost) {
+    let target = null;
+    let generation = 0;
+    const show = (post, confirmed, token) => {
+      if (!container.isConnected || token !== generation) return;
+      const href = `#chain=${encodeURIComponent(chain.id)}&app=post&author=${encodeURIComponent(post.author)}&permlink=${encodeURIComponent(post.permlink)}`;
+      const message = confirmed ? (post.editing ? 'Изменения сохранены.' : 'Пост опубликован.') : 'Результат отправки ещё не подтверждён.';
+      const label = confirmed ? 'Открыть пост в DPoS Space' : 'Проверить пост';
+      container.hidden = false;
+      container.innerHTML = `<p>${message} <a href="${escapeHtml(href)}">${label}</a></p>`;
+    };
+    return {
+      capture(operations, editing) {
+        const operation = operations.find((op) => op[0] === 'comment' && !op[1].parent_author);
+        target = operation ? Object.assign({}, operation[1], { editing }) : null;
+      },
+      async broadcast(send, targetChain, prepared, settings) {
+        if (settings.dryRun || !target) return send(targetChain, prepared, settings);
+        const post = target;
+        const token = ++generation;
+        show(post, false, token);
+        const result = await send(targetChain, prepared, settings);
+        // Verification is read-only and cannot change or retry the completed broadcast.
+        Promise.resolve().then(() => readPost(post)).then((actual) => {
+          if (actual && actual.author === post.author && actual.permlink === post.permlink && actual.title === post.title && actual.body === post.body) show(post, true, token);
+        }).catch(() => { /* Keep the honest check-post link if the read fails. */ });
+        return result;
+      }
+    };
   }
 
   function renderEditor(chain, state) {
@@ -8750,6 +9441,7 @@
       <section class="panel">
         <h2>${escapeHtml(chain.title)}: редактор</h2>
         <p>Редактор публикаций: подготовка поста, проверка операции и отправка по подтверждению.</p>
+        <div id="editor-publication-result" role="status" aria-live="polite" hidden></div>
         ${editorPostQuotaNotice(chain)}
         <details id="editor-operation-details" class="operation-modal-source"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
           <fieldset>
@@ -8780,12 +9472,17 @@
         ${draft ? `<p class="notice">Загружен черновик из импорта: ${escapeHtml(draft.sourceUrl || draft.importedAt || '')}</p>` : ''}
         <p class="muted">${isGolos ? 'Golos payload сохраняет legacy category, payout, beneficiaries и curator rewards; preview/JSON перед отправкой обязателен.' : 'Параметры выплат выставлены по умолчанию. Перед отправкой проверьте итоговые данные операции.'}</p>
       </section>`;
+    const feedback = createEditorPublicationFeedback(chain, document.getElementById('editor-publication-result'), async (post) => {
+      const connection = await profiles.connect(chain);
+      return profiles.apiCall(connection, 'getContent', [post.author, post.permlink]);
+    });
     bindOperationForm(chain, 'editor-form', (form, context) => {
       const operations = chain.id === 'golos'
         ? buildGolosEditorOperations(chain, form, context && context.form)
         : buildGenericEditorOperations(chain, form, context && context.form);
+      feedback.capture(operations, context.form.dataset.golosEditMode === 'true');
       return broadcast.prepare(chain, 'posting', 'sendOperations', [operations]);
-    });
+    }, feedback);
     bindSteemPostLegacyHelpers(chain);
     bindGolosPostLegacyHelpers(chain);
     updateGolosEditorPostQuota(chain);
@@ -8825,7 +9522,7 @@
         chainProps: null,
         config: null,
         source: 'static fallback',
-        error: profiles.formatError(error)
+        error: formatDiagnosticError(error)
       };
     }
   }
@@ -8975,9 +9672,10 @@
   }
 
   async function renderGolosCalculator(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel calculator-golos" aria-labelledby="golos-calculator-loading-heading"><h2 id="golos-calculator-loading-heading">Загрузка калькулятора Golos</h2><p role="status" aria-live="polite">Читаю параметры сети через публичную Golos RPC-ноду...</p></section>';
-    const connection = await getConnection(chain);
-    const context = await loadGolosCalculatorContext(connection);
+    const connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+    const context = await awaitRouteTask(capturedRouteEpoch, async () => (loadGolosCalculatorContext(connection)));
     const props = context.props || {};
     const totalFund = parseAssetAmount(props.total_vesting_fund_steem);
     const totalShares = parseAssetAmount(props.total_vesting_shares);
@@ -9055,14 +9753,16 @@
   }
 
   async function renderSteemCalculator(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel calculator-steem" aria-labelledby="steem-calculator-loading-heading"><h2 id="steem-calculator-loading-heading">Загрузка калькулятора Steem</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Steem RPC-ноду...</p></section>';
     let connection;
     let context;
     try {
-      connection = await getConnection(chain);
-      context = await loadSteemCalculatorContext(connection);
+      connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+      context = await awaitRouteTask(capturedRouteEpoch, async () => (loadSteemCalculatorContext(connection)));
     } catch (error) {
-      appEl.innerHTML = `<section class="panel calculator-steem" aria-labelledby="steem-calculator-heading"><h2 id="steem-calculator-heading">Steem: калькулятор SP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Steem RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+      appEl.innerHTML = `<section class="panel calculator-steem" aria-labelledby="steem-calculator-heading"><h2 id="steem-calculator-heading">Steem: калькулятор SP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Steem RPC-нода недоступна: ${escapeHtml(formatDiagnosticError(error))}. PHP/backend fallback не используется.</p></section>`;
       setStatus('Steem калькулятор не смог получить публичные RPC-параметры.', 'error');
       return;
     }
@@ -9123,14 +9823,16 @@
   }
 
   async function renderHiveCalculator(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel calculator-hive" aria-labelledby="hive-calculator-loading-heading"><h2 id="hive-calculator-loading-heading">Загрузка калькулятора Hive</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties, feed history и reward fund через публичную Hive RPC-ноду...</p></section>';
     let connection;
     let context;
     try {
-      connection = await getConnection(chain);
-      context = await loadHiveCalculatorContext(connection);
+      connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+      context = await awaitRouteTask(capturedRouteEpoch, async () => (loadHiveCalculatorContext(connection)));
     } catch (error) {
-      appEl.innerHTML = `<section class="panel calculator-hive" aria-labelledby="hive-calculator-heading"><h2 id="hive-calculator-heading">Hive: калькулятор HP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Hive RPC-нода недоступна: ${escapeHtml(profiles.formatError(error))}. PHP/backend fallback не используется.</p></section>`;
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+      appEl.innerHTML = `<section class="panel calculator-hive" aria-labelledby="hive-calculator-heading"><h2 id="hive-calculator-heading">Hive: калькулятор HP/VESTS</h2><p class="error" role="status" aria-live="polite">Публичная Hive RPC-нода недоступна: ${escapeHtml(formatDiagnosticError(error))}. PHP/backend fallback не используется.</p></section>`;
       setStatus('Hive калькулятор не смог получить публичные RPC-параметры.', 'error');
       return;
     }
@@ -9191,19 +9893,21 @@
   }
 
   async function renderVizCalculator(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel calculator-viz" aria-labelledby="viz-calculator-loading-heading"><h2 id="viz-calculator-loading-heading">Загрузка калькулятора VIZ</h2><p role="status" aria-live="polite">Читаю dynamic global properties, chain properties и config через публичную VIZ RPC-ноду...</p></section>';
     let connection = null;
     let context = null;
     try {
-      connection = await getConnection(chain);
-      context = await loadVizCalculatorContext(connection);
+      connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
+      context = await awaitRouteTask(capturedRouteEpoch, async () => (loadVizCalculatorContext(connection)));
     } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
       context = {
         props: VIZ_CALCULATOR_FALLBACK_PROPS,
         chainProps: null,
         config: null,
         source: 'static fallback',
-        error: profiles.formatError(error)
+        error: formatDiagnosticError(error)
       };
     }
     const props = context.props || VIZ_CALCULATOR_FALLBACK_PROPS;
@@ -9578,6 +10282,7 @@
           <div class="field"><label for="viz-many-invites-secrets">Секреты чеков для use/claim, по одному на строку</label><textarea id="viz-many-invites-secrets" name="secrets" rows="5"></textarea></div>
           <button type="button" id="viz-many-invites-generate">Сгенерировать secrets и публичные ключи</button>
           <button type="button" id="viz-many-invites-download" disabled>Скачать backup secrets</button>
+          <label><input type="checkbox" id="viz-many-invites-saved" disabled> Я сохранил backup этой партии в надёжном месте</label>
           <button type="submit" name="intent" value="preview">Проверить batch invite</button><button type="submit" name="intent" value="send">Отправить batch invite</button>
           <div id="viz-many-invites-result" class="operation-result" role="status" aria-live="polite">Secrets не отображаются в preview; скачайте backup после генерации.</div>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -9752,7 +10457,7 @@
     const witnessVoteState = { currentVotes: new Set(), proxy: '' };
     const createAccountState = { name: '', pendingKeys: null, backupConfirmed: false };
     const resetKeys = { pendingKeys: null, backupConfirmed: false };
-    const manyInvitesState = { invites: [] };
+    const manyInvitesState = chain.id === 'viz' ? getVizInviteBatchState(auth.getCurrentLogin(chain)) : createVizInviteBatchState();
     if (chain.id === 'golos' || chain.id === 'viz' || chain.id === 'hive' || chain.id === 'steem') {
       renderManageWitnessSigningKeyHistory(chain);
       const witnessKeyInput = document.getElementById('manage-witness-key');
@@ -9811,8 +10516,8 @@
             renderCreateKeys();
             setStatus('Ключи нового аккаунта Golos сгенерированы локально. Скачайте backup перед отправкой.', 'ok');
           } catch (error) {
-            if (createGeneratedEl) createGeneratedEl.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (createGeneratedEl) createGeneratedEl.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -9862,8 +10567,8 @@ Memo key: ${keys.memo}`);
             renderResetKeys();
             setStatus('Новые ключи Golos сгенерированы локально. Скачайте backup перед отправкой account_update.', 'ok');
           } catch (error) {
-            if (generatedEl) generatedEl.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (generatedEl) generatedEl.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -9903,6 +10608,17 @@ Memo key: ${keys.memo}`);
       const vizResetSavedBox = document.getElementById('viz-reset-saved');
       const manyInvitesResult = document.getElementById('viz-many-invites-result');
       const manyInvitesDownloadBtn = document.getElementById('viz-many-invites-download');
+      const manyInvitesSavedBox = document.getElementById('viz-many-invites-saved');
+      if (manyInvitesState.invites.length) {
+        document.getElementById('viz-many-invites-count').value = String(manyInvitesState.count);
+        document.getElementById('viz-many-invites-amount').value = manyInvitesState.amount;
+        if (manyInvitesDownloadBtn) manyInvitesDownloadBtn.disabled = false;
+        if (manyInvitesSavedBox) {
+          manyInvitesSavedBox.disabled = false;
+          manyInvitesSavedBox.checked = manyInvitesState.backedUpBatchId === manyInvitesState.batchId;
+        }
+        if (manyInvitesResult) manyInvitesResult.textContent = 'Предыдущая партия доступна в памяти этой вкладки. Её backup можно скачать повторно.';
+      }
 
       const renderVizCreateKeys = () => {
         if (!createAccountState.pendingKeys) {
@@ -9931,8 +10647,8 @@ Memo key: ${keys.memo}`);
             renderVizCreateKeys();
             setStatus('Ключи нового VIZ аккаунта сгенерированы локально через crypto.getRandomValues. Скачайте backup перед отправкой.', 'ok');
           } catch (error) {
-            if (vizCreateGeneratedEl) vizCreateGeneratedEl.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (vizCreateGeneratedEl) vizCreateGeneratedEl.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -9974,8 +10690,8 @@ Memo key: ${keys.memo}`);
             renderVizResetKeys();
             setStatus('Новые VIZ ключи сгенерированы локально. Скачайте backup перед отправкой accountUpdate.', 'ok');
           } catch (error) {
-            if (vizResetGeneratedEl) vizResetGeneratedEl.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (vizResetGeneratedEl) vizResetGeneratedEl.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -9992,27 +10708,53 @@ Memo key: ${keys.memo}`);
       if (vizResetSavedBox) vizResetSavedBox.addEventListener('change', () => { resetKeys.backupConfirmed = vizResetSavedBox.checked; });
 
       const manyInvitesGenerateBtn = document.getElementById('viz-many-invites-generate');
+      const manyInvitesModeEl = document.getElementById('viz-many-invites-mode');
+      const manyInvitesCountEl = document.getElementById('viz-many-invites-count');
+      const manyInvitesAmountEl = document.getElementById('viz-many-invites-amount');
+      const invalidateInviteBatch = () => {
+        if (!manyInvitesState.invites.length) return;
+        if (hasUnbackedVizInvites(manyInvitesState)) {
+          if (manyInvitesResult) manyInvitesResult.textContent = 'Прежняя партия сохранена в памяти. Скачайте её backup и подтвердите сохранение перед генерацией новой партии.';
+          return;
+        }
+        resetVizInviteBatch(manyInvitesState);
+        if (manyInvitesSavedBox) { manyInvitesSavedBox.checked = false; manyInvitesSavedBox.disabled = true; }
+        if (manyInvitesDownloadBtn) manyInvitesDownloadBtn.disabled = true;
+        if (manyInvitesResult) manyInvitesResult.textContent = 'Параметры партии изменены. Сгенерируйте и скачайте новую партию secrets.';
+      };
+      if (manyInvitesModeEl) manyInvitesModeEl.addEventListener('change', invalidateInviteBatch);
+      if (manyInvitesCountEl) manyInvitesCountEl.addEventListener('input', invalidateInviteBatch);
+      if (manyInvitesAmountEl) manyInvitesAmountEl.addEventListener('input', invalidateInviteBatch);
       if (manyInvitesGenerateBtn) {
-        manyInvitesGenerateBtn.addEventListener('click', () => {
+        manyInvitesGenerateBtn.addEventListener('click', async () => {
           try {
-            const count = Math.max(1, Math.min(50, Math.trunc(Number(document.getElementById('viz-many-invites-count').value || 1))));
-            manyInvitesState.invites = Array.from({ length: count }, () => {
-              const secret = generateVizInviteSecret();
-              return { secret, publicKey: vizInvitePublic(secret) };
-            });
+            await loadScript(chain.libraryPath);
+            await loadScript(chain.cryptoPath);
+            const count = Math.max(1, Math.min(50, Math.trunc(Number(manyInvitesCountEl.value || 1))));
+            const amount = normalizeAssetInput(chain, manyInvitesAmountEl.value, chain.liquidSymbol, 'Баланс invite');
+            generateVizInviteBatch(manyInvitesState, { count, amount }, generateVizInviteSecret, vizInvitePublic);
+            if (manyInvitesSavedBox) { manyInvitesSavedBox.checked = false; manyInvitesSavedBox.disabled = false; }
             if (manyInvitesDownloadBtn) manyInvitesDownloadBtn.disabled = false;
             if (manyInvitesResult) manyInvitesResult.innerHTML = `<p>${count} invite secrets сгенерированы. Preview будет содержать только публичные invite_key.</p><ul>${manyInvitesState.invites.map((item) => `<li><code>${escapeHtml(item.publicKey)}</code></li>`).join('')}</ul>`;
             setStatus('Invite secrets сгенерированы локально через crypto.getRandomValues; скачайте backup secrets.', 'ok');
           } catch (error) {
-            if (manyInvitesResult) manyInvitesResult.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (manyInvitesResult) manyInvitesResult.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
+      if (manyInvitesSavedBox) manyInvitesSavedBox.addEventListener('change', () => {
+        if (manyInvitesSavedBox.checked) acknowledgeVizInviteBatchBackup(manyInvitesState);
+        else manyInvitesState.backedUpBatchId = null;
+      });
       if (manyInvitesDownloadBtn) {
         manyInvitesDownloadBtn.addEventListener('click', () => {
-          if (!manyInvitesState.invites.length) return;
-          downloadTextFile(`viz-invites-${Date.now()}.txt`, manyInvitesState.invites.map((item) => item.secret).join('\r\n'));
+          try {
+            downloadVizInviteBatch(manyInvitesState, text => downloadTextFile(`viz-invites-${Date.now()}.txt`, text));
+            if (manyInvitesResult) manyInvitesResult.insertAdjacentHTML('afterbegin', '<p>Загрузка backup начата. После сохранения файла отметьте подтверждение ниже.</p>');
+          } catch (error) {
+            setStatus(formatDiagnosticError(error), 'error');
+          }
         });
       }
       const witnessLoad = document.getElementById('manage-witness-load');
@@ -10062,7 +10804,7 @@ Memo key: ${keys.memo}`);
       const activeObject = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
       const postingObject = { weight_threshold: 1, account_auths: [], key_auths: [[keys.postingPubkey, 1]] };
       const amountText = String(form.get('amount') || '').trim().replace(',', '.').replace(/\s*GOLOS$/i, '');
-      if (!/^\d(?:\.\d{1,3})?$/.test(amountText) || Number(amountText) < 0) throw new Error('Сумма GOLOS должна быть неотрицательным числом, например 3.000.');
+      if (!/^\d+(?:\.\d{1,3})?$/.test(amountText) || Number(amountText) < 0) throw new Error('Сумма GOLOS должна быть неотрицательным числом, например 3.000.');
       let fee = '0.000 GOLOS';
       let delegation = '0.000000 GESTS';
       if (String(form.get('type') || 'delegation') === 'fee') {
@@ -10188,14 +10930,16 @@ Memo key: ${keys.memo}`);
       if (!resetKeys.backupConfirmed) throw new Error('Перед сбросом подтвердите, что новые приватные ключи сохранены в backup.');
       const ownerWif = String(form.get('ownerWif') || '').trim();
       const current = await fetchChainAccount(chain, account);
-      if (!current || typeof current.json_metadata === 'undefined') throw new Error('Не удалось получить текущий json_metadata аккаунта; сброс ключей остановлен, чтобы не стереть metadata.');
       const keys = resetKeys.pendingKeys;
-      const master = { weight_threshold: 1, account_auths: [], key_auths: [[keys.masterPubkey, 1]] };
-      const active = { weight_threshold: 1, account_auths: [], key_auths: [[keys.activePubkey, 1]] };
-      const regular = { weight_threshold: 1, account_auths: [], key_auths: [[keys.regularPubkey, 1]] };
-      return broadcast.prepareWithPrivateKey(chain, account, 'master', ownerWif, 'accountUpdate', [account, master, active, regular, keys.memoPubkey, current.json_metadata || '{}'], {
+      const reset = buildVizFullKeyReset(current, account, keys);
+      const prepared = broadcast.prepareWithPrivateKey(chain, account, 'master', ownerWif, 'accountUpdate', reset.args, {
         title: 'VIZ reset keys', warnings: ['Сброс ключей удалит старые key/account auths. Owner/master WIF используется только в памяти и не показывается в preview/result.']
       });
+      Object.defineProperty(prepared, 'beforeBroadcast', { value: async () => {
+        const latest = await fetchChainAccount(chain, account);
+        assertVizFullKeyResetCurrent(reset.expectedRevision, latest, account);
+      } });
+      return prepared;
     });
 
     bindOperationForm(chain, 'viz-many-invites-form', (form) => {
@@ -10206,13 +10950,7 @@ Memo key: ${keys.memo}`);
       if (mode === 'create') {
         const count = Math.max(1, Math.min(50, Math.trunc(Number(form.get('count') || 1))));
         const amount = normalizeAssetInput(chain, form.get('amount'), chain.liquidSymbol, 'Баланс invite');
-        let preparedInvites = Array.isArray(manyInvitesState.invites) ? manyInvitesState.invites.slice(0, count) : [];
-        while (preparedInvites.length < count) {
-          const secret = generateVizInviteSecret();
-          preparedInvites.push({ secret, publicKey: vizInvitePublic(secret) });
-        }
-        manyInvitesState.invites = preparedInvites;
-        ops = preparedInvites.map((item) => ['create_invite', { creator: account, balance: amount, invite_key: item.publicKey }]);
+        ops = buildVizCreateInviteOperations(manyInvitesState, { count, account, amount });
       } else {
         const secrets = String(form.get('secrets') || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
         if (!secrets.length) throw new Error('Вставьте invite secrets для use/claim.');
@@ -10228,19 +10966,29 @@ Memo key: ${keys.memo}`);
       return broadcast.prepare(chain, 'active', 'versionedChainPropertiesUpdate', [auth.getCurrentLogin(chain), [3, props]], { title: 'VIZ versionedChainPropertiesUpdate', warnings: ['Опасная операция валидатора: меняет chain properties; проверьте поля перед отправкой.'] });
     });
 
-    bindOperationForm(chain, 'viz-multisig-authority-form', (form) => {
+    bindOperationForm(chain, 'viz-multisig-authority-form', async (form) => {
       if (chain.id !== 'viz') throw new Error('VIZ multisig authority доступен только для VIZ.');
       const account = auth.getCurrentLogin(chain);
       const activeWif = String(form.get('activeWif') || '').trim();
       const kind = String(form.get('kind') || 'regular') === 'active' ? 'active' : 'regular';
-      const threshold = Math.max(1, Number.parseInt(String(form.get('threshold') || '1'), 10));
+      const threshold = Number(String(form.get('threshold') || '1'));
       const accountAuths = parseAuthorityAccountAuths(form.get('accountAuths'));
-      if (!accountAuths.length) throw new Error('Добавьте хотя бы один account auth для multisig.');
-      const current = { weight_threshold: threshold, account_auths: accountAuths, key_auths: [] };
-      const empty = { weight_threshold: 1, account_auths: [], key_auths: [] };
-      const active = kind === 'active' ? current : empty;
-      const regular = kind === 'regular' ? current : empty;
-      return broadcast.prepareWithPrivateKey(chain, account, 'active', activeWif, 'accountUpdate', [account, undefined, active, regular, undefined, undefined], { title: 'VIZ multisig accountUpdate', warnings: ['Multisig update может заменить текущие key_auths выбранного authority. Проверьте account_auths и threshold.'] });
+      const currentAccount = await fetchChainAccount(chain, account);
+      const update = buildVizAuthorityUpdate(currentAccount, kind, threshold, accountAuths);
+      const delegates = await Promise.all(accountAuths.map(([name]) => fetchChainAccount(chain, name)));
+      const missing = accountAuths.filter((entry, index) => !delegates[index] || delegates[index].name !== entry[0]);
+      if (missing.length) throw new Error(`Не найдены аккаунты authority: ${missing.map(entry => entry[0]).join(', ')}`);
+      const prepared = broadcast.prepareWithPrivateKey(chain, account, 'active', activeWif, 'accountUpdate', [account, undefined, update.active, update.regular, update.memoKey, update.jsonMetadata], {
+        title: 'VIZ multisig accountUpdate',
+        warnings: ['Multisig update заменит выбранный authority. Невыбранный authority, memo key и json_metadata сохраняются без изменений.', update.diff]
+      });
+      const revision = record => JSON.stringify([record.active_authority || record.active, record.regular_authority || record.regular, record.memo_key, record.json_metadata]);
+      const expectedRevision = revision(currentAccount);
+      Object.defineProperty(prepared, 'beforeBroadcast', { value: async () => {
+        const latest = await fetchChainAccount(chain, account);
+        if (!latest || revision(latest) !== expectedRevision) throw new Error('Права, memo key или metadata изменились после подготовки. Обновите предварительную проверку.');
+      } });
+      return prepared;
     });
 
     bindOperationForm(chain, 'viz-multisig-signed-tx-form', (form) => {
@@ -10291,7 +11039,7 @@ Memo key: ${keys.memo}`);
   async function loadVizExplorerOverview(chain, connection) {
     const [dynamicProperties, chainProperties] = await Promise.all([
       profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
-      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: profiles.formatError(error) }))
+      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: formatDiagnosticError(error) }))
     ]);
     return { chain, dynamicProperties: dynamicProperties || {}, chainProperties: chainProperties || {} };
   }
@@ -10355,7 +11103,7 @@ Memo key: ${keys.memo}`);
   async function loadSteemExplorerOverview(chain, connection) {
     const [dynamicProperties, chainProperties] = await Promise.all([
       profiles.apiCall(connection, 'getDynamicGlobalProperties', []),
-      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: profiles.formatError(error) }))
+      profiles.apiCall(connection, 'getChainProperties', []).catch((error) => ({ _error: formatDiagnosticError(error) }))
     ]);
     return { chain, dynamicProperties: dynamicProperties || {}, chainProperties: chainProperties || {} };
   }
@@ -10474,7 +11222,8 @@ Memo key: ${keys.memo}`);
     </ul><hr><h3>Данные</h3>${renderMinterExplorerData(chain, tx.data)}${rawJsonDetails('Minter transaction API', tx)}`;
   }
 
-  async function renderExplorer(chain, account) {
+  async function renderExplorer(chain, account, isCurrentRoute) {
+    const routeIsCurrent = typeof isCurrentRoute === 'function' ? isCurrentRoute : () => true;
     const state = parseHash();
     appEl.innerHTML = `
       <section class="panel">
@@ -10494,22 +11243,26 @@ Memo key: ${keys.memo}`);
     });
 
     const connection = await getConnection(chain);
+    if (!routeIsCurrent()) return;
 
     if (!state.kind || !state.value) {
       if (chain.id === 'viz') {
         const overview = await loadVizExplorerOverview(chain, connection);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderVizExplorerOverview(overview);
         setStatus('VIZ проводник: последние блоки и параметры загружены через публичную ноду.', 'ok');
         return;
       }
       if (chain.id === 'steem') {
         const overview = await loadSteemExplorerOverview(chain, connection);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderSteemExplorerOverview(overview);
         setStatus('Steem проводник: последние блоки и параметры загружены через публичную ноду.', 'ok');
         return;
       }
       if (chain.id === 'minter') {
         const overview = await loadMinterExplorerOverview(chain);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerOverview(chain, overview);
         setStatus('Minter проводник: последние блоки и статус загружены через публичные API.', 'ok');
         return;
@@ -10522,6 +11275,7 @@ Memo key: ${keys.memo}`);
     if (state.kind === 'block') {
       if (chain.id === 'minter') {
         result = await loadMinterExplorerBlock(chain, state.value);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerBlock(chain, result, state.value);
         setStatus('Minter проводник: блок загружен через публичный API.', 'ok');
         return;
@@ -10536,6 +11290,7 @@ Memo key: ${keys.memo}`);
     } else if (state.kind === 'tx') {
       if (chain.id === 'minter') {
         result = await loadMinterExplorerTx(chain, String(state.value).trim());
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerTx(chain, result, state.value);
         setStatus('Minter проводник: транзакция загружена через публичный explorer API.', 'ok');
         return;
@@ -10544,6 +11299,7 @@ Memo key: ${keys.memo}`);
     } else {
       result = await profiles.fetchAccount(connection, String(state.value).trim().replace(/^@/, ''));
     }
+    if (!routeIsCurrent()) return;
     document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
     setStatus(`${chain.title} проводник: ${state.kind} загружен.`, 'ok');
   }
@@ -10703,7 +11459,7 @@ Memo key: ${keys.memo}`);
         document.getElementById('viz-voice-source-url').value = url;
         setOperationResult(form, 'Черновик Voice подготовлен локально. Проверьте заголовок, текст и изображения перед публикацией.', 'ok');
       } catch (error) {
-        setOperationResult(form, profiles.formatError(error) + ' Если браузер заблокировал URL из-за CORS, вставьте HTML/текст вручную.', 'error');
+        setOperationResult(form, formatDiagnosticError(error) + ' Если браузер заблокировал URL из-за CORS, вставьте HTML/текст вручную.', 'error');
       }
     });
 
@@ -10749,7 +11505,7 @@ Memo key: ${keys.memo}`);
           source = await response.text();
         } catch (error) {
           warnings.push('URL не загрузился из браузера — вероятно CORS. Вставьте HTML/текст статьи вручную.');
-          setOperationResult(form, profiles.formatError(error), 'error');
+          setOperationResult(form, formatDiagnosticError(error), 'error');
           return;
         }
       }
@@ -10849,7 +11605,7 @@ Memo key: ${keys.memo}`);
         setOperationResult(form, `<p>Telegram Instant View: <a href="${escapeHtml(ivUrl)}" target="_blank" rel="noopener">открыть</a></p><p><button type="button" data-copy-value="${escapeHtml(ivUrl)}">Скопировать ссылку</button></p>`, 'ok', { chain: chain.id, from: auth.getCurrentLogin(chain), authority: 'none', operationName: 'telegramInstantViewLink', params: [{ url, rhash: '1d27d6e1501db6', ivUrl }], meta: { title: 'Telegram Instant View link', warnings: [] } });
         bindCopyButtons(form);
       } catch (error) {
-        setOperationResult(form, profiles.formatError(error), 'error');
+        setOperationResult(form, formatDiagnosticError(error), 'error');
       }
     });
     document.getElementById('instant-view-form').addEventListener('submit', (event) => {
@@ -10972,7 +11728,7 @@ Memo key: ${keys.memo}`);
         renderGolosSwapTokenHints(state);
         status.textContent = 'Токены загружены. Поля продажи/покупки можно выбрать из подсказок; максимум показан рядом.';
       } catch (error) {
-        status.textContent = profiles.formatError(error);
+        status.textContent = formatDiagnosticError(error);
       }
     });
   }
@@ -11017,8 +11773,8 @@ Memo key: ${keys.memo}`);
     if (!/^\d+(?:\.\d+)?$/.test(text) || Number(text) <= 0) {
       throw new Error(`${label || 'Сумма'} должна быть положительным числом.`);
     }
-    const [whole, rawFraction = ''] = text.split('.');
-    return `${whole}.${rawFraction.slice(0, precision).padEnd(precision, '0')}`;
+    const [whole, rawFraction] = walletDecimalParts(text, precision);
+    return precision ? `${whole}.${rawFraction.padEnd(precision, '0')}` : whole;
   }
 
   function bestGolosRpcNode(chain) {
@@ -11063,6 +11819,9 @@ Memo key: ${keys.memo}`);
   }
 
   function renderSwap(chain) {
+    const swapState = parseHash();
+    const sellToken = chain.id === 'golos' && /^[A-Z][A-Z0-9.]{0,15}$/.test(swapState.token || swapState.sellSymbol || '') ? (swapState.token || swapState.sellSymbol) : chain.liquidSymbol;
+    const buyToken = chain.id === 'golos' && /^[A-Z][A-Z0-9.]{0,15}$/.test(swapState.buySymbol || '') ? swapState.buySymbol : (sellToken === 'GOLOS' ? 'GBG' : 'GOLOS');
     if (chain.id === 'viz') {
       renderServicePlaceholder(chain, { id: 'swap', title: 'Swap', description: 'У VIZ в старом коде нет ясного DEX/swap flow.' });
       return;
@@ -11081,9 +11840,9 @@ Memo key: ${keys.memo}`);
           <button type="button" id="golos-swap-load-tokens">Загрузить мои токены и доступные пары</button>
           <div id="golos-swap-token-status" class="muted" role="status" aria-live="polite"></div>
           <datalist id="golos-swap-sell-symbols"></datalist><datalist id="golos-swap-buy-symbols"></datalist>
-          <div class="field"><label for="swap-direct-sell-amount">Сумма продажи <span id="golos-swap-max-amount" class="muted">максимум загрузится по кнопке</span></label><input id="swap-direct-sell-amount" name="sellAmount" type="text" required placeholder="1.000"></div>
-          <div class="field"><label for="swap-direct-sell-symbol">Токен продажи</label><input id="swap-direct-sell-symbol" name="sellSymbol" type="text" list="golos-swap-sell-symbols" required value="${escapeHtml(chain.liquidSymbol)}"></div>
-          <div class="field"><label for="swap-direct-buy-symbol">Токен покупки</label><input id="swap-direct-buy-symbol" name="buySymbol" type="text" list="golos-swap-buy-symbols" required value="${escapeHtml(chain.debtSymbol || chain.liquidSymbol)}"></div>
+          <div class="field"><label for="swap-direct-sell-amount">Сумма продажи <span id="golos-swap-max-amount" class="muted">максимум загрузится по кнопке</span></label><input id="swap-direct-sell-amount" name="sellAmount" type="number" min="0" step="any" inputmode="decimal" required placeholder="1.000"></div>
+          <div class="field"><label for="swap-direct-sell-symbol">Токен продажи</label><input id="swap-direct-sell-symbol" name="sellSymbol" type="text" list="golos-swap-sell-symbols" required value="${escapeHtml(sellToken)}"></div>
+          <div class="field"><label for="swap-direct-buy-symbol">Токен покупки</label><input id="swap-direct-buy-symbol" name="buySymbol" type="text" list="golos-swap-buy-symbols" required value="${escapeHtml(buyToken)}"></div>
           <button type="submit" name="intent" value="preview">Рассчитать и проверить обмен</button><button type="submit" name="intent" value="send">Совершить обмен в сети</button>
           <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
         </fieldset></form></details>` : ''}
@@ -11142,7 +11901,7 @@ Memo key: ${keys.memo}`);
         const data = await loadGrapheneOrderBook(chain, document.getElementById('swap-orderbook-limit').value);
         readonlyResult.innerHTML = renderOrderRows((data && (data.bids || data.asks)) ? [].concat(data.bids || [], data.asks || []) : data, 'Стакан пуст или API вернул пустой ответ.') + rawJsonDetails('Raw order book', data);
       } catch (error) {
-        readonlyResult.textContent = profiles.formatError(error);
+        readonlyResult.textContent = formatDiagnosticError(error);
       }
     });
     const openOrdersBtn = document.getElementById('swap-open-orders-load');
@@ -11152,7 +11911,7 @@ Memo key: ${keys.memo}`);
         const data = await loadGrapheneOpenOrders(chain, auth.getCurrentLogin(chain));
         readonlyResult.innerHTML = renderOrderRows(data, 'Открытых ордеров нет.') + rawJsonDetails('Raw open orders', data);
       } catch (error) {
-        readonlyResult.textContent = profiles.formatError(error);
+        readonlyResult.textContent = formatDiagnosticError(error);
       }
     });
     setStatus(`${chain.title} swap/market готов: прямой обмен, создание/отмена ордера и read-only стакан/ордера.`, 'ok');
@@ -11225,8 +11984,8 @@ Memo key: ${keys.memo}`);
             if (nameStatus) nameStatus.textContent = exists ? 'Аккаунт уже существует. Введите другой логин.' : 'Аккаунт свободен.';
             setStatus(exists ? 'VIZ registration: аккаунт уже существует.' : 'VIZ registration: аккаунт свободен.', exists ? 'error' : 'ok');
           } catch (error) {
-            if (nameStatus) nameStatus.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (nameStatus) nameStatus.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -11246,8 +12005,8 @@ Memo key: ${keys.memo}`);
             setStatus('VIZ private WIF нового аккаунта сгенерирован локально. Сохраните backup перед отправкой.', 'ok');
           } catch (error) {
             vizRegistrationKey = null;
-            if (keyStatus) keyStatus.textContent = profiles.formatError(error);
-            setStatus(profiles.formatError(error), 'error');
+            if (keyStatus) keyStatus.textContent = formatDiagnosticError(error);
+            setStatus(formatDiagnosticError(error), 'error');
           }
         });
       }
@@ -11388,8 +12147,8 @@ Memo key: ${keys.memo}`);
         resultEl.innerHTML = `<p><strong>Счастливое число:</strong> ${escapeHtml(random.luckyNumber)}</p>${winner ? `<p><strong>Победитель:</strong> ${escapeHtml(winner)}</p>` : ''}<p><strong>Блоки результата:</strong> ${escapeHtml(first)}, ${escapeHtml(second)}</p><p><a href="${escapeHtml(permalink)}">Ссылка на результат с этими блоками</a></p><p class="muted">Алгоритм: ${escapeHtml(random.algorithm)}. Legacy VIZ возвращает остаток + 1, поэтому диапазон результата — 1..N.</p>${rawJsonDetails('Данные расчёта', { chain: chain.id, participants: modulo, hash: random.hash, resultIndexZeroBased: random.value, luckyNumber: random.luckyNumber, winner, first: firstSeed, second: secondSeed })}`;
         setStatus(`${chain.title}: randomblockchain посчитан по публичным данным.`, 'ok');
       } catch (error) {
-        resultEl.textContent = profiles.formatError(error);
-        setStatus(profiles.formatError(error), 'error');
+        resultEl.textContent = formatDiagnosticError(error);
+        setStatus(formatDiagnosticError(error), 'error');
       }
     }
     form.addEventListener('submit', async (event) => {
@@ -11509,9 +12268,9 @@ Memo key: ${keys.memo}`);
       status.textContent = `Загружено делегатов Golos через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
       setStatus(`Golos witnesses-rewards: загружено witness records: ${witnesses.length}.`, 'ok');
     } catch (error) {
-      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список делегатов: ${escapeHtml(profiles.formatError(error))}</p>`;
-      status.textContent = `Ошибка загрузки списка делегатов: ${profiles.formatError(error)}`;
-      setStatus(`Golos witnesses-rewards: ${profiles.formatError(error)}`, 'error');
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список делегатов: ${escapeHtml(formatDiagnosticError(error))}</p>`;
+      status.textContent = `Ошибка загрузки списка делегатов: ${formatDiagnosticError(error)}`;
+      setStatus(`Golos witnesses-rewards: ${formatDiagnosticError(error)}`, 'error');
     }
   }
 
@@ -11706,8 +12465,8 @@ Memo key: ${keys.memo}`);
         renderVizTop(chain);
       } catch (error) {
         vizTopState.loading = false;
-        vizTopState.error = profiles.formatError(error);
-        setStatus(`Ошибка загрузки VIZ top: ${profiles.formatError(error)}`, 'error');
+        vizTopState.error = formatDiagnosticError(error);
+        setStatus(`Ошибка загрузки VIZ top: ${formatDiagnosticError(error)}`, 'error');
         renderVizTop(chain);
       }
     });
@@ -11941,7 +12700,7 @@ Memo key: ${keys.memo}`);
       await fetchGolosTopUiaBalances(connection, names, rowsByName, onProgress);
     } catch (error) {
       console.warn('Golos top UIA balances were not fully loaded:', error);
-      golosTopState.error = `UIA балансы загружены не полностью: ${profiles.formatError(error)}`;
+      golosTopState.error = `UIA балансы загружены не полностью: ${formatDiagnosticError(error)}`;
     }
     golosTopState.uiaSymbols = Array.from(new Set(rows.flatMap((row) => Object.keys(row.uia || {})))).sort((a, b) => a.localeCompare(b));
     return rows;
@@ -11996,8 +12755,8 @@ Memo key: ${keys.memo}`);
         renderGolosTop(chain);
       } catch (error) {
         golosTopState.loading = false;
-        golosTopState.error = profiles.formatError(error);
-        setStatus(`Ошибка загрузки Golos top: ${profiles.formatError(error)}`, 'error');
+        golosTopState.error = formatDiagnosticError(error);
+        setStatus(`Ошибка загрузки Golos top: ${formatDiagnosticError(error)}`, 'error');
         renderGolosTop(chain);
       }
     });
@@ -12072,9 +12831,9 @@ Memo key: ${keys.memo}`);
       status.textContent = `Загружено валидаторов VIZ через public RPC: ${witnesses.length}. Reward-агрегаты ниже не вычисляются.`;
       setStatus(`VIZ validator list: загружено validator records: ${witnesses.length}.`, 'ok');
     } catch (error) {
-      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список валидаторов: ${escapeHtml(profiles.formatError(error))}</p>`;
-      status.textContent = `Ошибка загрузки списка валидаторов: ${profiles.formatError(error)}`;
-      setStatus(`VIZ witnesses-rewards: ${profiles.formatError(error)}`, 'error');
+      target.innerHTML = `<p class="muted">Не удалось загрузить публичный список валидаторов: ${escapeHtml(formatDiagnosticError(error))}</p>`;
+      status.textContent = `Ошибка загрузки списка валидаторов: ${formatDiagnosticError(error)}`;
+      setStatus(`VIZ witnesses-rewards: ${formatDiagnosticError(error)}`, 'error');
     }
   }
 
@@ -12413,7 +13172,7 @@ Memo key: ${keys.memo}`);
   }
 
   function vizPmRenderUnavailable(chain, error) {
-    const message = profiles.formatError(error);
+    const message = formatDiagnosticError(error);
     appEl.innerHTML = `
       <section class="panel viz-prediction-markets">
         <h2>VIZ: Рынки предсказаний</h2>
@@ -12497,8 +13256,9 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderVizPredictionMarkets(chain, account) {
-    await loadScript(chain.cryptoPath);
-    await loadScript(chain.libraryPath);
+    const capturedRouteEpoch = routeRenderGeneration;
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
+    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.libraryPath)));
     const requested = String(account || '').trim().replace(/^@/, '') || auth.getCurrentLogin(chain) || '';
     const state = vizPmStateFromHash();
     appEl.innerHTML = '<section class="panel viz-prediction-markets"><h2>VIZ: Рынки предсказаний</h2><p>Подключаю публичную ноду и загружаю prediction_market_api...</p></section>';
@@ -12506,22 +13266,25 @@ Memo key: ${keys.memo}`);
 
     let connection;
     try {
-      connection = await getConnection(chain);
+      connection = await awaitRouteTask(capturedRouteEpoch, async () => (getConnection(chain)));
     } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
       vizPmRenderUnavailable(chain, error);
       return;
     }
 
     const ctx = { chain, connection, login: requested, liquidMax: '', chainProps: null };
     if (requested) {
-      try { ctx.liquidMax = await vizPmLoadLiquidMax(chain, connection, requested); } catch (error) { ctx.liquidMax = ''; }
+      try { ctx.liquidMax = await awaitRouteTask(capturedRouteEpoch, async () => (vizPmLoadLiquidMax(chain, connection, requested))); } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return; ctx.liquidMax = ''; }
     }
     vizPmCtx = ctx;
 
     try {
-      if (state.market) await vizPmRenderMarket(chain, ctx, state);
-      else await vizPmRenderList(chain, ctx, state);
+      if (state.market) await awaitRouteTask(capturedRouteEpoch, async () => (vizPmRenderMarket(chain, ctx, state)));
+      else await awaitRouteTask(capturedRouteEpoch, async () => (vizPmRenderList(chain, ctx, state)));
     } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
       vizPmRenderUnavailable(chain, error);
     }
   }
@@ -12544,7 +13307,7 @@ Memo key: ${keys.memo}`);
         markets = await vizPmApi(ctx, 'listMarkets', [Number(state.status), state.page * VIZ_PM_PAGE_SIZE, VIZ_PM_PAGE_SIZE, state.risky, '']);
       }
     } catch (error) {
-      listError = profiles.formatError(error);
+      listError = formatDiagnosticError(error);
     }
     const list = Array.isArray(markets) ? markets : [];
 
@@ -13384,7 +14147,7 @@ Memo key: ${keys.memo}`);
         }
         out.innerHTML = html;
       } catch (error) {
-        out.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+        out.innerHTML = `<p class="error-panel">${escapeHtml(formatDiagnosticError(error))}</p>`;
       }
     });
   }
@@ -13404,7 +14167,7 @@ Memo key: ${keys.memo}`);
           if (!oracle) { result.innerHTML = `<p class="muted">Оракул @${escapeHtml(owner)} не найден.</p>`; return; }
           result.innerHTML = `${vizPmOracleInfoBlock(payload)}<p>Активных рынков: ${escapeHtml(String(payload.active_markets !== undefined ? payload.active_markets : ''))} · ждут резолва: ${escapeHtml(String(payload.markets_awaiting_resolution !== undefined ? payload.markets_awaiting_resolution : ''))}</p>`;
         } catch (error) {
-          result.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+          result.innerHTML = `<p class="error-panel">${escapeHtml(formatDiagnosticError(error))}</p>`;
         }
       });
     }
@@ -13423,7 +14186,7 @@ Memo key: ${keys.memo}`);
           ]);
           result.innerHTML = vizPmTable('Оракулы', ['Оракул', 'Депозит', 'Комиссия', 'Разрешено', 'Споры +/−'], rows);
         } catch (error) {
-          result.innerHTML = `<p class="error-panel">${escapeHtml(profiles.formatError(error))}</p>`;
+          result.innerHTML = `<p class="error-panel">${escapeHtml(formatDiagnosticError(error))}</p>`;
         }
       });
     }
@@ -13447,7 +14210,7 @@ Memo key: ${keys.memo}`);
         if (deposit) rows.push(['Моё пополнение (shares)', escapeHtml(vizPmAsset(deposit.shares !== undefined ? deposit.shares : ''))]);
         stats.innerHTML = vizPmKv(rows);
       } catch (error) {
-        stats.innerHTML = `<p class="muted">Ленивый пул недоступен: ${escapeHtml(profiles.formatError(error))}</p>`;
+        stats.innerHTML = `<p class="muted">Ленивый пул недоступен: ${escapeHtml(formatDiagnosticError(error))}</p>`;
       }
     })();
   }
@@ -13558,7 +14321,7 @@ Memo key: ${keys.memo}`);
         var profitPercent = liquidity > 0 ? awards.shares / liquidity * 100 : 0;
         result.innerHTML = renderVizVmpResult(Object.assign({}, awards, { liquidity: liquidity, profitPercent: profitPercent }));
       } catch (error) {
-        result.innerHTML = escapeHtml(profiles.formatError(error));
+        result.innerHTML = escapeHtml(formatDiagnosticError(error));
       }
     });
     setStatus('VIZ VMP открыт: ссылки на пулы и read-only расчёт фарминга используют публичные API без backend dpos.space.', 'info');
@@ -13568,7 +14331,7 @@ Memo key: ${keys.memo}`);
     var protocol = String(value || '').trim();
     if (!protocol) throw new Error('Укажите ID/protocol custom_json.');
     if (protocol.length > 32) throw new Error('ID/protocol custom_json должен быть не длиннее 32 символов.');
-    if (!/^[a-z0-9_.-]$/i.test(protocol)) throw new Error('ID/protocol может содержать только латиницу, цифры, точку, подчёркивание и дефис.');
+    if (!/^[a-z0-9_.-]{1,32}$/i.test(protocol)) throw new Error('ID/protocol может содержать только латиницу, цифры, точку, подчёркивание и дефис.');
     return protocol;
   }
 
@@ -13592,7 +14355,7 @@ Memo key: ${keys.memo}`);
         <p class="notice"><strong>Backend yes:</strong> старый сгенерированный скрипт зависел от PHP <code>json_encode.php</code>, который преобразовывал form-urlencoded поля в JSON. Static v3 не восстанавливает PHP endpoint, jQuery UI drag/drop builder и вставляемый внешний скрипт; JSON проверяется локально в браузере.</p>
         <details id="viz-custom-generator-details" class="operation-modal-source"><summary>Отправить custom_json — preview перед broadcast</summary><form id="viz-custom-generator-form" class="stacked-form"><fieldset>
           <legend>Подготовить VIZ custom_json</legend>
-          <div class="field"><label for="viz-custom-protocol">ID/protocol custom_json</label><input id="viz-custom-protocol" name="protocol" type="text" maxlength="32" pattern="[A-Za-z0-9_.-]" placeholder="my-protocol" required></div>
+          <div class="field"><label for="viz-custom-protocol">ID/protocol custom_json</label><input id="viz-custom-protocol" name="protocol" type="text" maxlength="32" pattern="[A-Za-z0-9_.\\-]{1,32}" placeholder="my-protocol" required></div>
           <div class="field"><label for="viz-custom-json">JSON payload</label><textarea id="viz-custom-json" name="json" rows="10" spellcheck="false" required>{"example":true}</textarea></div>
           <p class="muted">Заменяет legacy действия «Получить JSON текущей формы» и «Открыть получившуюся форму»: вставьте уже готовый JSON, проверьте preview, затем отправляйте только после явного подтверждения.</p>
           <button type="submit" name="intent" value="preview">Проверить JSON и операцию</button><button type="submit" name="intent" value="send">Отправить custom_json в сеть</button>
@@ -13782,12 +14545,13 @@ Memo key: ${keys.memo}`);
         downloadTextFile(`steem-posts-${safeAccount}.${extension}`, text);
         setOperationResult(form, `Готово: подготовлено ${posts.length} записей. Файл скачан локально в браузере; данные и ключи не отправлялись на сервер.`, 'ok');
       } catch (error) {
-        setOperationResult(form, profiles.formatError(error), 'error');
+        setOperationResult(form, formatDiagnosticError(error), 'error');
       }
     });
   }
 
   async function renderSteemBackup(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     const current = account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
     appEl.innerHTML = `
       <section class="panel steem-backup-panel">
@@ -13814,7 +14578,7 @@ Memo key: ${keys.memo}`);
           </fieldset>
         </form>
       </section>`;
-    await bindSteemBackupForm(chain);
+    await awaitRouteTask(capturedRouteEpoch, async () => (bindSteemBackupForm(chain)));
     setStatus('Steem backup готов: экспорт выполняется локально через public RPC без backend.', 'ok');
   }
 
@@ -13839,12 +14603,13 @@ Memo key: ${keys.memo}`);
         downloadTextFile(`hive-posts-${safeAccount}.${extension}`, text);
         setOperationResult(form, `Готово: подготовлено ${posts.length} записей. Файл скачан локально в браузере; данные и ключи не отправлялись на сервер.`, 'ok');
       } catch (error) {
-        setOperationResult(form, profiles.formatError(error), 'error');
+        setOperationResult(form, formatDiagnosticError(error), 'error');
       }
     });
   }
 
   async function renderHiveBackup(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     const current = account || auth.getCurrentLogin(chain) || chain.defaultAccount || '';
     appEl.innerHTML = `
       <section class="panel hive-backup-panel">
@@ -13871,7 +14636,7 @@ Memo key: ${keys.memo}`);
           </fieldset>
         </form>
       </section>`;
-    await bindHiveBackupForm(chain);
+    await awaitRouteTask(capturedRouteEpoch, async () => (bindHiveBackupForm(chain)));
     setStatus('Hive backup готов: экспорт выполняется локально через public RPC без backend.', 'ok');
   }
 
@@ -13980,6 +14745,10 @@ Memo key: ${keys.memo}`);
     return '';
   }
 
+  function currentWalletRecipient(chain) {
+    try { return deriveSeedWalletAddress(chain, auth.getCurrentUser(chain)); } catch (_) { return ''; }
+  }
+
   function resolveSeedWalletAddress(chain, account) {
     const current = auth.getCurrentUser(chain);
     const login = auth.getUserLogin(current);
@@ -13994,8 +14763,8 @@ Memo key: ${keys.memo}`);
     const address = resolveSeedWalletAddress(chain, account);
     const [addressData, delegationsData, transactionsData] = await Promise.all([
       fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}`, 'Minter address API'),
-      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/delegations`, 'Minter delegations API').catch((error) => ({ _error: error.message, data: [] })),
-      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/transactions?page=1`, 'Minter transactions API').catch((error) => ({ _error: error.message, data: [] }))
+      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/delegations`, 'Minter delegations API').catch((error) => ({ _error: formatDiagnosticError(error), data: [] })),
+      fetchJsonText(`${chain.explorerBase}/addresses/${encodeURIComponent(address)}/transactions?page=1`, 'Minter transactions API').catch((error) => ({ _error: formatDiagnosticError(error), data: [] }))
     ]);
     const addressPayload = unwrapMinterData(addressData) || {};
     const delegationsPayload = unwrapMinterData(delegationsData) || [];
@@ -14035,8 +14804,8 @@ Memo key: ${keys.memo}`);
 
     return `<article class="card"><h3>Адрес</h3><p>${accountLink(chains.minter, data.address)}</p><p><button type="button" id="minter-copy-address">Копировать адрес</button></p></article>
       <article class="card"><h3>Балансы</h3>${balanceRows ? `<div class="table-wrap"><table aria-label="Балансы Minter"><caption>Балансы Minter</caption><thead><tr><th scope="col">Монета</th><th scope="col">Сумма</th><th scope="col">Тип</th><th scope="col">Доступные действия</th></tr></thead><tbody>${balanceRows}</tbody></table></div>` : '<p class="muted">Балансы не найдены.</p>'}</article>
-      <article class="card"><h3>Делегированные монеты</h3>${data.delegationsError ? `<p class="muted">Делегирования сейчас не загрузились: ${escapeHtml(data.delegationsError)}</p>` : ''}${delegations ? `<div class="table-wrap"><table aria-label="Делегированные монеты Minter"><caption>Делегированные монеты</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Stake</th><th scope="col">В BIP</th><th scope="col">В ожидании</th><th scope="col">Действие</th></tr></thead><tbody>${delegations}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
-      <article class="card"><h3>Последние транзакции</h3>${data.transactionsError ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(data.transactionsError)}</p>` : renderTransactionsTable(data.transactions, chains.minter, { caption: 'Последние транзакции Minter', emptyText: 'Транзакции не найдены.' })}</article>`;
+      <article class="card"><h3>Делегированные монеты</h3>${data.delegationsError ? `<p class="muted">Делегирования сейчас не загрузились: ${escapeHtml(diagnosticText(data.delegationsError))}</p>` : ''}${delegations ? `<div class="table-wrap"><table aria-label="Делегированные монеты Minter"><caption>Делегированные монеты</caption><thead><tr><th scope="col">Валидатор</th><th scope="col">Статус</th><th scope="col">Stake</th><th scope="col">В BIP</th><th scope="col">В ожидании</th><th scope="col">Действие</th></tr></thead><tbody>${delegations}</tbody></table></div>` : '<p class="muted">Делегированных монет нет.</p>'}</article>
+      <article class="card"><h3>Последние транзакции</h3>${data.transactionsError ? `<p class="muted">История сейчас не загрузилась: ${escapeHtml(diagnosticText(data.transactionsError))}</p>` : renderTransactionsTable(data.transactions, chains.minter, { caption: 'Последние транзакции Minter', emptyText: 'Транзакции не найдены.' })}</article>`;
   }
 
   function renderMinterWalletForms(chain) {
@@ -14063,13 +14832,14 @@ Memo key: ${keys.memo}`);
     ${minterSwapForms()}`;
   }
 
-  async function renderMinterWallet(chain, account) {
+  async function renderMinterWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel wallet-minter"><h2>Minter: кошелёк</h2><p>Загружаю балансы, делегирования и последние транзакции...</p></section>';
     setStatus(`Загружаю Minter кошелёк: ${account}...`, 'loading');
     await loadScript(chain.cryptoPath);
     if (chain.walletPath) await loadScript(chain.walletPath);
     if (chain.libraryPath) await loadScript(chain.libraryPath);
     const data = await loadMinterWalletData(chain, account);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     appEl.innerHTML = `<section class="panel wallet-minter">
       <h2>Minter: кошелёк ${escapeHtml(data.address)}</h2>
       <p><strong>Доступ к отправке:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
@@ -14089,6 +14859,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindMinterWalletForms(chain);
+    enhanceWalletForms(chain, appEl, currentWalletRecipient(chain));
     bindMinterQuickActions(appEl);
     bindMaxButtons(appEl);
     setStatus(`Minter кошелёк ${data.address} загружен.`, 'ok');
@@ -14151,12 +14922,12 @@ Memo key: ${keys.memo}`);
     const api = chain.apiBase || 'https://api.decimalchain.com/api/v1';
     const gate = chain.gateUrl || 'https://mainnet-gate.decimalchain.com/api/';
     const [balancesData, stakesCoinsData, stakesNftsData, transactionsData, rewardsData, nftsData] = await Promise.all([
-      fetchJsonText(`${api}/addresses/${encodeURIComponent(address)}/balances`, 'Decimal balances API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/coins`, 'Decimal stakes coins API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/nfts`, 'Decimal stakes NFTs API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${api}/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0`, 'Decimal history API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${api}/rewards/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal rewards API').catch((error) => ({ _error: error.message })),
-      fetchJsonText(`${gate.replace(/\/$/, '')}/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0`, 'Decimal SDK gateway NFTs API').catch((error) => ({ _error: error.message }))
+      fetchJsonText(`${api}/addresses/${encodeURIComponent(address)}/balances`, 'Decimal balances API').catch((error) => ({ _error: formatDiagnosticError(error) })),
+      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/coins`, 'Decimal stakes coins API').catch((error) => ({ _error: formatDiagnosticError(error) })),
+      fetchJsonText(`${api}/validators/wallet/${encodeURIComponent(stakeAddress)}/stakes/nfts`, 'Decimal stakes NFTs API').catch((error) => ({ _error: formatDiagnosticError(error) })),
+      fetchJsonText(`${api}/txs/txs-by-address/${encodeURIComponent(address)}?limit=10&offset=0`, 'Decimal history API').catch((error) => ({ _error: formatDiagnosticError(error) })),
+      fetchJsonText(`${api}/rewards/${encodeURIComponent(address)}?limit=20&offset=0`, 'Decimal rewards API').catch((error) => ({ _error: formatDiagnosticError(error) })),
+      fetchJsonText(`${gate.replace(/\/$/, '')}/address/${encodeURIComponent(address)}/nfts?limit=20&offset=0`, 'Decimal SDK gateway NFTs API').catch((error) => ({ _error: formatDiagnosticError(error) }))
     ]);
     return {
       address,
@@ -14443,13 +15214,14 @@ Memo key: ${keys.memo}`);
     ${decimalNftForms(data)}`;
   }
 
-  async function renderDecimalWallet(chain, account) {
+  async function renderDecimalWallet(chain, account, isCurrentRoute) {
     appEl.innerHTML = '<section class="panel wallet-decimal"><h2>Decimal: кошелёк</h2><p>Загружаю балансы, stake, NFT и последние транзакции...</p></section>';
     setStatus(`Загружаю Decimal кошелёк: ${account}...`, 'loading');
     await loadScript(chain.cryptoPath);
     if (chain.walletPath) await loadScript(chain.walletPath);
     if (chain.libraryPath) await loadScript(chain.libraryPath);
     const data = await loadDecimalWalletData(chain, account);
+    if (typeof isCurrentRoute === 'function' && !isCurrentRoute()) return;
     appEl.innerHTML = `<section class="panel wallet-decimal">
       <h2>Decimal: кошелёк ${escapeHtml(data.address)}</h2>
       <p><strong>Доступ к отправке:</strong> ${escapeHtml(keyStatusText(auth.getKeyStatus(chain, auth.getCurrentUser(chain))))}</p>
@@ -14469,6 +15241,7 @@ Memo key: ${keys.memo}`);
       });
     }
     bindDecimalWalletForms(chain);
+    enhanceWalletForms(chain, appEl, currentWalletRecipient(chain));
     bindDecimalQuickActions(appEl, data);
     bindDecimalConvertHelpers(appEl, chain, data);
     bindMaxButtons(appEl);
@@ -14515,8 +15288,8 @@ Memo key: ${keys.memo}`);
       <legend>Minter: обмен / продажа</legend>
       <div class="field"><label for="minter-swap-from">Монета к продаже</label><input id="minter-swap-from" name="from" type="text" required value="BIP"></div>
       <div class="field"><label for="minter-swap-to">Монета к покупке</label><input id="minter-swap-to" name="to" type="text" required></div>
-      <div class="field"><label for="minter-swap-amount">Сумма к продаже</label><input id="minter-swap-amount" name="amount" type="text" required></div>
-      <div class="field"><label for="minter-swap-min">Минимальная сумма покупки</label><input id="minter-swap-min" name="min" type="text" value="0"></div>
+      <div class="field"><label for="minter-swap-amount">Сумма к продаже</label><input id="minter-swap-amount" name="amount" type="text" ${monetaryInputAttributes()} required></div>
+      <div class="field"><label for="minter-swap-min">Минимальная сумма покупки</label><input id="minter-swap-min" name="min" type="text" ${monetaryInputAttributes()} value="0"></div>
       <div class="field"><label for="minter-swap-route">Маршрут swap pool (опционально, через запятую)</label><input id="minter-swap-route" name="route" type="text"></div>
       <button type="submit" name="intent" value="preview">Проверить swap</button><button type="submit" name="intent" value="send">Отправить swap в сеть</button>
       <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
@@ -14569,8 +15342,8 @@ Memo key: ${keys.memo}`);
       <div class="field"><label for="decimal-convert-from">Из: DEL, тикер или адрес токена</label><input id="decimal-convert-from" name="from" type="text" required value="DEL" list="decimal-token-suggestions"></div>
       <div class="field"><label for="decimal-convert-to">В: DEL, тикер или адрес токена</label><input id="decimal-convert-to" name="to" type="text" required list="decimal-token-suggestions"> <button type="button" id="decimal-token-search-button">Найти токены</button></div>
       <div id="decimal-token-search-results" class="operation-result" role="status" aria-live="polite"></div>
-      <div class="field"><label for="decimal-convert-amount">Сумма для конвертации (<span id="decimal-convert-max-status">выберите исходный токен для максимума</span>)</label><input id="decimal-convert-amount" name="amount" type="text" required> <button type="button" id="decimal-convert-max-button" disabled>Максимум</button></div>
-      <div class="field"><label for="decimal-convert-min">Минимальная сумма получения</label><input id="decimal-convert-min" name="minAmount" type="text" value="0"></div>
+      <div class="field"><label for="decimal-convert-amount">Сумма для конвертации (<span id="decimal-convert-max-status">выберите исходный токен для максимума</span>)</label><input id="decimal-convert-amount" name="amount" type="text" ${monetaryInputAttributes()} required> <button type="button" id="decimal-convert-max-button" disabled>Максимум</button></div>
+      <div class="field"><label for="decimal-convert-min">Минимальная сумма получения</label><input id="decimal-convert-min" name="minAmount" type="text" ${monetaryInputAttributes()} value="0"></div>
       <div class="field"><label for="decimal-convert-from-decimals">Знаков после запятой у исходного токена</label><input id="decimal-convert-from-decimals" name="fromDecimals" type="number" min="0" max="36" value="18"></div>
       <div class="field"><label for="decimal-convert-to-decimals">Знаков после запятой у целевого токена</label><input id="decimal-convert-to-decimals" name="toDecimals" type="number" min="0" max="36" value="18"></div>
       <button type="submit" name="intent" value="preview">Проверить конвертацию</button><button type="submit" name="intent" value="send">Отправить convert в сеть</button>
@@ -14677,7 +15450,7 @@ Memo key: ${keys.memo}`);
       if (global.minterWallet && typeof global.minterWallet.isValidMnemonic === 'function' && global.minterWallet.isValidMnemonic(memo)) {
         throw new Error('Memo похоже на seed-фразу. Исправьте memo перед отправкой.');
       }
-      const tx = minterTx('SEND', { to, value: Number(amount), coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Монета газа'), memo);
+      const tx = minterTx('SEND', { to, value: amount, coin }, normalizeCoinInput(form.get('gasCoin') || coin, 'Монета газа'), memo);
       return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: 'Minter send', to, amount: `${amount} ${coin}`, txType: 'SEND', coin, gasCoin: tx.gasCoin });
     });
 
@@ -14688,7 +15461,7 @@ Memo key: ${keys.memo}`);
       const validator = String(form.get('validator') || '').trim();
       if (!/^Mp[0-9a-fA-F]{64}$/.test(validator)) throw new Error('Minter validator public key должен быть MP  64 hex chars.');
       const txType = mode === 'unbond' ? 'UNBOND' : 'DELEGATE';
-      const tx = minterTx(txType, { publicKey: validator, coin, stake: Number(amount) }, coin, '');
+      const tx = minterTx(txType, { publicKey: validator, coin, stake: amount }, coin, '');
       return broadcast.prepare(chain, 'seed', 'minterTx', [tx], { title: `Minter ${txType}`, amount: `${amount} ${coin}`, txType, coin, validator });
     });
 
@@ -14697,7 +15470,7 @@ Memo key: ${keys.memo}`);
       const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
       const min = String(form.get('min') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
       const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
       const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
       const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
@@ -14710,7 +15483,7 @@ Memo key: ${keys.memo}`);
       const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
       const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
       const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const data = mode === 'REMOVE_LIQUIDITY'
         ? { coin0, coin1, liquidity: Number(volume0) }
@@ -14726,7 +15499,7 @@ Memo key: ${keys.memo}`);
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
       const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const [feeWhole, feeFrac = ''] = hubFee.split('.');
       const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0(?=\d)/, '') || '0';
@@ -14910,7 +15683,7 @@ Memo key: ${keys.memo}`);
           const filtered = query ? tokens.filter((token) => token.symbol.includes(query) || String(token.title || '').toUpperCase().includes(query) || String(token.address || '').toUpperCase().includes(query)).slice(0, 50) : tokens.slice(0, 50);
           renderDecimalTokenSearchResults(filtered, active && active.id ? active.id : 'decimal-convert-to');
         } catch (error) {
-          if (results) results.innerHTML = `<p class="muted">Поиск токенов сейчас недоступен: ${escapeHtml(profiles.formatError(error))}</p>`;
+          if (results) results.innerHTML = `<p class="muted">Поиск токенов сейчас недоступен: ${escapeHtml(formatDiagnosticError(error))}</p>`;
         }
       });
     }
@@ -14939,7 +15712,7 @@ Memo key: ${keys.memo}`);
       if (fromAsset.resolved.toUpperCase() === 'DEL' && toAsset.resolved.toUpperCase() === 'DEL') throw new Error('Decimal convert DEL → DEL is not valid.');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
       return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from: fromAsset.resolved, to: toAsset.resolved, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || fromAsset.decimals || 18), toDecimals: Number(form.get('toDecimals') || toAsset.decimals || 18) }], { title: 'Decimal convert', amount: `${amount} ${fromAsset.symbol || fromAsset.input} → ${toAsset.symbol || toAsset.input}`, warnings: [fromAsset.resolved !== fromAsset.input ? `Исходный токен ${fromAsset.input} → ${fromAsset.resolved}` : '', toAsset.resolved !== toAsset.input ? `Целевой токен ${toAsset.input} → ${toAsset.resolved}` : ''].filter(Boolean) });
     });
 
@@ -14996,7 +15769,7 @@ Memo key: ${keys.memo}`);
       const to = normalizeCoinInput(form.get('to'), 'Монета к покупке');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма к продаже');
       const min = String(form.get('min') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(min)) throw new Error('Минимальная сумма покупки должен быть неотрицательным числом.');
       const route = String(form.get('route') || '').split(',').map((item) => item.trim()).filter(Boolean);
       const txType = route.length ? 'SELL_SWAP_POOL' : 'SELL';
       const data = route.length ? { coins: [from].concat(route).concat([to]), valueToSell: Number(amount), minimumValueToBuy: Number(min) } : { coinToSell: from, coinToBuy: to, valueToSell: Number(amount), minimumValueToBuy: Number(min) };
@@ -15009,7 +15782,7 @@ Memo key: ${keys.memo}`);
       const coin1 = normalizeCoinInput(form.get('coin1'), 'Монета 1');
       const volume0 = normalizeAmountInput(form.get('volume0'), mode === 'REMOVE_LIQUIDITY' ? 'Ликвидность' : 'Объём 0');
       const volume1 = String(form.get('volume1') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(volume1)) throw new Error('Объём 1 должен быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const data = mode === 'REMOVE_LIQUIDITY'
         ? { coin0, coin1, liquidity: Number(volume0) }
@@ -15025,7 +15798,7 @@ Memo key: ${keys.memo}`);
       const coin = normalizeCoinInput(form.get('coin'), 'Монета');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма вывода');
       const hubFee = String(form.get('hubFee') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(hubFee)) throw new Error('Комиссия hub должна быть неотрицательным числом.');
       const gasCoin = normalizeCoinInput(form.get('gasCoin') || 'BIP', 'Монета газа');
       const [feeWhole, feeFrac = ''] = hubFee.split('.');
       const feeMinimal = `${feeWhole}${feeFrac.padEnd(18, '0')}`.replace(/^0(?=\d)/, '') || '0';
@@ -15061,7 +15834,7 @@ Memo key: ${keys.memo}`);
       if (to.toUpperCase() !== 'DEL' && !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error('Целевой актив должен быть DEL или адресом токена 0x.');
       const amount = normalizeAmountInput(form.get('amount'), 'Сумма конвертации');
       const minAmount = String(form.get('minAmount') || '0').trim().replace(',', '.');
-      if (!/^\d(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
+      if (!/^\d+(?:\.\d{1,18})?$/.test(minAmount)) throw new Error('Минимальная сумма получения должна быть неотрицательным числом.');
       return broadcast.prepare(chain, 'seed', 'decimalConvert', [{ from, to, amount, minAmount, fromDecimals: Number(form.get('fromDecimals') || 18), toDecimals: Number(form.get('toDecimals') || 18) }], { title: 'Decimal convert', amount: `${amount} ${from} → ${to}` });
     });
 
@@ -15328,9 +16101,10 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderLongMain() {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p>Загружаю обзор и рейтинг LONG...</p></section>';
     setStatus('Загружаю LONG: обзор и рейтинг...', 'loading');
-    const [data, pool] = await Promise.all([fetchLongJson(''), fetchMinterLongPool()]);
+    const [data, pool] = await awaitRouteTask(capturedRouteEpoch, async () => (Promise.all([fetchLongJson(''), fetchMinterLongPool()])));
     const poolStats = calcLongPoolStats(pool);
     const { farmingAmount, totalExperience } = calcLongProviderRows(data, poolStats);
     appEl.innerHTML = `<section class="panel"><h2>Minter LONG</h2>${renderLongNav('main')}
@@ -15371,14 +16145,16 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderLongBids() {
+    const capturedRouteEpoch = routeRenderGeneration;
     const state = parseHash();
     const coin = String(state.coin || '').trim();
     appEl.innerHTML = '<section class="panel"><h2>LONG: ставки</h2><p>Загружаю LONG bids...</p></section>';
     setStatus('Загружаю LONG bids...', 'loading');
-    const data = await fetchLongJson('/bids', coin ? { coin } : {});
+    const data = await awaitRouteTask(capturedRouteEpoch, async () => (fetchLongJson('/bids', coin ? { coin } : {})));
     let activeBids = [];
     if (coin) {
-      try { activeBids = await fetchLongJson('/bids/active', { coin }); } catch (error) { activeBids = []; }
+      try { activeBids = await awaitRouteTask(capturedRouteEpoch, async () => (fetchLongJson('/bids/active', { coin }))); } catch (error) {
+      if (capturedRouteEpoch !== routeRenderGeneration) return; activeBids = []; }
     }
     const address = data.address || LONG_FARMING_SENDER;
     appEl.innerHTML = `<section class="panel"><h2>LONG: ставки на токены и пулы</h2>${renderLongNav('bids')}
@@ -15394,9 +16170,10 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderLongDeferredTxs() {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = '<section class="panel"><h2>LONG: отложенные транзакции</h2><p>Загружаю отложенные транзакции...</p></section>';
     setStatus('Загружаю LONG: отложенные транзакции...', 'loading');
-    const data = await fetchLongJson('/deferred-txs');
+    const data = await awaitRouteTask(capturedRouteEpoch, async () => (fetchLongJson('/deferred-txs')));
     const rows = Array.isArray(data) ? data : (data.items || data.txs || []);
     appEl.innerHTML = `<section class="panel"><h2>LONG: отложенные транзакции</h2>${renderLongNav('deferred-txs')}
       <p>Таблица показывает накопленные backend отложенные отправки. Перед любыми действиями сверяйте фактическую транзакцию в Minter explorer.</p>
@@ -15423,11 +16200,12 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderLongLoto() {
+    const capturedRouteEpoch = routeRenderGeneration;
     const state = parseHash();
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(state.date || '')) ? String(state.date) : currentUtcDate();
     appEl.innerHTML = '<section class="panel"><h2>LONG: лотерея</h2><p>Загружаю данные лотереи LONG...</p></section>';
     setStatus('Загружаю LONG: лотерея...', 'loading');
-    const result = await fetchLongText('/loto', { date });
+    const result = await awaitRouteTask(capturedRouteEpoch, async () => (fetchLongText('/loto', { date })));
     appEl.innerHTML = `<section class="panel"><h2>LONG: ежедневная лотерея</h2>${renderLongNav('loto')}
       <p>О LONG можно узнать на странице обзора и рейтинга. Здесь показываются данные лотереи среди топ 100 провайдеров пула за выбранную дату.</p>
       <article class="card"><h3>Правила</h3><ol>
@@ -15479,6 +16257,7 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderCosmosValidators(chain) {
+    const capturedRouteEpoch = routeRenderGeneration;
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Загружаю...</p></section>`;
     setStatus(`${chain.title} валидаторы: загружаю список...`, 'loading');
     const url = chain.id === 'minter' ? `${chain.explorerBase}/validators` : `${chain.apiBase}/validators/validators`;
@@ -15486,10 +16265,10 @@ Memo key: ${keys.memo}`);
     try {
       const controller = new AbortController();
       const timeoutId = global.setTimeout(() => controller.abort(), 8000);
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await awaitRouteTask(capturedRouteEpoch, async () => (fetch(url, { signal: controller.signal })));
       global.clearTimeout(timeoutId);
       if (!response.ok) throw new Error(`Validators API HTTP ${response.status}`);
-      const data = await response.json();
+      const data = await awaitRouteTask(capturedRouteEpoch, async () => (response.json()));
       const source = chain.id === 'decimal' ? (data.Result || data.result || data.data || data) : data;
       const rawList = source.validators || source.data || source.result || data.validators || [];
       const list = chain.id === 'decimal' ? sortDecimalValidatorsByStake(rawList) : rawList.slice().sort((a, b) => Number(b.stake || b.power || 0) - Number(a.stake || a.power || 0));
@@ -15528,7 +16307,8 @@ Memo key: ${keys.memo}`);
       });
       setStatus(`${chain.title} валидаторы загружены: ${list.length}.`, 'ok');
     } catch (error) {
-      appEl.innerHTML = `<section class="panel warning-panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Не удалось загрузить список валидаторов из публичного API: ${escapeHtml(profiles.formatError(error))}</p><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка». Проверьте API позже или откройте старую страницу валидаторов, если она ещё доступна.</p></section>`;
+      if (capturedRouteEpoch !== routeRenderGeneration) return;
+      appEl.innerHTML = `<section class="panel warning-panel"><h2>${escapeHtml(chain.title)} валидаторы</h2><p>Не удалось загрузить список валидаторов из публичного API: ${escapeHtml(formatDiagnosticError(error))}</p><p>Формы делегирования/анбонда доступны в разделах «Кошелёк» и «Отправка». Проверьте API позже или откройте старую страницу валидаторов, если она ещё доступна.</p></section>`;
       setStatus(`${chain.title} валидаторы: публичный API недоступен.`, 'warning');
     }
   }
@@ -15536,7 +16316,7 @@ Memo key: ${keys.memo}`);
   async function loadDecimalExplorerOverview(chain) {
     const [blocksData, statusData] = await Promise.all([
       fetchJsonText(`${chain.apiBase}/blocks?limit=10&offset=0`, 'Decimal blocks API'),
-      fetchJsonText(`${chain.apiBase}/rpc/node_info`, 'Decimal node info API').catch((error) => ({ _error: error.message }))
+      fetchJsonText(`${chain.apiBase}/rpc/node_info`, 'Decimal node info API').catch((error) => ({ _error: formatDiagnosticError(error) }))
     ]);
     return { blocks: decimalPayloadList(blocksData, ['blocks']), status: statusData, raw: { blocksData, statusData } };
   }
@@ -15555,7 +16335,8 @@ Memo key: ${keys.memo}`);
     return `<article class="card decimal-explorer-overview"><h3>Введите номер блока или хэш-сумму транзакции</h3><p>Форма выше открывает адрес, блок или транзакцию Decimal через публичные API.</p><h3 id="last_blocks">Последние блоки</h3><ul>${rows || '<li class="muted">Последние блоки не найдены.</li>'}</ul><h3 id="status">Статус</h3><ul><li>Сеть: ${escapeHtml(nodeInfo.network || status.network || '')}</li><li>Хеш последнего блока: ${escapeHtml(latest.hash || '')}</li><li>Номер последнего блока: ${escapeHtml(latest.height || '')}</li><li>Дата и время последнего блока: ${escapeHtml(latest.date || latest.timestamp || '')}</li></ul>${rawJsonDetails('Исходные данные проводника Decimal', overview.raw)}</article>`;
   }
 
-  async function renderCosmosExplorer(chain, account) {
+  async function renderCosmosExplorer(chain, account, isCurrentRoute) {
+    const routeIsCurrent = typeof isCurrentRoute === 'function' ? isCurrentRoute : () => true;
     const state = parseHash();
     const isDecimal = chain.id === 'decimal';
     appEl.innerHTML = `<section class="panel"><h2>${escapeHtml(isDecimal ? 'Decimal проводник' : `${chain.title} проводник`)}</h2>
@@ -15566,12 +16347,14 @@ Memo key: ${keys.memo}`);
     if (!state.kind || !state.value) {
       if (chain.id === 'decimal') {
         const overview = await loadDecimalExplorerOverview(chain);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderDecimalExplorerOverview(chain, overview);
         setStatus('Decimal проводник: последние блоки и статус загружены через публичные API.', 'ok');
         return;
       }
       if (chain.id === 'minter') {
         const overview = await loadMinterExplorerOverview(chain);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerOverview(chain, overview);
         setStatus('Minter проводник: последние блоки и статус загружены через публичные API.', 'ok');
         return;
@@ -15582,12 +16365,14 @@ Memo key: ${keys.memo}`);
     if (chain.id === 'minter') {
       if (state.kind === 'block') {
         const block = await loadMinterExplorerBlock(chain, state.value);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerBlock(chain, block, state.value);
         setStatus('Minter проводник: блок загружен через публичный API.', 'ok');
         return;
       }
       if (state.kind === 'tx') {
         const tx = await loadMinterExplorerTx(chain, state.value);
+        if (!routeIsCurrent()) return;
         document.getElementById('explorer-result').innerHTML = renderMinterExplorerTx(chain, tx, state.value);
         setStatus('Minter проводник: транзакция загружена через публичный explorer API.', 'ok');
         return;
@@ -15607,6 +16392,7 @@ Memo key: ${keys.memo}`);
     const response = await fetch(url);
     if (!response.ok) throw new Error(`API проводника HTTP ${response.status}`);
     const result = await response.json();
+    if (!routeIsCurrent()) return;
     document.getElementById('explorer-result').innerHTML = renderExplorerResult(chain, state.kind, state.value, result);
     setStatus(`${chain.title} проводник загружен.`, 'ok');
   }
@@ -15675,14 +16461,18 @@ Memo key: ${keys.memo}`);
       if (!key) continue;
       const chainScoped = chainIds.some((chainId) => key === `${chainId}_users` || key === `${chainId}_current_user` || key.startsWith(`${chainId}_`));
       const appScoped = key.startsWith('dpos_') || key === 'viz_transfer_templates' || /^(?:[A-Z0-9]{2,12})_(?:transfer|donate)_templates$/.test(key);
-      if (chainScoped || appScoped) keys.push(key);
+      if ((chainScoped || appScoped) && !key.startsWith('dpos_vault_')) keys.push(key);
     }
-    return keys.sort();
+    if (global.DposVault && global.DposVault.status().state === 'unlocked') keys.push(...Object.keys(global.DposVault.export()));
+    return Array.from(new Set(keys)).sort();
   }
 
   function collectDposBackupStorage() {
     const storage = {};
-    dposBackupStorageKeys().forEach((key) => { storage[key] = global.localStorage.getItem(key); });
+    const accounts = global.DposVault ? global.DposVault.export() : {};
+    dposBackupStorageKeys().forEach((key) => {
+      storage[key] = Object.prototype.hasOwnProperty.call(accounts, key) ? JSON.stringify(accounts[key]) : global.localStorage.getItem(key);
+    });
     return storage;
   }
 
@@ -15886,15 +16676,66 @@ Memo key: ${keys.memo}`);
     return payload;
   }
 
-  function importDposBackupStorage(storage) {
+  async function importDposBackupStorage(storage) {
+    if (!storage || typeof storage !== 'object' || Array.isArray(storage)) throw new Error('Некорректное содержимое резервной копии.');
     if (!global.localStorage) throw new Error('localStorage недоступен в этом браузере.');
-    const allowed = Object.entries(storage || {}).filter(([key]) => {
-      const chainIds = Object.keys(chains || {});
-      return chainIds.some((chainId) => key === `${chainId}_users` || key === `${chainId}_current_user` || key.startsWith(`${chainId}_`))
+    const chainIds = Object.keys(chains || {});
+    const accountKeys = new Set(chainIds.flatMap((chainId) => [`${chainId}_users`, `${chainId}_current_user`]));
+    const allowed = Object.entries(storage).filter(([key]) => {
+      if (key.startsWith('dpos_vault_')) return false;
+      return chainIds.some((chainId) => key.startsWith(`${chainId}_`))
         || key.startsWith('dpos_') || key === 'viz_transfer_templates' || /^(?:[A-Z0-9]{2,12})_(?:transfer|donate)_templates$/.test(key);
     });
-    allowed.forEach(([key, value]) => { global.localStorage.setItem(key, String(value ?? '')); });
-    return { imported: allowed.length, skipped: Object.keys(storage || {}).length - allowed.length };
+
+    // Validate the complete restore set before changing either localStorage or the vault.
+    for (const [key, value] of allowed) {
+      if (typeof value !== 'string') throw new Error(`Некорректная запись резервной копии: ${key}.`);
+      if (!accountKeys.has(key)) continue;
+      let parsed;
+      try { parsed = JSON.parse(value); }
+      catch (error) { throw new Error(`Некорректные аккаунты: ${key}.`); }
+      const invalidUsers = key.endsWith('_users') && !Array.isArray(parsed);
+      const invalidCurrent = key.endsWith('_current_user') && parsed !== null && (typeof parsed !== 'object' || Array.isArray(parsed));
+      if (invalidUsers || invalidCurrent) throw new Error(`Некорректные аккаунты: ${key}.`);
+    }
+
+    const vault = global.DposVault;
+    const accounts = vault ? vault.export() : null;
+    const ordinary = allowed.filter(([key]) => !vault || !accountKeys.has(key));
+    const hasAccounts = vault && allowed.some(([key]) => accountKeys.has(key));
+    if (vault && typeof vault.importWithStorageTransaction === 'function') {
+      for (const [key, value] of allowed) if (accountKeys.has(key)) accounts[key] = value;
+      await vault.importWithStorageTransaction(accounts, ordinary);
+      return { imported: allowed.length, skipped: Object.keys(storage).length - allowed.length };
+    }
+    const before = ordinary.map(([key]) => [key, global.localStorage.getItem(key)]);
+    try {
+      for (const [key, value] of ordinary) {
+        global.localStorage.setItem(key, value);
+        if (global.localStorage.getItem(key) !== value) throw new Error(`Некорректная запись резервной копии: ${key}.`);
+      }
+      if (hasAccounts) {
+        for (const [key, value] of allowed) if (accountKeys.has(key)) accounts[key] = value;
+        await vault.import(accounts);
+      }
+    } catch (error) {
+      const rollbackErrors = [];
+      for (const [key, value] of before.slice().reverse()) {
+        try {
+          if (value === null) global.localStorage.removeItem(key);
+          else global.localStorage.setItem(key, value);
+          if (global.localStorage.getItem(key) !== value) rollbackErrors.push(key);
+        } catch (_) {
+          rollbackErrors.push(key);
+        }
+      }
+      if (rollbackErrors.length) {
+        error.rollbackFailedKeys = rollbackErrors.slice();
+        console.error('DPoS backup restore rollback incomplete', rollbackErrors);
+      }
+      throw error;
+    }
+    return { imported: allowed.length, skipped: Object.keys(storage).length - allowed.length };
   }
 
   function backupPasswordContext() {
@@ -15978,7 +16819,7 @@ Memo key: ${keys.memo}`);
           setOperationResult(exportForm, `Backup создан: ${keys.length} локальных записей. Храните файл и пароль отдельно.`, 'ok');
         }
       } catch (error) {
-        setOperationResult(exportForm, profiles.formatError(error), 'error');
+        setOperationResult(exportForm, formatDiagnosticError(error), 'error');
       }
     });
 
@@ -15996,7 +16837,7 @@ Memo key: ${keys.memo}`);
         downloadTextFile(filename, backupText);
         setOperationResult(exportForm, `Passkey-backup скачан как файл: ${keys.length} локальных записей. Ручной пароль не нужен; для импорта выберите этот файл и нажмите «Импортировать passkey-backup».`, 'ok');
       } catch (error) {
-        setOperationResult(exportForm, profiles.formatError(error), 'error');
+        setOperationResult(exportForm, formatDiagnosticError(error), 'error');
       }
     });
 
@@ -16011,10 +16852,10 @@ Memo key: ${keys.memo}`);
         if (!password) throw new Error('Введите пароль backup-файла.');
         setOperationResult(importForm, 'Расшифровываю backup локально в браузере...', 'loading');
         const payload = await decryptDposBackup(await file.text(), password);
-        const result = importDposBackupStorage(payload.storage);
+        const result = await importDposBackupStorage(payload.storage);
         setOperationResult(importForm, `Импорт завершён: записей импортировано ${result.imported}${result.skipped ? `, пропущено ${result.skipped}` : ''}. Обновите страницу, если данные не появились сразу.`, 'ok');
       } catch (error) {
-        setOperationResult(importForm, profiles.formatError(error), 'error');
+        setOperationResult(importForm, formatDiagnosticError(error), 'error');
       }
     });
 
@@ -16027,10 +16868,10 @@ Memo key: ${keys.memo}`);
         if (!isPasskeyPrfBackupAvailable()) throw new Error('Passkey/WebAuthn PRF недоступен в этом браузере или WebView. Используйте backup с паролем.');
         setOperationResult(importForm, 'Расшифровываю passkey-backup. Подтвердите отпечатком, лицом или PIN устройства...', 'loading');
         const payload = await decryptDposPasskeyBackup(await file.text());
-        const result = importDposBackupStorage(payload.storage);
+        const result = await importDposBackupStorage(payload.storage);
         setOperationResult(importForm, `Passkey-импорт завершён: записей импортировано ${result.imported}${result.skipped ? `, пропущено ${result.skipped}` : ''}. Обновите страницу, если данные не появились сразу.`, 'ok');
       } catch (error) {
-        setOperationResult(importForm, profiles.formatError(error), 'error');
+        setOperationResult(importForm, formatDiagnosticError(error), 'error');
       }
     });
     setStatus('Резервное копирование DPoS Space готово. Шифрование и импорт выполняются локально.', 'info');
@@ -16136,18 +16977,23 @@ Memo key: ${keys.memo}`);
     setStatus(`История @${account} загружена: ${items.length} операций.`, 'ok');
   }
 
-  async function renderProfileRoute(chain, account) {
+  async function renderProfileRoute(chain, account, isCurrentRoute) {
+    const routeIsCurrent = typeof isCurrentRoute === 'function' ? isCurrentRoute : () => true;
     appEl.innerHTML = '<section class="panel"><h2>Загрузка профиля</h2><p>Подключаю библиотеку и публичную ноду...</p></section>';
     const initialLabel = chain.id === 'minter' || chain.id === 'decimal' ? account : `@${account}`;
     setStatus(`Загружаю ${chain.title}: ${initialLabel}...`, 'loading');
 
     if (chain.id === 'minter' || chain.id === 'decimal') {
       await loadScript(chain.cryptoPath);
+      if (!routeIsCurrent()) return;
       if (chain.walletPath) await loadScript(chain.walletPath);
+      if (!routeIsCurrent()) return;
     }
     const resolvedAccount = (chain.id === 'minter' || chain.id === 'decimal') ? resolveSeedWalletAddress(chain, account) : account;
     const connection = await getConnection(chain);
+    if (!routeIsCurrent()) return;
     const rawAccount = await profiles.fetchAccount(connection, resolvedAccount);
+    if (!routeIsCurrent()) return;
     if (chain.id === 'golos') {
       rawAccount.uiaBalances = await fetchGolosUiaBalances(connection, account);
       rawAccount.golosProfileExtras = await fetchGolosProfileExtras(connection, account);
@@ -16157,12 +17003,14 @@ Memo key: ${keys.memo}`);
       rawAccount.hiveProfileExtras = await fetchHiveProfileExtras(connection, account);
     }
     const enrichedAccount = await profiles.enrichAccount(connection, rawAccount);
+    if (!routeIsCurrent()) return;
     renderProfile(profiles.normalizeAccount(connection, enrichedAccount));
     const accountLabel = chain.id === 'minter' || chain.id === 'decimal' ? resolvedAccount : `@${account}`;
     setStatus(`Профиль ${chain.title}: ${accountLabel} загружен.`, 'ok');
   }
 
-  function renderNotificationsPage(chain, account) {
+  async function renderNotificationsPage(chain, account) {
+    const capturedRouteEpoch = routeRenderGeneration;
     if (!notifications || !notifications.supportsChain(chain)) {
       appEl.innerHTML = `<section class="panel"><h2>Уведомления недоступны</h2><p>Для ${escapeHtml(chain.title)} нет браузерного сервиса уведомлений без backend.</p></section>`;
       setStatus(`Уведомления ${chain.title}: сервис недоступен.`, 'info');
@@ -16178,7 +17026,7 @@ Memo key: ${keys.memo}`);
       .filter((item) => !item.opType || selectedOps.has(item.opType));
     const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
     const nativeBridge = nativeAndroidWorkerBridge();
-    const nativeSupported = nativeBridge && ['golos', 'viz', 'hive', 'steem', 'minter', 'decimal'].includes(chain.id);
+    const nativeSupported = nativeBridge && supportsNativeNotificationChain(chain.id);
     const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
     const androidNotice = nativeSupported
       ? `<section class="card" data-android-notifications-settings><h3>Уведомления в Android</h3><p class="muted">В Android-приложении уведомления используют эти же фильтры. Приложение проверяет публичную историю аккаунта/адреса и показывает уведомления; операции не отправляет.</p><div id="android-notifications-worker-status" role="status" aria-live="polite">Уведомления Android ещё не синхронизированы.</div></section>`
@@ -16192,7 +17040,7 @@ Memo key: ${keys.memo}`);
           ${opCheckboxes}
         </fieldset>
         <div class="field"><label for="notifications-interval">Интервал Android-проверки, минут</label><input id="notifications-interval" name="intervalMinutes" type="number" min="15" step="1" value="${escapeHtml(settings.intervalMinutes || 15)}"></div>
-        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative !== false ? 'checked' : ''}> В APK включать уведомления Android для этих фильтров</label>
+        <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative === true ? 'checked' : ''}> В APK включать уведомления Android для этих фильтров</label>
         <button type="submit">Сохранить настройки уведомлений</button>
         <div class="operation-result" data-notifications-settings-result role="status" aria-live="polite"></div>
       </form>
@@ -16200,51 +17048,116 @@ Memo key: ${keys.memo}`);
       <p><button type="button" data-notifications-page-read>Отметить всё прочитанным</button></p>
       ${rows}
     </section>`;
-    const syncAndroidNotifications = () => {
+    const routeIsCurrent = () => capturedRouteEpoch === routeRenderGeneration;
+    const syncAndroidNotifications = async (currentSettings, options = {}) => {
       const status = appEl.querySelector('#android-notifications-worker-status');
-      const currentSettings = notifications.getSettings(chain, cleanAccount);
-      if (!nativeSupported || !status || !cleanAccount || currentSettings.androidNative === false) return;
+      if (!nativeSupported || !status || !cleanAccount || !routeIsCurrent()) return;
       try {
-        const imported = callAndroidWorkerBridge('importWorkerSettings', { chainId: chain.id, account: cleanAccount, enableNotifications: true, enableAutoUpvoter: false, explicitConsent: true, intervalMinutes: currentSettings.intervalMinutes || 15, notificationOps: currentSettings.ops || allOps });
-        if (!imported || !imported.ok) throw new Error(imported && (imported.reason || imported.status) || 'import failed');
-        const started = callAndroidWorkerBridge('startWorker');
-        if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
-        const checked = callAndroidWorkerBridge('checkNow');
-        if (!checked || checked.ok === false) throw new Error(checked && (checked.reason || (Array.isArray(checked.errors) && checked.errors[0]) || checked.status) || 'проверка Android не выполнена');
-        status.textContent = `${chain.title}: уведомления Android включены для @${cleanAccount}; выбрано типов событий: ${(currentSettings.ops || allOps).length}. ${renderAndroidCheckSummary(checked, 1)}`;
+        const synced = await syncNativeNotificationSettings(chain, cleanAccount, currentSettings, { checkNow: options.checkNow === true, isCurrent: routeIsCurrent });
+        if (!routeIsCurrent() || synced.stale) return;
+        if (!synced.enabled) {
+          status.textContent = `Настройки сохранены: ${currentSettings.ops.length} типов событий.`;
+        } else if (synced.checked) {
+          const checked = synced.checked;
+          status.textContent = `${chain.title}: уведомления Android включены для @${cleanAccount}; выбрано типов событий: ${currentSettings.ops.length}. ${renderAndroidCheckSummary(checked, 1)}`;
+        } else {
+          status.textContent = `Настройки сохранены: ${currentSettings.ops.length} типов событий.`;
+        }
       } catch (error) {
-        status.textContent = `${chain.title}: уведомления Android не включены: ${profiles.formatError(error)}`;
+        if (!routeIsCurrent()) return;
+        status.textContent = `${chain.title}: уведомления Android не включены: ${formatDiagnosticError(error)}`;
       }
     };
     const settingsForm = appEl.querySelector('#notifications-settings-form');
-    if (settingsForm) settingsForm.addEventListener('submit', (event) => {
+    if (settingsForm) settingsForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = new FormData(settingsForm);
       const ops = form.getAll('ops').map(String).filter((op) => allOps.includes(op));
       const saved = notifications.saveSettings(chain, cleanAccount, { ops, androidNative: form.get('androidNative') === 'on', intervalMinutes: Number(form.get('intervalMinutes')) || 15 });
       const result = settingsForm.querySelector('[data-notifications-settings-result]');
       if (result) result.textContent = `Настройки сохранены: ${saved.ops.length} типов событий.`;
-      syncAndroidNotifications();
-      renderNotificationsPage(chain, cleanAccount);
+      await syncAndroidNotifications(Object.assign({ configured: true }, saved), { checkNow: saved.androidNative === true });
     });
-    syncAndroidNotifications();
+    if (shouldSyncNativeNotificationsOnVisit(settings)) {
+      await awaitRouteTask(capturedRouteEpoch, async () => (syncAndroidNotifications(settings, { checkNow: false })));
+    }
     const readButton = appEl.querySelector('[data-notifications-page-read]');
-    if (readButton) readButton.addEventListener('click', () => {
-      notifications.markAllRead();
-      renderNotificationsPage(chain, cleanAccount);
+    if (readButton) readButton.addEventListener('click', async () => {
+      try { await notifications.markAllReadEverywhere(); } catch (_) { setStatus('Не удалось отметить уведомления прочитанными. Повторите попытку.', 'error'); return; }
+      await renderNotificationsPage(chain, cleanAccount);
       setStatus('Все уведомления отмечены прочитанными.', 'ok');
     });
     setStatus(`Уведомления ${chain.title}: показано ${items.length}.`, 'ok');
   }
 
+  const NATIVE_NOTIFICATION_CHAIN_IDS = new Set(['golos', 'viz', 'hive', 'steem', 'minter', 'decimal']);
+
+  function supportsNativeNotificationChain(chainId) {
+    return NATIVE_NOTIFICATION_CHAIN_IDS.has(String(chainId || '').toLowerCase());
+  }
+
+  function shouldSyncNativeNotificationsOnVisit(settings) {
+    return Boolean(settings && settings.configured && settings.androidNative === true);
+  }
+
+  async function syncNativeNotificationSettings(chain, account, currentSettings, options = {}) {
+    const cleanAccount = String(account || '').trim().replace(/^@/, '').toLowerCase();
+    const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
+    if (!supportsNativeNotificationChain(chain && chain.id) || !cleanAccount || !currentSettings || !isCurrent()) return { skipped: true };
+    const enabled = currentSettings.androidNative === true;
+    const imported = await callAndroidWorkerBridge('importWorkerSettings', {
+      chainId: chain.id,
+      account: cleanAccount,
+      enableNotifications: enabled,
+      explicitConsent: true,
+      intervalMinutes: currentSettings.intervalMinutes || 15,
+      notificationOps: currentSettings.ops
+    });
+    if (!imported || !imported.ok) throw new Error(imported && (imported.reason || imported.status) || 'import failed');
+    if (!isCurrent() || !enabled) return { imported, enabled, stale: !isCurrent() };
+    const started = await callAndroidWorkerBridge('startWorker');
+    if (!started || !started.ok) throw new Error(started && (started.reason || started.status) || 'start failed');
+    if (!isCurrent() || !options.checkNow) return { imported, started, enabled, stale: !isCurrent() };
+    const checked = await callAndroidWorkerBridge('checkNow');
+    if (!checked || checked.ok === false) throw new Error(checked && (checked.reason || (Array.isArray(checked.errors) && checked.errors[0]) || checked.status) || 'проверка Android не выполнена');
+    return { imported, started, checked, enabled, stale: !isCurrent() };
+  }
+
   async function renderRoute() {
+    const renderGeneration = ++routeRenderGeneration;
+    const isCurrentRoute = () => renderGeneration === routeRenderGeneration;
+    const requestedState = parseHash();
+    if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'route.open', { chain: requestedState.chain || '', app: requestedState.app || 'home' });
+    if (requestedState.app === 'notifications' && !requestedState.chain && !requestedState.account && global.DposNotificationInbox) {
+      await global.DposNotificationInbox.render(appEl, { isCurrent: isCurrentRoute });
+      return;
+    }
+    if (requestedState.app === 'diagnostics' && global.DposDiagnosticsUI) {
+      global.DposDiagnosticsUI.render(appEl);
+      return;
+    }
+    if (appEl.hasAttribute && appEl.hasAttribute('data-vault-required') && (!global.DposVault || !global.DposVaultUI || !global.DposNative)) {
+      appEl.innerHTML = '<section class="panel"><h2>Не удалось загрузить защиту аккаунтов</h2><p>Обновите страницу при работающем соединении. Сохранённые данные не изменены.</p></section>';
+      return;
+    }
+    if (global.DposNative && global.DposNative.needsUpdate()) {
+      appEl.innerHTML = '<section class="panel"><h2>Обновите приложение Android</h2><p>Для безопасной работы с сохранёнными аккаунтами требуется новая версия приложения. Аккаунты и настройки сохранены.</p><p><a href="/downloads/dpos-space-latest-debug.apk" download>Скачать обновление Android</a></p></section>';
+      return;
+    }
+    if (global.DposVaultUI && !global.DposVaultUI.guard({ requireSetup: requestedState.app === 'accounts' || requestedState.app === 'backup' })) return;
+    if (global.DposVault && global.DposVault.status().state === 'unlocked' && nativeAndroidWorkerBridge() && !global.__dposGolosDonateMigration) {
+      global.__dposGolosDonateMigration = migrateSavedGolosDonateOnOpen().catch(error => {
+        global.__dposGolosDonateMigration = null; // retry after a transient bridge failure
+        console.warn('Golos donate upgrade migration failed', error);
+      });
+    }
     if (nativeAndroidWorkerBridge() && !global.__dposVizSelfAwardGlobalAutoSynced) {
       global.__dposVizSelfAwardGlobalAutoSynced = true;
       try {
-        const synced = autoSyncStoredVizSelfAwardForAndroid();
+        const synced = await autoSyncStoredVizSelfAwardForAndroid();
         if (synced && synced.enabled > 0) {
-          callAndroidWorkerBridge('startWorker');
-          callAndroidWorkerBridge('checkNow');
+          await callAndroidWorkerBridge('startWorker');
+          await callAndroidWorkerBridge('checkNow');
         }
       } catch (error) {
         console.warn('VIZ self-award global auto-sync failed', error);
@@ -16307,17 +17220,17 @@ Memo key: ${keys.memo}`);
       if (chain.id === 'minter' && effectiveAppId === 'broadcast') {
         renderMinterBroadcast(chain);
       } else if (chain.id === 'decimal' && effectiveAppId === 'broadcast') {
-        await renderDecimalWallet(chain, account);
+        await renderDecimalWallet(chain, account, isCurrentRoute);
       } else if (chain.id === 'minter' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
-        await renderMinterWallet(chain, account);
+        await renderMinterWallet(chain, account, isCurrentRoute);
       } else if (chain.id === 'decimal' && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
-        await renderDecimalWallet(chain, account);
+        await renderDecimalWallet(chain, account, isCurrentRoute);
       } else if (isCosmosChain(chain) && (effectiveAppId === 'wallet' || effectiveAppId === 'swap' || effectiveAppId === 'my-coin')) {
         renderCosmosWallet(chain, account);
       } else if (isCosmosChain(chain) && effectiveAppId === 'validators') {
         await renderCosmosValidators(chain);
       } else if (isCosmosChain(chain) && effectiveAppId === 'explorer') {
-        await renderCosmosExplorer(chain, account);
+        await renderCosmosExplorer(chain, account, isCurrentRoute);
       } else if (isCosmosChain(chain) && effectiveAppId === 'calculator') {
         renderCosmosCalculator(chain);
       } else if (isCosmosChain(chain) && effectiveAppId === 'randomblockchain') {
@@ -16325,11 +17238,11 @@ Memo key: ${keys.memo}`);
       } else if (chain.id === 'minter' && effectiveAppId === 'long') {
         await renderMinterLong();
       } else if (effectiveAppId === 'profiles') {
-        await renderProfileRoute(chain, account);
+        await renderProfileRoute(chain, account, isCurrentRoute);
       } else if (effectiveAppId === 'accounts') {
         await renderAccounts(chain);
       } else if (effectiveAppId === 'wallet') {
-        await renderGrapheneWalletByChain(chain, account);
+        await renderGrapheneWalletByChain(chain, account, isCurrentRoute);
       } else if (effectiveAppId === 'history') {
         await renderHistory(chain, account);
       } else if (effectiveAppId === 'broadcast') {
@@ -16353,13 +17266,13 @@ Memo key: ${keys.memo}`);
       } else if (chain.id === 'golos' && effectiveAppId === 'feeds') {
         await renderGolosFeedsPage(chain, state);
       } else if (notifications && notifications.supportsChain(chain) && effectiveAppId === 'notifications') {
-        renderNotificationsPage(chain, account);
+        await renderNotificationsPage(chain, account);
       } else if (chain.id === 'golos' && effectiveAppId === 'post') {
-        await renderGolosPostPage(chain, state);
+        await renderGolosPostPage(chain, state, isCurrentRoute);
       } else if (isHiveOrSteem(chain) && effectiveAppId === 'feeds') {
         await renderSocialFeedsPage(chain, state);
       } else if (isHiveOrSteem(chain) && effectiveAppId === 'post') {
-        await renderSocialPostPage(chain, state);
+        await renderSocialPostPage(chain, state, isCurrentRoute);
       } else if (chain.id === 'golos' && effectiveAppId === 'donate') {
         await renderGolosDonate(chain, state);
       } else if (chain.id === 'viz' && effectiveAppId === 'search') {
@@ -16387,7 +17300,7 @@ Memo key: ${keys.memo}`);
       } else if (effectiveAppId === 'manage') {
         renderManage(chain);
       } else if (effectiveAppId === 'explorer') {
-        await renderExplorer(chain, account);
+        await renderExplorer(chain, account, isCurrentRoute);
       } else if (chain.id === 'viz' && effectiveAppId === 'exchanges') {
         renderVizExchanges(chain);
       } else if (chain.id === 'minter' && effectiveAppId === 'help') {
@@ -16409,18 +17322,30 @@ Memo key: ${keys.memo}`);
       } else {
         renderServicePlaceholder(chain, app);
       }
+      if (!isCurrentRoute()) return;
+      if (global.DposVault && ['locked', 'legacy', 'error'].includes(global.DposVault.status().state)) {
+        delete appEl.dataset.vaultScreen;
+        global.DposVaultUI.guard();
+        return;
+      }
       upgradeOperationDetailsToModals(appEl);
       if (appRequiresAccount(app) && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, account);
     } catch (error) {
+      if (!isCurrentRoute()) return;
+      if (global.DposVault && ['locked', 'legacy', 'error'].includes(global.DposVault.status().state)) {
+        delete appEl.dataset.vaultScreen;
+        global.DposVaultUI.guard();
+        return;
+      }
       appEl.innerHTML = `
         <section class="panel error-panel">
           <h2>Не удалось загрузить раздел</h2>
-          <p>${escapeHtml(profiles.formatError(error))}</p>
+          <p>${escapeHtml(formatDiagnosticError(error))}</p>
           <p>Возможные причины: публичная нода недоступна, WebSocket/CORS ограничен, аккаунт не найден.</p>
         </section>
       `;
-      setStatus(`Ошибка загрузки: ${profiles.formatError(error)}`, 'error');
-      console.error(error);
+      setStatus(`Ошибка загрузки: ${formatDiagnosticError(error)}`, 'error');
+      console.error(diagnosticText(error && (error.stack || error.message) || error));
     }
   }
 
@@ -16457,23 +17382,29 @@ Memo key: ${keys.memo}`);
   });
 
   if (accountSelect) {
-    accountSelect.addEventListener('change', () => {
+    accountSelect.addEventListener('change', async () => {
+    try {
       const baseChain = chains[chainSelect.value];
       const network = networkSelect && !networkSelect.disabled ? networkSelect.value : storedNetwork(baseChain);
       const chain = resolveChainNetwork(baseChain, network);
-      const login = selectSavedAccount(chain, accountSelect.value);
+      const login = await selectSavedAccount(chain, accountSelect.value);
       if (login && !accountInput.disabled) accountInput.value = login;
+    } catch (error) {
+      setStatus(formatDiagnosticError(error), 'error');
+      void renderRoute().catch(() => {});
+    }
     });
   }
 
-  routeForm.addEventListener('submit', (event) => {
+  routeForm.addEventListener('submit', async (event) => {
+    try {
     event.preventDefault();
     const baseChain = chains[chainSelect.value];
     const network = networkSelect && !networkSelect.disabled ? normalizeNetworkId(baseChain, networkSelect.value) : 'mainnet';
     try { global.localStorage.setItem(networkStorageKey(baseChain), network); } catch (error) { /* optional */ }
     const chain = resolveChainNetwork(baseChain, network);
     const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
-    const selectedLogin = accountSelect && !accountSelect.disabled ? selectSavedAccount(chain, accountSelect.value) : '';
+    const selectedLogin = accountSelect && !accountSelect.disabled ? await selectSavedAccount(chain, accountSelect.value) : '';
     const typedLogin = appRequiresAccount(app) && !accountInput.disabled ? accountInput.value.trim().replace(/^@/, '') : '';
     if (typedLogin && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, typedLogin);
     navigate({
@@ -16481,6 +17412,10 @@ Memo key: ${keys.memo}`);
       app: appSelect.value,
       account: appRequiresAccount(app) || appUsesAuthorizedAccount(app) ? (selectedLogin || typedLogin || null) : null
     });
+    } catch (error) {
+      setStatus(formatDiagnosticError(error), 'error');
+      void renderRoute().catch(() => {});
+    }
   });
 
   global.addEventListener('hashchange', () => {
@@ -16488,6 +17423,11 @@ Memo key: ${keys.memo}`);
     if (notificationsController && typeof notificationsController.refresh === 'function') notificationsController.refresh();
     else if (notifications && notificationsPanel) notifications.renderPanel(notificationsPanel, chains, '');
   });
+  global.addEventListener('dpos-vault-ready', () => {
+    void renderRoute().catch(error => setStatus(formatDiagnosticError(error), 'error'));
+    if (notificationsController && typeof notificationsController.refresh === 'function') notificationsController.refresh();
+  });
+  global.addEventListener('dpos-vault-lock', () => { void cancelAllBrowserAutomation(); });
   if (notifications && notificationsPanel) {
     notificationsController = notifications.init(notificationsPanel, chains, { setStatus });
   }
@@ -16497,17 +17437,55 @@ Memo key: ${keys.memo}`);
   global.DposV3 = Object.freeze({
     navigate,
     renderRoute,
+    financialValidation: Object.freeze({
+      monetaryPattern: MONETARY_INPUT_PATTERN,
+      renderedFinancialInputIds: FINANCIAL_PATTERN_INPUT_IDS,
+      normalizeVizCustomProtocol
+    }),
+    cancelAllBrowserAutomation,
     appRequiresAccount,
     backup: Object.freeze({
       validateBackupPassword,
       dposBackupStorageKeys,
       makeShareFile,
       canShareBackupFile,
+      encryptDposBackup,
+      decryptDposBackup,
+      importDposBackupStorage,
       isPasskeyPrfBackupAvailable,
       encryptDposPasskeyBackup,
       decryptDposPasskeyBackup
     }),
     transactions: Object.freeze({ summarizeMinterMultisend, renderMinterMultisendDetailsHtml }),
+    autoUpvoterSettings: Object.freeze({
+      migrateSavedGolosDonateOnOpen,
+      read: readGolosAutoUpvoterSettings,
+      write: writeGolosAutoUpvoterSettings,
+      percentToBasisPoints: autoUpvoterPercentToBasisPoints
+    }),
+    notificationConsent: Object.freeze({
+      supportsNativeChain: supportsNativeNotificationChain,
+      shouldSyncOnVisit: shouldSyncNativeNotificationsOnVisit,
+      sync: syncNativeNotificationSettings
+    }),
+    securityOperations: Object.freeze({
+      captureAndroidStartGuard,
+      callAndroidWorkerBridge,
+      createOperationSubmitHandler,
+      createEditorPublicationFeedback,
+      createVizInviteBatchState,
+      getVizInviteBatchState,
+      downloadVizInviteBatch,
+      generateVizInviteBatch,
+      resetVizInviteBatch,
+      acknowledgeVizInviteBatchBackup,
+      buildVizCreateInviteOperations,
+      buildVizAuthorityUpdate,
+      buildVizFullKeyReset,
+      assertVizFullKeyResetCurrent,
+      runBrowserAutomationSingleFlight,
+      cancelAllBrowserAutomation
+    }),
     long: Object.freeze({ parseJsonMaybeText, calcLongPoolStats, calcLongProviderRows })
   });
 

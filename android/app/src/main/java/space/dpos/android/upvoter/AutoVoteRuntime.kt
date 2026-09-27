@@ -13,14 +13,17 @@ data class AutoVoteRuntimeReport(
     val skipped: List<String>,
     val results: List<VoteBroadcastResult>,
     val candidates: Int,
-    val skipSummary: Map<String, Int>
+    val skipSummary: Map<String, Int>,
+    val donateResults: List<GolosDonateResult> = emptyList()
 )
 
 class AutoVoteRuntime(
     private val voteRuntime: VoteRuntime,
     private val keyProvider: PostingKeyProvider,
     private val chainId: String = "golos",
-    private val pauseAfterSuccessfulBroadcastMs: Long = 0L
+    private val pauseAfterSuccessfulBroadcastMs: Long = 0L,
+    private val canAct: () -> Boolean = { true },
+    private val donateRuntime: GolosDonateRuntime? = null
 ) {
     fun preview(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = true)
     fun execute(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = false)
@@ -28,9 +31,19 @@ class AutoVoteRuntime(
     private fun run(plan: VotePlan, previewOnly: Boolean): AutoVoteRuntimeReport {
         val skips = plan.skips.toMutableList()
         val results = mutableListOf<VoteBroadcastResult>()
+        val donateResults = mutableListOf<GolosDonateResult>()
         val chain = chainId.trim().lowercase()
         var attempted = 0
+        val awaitingConfirmation = mutableSetOf<String>()
         for ((index, action) in plan.actions.withIndex()) {
+            if (!canAct()) {
+                skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
+                break
+            }
+            if (action.account in awaitingConfirmation) {
+                skips += "pending_confirmation:${action.account}|${action.author}|${action.permlink}"
+                continue
+            }
             val key = keyProvider.privateWif(chain, action.account)
             if (key.isNullOrBlank()) {
                 attempted += 1
@@ -39,8 +52,21 @@ class AutoVoteRuntime(
             }
             attempted += 1
             val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
+            if (!previewOnly && !canAct()) {
+                skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
+                break
+            }
             val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
             results += result
+            if (!previewOnly && result.status == "broadcast_unknown") awaitingConfirmation += action.account
+            if (!previewOnly && chain == "golos" && action.donatePool != null && result.ok && result.status == "broadcast_confirmed") {
+                val donation = try {
+                    donateRuntime?.execute(operation, action.donatePool, keyProvider.keyRef(chain, action.account), key)
+                        ?: GolosDonateResult("donate_unavailable")
+                } catch (_: Exception) { GolosDonateResult("donate_error") }
+                donateResults += donation
+                if (!donation.confirmed) skips += "${donation.status}:${action.account}|${action.author}|${action.permlink}"
+            }
             val sent = result.ok && (result.status == "broadcast_confirmed" || result.status == "broadcast_sent")
             if (sent && !previewOnly && pauseAfterSuccessfulBroadcastMs > 0 && index < plan.actions.lastIndex) {
                 try {
@@ -64,7 +90,8 @@ class AutoVoteRuntime(
             skipped = skips,
             results = results,
             candidates = plan.actions.size,
-            skipSummary = skips.groupingBy { it.substringBefore(':') }.eachCount()
+            skipSummary = skips.groupingBy { it.substringBefore(':') }.eachCount(),
+            donateResults = donateResults
         )
     }
 }

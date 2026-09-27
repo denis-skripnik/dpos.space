@@ -8,8 +8,9 @@ const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const requiredBridgeMethods = [
   'getWorkerStatus',
-  'importWorkerSettings',
+  'syncAutoUpvoterSettings',
   'importSecureKey',
+  'importWorkerSettings',
   'startWorker',
   'stopWorker',
   'checkNow'
@@ -29,12 +30,12 @@ assert(!autoUpvoterSlice.includes('data-android-import-secure-key'), 'auto-upvot
 assert(!autoUpvoterSlice.includes('data-android-start-worker') && !autoUpvoterSlice.includes('Start native worker'), 'auto-upvoter UI no longer exposes separate native start controls');
 assert(!autoUpvoterSlice.includes('data-android-check-now'), 'auto-upvoter UI no longer exposes separate native check-now control');
 assert(!autoUpvoterSlice.includes('data-android-preview-vote'), 'auto-upvoter UI no longer exposes separate native preview/check controls');
-assert(autoUpvoterSlice.includes('startAndroidAutoUpvoter(settings)') && autoUpvoterSlice.includes('hasAndroidWorkerBridge && nativeAutoVoteSupported'), 'shared Start button routes to Android background mode inside APK');
-assert(autoUpvoterSlice.includes("callAndroidWorkerBridge('importSecureKey'") && autoUpvoterSlice.includes("broadcast.decryptLegacyKey(chain, user, 'posting')"), 'APK Start automatically imports stored posting key into Android secure storage');
+assert(autoUpvoterSlice.includes('startAndroidAutoUpvoter(settings') && autoUpvoterSlice.includes('hasAndroidWorkerBridge && nativeAutoVoteSupported'), 'shared Start button routes to Android background mode inside APK');
+assert(autoUpvoterSlice.includes('keyImport:') && autoUpvoterSlice.includes("broadcast.decryptLegacyKey(chain, user, 'posting')"), 'APK Start automatically imports stored posting key into Android secure storage');
 assert(autoUpvoterSlice.includes("callAndroidWorkerBridge('importWorkerSettings'") && autoUpvoterSlice.includes("callAndroidWorkerBridge('startWorker'") && autoUpvoterSlice.includes("callAndroidWorkerBridge('checkNow'"), 'APK Start syncs settings and starts Android background mode internally');
 assert(autoUpvoterSlice.includes('renderAndroidCheckSummary(check, ok)') && appSource.includes('Проверка Android выполнена'), 'APK Start reports the real immediate Android check result, not only queued status');
 assert(autoUpvoterSlice.includes('stopAndroidAutoUpvoter()') && autoUpvoterSlice.includes("callAndroidWorkerBridge('stopWorker'"), 'shared Stop button routes to Android native worker inside APK');
-assert(autoUpvoterSlice.includes("data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'}") && appSource.includes('nativeAndroidWorkerBridge') && appSource.includes('global.DposAndroid'), 'browser/PWA fallback hides Android-only status when bridge is absent');
+assert(autoUpvoterSlice.includes("data-android-worker-panel ${hasAndroidWorkerBridge ? '' : 'hidden'}") && appSource.includes('nativeAndroidWorkerBridge') && appSource.includes('global.DposNative'), 'browser/PWA fallback hides Android-only status when bridge is absent');
 assert(appSource.includes("['golos', 'hive', 'steem'].includes(chain.id)"), 'Android native auto-upvoter enables only implemented Graphene vote chains');
 assert(autoUpvoterSlice.includes('Фоновая проверка в Android') && autoUpvoterSlice.includes('В Android-приложении эта же кнопка Start включает фоновую проверку'), 'Android background copy explains one-button mode without native jargon');
 assert(!autoUpvoterSlice.includes('Android native worker') && !autoUpvoterSlice.includes('posting-ключ переносится') && !autoUpvoterSlice.includes('secure storage') && !autoUpvoterSlice.includes('check-now='), 'auto-upvoter UI avoids technical native/key/check-now jargon');

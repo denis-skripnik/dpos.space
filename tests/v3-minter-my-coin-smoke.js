@@ -9,7 +9,7 @@ const planSource = fs.readFileSync(path.join(root, 'plan.md'), 'utf8');
 
 const renderMinterForms = (appSource.match(/function renderMinterWalletForms[\s\S]*?\n  function minterTx/) || [''])[0];
 const bindMinterForms = (appSource.match(/function bindMinterWalletForms[\s\S]*?\n  function bindDecimalWalletForms/) || [''])[0];
-const routeDispatch = (appSource.match(/chain\.id === 'minter' && \(effectiveAppId === 'wallet'[\s\S]*?await renderMinterWallet\(chain, account\);/) || [''])[0];
+const routeDispatch = (appSource.match(/chain\.id === 'minter' && \(effectiveAppId === 'wallet'[\s\S]*?await renderMinterWallet\(chain, account, isCurrentRoute\);/) || [''])[0];
 
 assert(chainsSource.includes("{ id: 'my-coin', title: 'Мои монеты'"), 'Minter registry exposes my-coin route');
 assert(routeDispatch.includes("effectiveAppId === 'my-coin'"), 'Minter my-coin route dispatches to dedicated Minter wallet/action renderer');

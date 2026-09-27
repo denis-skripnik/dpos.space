@@ -36,8 +36,12 @@ mustInclude(appSource, 'generateGolosInviteSecret', 'Golos wallet can generate i
 mustInclude(appSource, 'wallet-golos-witness-vote-form', 'Golos wallet exposes legacy witness vote support control');
 mustInclude(appSource, "'accountWitnessVote'", 'Golos witness vote prepares accountWitnessVote operation');
 mustInclude(appSource, 'broadcast.sanitizePrepared(prepared)', 'Operation preview renders sanitized prepared data');
-mustInclude(broadcastSource, "if (/private|wif|secret|seed|mnemonic/i.test(key))", 'Broadcast sanitizer redacts secret-like object keys');
-mustInclude(broadcastSource, "return typeof value === 'string' && isLikelyWif(value) ? '[redacted-wif]' : value", 'Broadcast result sanitizer redacts WIF-looking strings');
+const sanitizerContext = { window: {} };
+require('vm').runInNewContext(broadcastSource, sanitizerContext);
+const sanitizer = sanitizerContext.window.DposBroadcast;
+assert.strictEqual(sanitizer.sanitizeResult({ privateKey: 'fixture-private' }).privateKey, '[redacted]', 'Broadcast sanitizer redacts private fields');
+assert.strictEqual(sanitizer.sanitizeResult('5' + 'A'.repeat(50)), '[redacted-wif]', 'Broadcast sanitizer redacts WIF-looking strings');
+assert.strictEqual(sanitizer.sanitizeResult({ token: 'GOLOS' }).token, 'GOLOS', 'Public asset symbols remain visible');
 mustInclude(historySource, "'delegate_vesting_shares_with_interest'", 'Golos wallet history includes interest-bearing delegation operations');
 
 const golosWalletSource = appSource.slice(appSource.indexOf('function renderGolosWalletForms'), appSource.indexOf('function vizAsset'));

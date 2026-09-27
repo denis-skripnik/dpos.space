@@ -3,8 +3,8 @@
 
   const SERVICE_WORKER_PATH = '/sw.js';
   const PANEL_DISMISSED_KEY = 'dpos_pwa_panel_dismissed';
-  const ANDROID_APK_VERSION = '0.1.69';
-  const ANDROID_APK_LATEST_URL = '/downloads/dpos-space-latest-debug.apk';
+  const ANDROID_APK_VERSION = '3.1.1';
+  const ANDROID_APK_LATEST_URL = '/downloads/dpos-space-3.1.1.apk';
   let deferredInstallPrompt = null;
   let registrationPromise = null;
   let lastVisibilityNoticeAt = 0;
@@ -46,7 +46,7 @@
   }
 
   function nativeAndroidBridge() {
-    return global.DposAndroid && typeof global.DposAndroid.notify === 'function' ? global.DposAndroid : null;
+    return global.DposNative && global.DposNative.available() ? global.DposNative : null;
   }
 
   function routeFromNotifyOptions(options) {
@@ -62,8 +62,10 @@
     const tag = options && options.tag ? String(options.tag) : undefined;
     const bridge = nativeAndroidBridge();
     if (bridge) {
-      bridge.notify(String(title || 'DPoS Space'), body, tag || 'dpos-space', routeFromNotifyOptions(options));
-      return true;
+      try {
+        await bridge.request('notify', { title: String(title || 'DPoS Space'), body, tag: tag || 'dpos-space', route: routeFromNotifyOptions(options) });
+        return true;
+      } catch (_) { return false; }
     }
     if (!canNotify()) return false;
     const icon = options && options.icon ? options.icon : '/v3/assets/icons/dpos-space-192.png';
@@ -136,7 +138,7 @@
           <h2 id="pwa-panel-heading">Приложение и уведомления</h2>
           <button type="button" class="secondary pwa-panel-close" data-pwa-dismiss aria-label="Скрыть блок про установку приложения и уведомления">Закрыть</button>
         </div>
-        <p>На Android для надёжной фоновой работы лучше использовать мобильное приложение DPoS Space, а не PWA. Актуальная debug-версия APK: <a href="${escapeHtml(ANDROID_APK_LATEST_URL)}" download="dpos-space-latest-debug.apk">скачать APK ${escapeHtml(ANDROID_APK_VERSION)}</a>.</p>
+        <p>На Android для надёжной фоновой работы лучше использовать мобильное приложение DPoS Space, а не PWA. Стабильная версия APK: <a href="${escapeHtml(ANDROID_APK_LATEST_URL)}" download="dpos-space-3.1.1.apk">скачать APK ${escapeHtml(ANDROID_APK_VERSION)}</a>.</p>
         <p class="muted">PWA можно использовать как веб-версию: локальные процессы работают пока приложение/вкладка живы; после полного закрытия работа не обещается.</p>
         <ul>
           <li>Service Worker: ${escapeHtml(swText)}</li>

@@ -730,7 +730,7 @@ code {
   width: min(56rem, 100%);
   max-height: min(90vh, 48rem);
   overflow: auto;
-  background: var(--background);
+  background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 1rem;

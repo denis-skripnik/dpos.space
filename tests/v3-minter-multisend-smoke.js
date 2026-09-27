@@ -86,8 +86,9 @@ const summary = context.DposV3.transactions.summarizeMinterMultisend(tx);
 assert.strictEqual(summary.count, 3, 'multisend summary counts recipients');
 assert.strictEqual(summary.totals.LONG, '69124.9919926266669', 'multisend summary totals decimal amounts precisely enough for display');
 const html = context.DposV3.transactions.renderMinterMultisendDetailsHtml(context.DposChains.minter, tx);
-assert(html.includes('<strong>Всего:</strong> 69124.9919926266669 LONG'), 'multisend details show total amount');
-assert(html.includes('<strong>Получателей:</strong> 3'), 'multisend details show recipient count');
+const visibleText = html.replace(/<[^>]*>/g, '');
+assert(visibleText.includes('Всего: 69124.9919926266669 LONG'), 'multisend details show total amount');
+assert(visibleText.includes('Получателей: 3'), 'multisend details show recipient count');
 assert(html.includes('#chain=minter&amp;app=profiles&amp;account=Mx5aea138bd36a4e6019472ebbbe0a88ac2e4f9969'), 'recipient is rendered as a profile link');
 assert(!html.includes('[object Object]'), 'coin object is never rendered as [object Object]');
 

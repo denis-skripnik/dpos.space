@@ -29,8 +29,9 @@ object DecimalNativeSupport {
     fun defaultSeedRef(address: String): EncryptedKeyRef = EncryptedKeyRef(CHAIN_ID, normalizeAddress(address), AUTHORITY, AUTHORITY)
 
     fun validateSeed(seedPhrase: String): Boolean {
-        val words = seedPhrase.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        return words.size in 12..24
+        val normalized = Normalizer.normalize(seedPhrase.trim().lowercase(Locale.ROOT), Normalizer.Form.NFKD)
+        val words = normalized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        return runCatching { MnemonicCode.INSTANCE.check(words); true }.getOrDefault(false)
     }
 
     fun isValidAddress(value: String): Boolean = runCatching { normalizeAddress(value); true }.getOrDefault(false)
@@ -53,10 +54,30 @@ object DecimalNativeSupport {
         return DecimalWallet(address = Bech32.encode("d0", evm.removePrefix("0x").hexToBytes()), evmAddress = evm)
     }
 
-    fun previewTransfer(request: DecimalTransferRequest, seedPhrase: String): DecimalTransferResult = signTransfer(request, seedPhrase, previewOnly = true)
+    fun previewUnsignedTransfer(request: DecimalTransferRequest): JSONObject = JSONObject()
+        .put("ok", true)
+        .put("status", "preview_ready")
+        .put("chainId", CHAIN_ID)
+        .put("evmChainId", DEFAULT_EVM_CHAIN_ID)
+        .put("previewOnly", true)
+        .put("broadcasted", false)
+        .put("request", request.copy(chainId = DEFAULT_EVM_CHAIN_ID).sanitizedJson())
+        .put("unsignedTx", DecimalTransferSigner.unsignedTransfer(request.copy(chainId = DEFAULT_EVM_CHAIN_ID)))
+
+    fun consentDetails(request: DecimalTransferRequest): JSONObject {
+        val checked = request.copy(chainId = DEFAULT_EVM_CHAIN_ID, to = normalizeAddress(request.to))
+        val maxFeeWei = checked.gasPrice.multiply(BigInteger.valueOf(checked.gasLimit))
+        val maxFeeDel = BigDecimal(maxFeeWei).movePointLeft(18).stripTrailingZeros().toPlainString()
+        return JSONObject()
+            .put("sender", checked.from?.let(::normalizeAddress) ?: throw IllegalArgumentException("from is required"))
+            .put("network", "Decimal mainnet (EVM chain ID $DEFAULT_EVM_CHAIN_ID)")
+            .put("recipient", checked.to)
+            .put("amount", "${BigDecimal(checked.amount).stripTrailingZeros().toPlainString()} DEL")
+            .put("maxFee", "$maxFeeDel DEL (${checked.gasLimit} gas × ${checked.gasPrice} wei)")
+    }
 
     fun executeTransfer(request: DecimalTransferRequest, seedPhrase: String, broadcaster: DecimalBroadcaster): DecimalTransferResult {
-        val signed = signTransfer(request, seedPhrase, previewOnly = false)
+        val signed = signTransfer(request, seedPhrase)
         if (!signed.ok || signed.signedTx.isNullOrBlank()) return signed
         return try {
             val response = broadcaster.broadcast(signed.signedTx)
@@ -66,16 +87,16 @@ object DecimalNativeSupport {
         }
     }
 
-    private fun signTransfer(request: DecimalTransferRequest, seedPhrase: String, previewOnly: Boolean): DecimalTransferResult {
+    private fun signTransfer(request: DecimalTransferRequest, seedPhrase: String): DecimalTransferResult {
         if (!validateSeed(seedPhrase)) return DecimalTransferResult(false, "invalid_seed", "Decimal seed phrase must contain 12-24 words; no signing attempted", request)
         val wallet = deriveWallet(seedPhrase)
         val from = request.from?.let { normalizeAddress(it) }
         if (from != null && !wallet.matches(from)) {
-            return DecimalTransferResult(false, "seed_address_mismatch", "seed-derived Decimal address does not match requested sender; no signing attempted", request, wallet = wallet, previewOnly = previewOnly)
+            return DecimalTransferResult(false, "seed_address_mismatch", "seed-derived Decimal address does not match requested sender; no signing attempted", request, wallet = wallet, previewOnly = false)
         }
         val checked = request.copy(from = wallet.address, to = normalizeAddress(request.to))
         val signedTx = DecimalTransferSigner.sign(checked, seedPhrase)
-        return DecimalTransferResult(true, if (previewOnly) "preview_ready" else "signed", if (previewOnly) "signed Decimal DEL transfer preview; not broadcast" else "signed Decimal DEL transfer ready for broadcaster", checked, wallet = wallet, signedTx = signedTx, previewOnly = previewOnly)
+        return DecimalTransferResult(true, "signed", "signed Decimal DEL transfer ready for broadcaster", checked, wallet = wallet, signedTx = signedTx, previewOnly = false)
     }
 
     internal fun privateKeyForTest(seedPhrase: String): ECKey = privateKeyFromMnemonic(seedPhrase)
@@ -230,8 +251,7 @@ object DecimalTransferCodec {
         if (gasPrice <= BigInteger.ZERO) throw IllegalArgumentException("gasPrice must be positive")
         val gasLimit = obj.optLong("gasLimit", 21_000L)
         if (gasLimit < 21_000L) throw IllegalArgumentException("gasLimit must be at least 21000")
-        val chainId = obj.optLong("evmChainId", obj.optLong("chainId", DecimalNativeSupport.DEFAULT_EVM_CHAIN_ID))
-        if (chainId <= 0) throw IllegalArgumentException("evmChainId must be positive")
+        val chainId = DecimalNativeSupport.DEFAULT_EVM_CHAIN_ID
         return DecimalTransferRequest(from = from, to = to, amount = amount, nonce = nonce, gasPrice = gasPrice, gasLimit = gasLimit, chainId = chainId)
     }
 }
@@ -249,7 +269,9 @@ object DecimalTransferSigner {
         return "0x" + encodeTransaction(request, includeEip155Placeholder = false, signature = EthSignature(v, signature.r, signature.s)).toHex()
     }
 
-    internal fun unsignedTransferForTest(request: DecimalTransferRequest): String = "0x" + encodeTransaction(request, includeEip155Placeholder = true, signature = null).toHex()
+    internal fun unsignedTransferForTest(request: DecimalTransferRequest): String = unsignedTransfer(request)
+
+    fun unsignedTransfer(request: DecimalTransferRequest): String = "0x" + encodeTransaction(request, includeEip155Placeholder = true, signature = null).toHex()
 
     private fun encodeTransaction(request: DecimalTransferRequest, includeEip155Placeholder: Boolean, signature: EthSignature?): ByteArray {
         val toHex = DecimalNativeSupport.normalizeAddress(request.to).let { if (it.startsWith("0x")) it else "0x" + Bech32.decode(it, "d0").toHex() }

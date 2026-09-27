@@ -104,7 +104,8 @@ async function run() {
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'dx0000000000000000000000000000000000000000'), 'dx0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, '0x0000000000000000000000000000000000000000'), '0x0000000000000000000000000000000000000000');
   assert.strictEqual(context.DposBroadcast.validateAddress(decimal, 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd'), 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd');
-  assert.strictEqual(context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d');
+  assert.throws(() => context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), /корректным|checksum/, 'old malformed fixture must not bypass checksum validation');
+  assert.strictEqual(context.DposBroadcast.validateDecimalValidator('d0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3fuce8'), 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3fuce8');
   assert.throws(() => context.DposBroadcast.validateAddress(decimal, 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d'), /Decimal address/);
   assert.strictEqual(context.DposHistory.canonicalOperationType(minter, 13), 'multisend', 'minter numeric multisend is canonicalized as operation');
   assert.strictEqual(context.DposHistory.canonicalOperationType(minter, 'multisend_coin'), 'multisend', 'minter multisend_coin is canonicalized as operation');
@@ -121,11 +122,18 @@ async function run() {
   const decimalCalls = [];
   context.DecimalSDK = {
     DecimalNetworks: { mainnet: 'mainnet' },
-    Wallet: class { constructor(seed) { this.seed = seed; this.address = 'dxabc'; } },
+    Wallet: class {
+      constructor(seed) { this.seed = seed; this.address = 'dxabc'; this.evmAddress = '0x0000000000000000000000000000000000000002'; }
+      static decodeCosmosAccountAddress(address) {
+        if (address === 'd01t76t9rzutq3pf3szczxm0jwrz88p226u3je2qd') return '0x5fb4b28c5c582214c602c08db7c9c311ce152b5c';
+        return null;
+      }
+    },
     DecimalEVM: class {
       constructor(wallet, network) { this.wallet = wallet; this.network = network; }
       connect() { decimalCalls.push(['connect']); return Promise.resolve(); }
-      sendDEL(data) { decimalCalls.push(['sendDEL', data, this.wallet.seed]); return Promise.resolve({ raw: 'send' }); }
+      getContract() { return Promise.resolve({ contract: { decimals: async () => 18 } }); }
+      sendDEL(to, amount) { decimalCalls.push(['sendDEL', to, amount, this.wallet.seed]); return Promise.resolve({ hash: 'DxHash' }); }
       delegateDEL(validator, amount) { decimalCalls.push(['delegateDEL', validator, amount.toString(), this.wallet.seed]); return Promise.resolve({ raw: 'delegate' }); }
       buyTokenForExactDEL(token, amount, min, recipient) { decimalCalls.push(['buyTokenForExactDEL', token, String(amount), String(min), recipient]); return Promise.resolve({ raw: 'convert' }); }
       broadcast(payload) { decimalCalls.push(['broadcast', payload]); return Promise.resolve({ hash: 'DxHash', privateKey: this.wallet.seed }); }
@@ -134,11 +142,14 @@ async function run() {
   const decimalPrepared = context.DposBroadcast.prepare(decimal, 'seed', 'decimalSend', [{ to: 'dx0000000000000000000000000000000000000000', amount: '1', coin: 'DEL' }], { title: 'Decimal send' });
   assert(!JSON.stringify(context.DposBroadcast.sanitizePrepared(decimalPrepared)).includes(MNEMONIC), 'decimal preview does not leak seed');
   const decimalResult = await context.DposBroadcast.broadcast(decimal, decimalPrepared, { confirmExecute: true });
-  assert.strictEqual(decimalCalls[1][0], 'sendDEL', 'decimal send dispatches SDK method');
-  assert.strictEqual(decimalCalls[1][2], MNEMONIC, 'decimal SDK wallet receives decrypted mnemonic');
+  const sendCall = decimalCalls.find(call => call[0] === 'sendDEL');
+  assert(sendCall, 'decimal send dispatches SDK method');
+  assert.strictEqual(sendCall[1], '0x0000000000000000000000000000000000000000', 'decimal send converts dx recipient to EVM address');
+  assert.strictEqual(sendCall[2], '1000000000000000000', 'decimal send converts DEL to 18-decimal minimal units');
+  assert(sendCall[3] === MNEMONIC, 'decimal SDK wallet receives decrypted mnemonic');
   assert(!JSON.stringify(context.DposBroadcast.sanitizeResult(decimalResult)).includes(MNEMONIC), 'decimal result sanitizer redacts key echoes');
 
-  const decimalDelegation = context.DposBroadcast.prepare(decimal, 'seed', 'decimalDelegate', [{ validator: 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6rt9d', amount: '2', coin: 'DEL' }]);
+  const decimalDelegation = context.DposBroadcast.prepare(decimal, 'seed', 'decimalDelegate', [{ validator: 'd0valoper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3fuce8', amount: '2', coin: 'DEL' }]);
   await context.DposBroadcast.broadcast(decimal, decimalDelegation, { confirmExecute: true });
   assert(decimalCalls.some((call) => call[0] === 'delegateDEL'), 'decimal delegate dispatches SDK method with relaxed validator id');
 

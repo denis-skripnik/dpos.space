@@ -26,7 +26,7 @@ assert(appSource.includes('dpos_${chain && chain.id || \'social\'}_auto_upvoter_
 assert(appSource.includes('В ${escapeHtml(chain.title)} донатов нет') && appSource.includes('только vote-операции'), 'Steem UI explicitly states donations are unavailable and only votes are sent');
 assert(appSource.includes('autoDonate: isGolos && Boolean'), 'Steem collected settings forcibly disable autoDonate');
 assert(appSource.includes('const donateLink = isGolos && action && action.author'), 'manual donate links are hidden for Steem');
-assert(appSource.includes('const donateAction = isGolos && action && action.donate && action.donate.enabled'), 'scanner donate enrichment is disabled for Steem');
+assert(appSource.includes('let donateAction = action;') && appSource.includes('if (isGolos && action && action.donate && action.donate.enabled)'), 'scanner donate enrichment is disabled for Steem');
 assert(appSource.includes('socialPostPageUrl(chain, action && action.author, action && action.permlink)'), 'Steem auto-upvoter feed links to the in-app Steem post viewer');
 assert(!/Steem[\s\S]{0,200}Личный пул автодоната/.test(appSource), 'Steem-specific copy does not expose Golos personal-pool auto-donate');
 assert(planSource.includes('dpos_steem_auto_upvoter_settings'), 'plan records Steem settings key');
@@ -38,9 +38,15 @@ const settings = [
 ];
 const deduped = helpers.dedupePlannedActions(helpers.planActionsForEvents(settings, [
   { kind: 'curator_vote', voter: 'curator', author: 'target', permlink: 'same', weight: 10000, accountEnergy: 10000 },
-  { kind: 'favorite_post', author: 'favorite', permlink: 'same', activeVotes: [] }
+  { kind: 'favorite_post', author: 'favorite', permlink: 'same', accountEnergy: 10000, activeVotes: [] }
 ], { seen: new Set() }), new Set());
 assert(deduped.some((action) => action.account === 'alice' && action.type === 'vote'), 'Steem helper path plans vote actions');
 assert(deduped.every((action) => !action.donate), 'Steem planned actions have no donate payload when autoDonate is false');
+
+const malformed = helpers.planActionsForEvents([{ account: 'alice', enabled: true, favorites: ['favorite'], autoDonate: true, autoDonateCap: '50 1', currentEnergy: 10000 }],
+  [{ kind: 'favorite_post', author: 'favorite', permlink: 'malformed-import', accountEnergy: 10000 }],
+  { seen: new Set(), chainId: 'steem' });
+assert.strictEqual(malformed.length, 1, 'steem still plans a normal vote with malformed imported donate config');
+assert(malformed.every((action) => !action.donate), 'steem chain boundary strips malformed donate settings before execution');
 
 console.log('v3 Steem auto-upvoter smoke passed');

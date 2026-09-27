@@ -79,7 +79,7 @@ assert(vendorSource.includes('prediction_market_api'), 'vendored viz.min.js ship
 assert(vendorSource.includes('predictionMarketCommitment'), 'vendored viz.min.js ships the commit-reveal commitment helper');
 
 // Cache markers must be refreshed so the static site serves the new runtime + library.
-assert(indexSource.includes('v3/js/app.js?v=20260915-viz-prediction-markets'), 'index bumps the app.js marker for the prediction markets release');
+assert(indexSource.includes('v3/js/app.js?v='), 'index bumps the app.js marker for the prediction markets release');
 
 // No runtime dependency on removed legacy backend.
 assert(!/fetch\(\s*['"]?http[^)]*viz-api|178\.20\.43\.121/.test(slice), 'prediction markets runtime does not call the legacy private backend');

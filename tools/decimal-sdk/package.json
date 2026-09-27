@@ -1,0 +1,23 @@
+{
+  "name": "dpos-space-decimal-sdk-browser-build",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Reproducible browser bundle for the Decimal dsc-js-sdk used by dpos.space v3",
+  "scripts": {
+    "build": "webpack --config webpack.config.cjs",
+    "test": "node graph-gate.test.js && npm run build && node bundle-identity.test.js && node ../../tests/v3-decimal-sdk-contract.js"
+  },
+  "dependencies": {
+    "axios": "1.20.0",
+    "bech32": "2.0.0",
+    "dsc-js-sdk": "2.1.1",
+    "ethers": "5.8.0"
+  },
+  "devDependencies": {
+    "node-polyfill-webpack-plugin": "2.0.1",
+    "ts-loader": "9.2.8",
+    "typescript": "4.6.3",
+    "webpack": "5.72.0",
+    "webpack-cli": "4.9.2"
+  }
+}

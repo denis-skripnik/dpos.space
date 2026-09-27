@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 
 class DposPeriodicWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        if (!space.dpos.android.storage.WorkerStore(applicationContext).workerEnabled()) return Result.success()
         val summary = DposWorkerRunner(applicationContext).runOnce(reason = "periodic")
         return if (summary.ok) Result.success() else Result.retry()
     }

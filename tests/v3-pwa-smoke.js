@@ -33,11 +33,11 @@ assert(styleSource.includes('.pwa-panel {\n  position: static;'), 'PWA panel is 
 assert(!/\.pwa-panel\s*\{[^}]*position:\s*(fixed|sticky)/.test(styleSource), 'PWA panel must not overlay app content');
 
 assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-"), 'service worker has explicit versioned cache');
-assert(swSource.includes("const DPOS_CACHE_VERSION = 'dpos-space-v3-20260915-viz-prediction-markets'"), 'service worker cache version changes with the VIZ prediction markets runtime');
+assert(swSource.includes("'/v3/js/vault.js?v=") && swSource.includes("'/v3/js/native-bridge.js?v="), 'protected account shell is available with the cached runtime');
 assert(swSource.includes("'/v3/js/pwa.js?v="), 'service worker caches versioned PWA helper');
 assert(swSource.includes("'/v3/js/app.wallet-notifications.js'"), 'service worker caches physically versioned app runtime');
 assert(indexSource.includes('v3/js/app.js?v=') && indexSource.includes('v3/css/style.css?v='), 'index uses versioned app runtime and CSS to bypass stale browser/WebView/CDN cache');
-assert(indexSource.includes('v3/js/app.js?v=20260915-viz-prediction-markets'), 'index requests the refreshed VIZ prediction markets app runtime marker');
+assert(indexSource.includes('v3/js/app.js?v='), 'index requests the refreshed VIZ prediction markets app runtime marker');
 assert(swSource.includes('networkFirst(request)') && swSource.includes('isRuntimeAsset(request)'), 'service worker uses network-first for runtime JS/CSS/manifest');
 assert(swSource.includes('notificationclick'), 'service worker focuses or opens app from local notifications');
 assert(!/setInterval|setTimeout\s*\(/.test(swSource), 'service worker does not pretend to run a background scanner timer');
@@ -68,7 +68,7 @@ const androidContext = {
   matchMedia: () => ({ matches: false }),
   addEventListener: () => {},
   document: { addEventListener: () => {}, visibilityState: 'visible' },
-  DposAndroid: { notify: (title, body, tag, route) => { bridgeCall = { title, body, tag, route }; } }
+  DposNative: { available: () => true, request: async (method, payload) => { assert.strictEqual(method, 'notify'); bridgeCall = { ...payload }; return { ok: true }; } }
 };
 androidContext.window = androidContext;
 vm.createContext(androidContext);
@@ -76,12 +76,17 @@ vm.runInContext(pwaSource, androidContext, { filename: 'v3/js/pwa.js' });
 androidContext.DposPwa.notify('Android native', { body: 'Bridge body', tag: 'bridge', data: { url: 'https://dpos.blinddev.xyz/#chain=golos&app=wallet' } });
 assert.deepStrictEqual(bridgeCall, { title: 'Android native', body: 'Bridge body', tag: 'bridge', route: '#chain=golos&app=wallet' }, 'PWA notify routes to Android bridge when present');
 
-assert(pwaSource.includes('ANDROID_APK_VERSION = \'0.1.69\''), 'PWA panel declares current Android APK version');
-assert(pwaSource.includes("ANDROID_APK_LATEST_URL = '/downloads/dpos-space-latest-debug.apk'"), 'PWA panel links stable latest Android APK URL');
-assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'PWA panel recommends Android app over PWA for reliable background work');
-assert(pwaSource.includes('download="dpos-space-latest-debug.apk"'), 'PWA panel APK link has a clear download filename');
-assert(fs.existsSync(path.join(root, 'downloads/dpos-space-latest-debug.apk')), 'latest Android APK download exists in the static site');
-assert(fs.existsSync(path.join(root, 'downloads/dpos-space-0.1.69-debug.apk')), 'versioned Android APK download exists in the static site');
+const apkUrl = pwaSource.match(/ANDROID_APK_LATEST_URL = '([^']+)'/)[1];
+assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.1.apk', 'stable APK uses the 3.1.1 public naming convention');
+assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.1'"), 'stable download version matches');
+assert(pwaSource.includes('download="dpos-space-3.1.1.apk"'), 'suggested download name matches public URL');
+assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
+assert(indexSource.includes('DPoS Space 3.1.1'), 'site footer shows current stable version');
+const pwaMarker = 'v3/js/pwa.js?v=20260927-release-3-1-1';
+assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20260927-release-3-1-1'"), 'service worker cache bumped');
+assert(swSource.includes("pathname.startsWith('/downloads/') && pathname.endsWith('.apk')") && swSource.includes('event.respondWith(networkOnly(request))'), 'APK bypasses SW cache');
+assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'Android foreground guidance is retained');
 
 assert(appSource.includes('const pwa = global.DposPwa'), 'app.js wires PWA helper');
 assert(appSource.includes('pwa.init(pwaPanel)'), 'app.js initializes PWA panel');

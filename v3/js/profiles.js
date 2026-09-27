@@ -1,7 +1,28 @@
 (function exposeProfiles(global) {
   'use strict';
 
+  function withApiDeadline(task, milliseconds, onTimeout) {
+    if (typeof global.setTimeout !== 'function') return Promise.resolve().then(task);
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = global.setTimeout(() => {
+        reject(new Error('Превышено время ожидания API.'));
+        if (onTimeout) onTimeout();
+      }, milliseconds);
+    });
+    return Promise.race([Promise.resolve().then(task), timeout])
+      .finally(() => global.clearTimeout(timer));
+  }
+
   function callApi(chain, method, args) {
+    // This helper is for public reads; never introduce ambiguous write timeouts.
+    if (/^(?:get|lookup|find|list)/i.test(method)) {
+      return withApiDeadline(() => callApiUnbounded(chain, method, args), 10000);
+    }
+    return callApiUnbounded(chain, method, args);
+  }
+
+  function callApiUnbounded(chain, method, args) {
     const api = chain.client && chain.client.api;
     const asyncName = `${method}Async`;
 
@@ -91,15 +112,28 @@
     throw new Error(`Не найдена рабочая публичная нода для ${chainConfig.title}. Последняя ошибка: ${formatError(lastError)}`);
   }
 
-  async function fetchJson(url, options) {
-    const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-    return response.json();
+  async function fetchJson(url, options, timeoutMs = 10000) {
+    const controller = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+    const externalSignal = options && options.signal;
+    const relayAbort = () => controller && controller.abort();
+    if (externalSignal && controller) {
+      if (externalSignal.aborted) relayAbort();
+      else externalSignal.addEventListener('abort', relayAbort, { once: true });
+    }
+    try {
+      return await withApiDeadline(async () => {
+        const response = await fetch(url, Object.assign({}, options, controller ? { signal: controller.signal } : {}));
+        if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+        return response.json();
+      }, timeoutMs, relayAbort);
+    } finally {
+      if (externalSignal && controller) externalSignal.removeEventListener('abort', relayAbort);
+    }
   }
 
   async function fetchOptional(url, options) {
     try {
-      return await fetchJson(url, options);
+      return await fetchJson(url, options, 2500);
     } catch (error) {
       return null;
     }
@@ -922,10 +956,15 @@
     }
 
     if (error.message) {
-      return error.message;
+      return global.DposBroadcast && typeof global.DposBroadcast.sanitizeDiagnostic === 'function'
+        ? global.DposBroadcast.sanitizeDiagnostic(String(error.message))
+        : String(error.message);
     }
 
-    return String(error);
+    const text = String(error);
+    return global.DposBroadcast && typeof global.DposBroadcast.sanitizeDiagnostic === 'function'
+      ? global.DposBroadcast.sanitizeDiagnostic(text)
+      : text;
   }
 
   global.DposProfiles = Object.freeze({

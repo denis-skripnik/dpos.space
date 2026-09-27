@@ -9,7 +9,8 @@ const planSource = fs.readFileSync('plan.md', 'utf8');
 
 const renderVizAward = (appSource.match(/function renderVizAward[\s\S]*?\n  function golosDonateAssetOptions/) || [''])[0];
 const awardHelpers = appSource.slice(appSource.indexOf('function parseVizBeneficiaries'), appSource.indexOf('function golosDonateAssetOptions'));
-const routeSection = appSource.slice(appSource.indexOf('async function renderRoute'), appSource.indexOf('global.addEventListener'));
+const routeStart = appSource.indexOf('async function renderRoute');
+const routeSection = appSource.slice(routeStart, appSource.indexOf('global.addEventListener', routeStart));
 
 assert(chainsSource.includes("{ id: 'award', title: 'Награды'"), 'VIZ exposes canonical static award route');
 assert(appSource.includes("awards: 'award'"), 'legacy awards app id aliases to the static award route');

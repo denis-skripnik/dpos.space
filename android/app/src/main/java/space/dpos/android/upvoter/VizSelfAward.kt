@@ -26,6 +26,14 @@ const val VIZ_SELF_AWARD_REGENERATION_SECONDS: Long = 432000L
 const val VIZ_SELF_AWARD_TICK_MS: Long = 432000L
 const val VIZ_SELF_AWARD_MAX_SPEND: Int = 10
 const val VIZ_SELF_AWARD_MEMO: String = "dpos.space: VIZ self-award"
+const val VIZ_DEFAULT_BENEFICIARY_ACCOUNT: String = "denis-skripnik"
+const val VIZ_DEFAULT_BENEFICIARY_WEIGHT: Int = 100
+
+private fun vizDefaultBeneficiaries(): JSONArray = JSONArray().put(
+    JSONObject()
+        .put("account", VIZ_DEFAULT_BENEFICIARY_ACCOUNT)
+        .put("weight", VIZ_DEFAULT_BENEFICIARY_WEIGHT)
+)
 
 data class VizSelfAwardOperation(
     val account: String,
@@ -40,7 +48,7 @@ data class VizSelfAwardOperation(
         .put("energy", energy.coerceIn(1, 10000))
         .put("custom_sequence", 0)
         .put("memo", memo)
-        .put("beneficiaries", JSONArray())
+        .put("beneficiaries", vizDefaultBeneficiaries())
 }
 
 data class VizSelfAwardResult(
@@ -63,6 +71,21 @@ data class VizSelfAwardResult(
 }
 
 object VizSelfAwardPolicy {
+    // Reject stale RPC and device-clock jumps; block height must also advance before expiry.
+    fun chainHead(props: JSONObject, wallSeconds: Long): Pair<Long, Long>? {
+        val height = props.optLong("head_block_number", -1)
+        val time = runCatching { LocalDateTime.parse(props.getString("time")).toEpochSecond(ZoneOffset.UTC) }.getOrNull()
+        if (height <= 3 || time == null || kotlin.math.abs(wallSeconds - time) > 120) return null
+        return height to time
+    }
+
+    fun expiryDeadline(pending: PendingBroadcastIntent): Long? {
+        val observed = pending.observedChainTimeSeconds ?: return null
+        val expiry = pending.expirationEpochSeconds ?: observed + 60 // HEAD version's VIZ builder TTL.
+        if (expiry < observed || expiry > observed + 120) return null
+        return maxOf(expiry, observed + VIZ_SELF_AWARD_TICK_MS / 1000)
+    }
+
     fun normalizeMinEnergy(value: Int): Int = (if (value in 1..100) value * 100 else value).coerceIn(0, 9999)
 
     fun currentEnergy(account: JSONObject, nowMillis: Long = System.currentTimeMillis()): Int? {
@@ -89,7 +112,10 @@ class VizSelfAwardRuntime(
     private val broadcaster: VoteBroadcaster = GolosBroadcastClient(rpcClient),
     private val historyClient: GolosHistoryClient? = null,
     private val confirmationRetries: Int = 3,
-    private val confirmationDelayMs: Long = 1_500L
+    private val confirmationDelayMs: Long = 1_500L,
+    private val canAct: () -> Boolean = { true },
+    private val pendingStore: PendingBroadcastStore? = null,
+    private val clockSeconds: () -> Long = { System.currentTimeMillis() / 1000 }
 ) {
     private val spec = GrapheneChainSpecs.require("viz")
     private val builder = VizAwardTransactionBuilder(spec)
@@ -97,21 +123,70 @@ class VizSelfAwardRuntime(
 
     fun execute(account: String, minEnergy: Int, keyRef: EncryptedKeyRef?, privateWif: String?): VizSelfAwardResult {
         val clean = account.trim().removePrefix("@").lowercase(Locale.ROOT)
+        if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked before signing", VizSelfAwardOperation(clean, 1))
         val accountJson = try { rpcClient.getAccount(clean) } catch (e: Exception) {
             return VizSelfAwardResult(false, "account_fetch_failed", "could not fetch VIZ account @${clean}: ${PayloadSanitizer.text(e.message, 160)}", VizSelfAwardOperation(clean, 1))
         } ?: return VizSelfAwardResult(false, "account_not_found", "VIZ account @${clean} not found", VizSelfAwardOperation(clean, 1))
-        val current = VizSelfAwardPolicy.currentEnergy(accountJson)
+        val current = VizSelfAwardPolicy.currentEnergy(accountJson, clockSeconds() * 1000)
         val spend = VizSelfAwardPolicy.spendFor(current, minEnergy)
         val op = VizSelfAwardOperation(clean, spend.coerceAtLeast(1))
-        if (spend <= 0) {
-            return VizSelfAwardResult(true, "low_energy_skip", "@${clean}: energy ${current?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"}% is not above minimum ${VizSelfAwardPolicy.normalizeMinEnergy(minEnergy) / 100.0}%", op)
+        if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
+        var expiredPriorPending = false
+        pendingStore?.readPending("self_award", "viz", clean)?.let { pending ->
+            if (pending.kind != "self_award" || pending.chainId != "viz" || pending.account != clean)
+                return VizSelfAwardResult(false, "broadcast_unknown", "pending account/chain/kind mismatch", op)
+            val feeParts = pending.fingerprint.split("|", limit = 5)
+            val isFeeAward = feeParts.size == 5 && feeParts[0] == "v2" &&
+                feeParts[3] == VIZ_DEFAULT_BENEFICIARY_ACCOUNT && feeParts[4].toIntOrNull() == VIZ_DEFAULT_BENEFICIARY_WEIGHT
+            val previousSpend = if (isFeeAward) feeParts[1].toIntOrNull() else pending.fingerprint.substringBefore("|").toIntOrNull()
+            val previousMemo = if (isFeeAward) feeParts[2] else pending.fingerprint.substringAfter("|", "")
+            val confirmed = if (previousSpend != null && previousSpend in 1..10000 && previousMemo == VIZ_SELF_AWARD_MEMO &&
+                pending.transactionId?.matches(Regex("[0-9a-fA-F]{40}")) == true) {
+                runCatching { confirmSelfAward(clean, previousSpend, pending.historyBaseline, pending.transactionId, requireDefaultBeneficiary = isFeeAward) }.getOrNull()
+            } else null
+            if (confirmed != null) {
+                pendingStore.clearPending("self_award", "viz", clean)
+                return VizSelfAwardResult(true, "broadcast_confirmed", "previous VIZ self-award confirmed irreversible at block #${confirmed.index}", VizSelfAwardOperation(clean, previousSpend!!))
+            }
+            if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
+            // First observation of a legacy ID-less record is durable. Do not use its absent
+            // local creation timestamp or the node-dependent history index as proof of expiry.
+            val head = runCatching { VizSelfAwardPolicy.chainHead(rpcClient.getDynamicGlobalProperties(), clockSeconds()) }.getOrNull()
+                ?: return VizSelfAwardResult(false, "broadcast_unknown", "VIZ head unavailable or stale; pending retained", op)
+            val latest = pendingStore.readPending("self_award", "viz", clean) ?: pending
+            val watched = if (latest.observedChainTimeSeconds == null && latest.expirationEpochSeconds == null && latest.observedHeadBlock == null) {
+                if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
+                latest.copy(observedChainTimeSeconds = head.second, observedHeadBlock = head.first)
+                    .also { pendingStore.savePending(it) }
+            } else latest
+            val deadline = VizSelfAwardPolicy.expiryDeadline(watched)
+            val lib = runCatching { rpcClient.getDynamicGlobalProperties().optLong("last_irreversible_block_num", -1) }.getOrDefault(-1)
+            if (deadline != null && watched.observedHeadBlock != null && head.first > watched.observedHeadBlock && head.second >= deadline &&
+                (watched.includedBlockNumber == null || lib >= watched.includedBlockNumber)) {
+                if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
+                pendingStore.clearPending("self_award", "viz", clean)
+                // The old signed transaction cannot be accepted now. This tick has already
+                // passed the full cadence; proceed through the normal fresh-award guards.
+                expiredPriorPending = true
+            } else {
+                return VizSelfAwardResult(false, "broadcast_unknown", "previous VIZ self-award outcome unknown; no replay; waiting for advancing fresh chain head through full 432-second cadence; deadline=${deadline ?: "unavailable"}", op)
+            }
         }
+        if (spend <= 0) {
+            return VizSelfAwardResult(true, "low_energy_skip", "@${clean}: energy ${current?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"}% is not above minimum ${VizSelfAwardPolicy.normalizeMinEnergy(minEnergy) / 100.0}%", op,
+                diagnostics = if (expiredPriorPending) JSONObject().put("priorPendingOutcome", "unknown_expired") else null)
+        }
+        val fingerprint = "v2|$spend|$VIZ_SELF_AWARD_MEMO|$VIZ_DEFAULT_BENEFICIARY_ACCOUNT|$VIZ_DEFAULT_BENEFICIARY_WEIGHT"
         val authorityCheck = verifyRegularAuthority(clean, keyRef, privateWif, accountJson, op)
         if (authorityCheck != null) return authorityCheck
-        val header = buildHeaderLikeGolosJs()
+        val (header, signingHead) = buildHeaderLikeGolosJs()
+        if (pendingStore != null && (VizSelfAwardPolicy.chainHead(signingHead, clockSeconds()) == null || clockSeconds() >= header.expirationEpochSeconds))
+            return VizSelfAwardResult(false, "stale_chain_head", "VIZ chain time unavailable or inconsistent with device time; signing blocked", op)
+        if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked before signing", op)
         val signed = signer.sign(op, keyRef, privateWif, header)
         if (!signed.ok || signed.signedTransaction == null) return signed
-        return try {
+        if (!canAct()) return signed.copy(ok = false, status = "cancelled", reason = "worker permission was revoked before broadcast")
+        val submission = try {
             val authorityResponse = try { rpcClient.verifyAuthorityDetailed(signed.signedTransaction) } catch (e: Exception) {
                 return signed.copy(ok = false, status = "signature_verification_error", reason = "VIZ verify_authority transport failed before broadcast: ${PayloadSanitizer.text(e.message, 220)}", rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message, 500)))
             }
@@ -124,12 +199,29 @@ class VizSelfAwardRuntime(
             if (!authorityResponse.optBoolean("result", false)) {
                 return signed.copy(ok = false, status = "signature_rejected", reason = "VIZ node verify_authority returned false before broadcast; regular key/signature did not verify on-chain", rpcResponse = authorityResponse)
             }
+            if (!canAct()) return signed.copy(ok = false, status = "cancelled", reason = "worker permission was revoked before broadcast")
+            val baseline = -1L // VIZ confirms by exact transaction lookup, never history index.
+            val txId = TransactionConfirmation.transactionId(builder.signingBytes(op, header))
+            val pending = PendingBroadcastIntent("self_award", "viz", clean, fingerprint, baseline,
+                transactionId = txId, createdAtMs = System.currentTimeMillis(),
+                expirationEpochSeconds = header.expirationEpochSeconds,
+                observedChainTimeSeconds = VizSelfAwardPolicy.chainHead(signingHead, clockSeconds())?.second,
+                observedHeadBlock = signingHead.getLong("head_block_number"))
+            if (pendingStore != null && (VizSelfAwardPolicy.expiryDeadline(pending) == null || clockSeconds() >= header.expirationEpochSeconds))
+                return signed.copy(ok = false, status = "stale_chain_head", reason = "VIZ signing head became stale before durable intent")
+            pendingStore?.savePending(pending)
+            if (!canAct()) {
+                pendingStore?.clearPending("self_award", "viz", clean)
+                return signed.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
+            }
             val response = broadcaster.broadcast(signed.signedTransaction)
-            val confirmation = confirmSelfAward(clean, spend)
+            pendingStore?.savePending(pending.copy(state = PendingBroadcastState.UNKNOWN))
+            val confirmation = confirmSelfAward(clean, spend, baseline, txId, requireDefaultBeneficiary = true)
             if (confirmation != null) {
-                signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award confirmed in history: @${clean} spent ${spend} energy bp at #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp))
+                pendingStore?.clearPending("self_award", "viz", clean)
+                signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award irreversible: @${clean} spent ${spend} energy bp in block #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedBlockNumber", confirmation.index))
             } else if (spec.asyncBroadcastOnly) {
-                signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ async broadcast returned from RPC, but self-award was not found in account history after verification; foreground worker stays non-blocking", rpcResponse = response)
+                signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ async broadcast returned; exact transaction is not yet irreversible; next periodic check will retry read-only confirmation", rpcResponse = response)
             } else {
                 val syncResult = response.optJSONObject("result")
                 val syncId = syncResult?.optString("id").orEmpty()
@@ -143,31 +235,63 @@ class VizSelfAwardRuntime(
                 }
             }
         } catch (e: Exception) {
+            pendingStore?.readPending("self_award", "viz", clean)?.let { pendingStore.savePending(it.copy(state = PendingBroadcastState.UNKNOWN)) }
             signed.copy(ok = false, status = "broadcast_error", reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native VIZ self-award broadcast failed" }, 300), rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500)))
         }
+        return if (expiredPriorPending) submission.copy(diagnostics = (submission.diagnostics ?: JSONObject()).put("priorPendingOutcome", "unknown_expired")) else submission
     }
 
-    private fun confirmSelfAward(account: String, energy: Int): HistoryEvent? {
-        val history = historyClient ?: return null
-        repeat(confirmationRetries.coerceAtLeast(1)) { attempt ->
-            if (attempt > 0 && confirmationDelayMs > 0) Thread.sleep(confirmationDelayMs)
-            val rows = history.getAccountHistory(account, -1, 30)
-            val found = rows.asReversed().firstOrNull { event ->
-                event.type == "award" &&
-                    event.data["initiator"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == account &&
-                    event.data["receiver"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == account &&
-                    event.data["energy"].orEmpty().toIntOrNull() == energy
+    private fun confirmSelfAward(
+        account: String,
+        energy: Int,
+        baseline: Long,
+        transactionId: String? = null,
+        requireDefaultBeneficiary: Boolean = false
+    ): HistoryEvent? {
+        // The vendored viz-js-lib send() only uses async broadcast. VIZ's read-only
+        // operation_history lookup provides the exact transaction and its block number;
+        // a block is final only once the live chain's LIB has passed it.
+        if (!transactionId.isNullOrBlank() && transactionId.matches(Regex("[0-9a-fA-F]{40}"))) {
+            val transaction = runCatching { rpcClient.getVizTransaction(transactionId) }.getOrNull()
+            if (transaction != null) {
+                val award = transaction.optJSONArray("operations")?.optJSONArray(0)
+                val data = award?.optJSONObject(1)
+                val block = transaction.optLong("block_num", -1)
+                val verified = transaction.optString("transaction_id") == transactionId &&
+                    award?.optString(0) == "award" && data != null &&
+                    data.optString("initiator") == account && data.optString("receiver") == account &&
+                    data.optInt("energy", -1) == energy && data.optString("memo") == VIZ_SELF_AWARD_MEMO &&
+                    (!requireDefaultBeneficiary || hasDefaultBeneficiary(data.optJSONArray("beneficiaries")?.toString()))
+                if (!verified || block <= 0) return null
+                pendingStore?.readPending("self_award", "viz", account)?.let { pending ->
+                    if (pending.transactionId == transactionId && pending.includedBlockNumber != block)
+                        pendingStore.savePending(pending.copy(includedBlockNumber = block))
+                }
+                val head = transaction.optJSONObject("_vizHead") ?: runCatching { rpcClient.getDynamicGlobalProperties() }.getOrNull()
+                val fresh = head?.let { VizSelfAwardPolicy.chainHead(it, clockSeconds()) }
+                return if (fresh != null && head.optLong("last_irreversible_block_num", -1) >= block)
+                    HistoryEvent(block, "award", emptyMap()) else null
             }
-            if (found != null) return found
         }
         return null
     }
 
-    private fun buildHeaderLikeGolosJs(): BlockHeaderRef {
+    private fun hasDefaultBeneficiary(value: String?): Boolean = runCatching {
+        val rows = JSONArray(value.orEmpty())
+        (0 until rows.length()).any { index ->
+            val beneficiary = rows.optJSONObject(index)
+            beneficiary?.let {
+                it.optString("account") == VIZ_DEFAULT_BENEFICIARY_ACCOUNT &&
+                    it.optInt("weight", -1) == VIZ_DEFAULT_BENEFICIARY_WEIGHT
+            } == true
+        }
+    }.getOrDefault(false)
+
+    private fun buildHeaderLikeGolosJs(): Pair<BlockHeaderRef, JSONObject> {
         val props = rpcClient.getDynamicGlobalProperties()
         val head = props.optLong("head_block_number")
         val previousBlock = rpcClient.getBlock(head - 2)
-        return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock)
+        return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock) to props
     }
 
     private fun verifyRegularAuthority(account: String, keyRef: EncryptedKeyRef?, privateWif: String?, accountJson: JSONObject, op: VizSelfAwardOperation): VizSelfAwardResult? {
@@ -214,7 +338,9 @@ class VizAwardTransactionBuilder(private val spec: GrapheneChainSpec) {
             writeUInt16LE(operation.energy.coerceIn(1, 10000))
             writeUInt64LE(0)
             writeGrapheneString(operation.memo)
-            writeVarUInt(0) // beneficiaries
+            writeVarUInt(1)
+            writeGrapheneString(VIZ_DEFAULT_BENEFICIARY_ACCOUNT)
+            writeUInt16LE(VIZ_DEFAULT_BENEFICIARY_WEIGHT)
             writeVarUInt(0) // transaction extensions
         }.toByteArray()
         return vizHexToBytes(spec.networkChainIdHex) + txBytes

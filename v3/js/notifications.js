@@ -5,6 +5,7 @@
   const MAX_PANEL_ITEMS = 10;
   const DEFAULT_LIMIT = 60;
   const CHECK_INTERVAL_MS = 120000;
+  const SCAN_TIMEOUT_MS = 10000;
   const NOTIFICATION_OPS = {
     golos: ['content_mentions', 'comment_mention', 'comment', 'custom_json', 'transfer', 'donate', 'author_reward', 'curation_reward', 'comment_benefactor_reward'],
     viz: ['comment', 'transfer', 'award', 'fixed_award', 'receive_award', 'benefactor_award'],
@@ -77,11 +78,14 @@
   function getSettings(chain, account) {
     const defaults = defaultOps(chain);
     const store = readStore();
-    const settings = store.settings && store.settings[settingsKey(chain, account)] || {};
+    const key = settingsKey(chain, account);
+    const configured = Boolean(store.settings && Object.prototype.hasOwnProperty.call(store.settings, key));
+    const settings = configured ? store.settings[key] : {};
     const selected = Array.isArray(settings.ops) ? settings.ops.filter((op) => defaults.includes(op)) : defaults;
     return {
-      ops: selected.length ? selected : defaults,
-      androidNative: settings.androidNative !== false,
+      ops: selected,
+      androidNative: configured && settings.androidNative === true,
+      configured,
       intervalMinutes: Number(settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
     };
   }
@@ -92,8 +96,8 @@
     const store = readStore();
     const key = settingsKey(chain, account);
     store.settings[key] = {
-      ops: selected.length ? selected : defaults,
-      androidNative: settings && settings.androidNative !== false,
+      ops: selected,
+      androidNative: Boolean(settings && settings.androidNative === true),
       intervalMinutes: Number(settings && settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
     };
     writeStore(store);
@@ -158,6 +162,7 @@
 
   function getTrackedAccounts(chain) {
     if (!supportsChain(chain) || !global.DposAuth || typeof global.DposAuth.getUsers !== 'function') return [];
+    if (global.DposVault && global.DposVault.status().state !== 'unlocked') return [];
     const users = global.DposAuth.getUsers(chain) || [];
     return unique(users.map((user) => {
       if (typeof global.DposAuth.getUserLogin === 'function') return global.DposAuth.getUserLogin(user);
@@ -187,7 +192,22 @@
     return `#${params.toString()}`;
   }
 
+  function usesRestIdentity(chain) {
+    return ['minter', 'decimal'].includes(chain.id);
+  }
+
+  function restIdentity(item) {
+    const value = item && item.trxId;
+    if (typeof value === 'string' && value.trim() && value.length <= 256) return value;
+    if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
+    return null;
+  }
+
   function notificationId(chain, account, item, suffix) {
+    if (usesRestIdentity(chain)) {
+      const identity = restIdentity(item);
+      return identity === null ? '' : JSON.stringify([chain.id, normalizeAccount(account), 'tx', identity, suffix || item.type || 'event']);
+    }
     return [chain.id, normalizeAccount(account), historyIndex(item), suffix || item.type || 'event'].join(':');
   }
 
@@ -381,8 +401,7 @@
     return null;
   }
 
-  function upsertNotifications(nextNotifications) {
-    const store = readStore();
+  function mergeNotifications(store, nextNotifications) {
     const byId = new Map((store.notifications || []).map((item) => [item.id, item]));
     (nextNotifications || []).forEach((item) => {
       if (!item || !item.id) return;
@@ -392,6 +411,12 @@
     store.notifications = Array.from(byId.values())
       .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')) || Number(b.sourceIndex || 0) - Number(a.sourceIndex || 0))
       .slice(0, 200);
+    return store.notifications;
+  }
+
+  function upsertNotifications(nextNotifications) {
+    const store = readStore();
+    mergeNotifications(store, nextNotifications);
     writeStore(store);
     return store.notifications;
   }
@@ -411,6 +436,11 @@
     store.notifications = (store.notifications || []).map((item) => Object.assign({}, item, { read: true }));
     writeStore(store);
     return store;
+  }
+
+  async function markAllReadEverywhere() {
+    if (global.DposNotificationInbox) await global.DposNotificationInbox.markAllRead();
+    else markAllRead();
   }
 
   function getCursor(chain, account) {
@@ -440,22 +470,74 @@
     }
   }
 
+  function scanRestRows(chain, account, rows, options) {
+    const store = readStore();
+    const key = accountKey(chain.id, account);
+    const previous = store.accounts[key] || {};
+    const initialized = previous.restCursorVersion === 1 && Array.isArray(previous.seenTransactions);
+    const legacy = Object.prototype.hasOwnProperty.call(previous, 'cursor');
+    const uniqueRows = new Map();
+    for (const item of rows) {
+      const identity = restIdentity(item);
+      if (identity !== null && !uniqueRows.has(identity)) uniqueRows.set(identity, item);
+    }
+    // A malformed/empty legacy response must not establish an empty migration baseline.
+    if (!initialized && !uniqueRows.size && (legacy || rows.length)) return [];
+    const seen = new Set(initialized ? previous.seenTransactions : []);
+    const collect = initialized || (!legacy && options.collectInitial === true);
+    const notifications = collect ? Array.from(uniqueRows.entries())
+      .filter(([identity]) => !seen.has(identity))
+      .map(([, item]) => toNotification(chain, account, item))
+      .filter(Boolean) : [];
+    store.accounts[key] = Object.assign({}, previous, {
+      restCursorVersion: 1,
+      seenTransactions: Array.from(new Set([...uniqueRows.keys(), ...seen])).slice(0, 1024),
+      lastCheckedAt: new Date().toISOString()
+    });
+    // Cursor and notifications share one atomic localStorage write. Quota failure is retryable.
+    mergeNotifications(store, notifications);
+    writeStore(store);
+    return notifications;
+  }
+
   async function scanAccount(chain, account, options = {}) {
     if (!supportsChain(chain) || !global.DposHistory || typeof global.DposHistory.fetchAccountHistory !== 'function') return [];
-    const rows = await fetchAccountRows(chain, account, options.limit || DEFAULT_LIMIT);
-    const cursor = getCursor(chain, account);
-    const maxIndex = rows.reduce((max, item) => Math.max(max, historyIndex(item)), cursor || -1);
-    if (cursor === null && !options.collectInitial) {
+    if (getSettings(chain, account).ops.length === 0) return [];
+    const token = { active: true };
+    const timeoutMs = Number(options.timeoutMs || global.__dposNotificationScanTimeoutMs || SCAN_TIMEOUT_MS);
+    let timer;
+    const work = (async () => {
+      const rows = await fetchAccountRows(chain, account, options.limit || DEFAULT_LIMIT);
+      if (!token.active) return [];
+      if (usesRestIdentity(chain)) return scanRestRows(chain, account, rows, options);
+      const cursor = getCursor(chain, account);
+      const maxIndex = rows.reduce((max, item) => Math.max(max, historyIndex(item)), cursor || -1);
+      if (cursor === null && !options.collectInitial) {
+        if (token.active) setCursor(chain, account, maxIndex);
+        return [];
+      }
+      const notifications = rows
+        .filter((item) => cursor === null || historyIndex(item) > cursor)
+        .map((item) => toNotification(chain, account, item))
+        .filter(Boolean);
+      if (!token.active) return [];
       setCursor(chain, account, maxIndex);
-      return [];
+      if (notifications.length) upsertNotifications(notifications);
+      return notifications;
+    })();
+    if (typeof global.setTimeout !== 'function') return work;
+    const timeout = new Promise((resolve, reject) => {
+      timer = global.setTimeout(() => {
+        token.active = false;
+        reject(new Error(`Notification scan timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      token.active = false;
+      if (timer && typeof global.clearTimeout === 'function') global.clearTimeout(timer);
     }
-    const notifications = rows
-      .filter((item) => cursor === null || historyIndex(item) > cursor)
-      .map((item) => toNotification(chain, account, item))
-      .filter(Boolean);
-    setCursor(chain, account, maxIndex);
-    if (notifications.length) upsertNotifications(notifications);
-    return notifications;
   }
 
   async function scanAll(chains, options = {}) {
@@ -489,7 +571,7 @@
   function renderList(items) {
     const visible = items.slice(0, MAX_PANEL_ITEMS);
     if (!visible.length) return '<p class="muted">Непрочитанных уведомлений нет.</p>';
-    return `<ul class="notifications-list">${visible.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a></li>`).join('')}</ul>`;
+    return `<ul class="notifications-list">${visible.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span data-i18n-skip>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a></li>`).join('')}</ul>`;
   }
 
   function renderPanel(container, chains, statusMessage) {
@@ -519,7 +601,7 @@
         </div>
         ${statusMessage ? `<p class="muted">${escapeHtml(statusMessage)}</p>` : ''}
         ${renderList(unread)}
-        <p><a href="${escapeHtml(notificationsUrl(first.chain, first.account))}" data-notifications-all>Показать все</a></p>
+        <p><a href="#app=notifications" data-notifications-all>Показать все</a></p>
       </section>
     </details>`;
   }
@@ -555,13 +637,13 @@
     };
     rerender('');
     if (container) {
-      container.addEventListener('click', (event) => {
+      container.addEventListener('click', async (event) => {
         const refreshButton = event.target.closest('[data-notifications-refresh]');
         const readButton = event.target.closest('[data-notifications-read]');
         if (refreshButton) refresh();
         if (readButton) {
-          markAllRead();
-          rerender('Все уведомления отмечены прочитанными.');
+          try { await markAllReadEverywhere(); rerender('Все уведомления отмечены прочитанными.'); }
+          catch (_) { rerender('Не удалось отметить уведомления прочитанными. Повторите попытку.'); }
         }
       });
     }
@@ -578,6 +660,7 @@
   global.DposNotifications = Object.freeze({
     STORAGE_KEY,
     MAX_PANEL_ITEMS,
+    SCAN_TIMEOUT_MS,
     supportsChain,
     getTrackedAccounts,
     toNotification,
@@ -589,6 +672,7 @@
     saveSettings,
     countUnread,
     markAllRead,
+    markAllReadEverywhere,
     scanAccount,
     scanAll,
     renderPanel,

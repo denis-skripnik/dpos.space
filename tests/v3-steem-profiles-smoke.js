@@ -38,7 +38,7 @@ assert(legacyHistory.includes('select multiple id="ops"') && legacyHistoryJs.inc
 assert(legacyFollowers.includes('GetFollowersCommand') && legacyDelegations.includes('GetVestingDelegationsCommand') && legacyBlog.includes('GetDiscussionsByBlogCommand') && legacyComments.includes('getDiscussionsByCommentsCommand'), 'legacy direct profile RPC snippets inspected');
 
 assert(chainsSource.includes("steem: {") && chainsSource.includes("id: 'profiles'"), 'Steem profiles app is registered through base apps');
-assert(appSource.includes('async function renderProfileRoute(chain, account)'), 'v3 has dedicated profile route renderer');
+childProcess.execFileSync(process.execPath, [path.join(__dirname, 'v3-route-generation.js')], { encoding: 'utf8', timeout: 15000 });
 assert(profilesSource.includes("if (chainId === 'steem') return config.STEEM_VOTING_MANA_REGENERATION_SECONDS"), 'profile normalizer handles Steem voting mana regeneration');
 assert(historySource.includes("steem: new Set") && historySource.includes("comment_benefactor_reward"), 'history supports Steem profile reward filters');
 

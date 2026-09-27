@@ -23,6 +23,8 @@ import space.dpos.android.upvoter.VoteOperationFixture
 import space.dpos.android.upvoter.VoteRuntime
 import space.dpos.android.upvoter.GolosRpcClient
 import space.dpos.android.upvoter.GraphenePublicKey
+import space.dpos.android.upvoter.PendingBroadcastIntent
+import space.dpos.android.upvoter.PendingBroadcastStore
 import java.math.BigInteger
 
 class VoteBroadcastPolicyTest {
@@ -150,6 +152,60 @@ class VoteBroadcastPolicyTest {
         assertEquals("broadcast_unconfirmed", result.status)
         assertEquals(1, broadcaster.broadcastCount)
     }
+    @Test fun stopDuringHistoryBaselinePreventsBroadcast() {
+        var allowed = true
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+                allowed = false
+                return emptyList()
+            }
+        }
+        val sender = RecordingBroadcaster()
+        val result = VoteRuntime(FakeRpc(), broadcaster = sender, historyClient = history, canAct = { allowed })
+            .execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertEquals("cancelled", result.status)
+        assertEquals(0, sender.broadcastCount)
+    }
+
+    @Test fun unsignedPreviewContainsNoSignatures() {
+        val result = VoteRuntime(FakeRpc()).previewUnsigned(VoteOperation("golos", "denis", "alice", "post", 10000))
+        assertTrue(result.getBoolean("ok"))
+        assertEquals(0, result.getJSONObject("unsignedTx").getJSONArray("signatures").length())
+    }
+
+    @Test fun mismatchingTransactionIdCannotConfirmNewerIdenticalEvent() {
+        val event = HistoryEvent(100, "vote", mapOf("transaction_id" to "different"))
+        val result = space.dpos.android.upvoter.TransactionConfirmation.findCurrent(listOf(event), 99, "expected") { true }
+        assertEquals(null, result)
+    }
+
+    @Test fun delayedOldIdenticalHistoryDoesNotConfirmCurrentVote() {
+        val old = HistoryEvent(99, "vote", mapOf("voter" to "denis", "author" to "alice", "permlink" to "post", "weight" to "10000"))
+        val history = object : GolosHistoryClient { override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(old) }
+        val result = VoteRuntime(FakeRpc(), broadcaster = RecordingBroadcaster(), historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0)
+            .execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertFalse(result.ok)
+        assertEquals("broadcast_unconfirmed", result.status)
+    }
+
+    @Test fun ambiguousBroadcastPendingSurvivesRuntimeRestartAndBlocksReplay() {
+        val store = MemoryPendingStore()
+        val firstBroadcaster = ThrowingBroadcaster("transport timed out after send")
+        val operation = VoteOperation("golos", "denis", "alice", "post", 10000)
+        val keyRef = EncryptedKeyRef("golos", "denis", "posting", "posting")
+        val history = object : GolosHistoryClient { override fun getAccountHistory(account: String, from: Long, limit: Int) = emptyList<HistoryEvent>() }
+        val first = VoteRuntime(FakeRpc(), broadcaster = firstBroadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = store)
+            .execute(operation, keyRef, deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", first.status)
+        assertTrue(first.reason.contains("Повторная отправка заблокирована"))
+        assertTrue(first.diagnostics!!.has("pendingOperation"))
+        val secondBroadcaster = RecordingBroadcaster()
+        val second = VoteRuntime(FakeRpc(), broadcaster = secondBroadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = store)
+            .execute(operation, keyRef, deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", second.status)
+        assertEquals(1, firstBroadcaster.broadcastCount)
+        assertEquals(0, secondBroadcaster.broadcastCount)
+    }
 
 
     @Test fun executeStopsBeforeBroadcastWhenStoredKeyIsNotPostingAuthority() {
@@ -180,6 +236,30 @@ class VoteBroadcastPolicyTest {
         assertEquals("already_voted", result.status)
         assertEquals(1, broadcaster.broadcastCount)
         assertTrue(result.reason.contains("skipped duplicate"))
+    }
+
+    @Test fun mixedFallbackErrorsCannotClearPendingWithoutExactHistoryMatch() {
+        val operation = VoteOperation("golos", "denis", "alice", "post", 10000)
+        val pending = MemoryPendingStore()
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = emptyList()
+        }
+        val rpc = space.dpos.android.upvoter.FallbackGrapheneRpcClient(listOf(
+            object : GolosRpcClient by FakeRpc() {
+                override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
+                    throw IllegalStateException("You have already voted in a similar way")
+            },
+            object : GolosRpcClient by FakeRpc() {
+                override fun broadcastTransactionSynchronous(signedTransaction: JSONObject): JSONObject =
+                    throw IllegalStateException("timeout after sending to node")
+            }
+        ))
+        val result = VoteRuntime(rpc, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+            .execute(operation, EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertEquals("broadcast_unknown", result.status)
+        assertFalse(result.ok)
+        assertNotNull(pending.readPending("vote", "golos", "denis"))
+        assertTrue(result.reason.contains("Повторная отправка заблокирована"))
     }
 
     @Test fun executeReturnsBroadcastErrorForNonDuplicateRpcFailure() {
@@ -273,9 +353,38 @@ class VoteBroadcastPolicyTest {
     }
 
     private class ConfirmingVoteHistory(private val voter: String, private val author: String, private val permlink: String, private val weight: Int) : GolosHistoryClient {
-        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = listOf(
-            HistoryEvent(99, "vote", mapOf("voter" to voter, "author" to author, "permlink" to permlink, "weight" to weight.toString()), "2026-08-15T00:00:00")
-        )
+        private var calls = 0
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+            calls += 1
+            return if (calls == 1) emptyList() else listOf(
+                HistoryEvent(99, "vote", mapOf("voter" to voter, "author" to author, "permlink" to permlink, "weight" to weight.toString()), "2026-08-15T00:00:00")
+            )
+        }
+    }
+
+    @Test fun confirmedOlderPendingVoteDoesNotBlockDifferentPostForever() {
+        val pending = MemoryPendingStore()
+        pending.savePending(PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 0, transactionId = "old-exact-tx"))
+        val broadcaster = RecordingBroadcaster()
+        val history = object : GolosHistoryClient {
+            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+                val old = HistoryEvent(42, "vote", mapOf("voter" to account, "author" to "alice", "permlink" to "old-post", "weight" to "5000", "trx_id" to "old-exact-tx"), "2026-08-15T00:00:00")
+                val fresh = HistoryEvent(43, "vote", mapOf("voter" to account, "author" to "carol", "permlink" to "new-post", "weight" to "10000", "trx_id" to pending.readPending("vote", "golos", account)?.transactionId.orEmpty()), "2026-08-15T00:00:03")
+                return if (broadcaster.broadcastCount == 0) listOf(old) else listOf(old, fresh)
+            }
+        }
+        val runtime = VoteRuntime(FakeRpc(), broadcaster = broadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+        val result = runtime.execute(VoteOperation("golos", "denis", "carol", "new-post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
+        assertEquals("broadcast_confirmed", result.status)
+        assertEquals(1, broadcaster.broadcastCount)
+        assertEquals(null, pending.readPending("vote", "golos", "denis"))
+    }
+
+    private class MemoryPendingStore : PendingBroadcastStore {
+        private var value: PendingBroadcastIntent? = null
+        override fun readPending(kind: String, chainId: String, account: String) = value
+        override fun savePending(intent: PendingBroadcastIntent) { value = intent }
+        override fun clearPending(kind: String, chainId: String, account: String) { value = null }
     }
 
     private class FakeRpc(
