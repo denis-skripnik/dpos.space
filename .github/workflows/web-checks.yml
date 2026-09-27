@@ -28,6 +28,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Parity tests read git show master:blockchains/...; the live master branch
+      # no longer contains that legacy tree. Keep the fixture on its known commit.
+      - name: Fetch pinned legacy parity baseline
+        run: |
+          git fetch --no-tags --depth=1 origin fb159aa1f6d225a9e5cb2aaf608729da4f93e1f9
+          git branch master FETCH_HEAD
+          test "$(git rev-parse master)" = fb159aa1f6d225a9e5cb2aaf608729da4f93e1f9
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
