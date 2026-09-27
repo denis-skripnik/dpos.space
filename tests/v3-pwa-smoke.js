@@ -77,14 +77,14 @@ androidContext.DposPwa.notify('Android native', { body: 'Bridge body', tag: 'bri
 assert.deepStrictEqual(bridgeCall, { title: 'Android native', body: 'Bridge body', tag: 'bridge', route: '#chain=golos&app=wallet' }, 'PWA notify routes to Android bridge when present');
 
 const apkUrl = pwaSource.match(/ANDROID_APK_LATEST_URL = '([^']+)'/)[1];
-assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.1.apk', 'stable APK uses the 3.1.1 public naming convention');
-assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.1'"), 'stable download version matches');
-assert(pwaSource.includes('download="dpos-space-3.1.1.apk"'), 'suggested download name matches public URL');
+assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.2.apk', 'stable APK uses the 3.1.2 public naming convention');
+assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.2'"), 'stable download version matches');
+assert(pwaSource.includes('download="dpos-space-3.1.2.apk"'), 'suggested download name matches public URL');
 assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
-assert(indexSource.includes('DPoS Space 3.1.1'), 'site footer shows current stable version');
-const pwaMarker = 'v3/js/pwa.js?v=20260927-release-3-1-1';
+assert(indexSource.includes('DPoS Space 3.1.2'), 'site footer shows current stable version');
+const pwaMarker = 'v3/js/pwa.js?v=20260927-release-3-1-2';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20260927-release-3-1-1'"), 'service worker cache bumped');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20260927-release-3-1-2'"), 'service worker cache bumped');
 assert(swSource.includes("pathname.startsWith('/downloads/') && pathname.endsWith('.apk')") && swSource.includes('event.respondWith(networkOnly(request))'), 'APK bypasses SW cache');
 assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'Android foreground guidance is retained');
 
