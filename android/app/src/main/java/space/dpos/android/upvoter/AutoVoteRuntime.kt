@@ -25,10 +25,47 @@ class AutoVoteRuntime(
     private val canAct: () -> Boolean = { true },
     private val donateRuntime: GolosDonateRuntime? = null
 ) {
+    private val provenRoots = mutableSetOf<Pair<String, String>>()
+
+    /** Validate individually eligible events before the cumulative energy budget is charged. */
+    fun plan(settings: List<AccountSettings>, events: List<VoteEvent>): VotePlan {
+        provenRoots.clear()
+        val planner = AutoUpvoterPlanner()
+        if (chainId.trim().lowercase() != "golos") return planner.plan(settings, events)
+        val skips = mutableListOf<String>()
+        val verdicts = mutableMapOf<Pair<String, String>, String?>()
+        val eligible = events.filter { event ->
+            val individual = planner.plan(settings, listOf(event))
+            if (individual.actions.isEmpty()) return@filter true
+            val target = event.author to event.permlink
+            if (!canAct()) {
+                skips += individual.actions.map { "cancelled:${it.account}|${it.author}|${it.permlink}" }
+                return@filter false
+            }
+            val verdict = if (verdicts.containsKey(target)) verdicts[target] else {
+                voteRuntime.golosRootPostSkip(event.author, event.permlink).also { verdicts[target] = it }
+            }
+            if (!canAct()) {
+                skips += individual.actions.map { "cancelled:${it.account}|${it.author}|${it.permlink}" }
+                false
+            } else if (verdict != null) {
+                skips += individual.actions.map { "$verdict:${it.account}|${it.author}|${it.permlink}" }
+                false
+            } else {
+                provenRoots += target
+                true
+            }
+        }
+        val plan = planner.plan(settings, eligible)
+        return plan.copy(skips = skips + plan.skips)
+    }
+
     fun preview(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = true)
     fun execute(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = false)
 
     private fun run(plan: VotePlan, previewOnly: Boolean): AutoVoteRuntimeReport {
+        val validatedRoots = provenRoots.toSet()
+        provenRoots.clear() // Proofs belong to one immediate execution, never a later tick.
         val skips = plan.skips.toMutableList()
         val results = mutableListOf<VoteBroadcastResult>()
         val donateResults = mutableListOf<GolosDonateResult>()
@@ -52,6 +89,20 @@ class AutoVoteRuntime(
             }
             attempted += 1
             val operation = VoteOperation(chain, action.account, action.author, action.permlink, action.weight)
+            // Old/synthetic history/blog events do not prove a root post. Check before
+            // signing or creating a fresh donate intent; pending donations reconcile in the runner.
+            if (chain == "golos") {
+                val rootSkip = if ((action.author to action.permlink) in validatedRoots) null
+                    else voteRuntime.golosRootPostSkip(action.author, action.permlink)
+                if (!canAct()) {
+                    skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
+                    break
+                }
+                if (rootSkip != null) {
+                    skips += "$rootSkip:${action.account}|${action.author}|${action.permlink}"
+                    continue
+                }
+            }
             if (!previewOnly && !canAct()) {
                 skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
                 break

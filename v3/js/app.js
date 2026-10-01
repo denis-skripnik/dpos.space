@@ -7406,6 +7406,8 @@
             if (isActionCancelled()) return { cancelled: true };
             const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
             if (isActionCancelled()) return { cancelled: true };
+            const rootPostSkip = isGolos ? helper.rootPostSkipReason(content, action) : null;
+            if (rootPostSkip) return { skipped: true, reason: rootPostSkip };
             if (hasGolosVoteFrom(content || action, action.account)) {
               return { skipped: true, reason: 'already-voted' };
             }

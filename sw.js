@@ -1,19 +1,19 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20260927-release-3-1-2';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20261001-release-3-1-3';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/js/i18n-en.js?v=20260923-editor-link',
+  '/v3/js/i18n-en.js?v=20261001-vault-explanation',
   '/v3/js/i18n.js?v=20260919-audit-integration',
-  '/v3/js/app.js?v=20260926-golos-donate-migration',
+  '/v3/js/app.js?v=20261001-golos-root-posts',
   '/v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0',
   '/v3/css/style.css?v=20260919-audit-integration',
   '/v3/vendor/golos/sjcl.min.js',
   '/v3/js/vault.js?v=20260919-audit-integration',
-  '/v3/js/vault-ui.js?v=20260919-audit-integration',
+  '/v3/js/vault-ui.js?v=20261001-vault-explanation',
   '/v3/js/native-bridge.js?v=20260921-notification-summary',
   '/v3/js/chains.js?v=20260919-audit-integration',
   '/v3/js/auth.js?v=20260919-audit-integration',
@@ -25,8 +25,8 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/history.js?v=20260919-audit-integration',
   '/v3/js/notifications.js?v=20260921-notification-summary',
   '/v3/js/notification-inbox.js?v=20260921-notification-summary',
-  '/v3/js/auto-upvoter.js?v=20260926-golos-donate',
-  '/v3/js/pwa.js?v=20260927-release-3-1-2',
+  '/v3/js/auto-upvoter.js?v=20261001-golos-root-posts',
+  '/v3/js/pwa.js?v=20261001-release-3-1-3',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'

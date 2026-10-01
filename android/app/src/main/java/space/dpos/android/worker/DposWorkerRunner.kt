@@ -278,17 +278,6 @@ class DposWorkerRunner(
                     val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
                     publishStatus("${account.chainId}:${account.account}: лента проверена; событий=${events.size}; планирую голоса")
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер планирую голоса")
-                    val plan = AutoUpvoterPlanner().plan(listOf(settings), events)
-                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер план готов; actions=${plan.actions.size}; skip=${plan.skips.size}")
-                    if (plan.actions.isEmpty()) {
-                        if (runToken.mayContinue() && plan.skips.none { it.startsWith("energy:") }) persistCuratorCursors(spec.id, account.account, events)
-                        val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
-                        publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
-                        store.appendLog(msg)
-                        messages += msg
-                        skipped += plan.skips.size
-                        continue
-                    }
                     val accountPermit = { runToken.mayContinue() && store.autoUpvoterEnabled(account.chainId, account.account) }
                     val donateRuntime = if (spec.id == "golos" && settings.donatePool != null) GolosDonateRuntime(rpc, historyClient(spec), store,
                         canAct = { accountPermit() && store.autoDonatePool("golos", account.account) != null }) else null
@@ -296,6 +285,20 @@ class DposWorkerRunner(
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
                     }, chainId = spec.id, pauseAfterSuccessfulBroadcastMs = 5_000L, canAct = accountPermit, donateRuntime = donateRuntime)
+                    val plan = runtime.plan(listOf(settings), events)
+                    store.appendLog("${account.chainId}:${account.account}: автоапвоутер план готов; actions=${plan.actions.size}; skip=${plan.skips.size}")
+                    if (plan.actions.isEmpty()) {
+                        if (accountPermit() && plan.skips.none { it.startsWith("energy:") || it.startsWith("root_post_unknown:") || it.startsWith("cancelled:") }) persistCuratorCursors(spec.id, account.account, events)
+                        plan.skips.groupingBy { it.substringBefore(':') }.eachCount().forEach { (key, value) ->
+                            autoUpvoterSkipSummary[key] = (autoUpvoterSkipSummary[key] ?: 0) + value
+                        }
+                        val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
+                        publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
+                        store.appendLog(msg)
+                        messages += msg
+                        skipped += plan.skips.size
+                        continue
+                    }
                     publishStatus("${account.chainId}:${account.account}: обрабатываю кандидатов vote; кандидатов=${plan.actions.size}; пауза между успешными голосами 5 секунд")
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер обрабатывает кандидатов vote; candidates=${plan.actions.size}; pauseAfterSuccessfulBroadcast=5s; timeout=dynamic")
                     val report = runAutoVoteRuntimeWithTimeout(account.chainId, account.account, runtime, plan)
@@ -304,11 +307,11 @@ class DposWorkerRunner(
                     report.results.take(12).forEach { result ->
                         store.appendLog("${account.chainId}:${account.account}: vote candidate @${result.operation.author}/${result.operation.permlink}; status=${result.status}; ok=${result.ok}; reason=${PayloadSanitizer.text(result.reason, 240)}", "info")
                     }
-                    report.skipped.filter { it.startsWith("pending_confirmation:") || it.startsWith("missing-key:") || it.startsWith("cancelled:") }.take(12).forEach {
+                    report.skipped.filter { it.startsWith("pending_confirmation:") || it.startsWith("missing-key:") || it.startsWith("cancelled:") || it.startsWith("not_root_post:") || it.startsWith("root_post_unknown:") }.take(12).forEach {
                         store.appendLog("${account.chainId}:${account.account}: vote candidate skip=${PayloadSanitizer.text(it, 220)}", "warning")
                     }
                     if (report.results.size > 12) store.appendLog("${account.chainId}:${account.account}: vote candidate details truncated; total=${report.results.size}")
-                    if (accountPermit() && plan.skips.none { it.startsWith("energy:") } && report.results.all { it.ok || it.status == "already_voted" }) {
+                    if (accountPermit() && plan.skips.none { it.startsWith("energy:") } && report.skipped.none { it.startsWith("root_post_unknown:") } && report.results.all { it.ok || it.status == "already_voted" }) {
                         persistCuratorCursors(spec.id, account.account, events)
                     }
                     autoUpvoterAttempted += report.attempted

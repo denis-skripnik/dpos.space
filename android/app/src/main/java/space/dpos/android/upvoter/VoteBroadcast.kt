@@ -147,6 +147,8 @@ interface GolosRpcClient {
     fun getVizTransaction(transactionId: String): JSONObject? = null
     fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
+    /** Public content identity/parent proof for Golos automation; absent is not a root post. */
+    fun getGolosContent(author: String, permlink: String): JSONObject? = null
     fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? = null
     fun verifyAuthority(signedTransaction: JSONObject): Boolean
     fun verifyAuthorityDetailed(signedTransaction: JSONObject): JSONObject
@@ -357,6 +359,12 @@ class GrapheneVoteSigner(
 class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos"), builder)
 
 class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val endpoint: String = spec.defaultRpcEndpoint) : GolosRpcClient {
+    override fun getGolosContent(author: String, permlink: String): JSONObject? {
+        if (spec.id != "golos") return null
+        // Explicit Golos social_network optional arguments: no active votes needed.
+        return postApi("social_network", "get_content", JSONArray().put(author).put(permlink).put(0).put(0))
+            .optJSONObject("result")
+    }
     override fun getVizTransaction(transactionId: String): JSONObject? {
         if (spec.id != "viz") return null
         require(transactionId.matches(Regex("[0-9a-fA-F]{40}"))) { "invalid transaction id" }
@@ -458,6 +466,8 @@ class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : Gol
     override fun getDynamicGlobalProperties(): JSONObject = call("dynamic properties") { it.getDynamicGlobalProperties() }
     override fun getBlock(blockNumber: Long): JSONObject? = call("block") { it.getBlock(blockNumber) }
     override fun getAccount(account: String): JSONObject? = call("account") { it.getAccount(account) }
+    override fun getGolosContent(author: String, permlink: String): JSONObject? =
+        call("content") { it.getGolosContent(author, permlink) }
     override fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? =
         call("active vote") { it.getActiveVotePercent(author, permlink, voter) }
     override fun verifyAuthority(signedTransaction: JSONObject): Boolean = verifyAuthorityDetailed(signedTransaction).optBoolean("result", false)
@@ -549,6 +559,16 @@ class VoteRuntime(
         return if (signed.ok && signed.payload != null) {
             signed.copy(status = "preview_ready", reason = "preview/check built a signed transaction but did not broadcast", payload = signed.payload.copy(previewOnly = true))
         } else signed
+    }
+
+    /** Auto-upvoter only: manual votes may still target comments. Never coerce JSON fields. */
+    internal fun golosRootPostSkip(author: String, permlink: String): String? {
+        val content = try { rpcClient.getGolosContent(author, permlink) } catch (_: Exception) { null }
+            ?: return "root_post_unknown"
+        if (content.opt("author") !is String || content.opt("author") != author ||
+            content.opt("permlink") !is String || content.opt("permlink") != permlink ||
+            content.opt("parent_author") !is String) return "root_post_unknown"
+        return if (content.getString("parent_author").isEmpty()) null else "not_root_post"
     }
 
     fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {

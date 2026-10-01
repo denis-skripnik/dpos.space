@@ -161,6 +161,8 @@ class AutoVoteRuntimePolicyTest {
     )
 
     private class FakeRpc : GolosRpcClient {
+        override fun getGolosContent(author: String, permlink: String): JSONObject =
+            JSONObject().put("author", author).put("permlink", permlink).put("parent_author", "")
         override fun getDynamicGlobalProperties(): JSONObject = JSONObject()
             .put("head_block_number", 123)
             .put("head_block_id", "0000007b01020304000000000000000000000000000000000000000000000000")

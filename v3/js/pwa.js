@@ -3,8 +3,8 @@
 
   const SERVICE_WORKER_PATH = '/sw.js';
   const PANEL_DISMISSED_KEY = 'dpos_pwa_panel_dismissed';
-  const ANDROID_APK_VERSION = '3.1.2';
-  const ANDROID_APK_LATEST_URL = '/downloads/dpos-space-3.1.2.apk';
+  const ANDROID_APK_VERSION = '3.1.3';
+  const ANDROID_APK_LATEST_URL = '/downloads/dpos-space-3.1.3.apk';
   let deferredInstallPrompt = null;
   let registrationPromise = null;
   let lastVisibilityNoticeAt = 0;
@@ -138,7 +138,7 @@
           <h2 id="pwa-panel-heading">Приложение и уведомления</h2>
           <button type="button" class="secondary pwa-panel-close" data-pwa-dismiss aria-label="Скрыть блок про установку приложения и уведомления">Закрыть</button>
         </div>
-        <p>На Android для надёжной фоновой работы лучше использовать мобильное приложение DPoS Space, а не PWA. Стабильная версия APK: <a href="${escapeHtml(ANDROID_APK_LATEST_URL)}" download="dpos-space-3.1.2.apk">скачать APK ${escapeHtml(ANDROID_APK_VERSION)}</a>.</p>
+        <p>На Android для надёжной фоновой работы лучше использовать мобильное приложение DPoS Space, а не PWA. Стабильная версия APK: <a href="${escapeHtml(ANDROID_APK_LATEST_URL)}" download="dpos-space-3.1.3.apk">скачать APK ${escapeHtml(ANDROID_APK_VERSION)}</a>.</p>
         <p class="muted">PWA можно использовать как веб-версию: локальные процессы работают пока приложение/вкладка живы; после полного закрытия работа не обещается.</p>
         <ul>
           <li>Service Worker: ${escapeHtml(swText)}</li>

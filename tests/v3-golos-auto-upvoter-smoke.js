@@ -190,6 +190,7 @@ assert.strictEqual(helpers.discussionRowToFavoritePostEvent({ author: '', permli
   const firstTick = await helpers.runScannerTick({ id: 'golos' }, settings, {
     async getAccountHistory() { return [[9, { op: ['vote', { voter: 'curator', author: 'target', permlink: 'once', weight: 10000 }] }]]; },
     async getFavoritePosts() { return []; },
+    async getContent(author, permlink) { return { author, permlink, parent_author: '' }; },
     async getAccount() { return { voting_power: 10000 }; }
   }, tickState, {
     async broadcaster(chain, action) { executed.push(`${action.account}:${action.author}/${action.permlink}`); return { ok: true }; }
@@ -197,6 +198,7 @@ assert.strictEqual(helpers.discussionRowToFavoritePostEvent({ author: '', permli
   const secondTick = await helpers.runScannerTick({ id: 'golos' }, settings, {
     async getAccountHistory() { return [[9, { op: ['vote', { voter: 'curator', author: 'target', permlink: 'once', weight: 10000 }] }]]; },
     async getFavoritePosts() { return []; },
+    async getContent(author, permlink) { return { author, permlink, parent_author: '' }; },
     async getAccount() { return { voting_power: 10000 }; }
   }, tickState, {
     async broadcaster(chain, action) { executed.push(`repeat:${action.account}`); return { ok: true }; }
@@ -208,6 +210,7 @@ assert.strictEqual(helpers.discussionRowToFavoritePostEvent({ author: '', permli
   const lowLiveEnergyTick = await helpers.runScannerTick({ id: 'golos' }, settings, {
     async getAccountHistory() { return [[10, { op: ['vote', { voter: 'curator', author: 'target', permlink: 'live-low-energy', weight: 10000 }] }]]; },
     async getFavoritePosts() { return []; },
+    async getContent(author, permlink) { return { author, permlink, parent_author: '' }; },
     async getAccount(account) {
       if (account === 'alice') return { name: 'alice', voting_power: 1000, last_vote_time: new Date().toISOString() };
       if (account === 'bob') return { name: 'bob', voting_power: 1000, last_vote_time: new Date().toISOString() };

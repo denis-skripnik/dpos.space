@@ -29,6 +29,19 @@ def restricted_private_file(path):
         raise ValueError('unsafe key file')
 
 
+PACKAGE = 'space.dpos.android.debug'
+CERTIFICATE = '86b51e10c666cf9c2c4ecdea8407ec068380fb242adb2fae5d237351768f3b27'
+SEMVER = re.compile(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z')
+
+
+def validate_release(version, code):
+    # Stable Android releases only; no prerelease/build suffix or normalization.
+    if (type(version) is not str or len(version) > 64 or not SEMVER.fullmatch(version)
+            or type(code) is not int or not 1 <= code <= 2100000000):
+        raise ValueError('invalid explicit release version/code')
+    return 'dpos-space-' + version + '.apk'
+
+
 def operate(request, key_path):
     if type(request) is not dict or set(request) != {'mode', 'password', 'manifest'}:
         raise ValueError('invalid request')
@@ -54,10 +67,10 @@ def operate(request, key_path):
     else:
         if type(manifest) is not dict or set(manifest) != {'apk', 'sha256', 'package', 'certificateSha256', 'versionCode', 'versionName', 'sourceCommit', 'publishedAt', 'notBefore'}:
             raise ValueError('invalid release manifest')
-        if (manifest['apk'] != '/downloads/dpos-space-3.1.2.apk'
-                or manifest['package'] != 'space.dpos.android.debug'
-                or type(manifest['versionCode']) is not int or manifest['versionCode'] != 80
-                or manifest['versionName'] != '3.1.2'
+        filename = validate_release(manifest['versionName'], manifest['versionCode'])
+        if (manifest['apk'] != '/downloads/' + filename
+                or manifest['package'] != PACKAGE
+                or manifest['certificateSha256'] != CERTIFICATE
                 or any(type(manifest[k]) is not str or not re.fullmatch('[0-9a-f]{64}', manifest[k])
                        for k in ('sha256', 'certificateSha256'))
                 or type(manifest['sourceCommit']) is not str

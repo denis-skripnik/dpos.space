@@ -13,8 +13,8 @@ import java.io.OutputStream
 
 /** Wire format of tools/release_signer.py. Reject any noncanonical or ambiguous JSON. */
 internal object ReleasePolicy {
-    const val MANIFEST_PATH = "/downloads/dpos-space-3.1.2.manifest.json"
-    const val APK_PATH = "/downloads/dpos-space-3.1.2.apk"
+    const val MANIFEST_PATH = "/downloads/dpos-space-latest.manifest.json"
+    private val semver = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)")
     const val HOST = "dpos.blinddev.xyz"
     private const val PREFIX = "dpos.space/release/v1\n"
     private val fields = setOf("apk", "sha256", "package", "certificateSha256", "versionCode", "versionName", "sourceCommit", "publishedAt", "notBefore")
@@ -23,7 +23,11 @@ internal object ReleasePolicy {
     private val hex40 = Regex("[0-9a-f]{40}")
 
     data class Release(val sha256: String, val certificate: String, val code: Int, val commit: String,
-                       val published: Long, val notBefore: Long, val id: String)
+                       val published: Long, val notBefore: Long, val id: String,
+                       val version: String, val apk: String) {
+        val repositoryPath: String get() = apk.removePrefix("/")
+        val filename: String get() = apk.substringAfterLast("/")
+    }
 
     fun parse(raw: ByteArray, pinnedKey: String, historicCert: String, installedCode: Int): Release {
         require(raw.size in 1..8192 && pinnedKey.isNotEmpty() && hex64.matches(historicCert))
@@ -36,10 +40,12 @@ internal object ReleasePolicy {
         require(manifest.keys().asSequence().toSet() == fields)
         fun string(field: String): String = (manifest.get(field) as? String)
             ?: throw IllegalArgumentException("invalid $field")
-        require(string("apk") == APK_PATH && string("package") == "space.dpos.android.debug")
-        require(string("versionName") == "3.1.2")
+        val version = string("versionName")
+        val apk = string("apk")
+        require(semver.matches(version) && version.length <= 64)
+        require(apk == "/downloads/dpos-space-$version.apk" && string("package") == "space.dpos.android.debug")
         val code = manifest.get("versionCode")
-        require(code is Int && code == 80 && code > installedCode)
+        require(code is Int && code > 0 && code > installedCode)
         val digest = string("sha256")
         val cert = string("certificateSha256")
         val commit = string("sourceCommit")
@@ -63,8 +69,38 @@ internal object ReleasePolicy {
         verifier.update((PREFIX + canonical(manifest)).toByteArray(StandardCharsets.UTF_8))
         require(verifier.verify(signature))
         val id = sha256(raw).joinToString("") { "%02x".format(it.toInt() and 255) }
-        return Release(digest, cert, code, commit, published, notBefore, id)
+        return Release(digest, cert, code, commit, published, notBefore, id, version, apk)
     }
+
+    data class Observation(val id: String, val code: Int, val first: Long, val last: Long)
+
+    /** Only a strictly newer code may replace an observed signed identity; never erase clock history. */
+    fun observe(release: Release, previous: Observation?, now: Long): Observation? {
+        if (now < release.published || (previous != null && now < previous.last)) return null
+        if (previous == null) return Observation(release.id, release.code, now, now)
+        if (release.code == previous.code && release.id == previous.id)
+            return previous.copy(last = now)
+        if (release.code > previous.code) return Observation(release.id, release.code, now, now)
+        return null
+    }
+
+    fun blobMetadata(release: Release, commitJson: String, contentJson: String, max: Long): Pair<String, Long> {
+        require(JSONObject(commitJson).get("sha") == release.commit)
+        val content = JSONObject(contentJson)
+        require(content.get("path") == release.repositoryPath && content.get("type") == "file")
+        val hash = content.get("sha") as? String ?: throw IllegalArgumentException("invalid blob")
+        val value = content.get("size")
+        require(value is Int || value is Long)
+        val size = (value as Number).toLong()
+        require(hex40.matches(hash) && size in 1..max)
+        return hash to size
+    }
+
+    fun identity(release: Release, packageName: String?, version: String?, code: Long,
+                 archiveCert: String?, installedPackage: String, installedCode: Int, installedCert: String?): Boolean =
+        installedPackage == "space.dpos.android.debug" && packageName == installedPackage &&
+            version == release.version && code == release.code.toLong() && code > installedCode &&
+            archiveCert == release.certificate && installedCert == release.certificate
 
     fun eligible(release: Release, firstSeen: Long, lastClock: Long, now: Long): Boolean =
         now >= lastClock && firstSeen >= release.published && now >= release.notBefore &&

@@ -586,6 +586,11 @@
       try {
         const broadcasterOptions = Object.assign({}, settings.broadcastOptions || {}, { isCancelled: settings.isCancelled });
         const result = await settings.broadcaster(chain, action, broadcasterOptions);
+        // This skip happens before signing/broadcast. Do not retain the provisional
+        // seen reservation when the fresh content proof is unavailable.
+        if (result && result.skipped && result.reason === 'root-post-unknown' && state && state.seen instanceof Set) {
+          state.seen.delete(actionKey(action));
+        }
         const row = { ok: true, action, result };
         results.push(row);
         if (feed) {
@@ -610,10 +615,40 @@
     (Array.isArray(actions) ? actions : []).forEach((action) => state.seen.add(actionKey(action)));
   }
 
+  function rootPostSkipReason(content, target) {
+    if (!content || !target || typeof content.author !== 'string' || content.author !== target.author
+      || typeof content.permlink !== 'string' || content.permlink !== target.permlink
+      || typeof content.parent_author !== 'string') return 'root-post-unknown';
+    return content.parent_author === '' ? null : 'not-root-post';
+  }
+
+  function isRootPost(content, target) {
+    return rootPostSkipReason(content, target) === null;
+  }
+
+  async function filterRootPostEvents(adapter, events, options) {
+    if (!adapter || typeof adapter.getContent !== 'function') return [];
+    const checked = new Map();
+    const result = [];
+    for (const event of events) {
+      if (cancellationRequested(options)) break;
+      const key = postKey(event);
+      if (!checked.has(key)) {
+        const content = await adapter.getContent(event.author, event.permlink).catch(() => null);
+        checked.set(key, isRootPost(content, event));
+      }
+      if (cancellationRequested(options)) break;
+      if (checked.get(key)) result.push(event);
+    }
+    return result;
+  }
+
   async function runScannerTick(chain, accountSettings, adapter, state, options) {
     const tickState = state && typeof state === 'object' ? state : {};
     if (!(tickState.seen instanceof Set)) tickState.seen = new Set(tickState.seen || []);
-    const events = await collectEventsFromAdapter(adapter, accountSettings, options);
+    const collectedEvents = await collectEventsFromAdapter(adapter, accountSettings, options);
+    const events = chain && chain.id === 'golos'
+      ? await filterRootPostEvents(adapter, collectedEvents, options) : collectedEvents;
     if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
     const settingsWithEnergy = await enrichSettingsWithCurrentEnergy(accountSettings, adapter, options);
     if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
@@ -643,6 +678,8 @@
     findAuthorizedUser,
     hasVoteFrom,
     historyRowToCuratorVoteEvent,
+    isRootPost,
+    rootPostSkipReason,
     normalizeAccountSettings,
     planActionsForEvents,
     releaseRunnerLocks,

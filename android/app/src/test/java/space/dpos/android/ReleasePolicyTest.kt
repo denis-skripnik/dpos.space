@@ -72,11 +72,11 @@ sys.stdout.buffer.write(s.canonical({'manifest':m,'publicKey':r['publicKey'],'si
             val tools = generateSequence(java.io.File(System.getProperty("user.dir")).canonicalFile) { it.parentFile }
                 .map { java.io.File(it, "tools") }.first { java.io.File(it, "release_signer.py").isFile }
             val proc = ProcessBuilder("python3", "-c", script, tools.canonicalPath,
-                temp.resolve("key.pem").toString(), manifest).redirectErrorStream(true).start()
+                temp.resolve("key.pem").toString(), manifest.replace(cert, BuildConfig.DPOS_HISTORIC_CERT)).redirectErrorStream(true).start()
             val output = proc.inputStream.readBytes()
             assertEquals(output.toString(Charsets.UTF_8), 0, proc.waitFor())
             val actualPin = org.json.JSONObject(output.toString(Charsets.UTF_8)).getString("publicKey")
-            assertEquals(80, ReleasePolicy.parse(output, actualPin, cert, 79).code)
+            assertEquals(80, ReleasePolicy.parse(output, actualPin, BuildConfig.DPOS_HISTORIC_CERT, 79).code)
             rejected(output, "")
         } finally {
             Files.list(temp).use { it.forEach { file -> Files.deleteIfExists(file) } }

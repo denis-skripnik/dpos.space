@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -18,11 +19,17 @@ import java.security.MessageDigest
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class UpdateTransferTest {
+    @Before fun resetProviderCacheForRobolectricDataDirectory() {
+        // Android process roots are stable; Robolectric assigns a new filesDir per test.
+        val cache = androidx.core.content.FileProvider::class.java.getDeclaredField("sCache")
+        cache.isAccessible = true
+        (cache.get(null) as MutableMap<*, *>).clear()
+    }
     private fun hex(data: ByteArray) = data.joinToString("") { "%02x".format(it.toInt() and 255) }
     private val apk = "TEST ONLY APK".toByteArray()
     private val sha = hex(MessageDigest.getInstance("SHA-256").digest(apk))
     private val blob = hex(MessageDigest.getInstance("SHA-1").digest("blob ${apk.size}\u0000".toByteArray() + apk))
-    private val release = ReleasePolicy.Release(sha, "a".repeat(64), 80, "c".repeat(40), 1000L, 1000L + ReleasePolicy.DAY, "signed-feed-A")
+    private val release = ReleasePolicy.Release(sha, "a".repeat(64), 80, "c".repeat(40), 1000L, 1000L + ReleasePolicy.DAY, "signed-feed-A", "3.1.2", "/downloads/dpos-space-3.1.2.apk")
 
     @Test fun restartPersistsFirstSeenAndClockRollbackDoesNotShortenWait() {
         val activity = Robolectric.buildActivity(space.dpos.android.ui.MainActivity::class.java).get()
@@ -69,13 +76,29 @@ class UpdateTransferTest {
         file.delete()
     }
 
+    @Test fun linkedDownloadDirectoryIsRejectedWithoutTouchingOutsideData() {
+        val activity = Robolectric.buildActivity(space.dpos.android.ui.MainActivity::class.java).get()
+        val outside = File(activity.filesDir, "outside-updates").also { it.mkdirs() }
+        val outsideApk = File(outside, release.filename).also { it.writeBytes(apk) }
+        val directory = File(activity.filesDir, "linked-updates")
+        java.nio.file.Files.createSymbolicLink(directory.toPath(), outside.toPath())
+        val file = File(directory, release.filename)
+        try {
+            UpdateTransfer.transfer(release, file, 100, { release }, { true },
+                { blob to apk.size.toLong() }, { ByteArrayInputStream(apk) }, { true })
+            fail("transfer followed a linked download directory")
+        } catch (_: IllegalArgumentException) { }
+        assertArrayEquals(apk, outsideApk.readBytes())
+        directory.delete(); outsideApk.delete(); outside.delete()
+    }
+
     @Test fun providerRestrictsPathAndInstallIntentIsReadOnlyApk() {
         val activity = Robolectric.buildActivity(space.dpos.android.ui.MainActivity::class.java).get()
         assertEquals(BuildConfig.APPLICATION_ID, activity.packageName)
         val file = File(activity.filesDir, "updates/dpos-space-3.1.2.apk")
         file.parentFile!!.mkdirs()
         file.writeBytes(apk)
-        val intent = UpdateTransfer.installIntent(activity, file)
+        val intent = UpdateTransfer.installIntent(activity, file, release)
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals("application/vnd.android.package-archive", intent.type)
         assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
@@ -88,13 +111,13 @@ class UpdateTransferTest {
             fail("provider exposed unrelated files")
         } catch (_: IllegalArgumentException) { }
         try {
-            UpdateTransfer.installIntent(activity, outside)
+            UpdateTransfer.installIntent(activity, outside, release)
             fail("installer accepted unrelated path")
         } catch (_: IllegalArgumentException) { }
         file.delete()
         java.nio.file.Files.createSymbolicLink(file.toPath(), outside.toPath())
         try {
-            UpdateTransfer.installIntent(activity, file)
+            UpdateTransfer.installIntent(activity, file, release)
             fail("installer accepted linked APK")
         } catch (_: IllegalArgumentException) { }
         file.delete()

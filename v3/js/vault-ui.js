@@ -15,7 +15,16 @@
     if (!vault) throw new Error('Не загрузилась защита аккаунтов. Обновите страницу.');
     const state = vault.status();
     const navigation = document.getElementById('route-form');
-    if (navigation) navigation.inert = state.state !== 'unlocked' && !(state.state === 'empty' && !options.requireSetup);
+    const blocked = state.state !== 'unlocked' && !(state.state === 'empty' && !options.requireSetup);
+    if (navigation) navigation.inert = blocked;
+    const notice = document.getElementById('vault-navigation-notice');
+    const message = document.getElementById('vault-navigation-message');
+    if (notice) notice.hidden = !blocked;
+    if (message) message.textContent = !blocked ? '' : state.state === 'locked'
+      ? 'Поля «Блокчейн», «Раздел» и «Аккаунт» недоступны, пока аккаунты заблокированы. Разблокируйте их в блоке ниже.'
+      : state.state === 'error'
+        ? 'Поля «Блокчейн», «Раздел» и «Аккаунт» недоступны: не удалось открыть хранилище аккаунтов. Подробности — в блоке ниже. Не очищайте данные приложения.'
+        : 'Чтобы пользоваться приложением, сначала настройте защиту сохранённых аккаунтов. До завершения настройки поля «Блокчейн», «Раздел» и «Аккаунт» недоступны. Создайте отдельный пароль или выберите passkey в блоке ниже.';
     const lockButton = document.getElementById('vault-lock');
     if (lockButton) lockButton.hidden = state.state !== 'unlocked';
     if (state.state === 'unlocked' || (state.state === 'empty' && !options.requireSetup)) return true;
@@ -31,7 +40,7 @@
       <h2 id="vault-title" tabindex="-1">${locked ? 'Разблокировать аккаунты' : broken ? 'Не удалось открыть хранилище' : 'Защитить сохранённые аккаунты'}</h2>
       <p>${locked ? 'Разблокировка действует до закрытия или блокировки этой вкладки. Повторно вводить ключи не нужно.' : broken ? 'Данные не удалены. Не очищайте хранилище браузера. Если у вас есть резервная копия, её можно восстановить на другом устройстве.' : 'Создайте новый пароль или выберите passkey. Существующие аккаунты и настройки сохранятся; повторно вводить ключи и seed-фразы не нужно.'}</p>
       ${broken ? '' : `<form id="vault-form" class="stacked-form">
-        ${passkeyOnly ? '' : `<div class="field"><label for="vault-password">${locked ? 'Пароль аккаунтов' : 'Новый пароль аккаунтов — не менее 12 символов'}</label><input id="vault-password" type="password" autocomplete="${locked ? 'current-password' : 'new-password'}" ${locked ? '' : 'minlength="12"'}></div>
+        ${passkeyOnly ? '' : `<div class="field"><label for="vault-password">${locked ? 'Пароль аккаунтов' : 'Новый пароль для защиты сохранённых аккаунтов — не менее 12 символов'}</label><input id="vault-password" type="password" autocomplete="${locked ? 'current-password' : 'new-password'}" ${locked ? '' : 'minlength="12"'}></div>
         ${locked ? '' : '<div class="field"><label for="vault-repeat">Повторите новый пароль</label><input id="vault-repeat" type="password" autocomplete="new-password"></div>'}
         <button type="submit" value="password">${locked ? 'Разблокировать' : 'Защитить и продолжить'}</button>`}
         ${passkeyOnly || (!locked && supportsPasskey) ? `<button type="submit" value="passkey" formnovalidate>${locked ? 'Разблокировать с passkey' : 'Использовать passkey'}</button>` : ''}
@@ -85,6 +94,14 @@
     if (root) delete root.dataset.vaultScreen;
     guard({ requireSetup: true });
   }
+  const navigationAction = document.getElementById('vault-navigation-action');
+  if (navigationAction) navigationAction.addEventListener('click', () => {
+    const heading = document.getElementById('vault-title');
+    if (heading) {
+      heading.focus();
+      if (typeof heading.scrollIntoView === 'function') heading.scrollIntoView({ block: 'start' });
+    }
+  });
   const button = document.getElementById('vault-lock');
   if (button) button.addEventListener('click', lock);
   global.addEventListener('storage', event => {
