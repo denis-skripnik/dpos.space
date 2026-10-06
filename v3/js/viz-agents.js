@@ -6,8 +6,8 @@
   const epoch = '1970-01-01T00:00:00';
   const nullKey = 'VIZ1111111111111111111111111111111114T1Anm';
   const operations = Object.freeze([
-    'vote', 'content', 'transfer', 'transfer_to_vesting', 'withdraw_vesting',
-    'validator_update', 'account_validator_vote', 'account_validator_proxy', 'delete_content',
+    'transfer', 'transfer_to_vesting', 'withdraw_vesting',
+    'validator_update', 'account_validator_vote', 'account_validator_proxy',
     'custom', 'set_withdraw_vesting_route', 'request_account_recovery', 'escrow_transfer',
     'escrow_dispute', 'escrow_release', 'escrow_approve', 'delegate_vesting_shares',
     'account_create', 'account_metadata', 'proposal_create', 'proposal_delete',
@@ -22,6 +22,8 @@
     'pm_lazy_withdraw', 'pm_leverage_open', 'pm_leverage_close', 'pm_leverage_convert',
     'pm_dispute_oracle_respond', 'pm_unban'
   ]);
+  // Read historical protocol rows without offering retired operations for new grants.
+  const readableOperations = Object.freeze([...operations, 'vote', 'content', 'delete_content']);
   function publicKey(value) {
     const key = String(value || '').trim();
     try {
@@ -78,7 +80,7 @@
     const validRow = row => row && row.account === account
       && typeof row.agent_name === 'string' && /^[a-z0-9_-]{1,32}$/.test(row.agent_name)
       && typeof row.agent_key === 'string'
-      && Array.isArray(row.operations) && row.operations.length <= operations.length && row.operations.every(name => typeof name === 'string' && operations.includes(name))
+      && Array.isArray(row.operations) && row.operations.length <= readableOperations.length && row.operations.every(name => typeof name === 'string' && readableOperations.includes(name))
       && Array.isArray(row.addons) && row.addons.length <= 10
       && row.addons.every(addon => typeof addon === 'string' && addon && addon.length <= 63 && !addon.includes(',') && new TextEncoder().encode(addon).length <= 63 && !/(?:5[1-9A-HJ-NP-Za-km-z]{50}|[KL][1-9A-HJ-NP-Za-km-z]{51})/.test(addon))
       && typeof row.expiration === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(row.expiration)

@@ -91,6 +91,11 @@ with sync_playwright() as p:
         page.locator('[data-agent-edit="0"]').click()
         assert page.locator('#viz-agent-name').input_value()=='fixture-bot'
         assert not page.locator('#viz-agent-unlimited').is_checked()
+        assert page.get_by_role('listbox',name='Разрешённые операции',exact=True).count()==1
+        page.locator('#viz-agent-operations').select_option(['transfer'])
+        preview()
+        assert 'pm_place_bet' not in page.locator('#viz-agent-form [data-operation-result]').inner_text()
+        page.locator('#viz-agent-operations').select_option(['transfer','pm_place_bet'])
         preview();assert '2030-01-01T00:00:00' in page.locator('#viz-agent-form [data-operation-result]').inner_text(), page.locator('#viz-agent-form [data-operation-result]').inner_text()
         assert page.evaluate('sent.length')==0
         page.locator('#viz-agent-name').fill('safe-generated')
@@ -104,7 +109,11 @@ with sync_playwright() as p:
         assert page.evaluate('key=>!JSON.stringify(key.logs).includes(document.querySelector("#viz-agent-private").value)&&!JSON.stringify(key.requests).includes(document.querySelector("#viz-agent-private").value)',{'logs':logs,'requests':requests})
         page.evaluate('confirmAnswer=false');send();assert page.evaluate('sent.length')==0
         page.evaluate('confirmAnswer=true;window.handoffKey=document.querySelector("#viz-agent-private").value')
-        assert page.locator('#viz-agent-form input[value=cancel_paid_subscription]').count()==0
+        assert page.locator('#viz-agent-operations').get_attribute('multiple') is not None
+        assert page.locator('#viz-agent-form input[name=operations]').count()==0
+        for retired in ['vote','content','delete_content','cancel_paid_subscription']:
+            assert page.locator('#viz-agent-operations option[value='+retired+']').count()==0
+        assert page.evaluate("Array.from(document.querySelector('#viz-agent-operations').selectedOptions).map(x=>x.value).sort().join(',')==='pm_place_bet,transfer'")
         # Invalid/expired/unknown receipts must be error, one attempt, and retain handoff.
         failures=[{'id':'a'*40,'block_num':1,'trx_num':-1,'expired':True}, {}, None, {'id':'a'*40,'block_num':1,'trx_num':0}, 'transport']
         for bad in failures:
@@ -147,8 +156,7 @@ with sync_playwright() as p:
         # Addon-only grant; no chain scopes silently added.
         page.select_option('#viz-agent-mode','grant');page.locator('#viz-agent-name').fill('addon-only')
         page.locator('#viz-agent-public').fill(page.evaluate('fixtureKeys.regularPubkey'))
-        for checkbox in page.locator('#viz-agent-form input[name=operations]').all():
-            if checkbox.is_checked(): checkbox.uncheck()
+        page.locator('#viz-agent-operations').select_option([])
         page.locator('#viz-agent-addons').fill('vizhub');page.locator('#viz-agent-unlimited').check();send()
         assert page.evaluate('sent.length')==3
         assert page.evaluate("sent[2].operations[0][1].operations.length===0&&sent[2].operations[0][1].expiration===DposVizAgents.epoch")

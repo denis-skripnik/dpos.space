@@ -10052,7 +10052,7 @@
               <button type="button" id="viz-agent-reveal" aria-pressed="false">Показать / скрыть приватный ключ</button>
               <label class="inline-choice"><input id="viz-agent-saved" type="checkbox">Я сохранил именно этот приватный ключ в надёжном месте</label>
             </div>
-            <fieldset><legend>Разрешённые операции — только отмеченные</legend><div class="wallet-choice-grid">${global.DposVizAgents.operations.map((name, index) => `<label class="inline-choice" for="viz-agent-op-${index}"><input id="viz-agent-op-${index}" type="checkbox" name="operations" value="${name}"><code>${name}</code></label>`).join('')}</div></fieldset>
+            <div class="field"><label for="viz-agent-operations">Разрешённые операции</label><select id="viz-agent-operations" name="operations" multiple size="10">${global.DposVizAgents.operations.map((name) => `<option value="${name}">${name}</option>`).join('')}</select></div>
             <p>Нет операций, но есть addons — только внешние сервисы, без прав в блокчейне. Account/master/active права и wildcard не делегируются. Proposal create/delete не дают права одобрять предложения.</p>
             <label class="inline-choice"><input id="viz-agent-unlimited" name="unlimited" type="checkbox" checked>Без срока окончания</label>
             <div class="field"><label for="viz-agent-expiration">Дата окончания (UTC)</label><input id="viz-agent-expiration" name="expiration" type="datetime-local" step="1" disabled></div>
@@ -10151,7 +10151,7 @@
         fields.mode.value = button.hasAttribute('data-agent-revoke') ? 'revoke' : 'grant';
         fields.agentName.value = row.agent_name;
         fields.agentKey.value = row.agent_key;
-        form.querySelectorAll('[name="operations"]').forEach((input) => { input.checked = row.operations.includes(input.value); });
+        Array.from(fields.operations.options).forEach((option) => { option.selected = row.operations.includes(option.value); });
         fields.addons.value = row.addons.join(', ');
         fields.unlimited.checked = row.expiration === global.DposVizAgents.epoch;
         fields.expiration.value = fields.unlimited.checked ? '' : row.expiration;

@@ -38,7 +38,7 @@ window.DposEnglish = Object.freeze({
   "Новый приватный ключ — только для защищённой передачи": "New private key — secure handoff only",
   "Показать / скрыть приватный ключ": "Show / hide private key",
   "Я сохранил именно этот приватный ключ в надёжном месте": "I saved this exact private key in a secure place",
-  "Разрешённые операции — только отмеченные": "Allowed operations — checked items only",
+  "Разрешённые операции": "Allowed operations",
   "Нет операций, но есть addons — только внешние сервисы, без прав в блокчейне. Account/master/active права и wildcard не делегируются. Proposal create/delete не дают права одобрять предложения.": "No operations with addons means external services only, with no on-chain permissions. Account/master/active authorities and wildcards are not delegated. Proposal create/delete cannot approve proposals.",
   "Без срока окончания": "Unlimited duration",
   "Дата окончания (UTC)": "Expiration date (UTC)",

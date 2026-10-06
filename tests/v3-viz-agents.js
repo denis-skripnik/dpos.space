@@ -13,7 +13,7 @@ const input = { account: 'alice', name: 'trade-bot', publicKey: key.activePubkey
 const grant = agents.build(input);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(grant)), ['set_agent_permission', { account: 'alice', agent_name: 'trade-bot', agent_key: key.activePubkey, operations: ['pm_place_bet','transfer'], expiration: '1970-01-01T00:00:00', addons: ['vizhub'], extensions: [] }]);
 assert.strictEqual(agents.build({...input, operations: [], addons: 'vizhub'})[1].operations.length, 0, 'addon-only grant');
-for (const name of ['set_agent_permission','account_update','proposal_update','recover_account','change_recovery_account','set_account_price','set_subaccount_price','target_account_sale','witness_update','hardfork','pm_lp_payout','pm_*','made_up']) {
+for (const name of ['vote','content','delete_content','set_agent_permission','account_update','proposal_update','recover_account','change_recovery_account','set_account_price','set_subaccount_price','target_account_sale','witness_update','hardfork','pm_lp_payout','pm_*','made_up']) {
   assert.throws(() => agents.build({...input, operations: [name]}), /операц/i, name);
   assert(!agents.operations.includes(name));
 }
@@ -75,6 +75,9 @@ assert(app.includes('function renderVizAgentKeys('));
 assert(app.includes('function bindVizAgentKeys('));
 assert(app.includes("chain.id === 'viz' ? renderVizAgentKeys() : ''"));
 assert(app.includes('clearVizAgentSecrets'));
+assert(app.includes('id="viz-agent-operations" name="operations" multiple'), 'native multi-select with accessible label');
+assert(app.includes('option.selected = row.operations.includes(option.value)'), 'edit preselects saved current scopes');
+assert(app.includes("operations:data.getAll('operations')"), 'multiple selections captured without widening');
 // Independently frozen from protocol ac7b98d operations.hpp, virtual_operation
 // inheritance in chain_virtual_operations.hpp / pm_virtual_operations.hpp, and
 // never_delegable_operation_names() in agent_operations.cpp (not from UI/SDK).
@@ -84,9 +87,9 @@ const forbidden = `set_agent_permission proposal_update account_update recover_a
   // Collect all delta regressions so RED exposes every independent defect.
   const failures = [];
   const check = async (name, run) => { try { await run(); } catch (_) { failures.push(name); } };
-  await check('exact canonical broadcastable-minus-forbidden (59 scopes)', async () => {
+  await check('exact current scopes excluding deprecated (56 scopes)', async () => {
     assert.strictEqual(canonicalBroadcastable.length,67);
-    assert.deepStrictEqual(Array.from(agents.operations).sort(),canonicalBroadcastable.filter(op=>!forbidden.includes(op)).sort());
+    assert.deepStrictEqual(Array.from(agents.operations).sort(),canonicalBroadcastable.filter(op=>!forbidden.includes(op)&&!['vote','content','delete_content'].includes(op)).sort());
     assert.throws(()=>agents.build({...input,operations:['cancel_paid_subscription']}), /операц/i);
     for (const op of agents.operations) assert.deepStrictEqual(Array.from(agents.build({...input,operations:[op],addons:''})[1].operations),[op]);
   });
@@ -176,10 +179,11 @@ const forbidden = `set_agent_permission proposal_update account_update recover_a
   viz.auth.signTransaction=realSign;
   Date.now=realNow;
   if(failures.length) throw new Error('HF15 delta RED: '+failures.join('; '));
-  console.log('HF15 deltas: exact 59 scopes, strict receipt/no retry, async deadline/chain-time guards with zero signatures, bounded limited validity, unlimited/revoke preservation: PASS');
+  console.log('HF15 deltas: exact 56 current scopes, strict receipt/no retry, async deadline/chain-time guards with zero signatures, bounded limited validity, unlimited/revoke preservation: PASS');
   const row = {account:'alice',agent_name:'trade-bot',agent_key:key.activePubkey,operations:['transfer'],expiration:agents.epoch,addons:['vizhub'],expired:false};
   const rpc = rows => ({api:{getAgentPermissionsAsync: async account => { assert.strictEqual(account,'alice'); return rows; }}});
   assert.strictEqual((await agents.read(rpc([row]),'alice')).length,1);
+  assert.strictEqual((await agents.read(rpc([{...row,operations:['vote','content','delete_content','transfer']}]),'alice')).length,1, 'historical rows remain readable/revocable, not selectable');
   assert.strictEqual((await agents.read(rpc([]),'alice')).length,0);
   for (const rows of [null,Array(17).fill(row),[{...row,account:'bob'}],[{...row,agent_key:key.active}],[{...row,operations:['account_update']}],[{...row,addons:[key.active]}],[{...row,expired:'false'}]]) await assert.rejects(()=>agents.read(rpc(rows),'alice'));
   await assert.rejects(()=>agents.read({api:{getAgentPermissionsAsync:async()=>{throw Object.assign(new Error('method not found'),{code:-32601});}}},'alice'),/HF15/);
