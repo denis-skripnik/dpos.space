@@ -947,6 +947,56 @@
       }
     }
 
+    if (chain.id === 'viz' && prepared.operationName === 'setAgentPermission') {
+      const names = ['account', 'agent_name', 'agent_key', 'operations', 'expiration', 'addons', 'extensions'];
+      const permission = Object.fromEntries(names.map((name, index) => [name, prepared.params[index]]));
+      if (prepared.authority !== 'active' || permission.account !== prepared.from) throw new Error('VIZ agent permission требует active authority выбранного аккаунта.');
+      const tx = await client.broadcast._prepareTransaction({ extensions: [], operations: [['set_agent_permission', permission]] });
+      // Limited grants must not turn into evaluator revocations during async preparation.
+      // Keep the captured permission deadline unchanged; only shorten transaction validity.
+      const limited = permission.expiration !== '1970-01-01T00:00:00' && (permission.operations.length || permission.addons.length);
+      if (limited) {
+        const parseUtc = value => {
+          if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return NaN;
+          const time = Date.parse(`${value}Z`);
+          return Number.isFinite(time) && new Date(time).toISOString().slice(0, 19) === value ? time : NaN;
+        };
+        const properties = await client.api.getDynamicGlobalPropertiesAsync();
+        const deadline = parseUtc(permission.expiration);
+        const head = parseUtc(properties && properties.time);
+        // SDK TAPOS uses a Date, while protocol permission/head timestamps are strings.
+        // Date.prototype accepts valid dates from the SDK's realm without coercing inputs.
+        const sdkExpiration = Object.prototype.toString.call(tx.expiration) === '[object Date]'
+          ? Date.prototype.getTime.call(tx.expiration) : parseUtc(tx.expiration);
+        const expiration = Math.floor(Math.min(sdkExpiration, deadline - 1000) / 1000) * 1000;
+        const now = Date.now();
+        if (![deadline, head, expiration, now].every(Number.isFinite) || deadline <= Math.max(head, now) || expiration <= Math.max(head, now)) {
+          throw new Error('Срок разрешения истёк или безопасный срок транзакции недоступен. Проверьте дату UTC заново.');
+        }
+        tx.expiration = new Date(expiration).toISOString().slice(0, 19);
+      }
+      // Recheck all live guards after the last await, BEFORE generating any signature.
+      prepared.assertValid();
+      const signed = client.auth.signTransaction(tx, { active: prepared.getPrivateKey() });
+      prepared.assertValid();
+      // One attempt only: failed/unknown receipts reject, retaining the generated handoff.
+      let receipt;
+      try {
+        receipt = await toCallbackPromise(client.api.broadcastTransactionSynchronous, client.api, [signed]);
+      } catch (_) {
+        throw new Error('Результат отправки ключа агента неизвестен. Проверьте разрешения перед новой отправкой; автоматического повтора нет.');
+      }
+      if (receipt && (receipt.expired === true || receipt.trx_num === -1)) {
+        throw new Error('Транзакция ключа агента не включена: срок транзакции истёк. Автоматического повтора нет.');
+      }
+      if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt) || typeof receipt.id !== 'string' || !/^[0-9a-f]{40}$/i.test(receipt.id)
+          || !Number.isInteger(receipt.block_num) || receipt.block_num <= 0 || receipt.block_num > 2147483647
+          || !Number.isInteger(receipt.trx_num) || receipt.trx_num < 0 || receipt.trx_num > 2147483647 || receipt.expired !== false) {
+        throw new Error('Результат отправки ключа агента неизвестен. Проверьте разрешения перед новой отправкой; автоматического повтора нет.');
+      }
+      return receipt;
+    }
+
     const operationFn = () => {
       const method = client.broadcast[`${prepared.operationName}Async`];
 

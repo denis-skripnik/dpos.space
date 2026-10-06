@@ -84,7 +84,7 @@ assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the
 assert(indexSource.includes('DPoS Space 3.1.3'), 'site footer shows current stable version');
 const pwaMarker = 'v3/js/pwa.js?v=20261001-release-3-1-3';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261001-release-3-1-3'"), 'service worker cache bumped');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261006-viz-hf15-agents-review4'"), 'service worker cache bumped for VIZ HF15 agent keys');
 assert(swSource.includes("pathname.startsWith('/downloads/') && pathname.endsWith('.apk')") && swSource.includes('event.respondWith(networkOnly(request))'), 'APK bypasses SW cache');
 assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'Android foreground guidance is retained');
 

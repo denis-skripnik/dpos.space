@@ -140,6 +140,7 @@
     if (!entry) return;
     entry.modal.classList.remove('is-open');
     entry.modal.hidden = true;
+    if (clearVizAgentSecrets && entry.modal.querySelector('#viz-agent-form')) clearVizAgentSecrets();
     updateModalBodyState();
     restoreModalFocus(entry);
   }
@@ -1557,6 +1558,10 @@
 
   function operationSummary(prepared) {
     const meta = prepared.meta || {};
+    if (prepared.chain === 'viz' && prepared.operationName === 'setAgentPermission') {
+      const t = (text) => global.DposI18n ? global.DposI18n.t(text) : text;
+      return [t(meta.title), `account @${prepared.from}; active; agent ${prepared.params[1]}`, ...(meta.warnings || []).map(t)].join('\n');
+    }
     const parts = [
       `${prepared.chain}: ${meta.title || prepared.operationName}`,
       `authority ${prepared.authority}`,
@@ -10024,6 +10029,179 @@
     setStatus(`${chain.title} калькулятор загружен для @${account}.`, 'ok');
   }
 
+  let clearVizAgentSecrets = null;
+  global.addEventListener('dpos-vault-lock', () => { if (clearVizAgentSecrets) clearVizAgentSecrets(); });
+
+  function renderVizAgentKeys() {
+    return `<section id="viz-manage-agent-keys" aria-labelledby="viz-agent-keys-heading"><h3 id="viz-agent-keys-heading">Ключи агента</h3></section>
+      <details id="viz-agent-keys-details" class="operation-modal-source"><summary>Ключи агента</summary>
+        <p class="notice">Агент — именованный публичный ключ, не аккаунт. Он может выполнять только явно разрешённые операции. Master/active изменение, восстановление и продажа аккаунта автоматически отзывают всех агентов. Regular изменение сохраняет агентов.</p>
+        <p>До 16 агентов на аккаунт; один ключ нельзя назначить двум агентам. Повторное имя заменяет ключ и все права. Выдачу и отзыв подписывает active-ключ выбранного аккаунта.</p>
+        <button type="button" id="viz-agents-load">Загрузить разрешения</button>
+        <div id="viz-agents-result" class="operation-result" role="status" aria-live="polite"></div>
+        <div id="viz-agents-list"></div>
+        <form id="viz-agent-form" class="stacked-form" autocomplete="off"><fieldset><legend>Выдать, изменить или отозвать разрешение</legend>
+          <div class="field"><label for="viz-agent-mode">Действие</label><select id="viz-agent-mode" name="mode"><option value="grant">Выдать / заменить</option><option value="revoke">Отозвать</option></select></div>
+          <div class="field"><label for="viz-agent-name">Имя агента</label><input id="viz-agent-name" name="agentName" required maxlength="32" autocomplete="off"><p>1–32 символа: a-z, 0-9, _ или -.</p></div>
+          <div id="viz-agent-grant-fields">
+            <div class="field"><label for="viz-agent-public">Публичный ключ агента VIZ</label><input id="viz-agent-public" name="agentKey" maxlength="54" autocomplete="off" spellcheck="false"></div>
+            <button type="button" id="viz-agent-generate">Сгенерировать ключ локально</button>
+            <div id="viz-agent-handoff" hidden>
+              <p class="notice">Сохраните приватный ключ в менеджере паролей и передайте только доверенному агенту по защищённому каналу. Не отправляйте его в чат или поддержку. Ключ не сохраняется на сайте и очищается при закрытии окна, смене страницы или блокировке хранилища.</p>
+              <div class="field"><label for="viz-agent-private">Новый приватный ключ — только для защищённой передачи</label><input id="viz-agent-private" type="password" readonly autocomplete="off" spellcheck="false" data-i18n-skip></div>
+              <button type="button" id="viz-agent-reveal" aria-pressed="false">Показать / скрыть приватный ключ</button>
+              <label class="inline-choice"><input id="viz-agent-saved" type="checkbox">Я сохранил именно этот приватный ключ в надёжном месте</label>
+            </div>
+            <fieldset><legend>Разрешённые операции — только отмеченные</legend><div class="wallet-choice-grid">${global.DposVizAgents.operations.map((name, index) => `<label class="inline-choice" for="viz-agent-op-${index}"><input id="viz-agent-op-${index}" type="checkbox" name="operations" value="${name}"><code>${name}</code></label>`).join('')}</div></fieldset>
+            <p>Нет операций, но есть addons — только внешние сервисы, без прав в блокчейне. Account/master/active права и wildcard не делегируются. Proposal create/delete не дают права одобрять предложения.</p>
+            <label class="inline-choice"><input id="viz-agent-unlimited" name="unlimited" type="checkbox" checked>Без срока окончания</label>
+            <div class="field"><label for="viz-agent-expiration">Дата окончания (UTC)</label><input id="viz-agent-expiration" name="expiration" type="datetime-local" step="1" disabled></div>
+            <div class="field"><label for="viz-agent-addons">Addons — внешние области доступа</label><input id="viz-agent-addons" name="addons" maxlength="1024" autocomplete="off" placeholder="vizhub, service"><p>Максимум 10 значений через запятую, до 63 байт UTF-8 каждое. Addons не дают прав в блокчейне; их смысл определяет внешний сервис.</p></div>
+          </div>
+          <button type="submit" name="intent" value="preview">Проверить разрешение</button><button type="submit" name="intent" value="send">Отправить разрешение в сеть</button>
+          <div class="operation-result" data-operation-result role="status" aria-live="polite"></div>
+        </fieldset></form>
+      </details>`;
+  }
+
+  function bindVizAgentKeys(chain) {
+    if (chain.id !== 'viz') return;
+    const form = document.getElementById('viz-agent-form');
+    if (!form) return;
+    const account = auth.getCurrentLogin(chain);
+    const epoch = routeRenderGeneration;
+    const hash = global.location.hash;
+    const fields = form.elements;
+    const load = document.getElementById('viz-agents-load');
+    const result = document.getElementById('viz-agents-result');
+    const list = document.getElementById('viz-agents-list');
+    const handoff = document.getElementById('viz-agent-handoff');
+    const secret = document.getElementById('viz-agent-private');
+    const saved = document.getElementById('viz-agent-saved');
+    const generate = document.getElementById('viz-agent-generate');
+    const reveal = document.getElementById('viz-agent-reveal');
+    let generatedPublic = '';
+    let generation = 0;
+    let loading = false;
+    let submissionGeneration = 0;
+    form.addEventListener('submit', () => { if (!activeOperationForms.has(form)) submissionGeneration = generation; }, true);
+    const current = () => form.isConnected && routeRenderGeneration === epoch && global.location.hash === hash && auth.getCurrentLogin(chain) === account && !form.closest('[data-app-modal]')?.hidden;
+    const assertCurrent = () => {
+      if (!current() || !account) throw new Error('Аккаунт или страница изменились. Откройте «Ключи агента» заново.');
+    };
+    const clear = () => {
+      generation += 1;
+      if (generatedPublic && !saved.checked && fields.agentKey.value === generatedPublic) fields.agentKey.value = '';
+      generatedPublic = '';
+      secret.value = '';
+      secret.type = 'password';
+      saved.checked = false;
+      reveal.setAttribute('aria-pressed', 'false');
+      handoff.hidden = true;
+    };
+    clearVizAgentSecrets = clear;
+    const show = (text, state = 'info') => {
+      if (!current()) return;
+      result.textContent = text;
+      result.dataset.state = state;
+    };
+    const controls = () => {
+      const revoke = fields.mode.value === 'revoke';
+      document.getElementById('viz-agent-grant-fields').hidden = revoke;
+      fields.agentKey.required = !revoke;
+      fields.expiration.disabled = revoke || fields.unlimited.checked;
+      fields.expiration.required = !revoke && !fields.unlimited.checked;
+      if (revoke) clear();
+    };
+    fields.mode.addEventListener('change', controls);
+    fields.unlimited.addEventListener('change', controls);
+    fields.agentKey.addEventListener('input', () => { if (generatedPublic && fields.agentKey.value !== generatedPublic) clear(); });
+    reveal.addEventListener('click', () => {
+      if (!current() || handoff.hidden) return;
+      secret.type = secret.type === 'password' ? 'text' : 'password';
+      reveal.setAttribute('aria-pressed', String(secret.type === 'text'));
+    });
+    generate.addEventListener('click', async () => {
+      if (generate.disabled || activeOperationForms.has(form)) return;
+      const ticket = ++generation;
+      generate.disabled = true;
+      try {
+        assertCurrent();
+        if (generatedPublic && !saved.checked) throw new Error('Сначала сохраните текущий приватный ключ или закройте окно, чтобы его удалить.');
+        await loadScript(chain.libraryPath);
+        assertCurrent();
+        if (ticket !== generation) return;
+        clear();
+        const pair = global.DposVizAgents.generate();
+        generatedPublic = pair.publicKey;
+        fields.agentKey.value = pair.publicKey;
+        secret.value = pair.privateKey;
+        pair.privateKey = '';
+        handoff.hidden = false;
+        secret.focus();
+      } catch (error) { show(formatDiagnosticError(error), 'error'); }
+      finally { generate.disabled = false; }
+    });
+    const renderRows = (rows) => {
+      list.innerHTML = rows.length ? `<ul>${rows.map((row, index) => `<li><strong data-i18n-skip>${escapeHtml(row.agent_name)}</strong><dl><dt>Публичный ключ</dt><dd data-i18n-skip>${escapeHtml(row.agent_key)}</dd><dt>Операции</dt><dd data-i18n-skip>${escapeHtml(row.operations.join(', ') || '—')}</dd><dt>Addons</dt><dd data-i18n-skip>${escapeHtml(row.addons.join(', ') || '—')}</dd><dt>Срок окончания (UTC)</dt><dd>${row.expiration === global.DposVizAgents.epoch ? 'Без срока окончания' : escapeHtml(row.expiration)} ${row.expired ? '(истёк)' : ''}</dd></dl><button type="button" data-agent-edit="${index}">Изменить</button> <button type="button" data-agent-revoke="${index}">Отозвать</button></li>`).join('')}</ul>` : '<p>Разрешений агента нет.</p>';
+      list.querySelectorAll('[data-agent-edit], [data-agent-revoke]').forEach((button) => button.addEventListener('click', () => {
+        if (!current() || activeOperationForms.has(form)) return;
+        const row = rows[Number(button.dataset.agentEdit ?? button.dataset.agentRevoke)];
+        clear();
+        fields.mode.value = button.hasAttribute('data-agent-revoke') ? 'revoke' : 'grant';
+        fields.agentName.value = row.agent_name;
+        fields.agentKey.value = row.agent_key;
+        form.querySelectorAll('[name="operations"]').forEach((input) => { input.checked = row.operations.includes(input.value); });
+        fields.addons.value = row.addons.join(', ');
+        fields.unlimited.checked = row.expiration === global.DposVizAgents.epoch;
+        fields.expiration.value = fields.unlimited.checked ? '' : row.expiration;
+        controls();
+        fields.agentName.focus();
+      }));
+    };
+    load.addEventListener('click', async () => {
+      if (loading || activeOperationForms.has(form)) return;
+      loading = true; load.disabled = true;
+      try {
+        assertCurrent(); show('Загружаю разрешения агента...', 'loading');
+        list.innerHTML = '';
+        await loadScript(chain.libraryPath); assertCurrent();
+        const connection = await profiles.connect(chain); assertCurrent();
+        const rows = await global.DposVizAgents.read(connection.client || global.viz, account); assertCurrent();
+        renderRows(rows); show('Разрешения агента загружены.', 'ok');
+      } catch (error) { show(formatDiagnosticError(error), 'error'); }
+      finally { loading = false; load.disabled = false; }
+    });
+    controls();
+    bindOperationForm(chain, 'viz-agent-form', (data) => {
+      const lifecycle = submissionGeneration;
+      const assertSubmission = () => {
+        assertCurrent();
+        if (lifecycle !== generation) throw new Error('Окно или ключ агента изменились. Проверьте разрешение заново.');
+        if (data.get('mode') !== 'revoke' && generatedPublic && data.get('agentKey') === generatedPublic && !saved.checked) throw new Error('Перед выдачей прав подтвердите сохранение именно этого приватного ключа.');
+      };
+      assertSubmission();
+      const revoke = data.get('mode') === 'revoke';
+      const op = global.DposVizAgents.build({ account, name:data.get('agentName'), publicKey:data.get('agentKey'), operations:data.getAll('operations'), addons:data.get('addons'), unlimited:data.get('unlimited') === 'on', expiration:data.get('expiration'), revoke });
+      const body = op[1];
+      const original = broadcast.prepare(chain, 'active', 'setAgentPermission', [body.account, body.agent_name, body.agent_key, body.operations, body.expiration, body.addons, body.extensions], { title:revoke ? 'Отозвать ключ агента' : 'Выдать / заменить ключ агента', to:body.agent_name, warnings:[`Ключ агента: ${body.agent_key}`, `Операции агента: ${body.operations.join(', ') || '—'}`, `Окончание UTC: ${body.expiration}`, `Addons: ${body.addons.join(', ') || '—'}`, 'Повторное имя полностью заменяет разрешение. Addons действуют только во внешних сервисах.'] });
+      const prepared = Object.assign({}, original);
+      Object.defineProperties(prepared, {
+        getPrivateKey: { value:() => { assertSubmission(); return original.getPrivateKey(); } },
+        assertValid: { value:() => { assertSubmission(); return original.assertValid(); } },
+        beforeBroadcast: { value:() => { assertSubmission(); original.assertValid(); } }
+      });
+      return prepared;
+    }, {
+      broadcast: async (send, c, prepared, settings) => {
+        assertCurrent();
+        const response = await send(c, prepared, settings);
+        if (!settings.dryRun && current()) clear();
+        return response;
+      }
+    });
+  }
+
   function renderManage(chain) {
     const validatorMode = chain.id === 'viz';
     const witnessLabel = validatorMode ? 'валидатора' : 'witness';
@@ -10044,11 +10222,13 @@
           <a href="#viz-manage-workers">Заявки воркеров</a>
           <a href="#viz-manage-create-account">Создать аккаунт/субаккаунт</a>
           <a href="#viz-manage-access">Доступы аккаунта</a>
+          <a href="#viz-manage-agent-keys" data-app-modal-open="viz-agent-keys-details" aria-haspopup="dialog">Ключи агента</a>
           <a href="#viz-manage-reset-keys">Сброс ключей</a>
           <a href="#viz-manage-many-invites">Множество инвайтов (чеков)</a>
           <a href="#viz-manage-multisig">Мультисиг</a>
         </nav>` : ''}
         <section id="viz-manage-witnesses" aria-labelledby="viz-manage-witnesses-title"><h3 id="viz-manage-witnesses-title">${witnessLabelPluralTitle} / ${validatorMode ? 'validator votes' : 'witness votes'}</h3></section>
+        ${chain.id === 'viz' ? renderVizAgentKeys() : ''}
         <details id="manage-proxy-details" class="operation-modal-source"><summary>${witnessProxyTitle} — preview перед отправкой</summary><form id="manage-proxy-form" class="stacked-form">
           <fieldset>
             <legend>${witnessProxyTitle}</legend>
@@ -10359,6 +10539,7 @@
       auth.getCurrentLogin(chain),
       String(form.get('proxy') || '').trim().replace(/^@/, '')
     ]));
+    bindVizAgentKeys(chain);
     bindManageWitnessActivationKeyPersistence(chain);
     bindOperationForm(chain, 'manage-witness-form', (form) => {
       const target = normalizeAccountInput(chain, form.get('witness'), chain.id === 'viz' ? 'Валидатор' : 'Witness');
@@ -17126,6 +17307,7 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderRoute() {
+    if (clearVizAgentSecrets) { clearVizAgentSecrets(); clearVizAgentSecrets = null; }
     const renderGeneration = ++routeRenderGeneration;
     const isCurrentRoute = () => renderGeneration === routeRenderGeneration;
     const requestedState = parseHash();

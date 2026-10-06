@@ -1,14 +1,16 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20261001-release-3-1-3';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20261006-viz-hf15-agents-review4';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/js/i18n-en.js?v=20261001-vault-explanation',
+  '/v3/js/i18n-en.js?v=20261006-viz-hf15-agents-review4',
   '/v3/js/i18n.js?v=20260919-audit-integration',
-  '/v3/js/app.js?v=20261001-golos-root-posts',
+  '/v3/js/app.js?v=20261006-viz-hf15-agents-review4',
+  '/v3/js/viz-agents.js?v=20261006-viz-hf15-agents-review4',
+  '/v3/vendor/viz/viz.min.js',
   '/v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0',
   '/v3/css/style.css?v=20260919-audit-integration',
   '/v3/vendor/golos/sjcl.min.js',
@@ -18,7 +20,7 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/chains.js?v=20260919-audit-integration',
   '/v3/js/auth.js?v=20260919-audit-integration',
   '/v3/js/bip39.js?v=20260919-audit-integration',
-  '/v3/js/broadcast.js?v=20260923-release-3-1-0',
+  '/v3/js/broadcast.js?v=20261006-viz-hf15-agents-review4',
   '/v3/js/diagnostics.js?v=20260923-release-3-1-0',
   '/v3/js/diagnostics-ui.js?v=20260921-notification-summary',
   '/v3/js/profiles.js?v=20260919-audit-integration',
