@@ -872,6 +872,83 @@
     throw originalError;
   }
 
+  function automationNodeIdentity(chain, client) {
+    return JSON.stringify([client.config && client.config.get && client.config.get('websocket'), client.config && client.config.get && client.config.get('url'), client.api.options && client.api.options.url, global.localStorage.getItem(`${chain.id}_node`)]);
+  }
+  async function automationNodeBinding(endpoint) {
+    const digest = await global.crypto.subtle.digest('SHA-256', new global.TextEncoder().encode(endpoint));
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2,'0')).join('');
+  }
+  function canonicalTransaction(value) {
+    if (Array.isArray(value)) return value.map(canonicalTransaction);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(k => [k,canonicalTransaction(value[k])]));
+    return value;
+  }
+  function automationUnsignedFields(tx) {
+    return JSON.parse(JSON.stringify({ ref_block_num:tx.ref_block_num, ref_block_prefix:tx.ref_block_prefix, expiration:typeof tx.expiration === 'string' ? tx.expiration.replace(/Z$/, '') : new Date(tx.expiration).toISOString().slice(0,19), operations:tx.operations, extensions:tx.extensions || [] }));
+  }
+  function strictGolosTransaction(tx) {
+    if (!tx || !Number.isInteger(tx.ref_block_num) || tx.ref_block_num < 0 || tx.ref_block_num > 65535 || !Number.isInteger(tx.ref_block_prefix) || tx.ref_block_prefix < 0 || tx.ref_block_prefix > 4294967295 || typeof tx.expiration !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(tx.expiration)) return false;
+    const time = Date.parse(tx.expiration+'Z')/1000;
+    if (!Number.isInteger(time) || time < 0 || time > 4294967295 || new Date(time*1000).toISOString().slice(0,19) !== tx.expiration || !Array.isArray(tx.operations) || !tx.operations.length || !Array.isArray(tx.extensions)) return false;
+    return tx.operations.every(op => Array.isArray(op) && op.length === 2 && op[1] && (op[0] !== 'vote' || (Number.isInteger(op[1].weight) && op[1].weight >= -10000 && op[1].weight <= 10000)));
+  }
+  async function exactAutomationProof(chain, client, endpoint, nodeBinding, intent) {
+    if (automationNodeIdentity(chain,client) !== endpoint || (intent && intent.nodeBinding && intent.nodeBinding !== nodeBinding)) return false;
+    if (!intent || !/^[a-f0-9]{40}$/i.test(intent.id || '') || intent.expired !== false || !Number.isSafeInteger(intent.block_num) || intent.block_num <= 0 || intent.block_num > 2147483647 || !Number.isSafeInteger(intent.trx_num) || intent.trx_num < 0 || intent.trx_num > 2147483647 || !intent.transaction) return false;
+    try {
+      const block = await client.api.getBlockAsync(intent.block_num);
+      const tx = block && Array.isArray(block.transactions) && block.transactions[intent.trx_num];
+      if (!tx || JSON.stringify(canonicalTransaction(automationUnsignedFields(tx))) !== JSON.stringify(canonicalTransaction(intent.transaction))) return false;
+      if (chain.id === 'golos') {
+        if (!intent.operation || intent.transaction.operations.length !== 1 || JSON.stringify(canonicalTransaction(intent.transaction.operations[0])) !== JSON.stringify(canonicalTransaction(intent.operation))) return false;
+        if (!strictGolosTransaction(tx) || typeof client.auth.unsignedTransactionId !== 'function' || client.auth.unsignedTransactionId(tx) !== intent.id.toLowerCase()) return false;
+        if (Object.prototype.hasOwnProperty.call(block,'transaction_ids') && (!Array.isArray(block.transaction_ids) || block.transaction_ids[intent.trx_num] !== intent.id)) return false;
+      } else if (!Array.isArray(block.transaction_ids) || block.transaction_ids[intent.trx_num] !== intent.id) return false;
+      const head = await client.api.getDynamicGlobalPropertiesAsync();
+      return automationNodeIdentity(chain,client) === endpoint && Number.isSafeInteger(head && head.last_irreversible_block_num) && head.last_irreversible_block_num >= intent.block_num;
+    } catch (_) { return false; }
+  }
+  function recoverableInclusion(intent) {
+    return Number.isSafeInteger(intent.block_num) && intent.block_num > 0 && intent.block_num <= 2147483647 && Number.isSafeInteger(intent.trx_num) && intent.trx_num >= 0 && intent.trx_num <= 2147483647 && intent.expired === false;
+  }
+  async function recoverAutomation(chain, scope, isCancelled) {
+    if (chain.id !== 'golos') return;
+    const client = getClient(chain), endpoint = automationNodeIdentity(chain,client), nodeBinding = await automationNodeBinding(endpoint);
+    // Reconciliation is read-only, independent of content, own votes and energy.
+    return global.DposAutomationContinuity.reconcile(scope, async intent => {
+      if (intent.nodeBinding !== nodeBinding || !intent.id || !intent.transaction) return false;
+      const bounded = (fn, timeout = 4000) => new Promise(resolve => {
+        const timer = setTimeout(()=>resolve(null),timeout);
+        Promise.resolve().then(fn).then(x=>{clearTimeout(timer);resolve(x);},()=>{clearTimeout(timer);resolve(null);});
+      });
+      if (!recoverableInclusion(intent)) {
+        const lookup = typeof client.api.getTransactionAsync === 'function' ? await bounded(()=>client.api.getTransactionAsync(intent.id),1000) : null;
+        if (lookup && lookup.transaction_id === intent.id && recoverableInclusion({block_num:lookup.block_num,trx_num:lookup.transaction_num,expired:false})) Object.assign(intent,{block_num:lookup.block_num,trx_num:lookup.transaction_num,expired:false});
+        if (!recoverableInclusion(intent)) {
+          const fields = intent.operation && intent.operation[1], account = fields && (fields.voter || fields.from);
+          if (account && typeof client.api.getAccountHistoryAsync === 'function') {
+            // Keep older sweep continuation; recheck head each tick for delayed indexing.
+            const starts = [-1];
+            if (Number.isSafeInteger(intent.historyFrom) && intent.historyFrom > 0) starts.push(intent.historyFrom);
+            for (const from of starts) {
+              const rows = await bounded(()=>client.api.getAccountHistoryAsync(account,from,from === -1 ? 30 : Math.min(30,from)),2000);
+              if (!Array.isArray(rows) || !rows.length) { if (Array.isArray(rows)) intent.historyFrom = -1; continue; }
+              if (!rows.every(r=>Array.isArray(r) && Number.isSafeInteger(r[0]) && r[0]>=0 && r[1])) continue;
+              const ordered = rows.slice().sort((a,b)=>a[0]-b[0]);
+              if (!ordered.every((r,i)=>Array.isArray(r) && Number.isSafeInteger(r[0]) && r[0]>=0 && r[1] && (!i || r[0] === ordered[i-1][0]+1))) continue;
+              if (from !== -1 && ordered[ordered.length-1][0] !== from) continue;
+              const match = ordered.find(r=>r[1].trx_id === intent.id && JSON.stringify(canonicalTransaction(r[1].op)) === JSON.stringify(canonicalTransaction(intent.operation)));
+              if (match && recoverableInclusion({block_num:match[1].block,trx_num:match[1].trx_in_block,expired:false})) Object.assign(intent,{block_num:match[1].block,trx_num:match[1].trx_in_block,expired:false});
+              if (from !== -1 || !Number.isSafeInteger(intent.historyFrom) || intent.historyFrom < 0) intent.historyFrom = ordered[0][0] > 1 ? ordered[0][0]-1 : -1;
+            }
+          }
+        }
+      }
+      return !!(await bounded(()=>exactAutomationProof(chain,client,endpoint,nodeBinding,intent)));
+    }, isCancelled, 8);
+  }
+
   async function broadcast(chain, prepared, options) {
     if (prepared && typeof prepared.assertValid === 'function') prepared.assertValid();
     const settings = Object.assign({ dryRun: false, confirmExecute: false }, options);
@@ -928,6 +1005,63 @@
       prepared.meta.warnings = prepared.meta.warnings.concat(authorityCheck.warnings);
     }
     const key = prepared.getPrivateKey();
+
+    if (settings.continuityScope) {
+      const continuity = global.DposAutomationContinuity;
+      if (!autoConsentAllowed || !continuity) throw new Error('Durable automation consent required');
+      const expectedScope = prepared.meta.feature === 'viz-self-award' && chain.id === 'viz' ? 'viz-self-award' : prepared.meta.feature === 'golos-auto-upvoter' && ['golos','hive','steem'].includes(chain.id) ? `upvoter:${chain.id}` : null;
+      if (!expectedScope || settings.continuityScope !== expectedScope || (expectedScope === 'viz-self-award' ? prepared.operationName !== 'award' : !['vote','donate'].includes(prepared.operationName)) || (prepared.operationName === 'donate' && chain.id !== 'golos')) throw new Error('Automation scope/operation mismatch');
+      const names = prepared.operationName === 'award' ? ['initiator','receiver','energy','custom_sequence','memo','beneficiaries']
+        : prepared.operationName === 'vote' ? ['voter','author','permlink','weight']
+        : prepared.operationName === 'donate' ? ['from','to','amount','memo','extensions'] : null;
+      if (!names) throw new Error('Unsupported durable automation operation');
+      const operation = JSON.parse(JSON.stringify([prepared.operationName, Object.fromEntries(names.map((name,index)=>[name,prepared.params[index]]))]));
+      const target = prepared.operationName === 'award' ? prepared.from
+        : prepared.operationName === 'vote' ? `${prepared.from}/${prepared.params[1]}/${prepared.params[2]}`
+        : `${settings.continuityTarget}/donate/${prepared.params[1]}`;
+      const nodeIdentity = () => automationNodeIdentity(chain,client);
+      const endpoint = nodeIdentity();
+      const nodeBinding = await automationNodeBinding(endpoint);
+      const assertActive = () => {
+        prepared.assertValid();
+        if (nodeIdentity() !== endpoint) throw new Error('Automation RPC endpoint changed');
+        if (typeof settings.isCancelled === 'function' && settings.isCancelled()) throw new Error('Automation cancelled');
+      };
+      let unsigned = continuity.pending(settings.continuityScope,target)?.transaction;
+      const unsignedFields = automationUnsignedFields;
+      const proof = receipt => {
+        // RPC data supplies inclusion coordinates only, never the signing intent.
+        const intent = continuity.pending(settings.continuityScope,target);
+        if (!intent || !receipt || (intent.id && receipt.id !== intent.id)) return false;
+        return exactAutomationProof(chain,client,endpoint,nodeBinding,{
+          transaction:JSON.parse(JSON.stringify(unsigned)), nodeBinding,
+          operation:JSON.parse(JSON.stringify(operation)), id:intent.id || receipt.id,
+          block_num:receipt.block_num, trx_num:receipt.trx_num, expired:receipt.expired
+        });
+      };
+      return continuity.send(settings.continuityScope, target, operation, assertActive, async markAttempted => {
+        if (typeof settings.beforeSend === 'function') settings.beforeSend();
+        assertActive();
+        if (!client.broadcast || typeof client.broadcast._prepareTransaction !== 'function' || typeof client.api.broadcastTransactionSynchronous !== 'function') throw new Error('Exact durable broadcast API unavailable');
+        const tx = await client.broadcast._prepareTransaction({ extensions:[], operations:[operation] });
+        assertActive();
+        unsigned = unsignedFields(tx);
+        continuity.transaction(settings.continuityScope,target,unsigned,nodeBinding);
+        assertActive();
+        if (prepared.operationName === 'vote' && typeof settings.finalCheck === 'function') {
+          const skip = await settings.finalCheck();
+          if (skip) return {skipped:true,reason:skip};
+        }
+        assertActive();
+        const signed = client.auth.signTransaction(tx, { [prepared.authority]:prepared.getPrivateKey() });
+        unsigned = unsignedFields(signed);
+        continuity.transaction(settings.continuityScope,target,unsigned,nodeBinding);
+        assertActive();
+        if (chain.id === 'golos') markAttempted();
+        // Exactly one attempt. Never fallback/retry an uncertain automated send.
+        return toCallbackPromise(client.api.broadcastTransactionSynchronous, client.api, [signed]);
+      }, proof, chain.id === 'golos');
+    }
 
     if (prepared.operationName === 'sendOperations') {
       const operationFn = () => {
@@ -1037,6 +1171,7 @@
   }
 
   global.DposBroadcast = Object.freeze({
+    recoverAutomation,
     broadcast,
     decryptLegacyKey,
     getAuthorityName,

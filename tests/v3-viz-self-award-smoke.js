@@ -19,7 +19,7 @@ assert.strictEqual(app.title, 'Автонаграда себе', 'VIZ self-award
 assert.strictEqual(app.accountField, false, 'VIZ self-award uses saved account list, not a free account input');
 
 for (const marker of [
-  'function renderVizSelfAward(chain)',
+  'function renderVizSelfAward(chain, mount = appEl)',
   'data-viz-self-award-account',
   'auth.getUsers(chain)',
   'Regular-ключ',

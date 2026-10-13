@@ -133,7 +133,7 @@
       description: 'DPoS блокчейн с постами, комментариями и донатами.',
       defaultAccount: 'denis-skripnik',
       libraryGlobal: 'golos',
-      libraryPath: 'v3/vendor/golos/golos.min.js',
+      libraryPath: 'v3/vendor/golos/golos.min.js?v=20261013-unsigned-id',
       dexPath: 'v3/vendor/golos/golos-dex.min.js',
       cryptoPath: 'v3/vendor/golos/sjcl.min.js',
       liquidSymbol: 'GOLOS',

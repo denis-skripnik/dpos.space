@@ -6477,6 +6477,10 @@
   function getVizSelfAwardRuntime() {
     if (!global.__dposVizSelfAwardRuntime || typeof global.__dposVizSelfAwardRuntime !== 'object') {
       global.__dposVizSelfAwardRuntime = { running: false, interval: null, feed: [], settings: [], cancelGeneration: 0, tickPromise: null };
+      if (!nativeAndroidWorkerBridge()) {
+        try { global.__dposVizSelfAwardRuntime.feed = global.DposAutomationFeed.read('viz-self-award'); }
+        catch (error) { global.__dposVizSelfAwardRuntime.feedStorageError = error.message; }
+      }
     }
     if (!Array.isArray(global.__dposVizSelfAwardRuntime.feed)) global.__dposVizSelfAwardRuntime.feed = [];
     return global.__dposVizSelfAwardRuntime;
@@ -6523,13 +6527,15 @@
     return Promise.allSettled(pending);
   }
 
-  async function renderVizSelfAward(chain) {
+  async function renderVizSelfAward(chain, mount = appEl) {
     const capturedRouteEpoch = routeRenderGeneration;
     await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
     const users = auth.getUsers(chain);
     const hasAndroidWorkerBridge = Boolean(nativeAndroidWorkerBridge());
     const stored = readVizSelfAwardSettings();
     const runtime = getVizSelfAwardRuntime();
+    const continuity = global.DposAutomationContinuity;
+    const scope = 'viz-self-award';
     const accountCards = users.map((user, index) => {
       const login = auth.getUserLogin(user);
       const type = auth.getUserType(user);
@@ -6548,7 +6554,7 @@
       </fieldset>`;
     }).join('');
 
-    appEl.innerHTML = `<section class="panel" aria-labelledby="viz-self-award-heading">
+    mount.innerHTML = `<section class="panel" aria-labelledby="viz-self-award-heading">
       <h2 id="viz-self-award-heading">VIZ: автонаграда себе</h2>
       <p class="notice">Бенефициарские отчисления сервису: 1% награды — @denis-skripnik. Добавляются автоматически, без отдельной галочки.</p>
       <p>Сервис не даёт энергии простаивать на 100%: выбранные сохранённые аккаунты периодически награждают сами себя, если энергия выше заданного минимума.</p>
@@ -6579,20 +6585,45 @@
       </section>
     </section>`;
 
-    const form = document.getElementById('viz-self-award-form');
-    const startButton = document.getElementById('viz-self-award-start');
-    const stopButton = document.getElementById('viz-self-award-stop');
-    const feed = document.getElementById('viz-self-award-feed');
-    const applyAll = document.getElementById('viz-self-award-apply-all');
-    const applyValue = document.getElementById('viz-self-award-apply-value');
+    const form = mount.querySelector('#viz-self-award-form');
+    const startButton = mount.querySelector('#viz-self-award-start');
+    const stopButton = mount.querySelector('#viz-self-award-stop');
+    const feed = mount.querySelector('#viz-self-award-feed');
+    const applyAll = mount.querySelector('#viz-self-award-apply-all');
+    const applyValue = mount.querySelector('#viz-self-award-apply-value');
 
     function renderFeed(prefix) {
+      if (runtime.renderUI && runtime.renderUI !== renderFeed) runtime.renderUI(prefix);
       if (!feed) return;
       const rows = [];
+      if (!hasAndroidWorkerBridge) {
+        if (!runtime.feedStorageError) {
+          try { runtime.feed = global.DposAutomationFeed.save('viz-self-award', runtime.feed); }
+          catch (error) {
+            runtime.feedStorageError = error.message;
+            try { continuity.stop(scope); } catch (_) { global.DposVault.lock(); }
+            cancelBrowserRuntime(runtime, 'interval');
+            if (startButton) startButton.disabled = true;
+            if (stopButton) stopButton.disabled = true;
+          }
+        }
+        if (runtime.feedStorageError) {
+          if (startButton) startButton.disabled = true;
+          if (stopButton) stopButton.disabled = true;
+          rows.push(`<p class="warning">${escapeHtml(runtime.feedStorageError)}</p>`);
+        }
+      }
+      if (!hasAndroidWorkerBridge) {
+        if (startButton) startButton.disabled = runtime.running || Boolean(runtime.feedStorageError);
+        if (stopButton) stopButton.disabled = !runtime.running || Boolean(runtime.feedStorageError);
+      }
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
+      if (!hasAndroidWorkerBridge && runtime.running) rows.push(`<p>Следующая проверка через ${Math.ceil(continuity.remaining(scope)/1000)} сек.</p>`);
       runtime.feed.slice(-30).reverse().forEach((entry) => rows.push(`<div data-i18n-skip>${escapeHtml(entry)}</div>`));
       feed.innerHTML = rows.length ? rows.join('') : 'Остановлено. Реальных наград без кнопки Start нет.';
     }
+
+    if (mount === appEl) runtime.renderUI = renderFeed;
 
     function appendFeed(message) {
       runtime.feed.push(`${new Date().toLocaleTimeString()}: ${message}`);
@@ -6677,8 +6708,13 @@
     async function runTick(settings, generation) {
       if (runtime.tickPromise) return null;
       const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
-      const isCancelled = () => runGeneration !== runtime.cancelGeneration || !runtime.running;
+      const savedRun = continuity.readRun(scope);
+      if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'interval'); renderFeed(); return null; }
+      const durableGuard = continuity.guard(scope);
+      const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return runGeneration !== runtime.cancelGeneration || !runtime.running; };
       const execute = async () => {
+      renderFeed();
+      if (isCancelled()) return null;
       const selected = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row.enabled && row.account);
       if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
       await loadScript(chain.libraryPath);
@@ -6707,6 +6743,7 @@
           }
           const user = findUser(row.account);
           if (!user) throw new Error(`аккаунт @${row.account} не найден в сохранённых аккаунтах`);
+          renderFeed();
           if (isCancelled()) break;
           const prepared = broadcast.prepareForUser(chain, user, 'regular', 'award', [row.account, row.account, spend, 0, VIZ_SELF_AWARD_MEMO, []], {
             title: 'VIZ self-award',
@@ -6716,8 +6753,9 @@
             warnings: ['Автоматическая self-award операция VIZ: initiator и receiver совпадают.']
           });
           if (isCancelled()) break;
-          await broadcast.broadcast(chain, prepared, { dryRun: false, confirmExecute: false, autoConsent: 'viz-self-award-start' });
+          const result = await global.DposBroadcast.broadcast(chain, prepared, { confirmExecute: false, autoConsent: 'viz-self-award-start', continuityScope: scope, isCancelled, beforeSend: () => { appendFeed(`Pending @${row.account}: self-award`); if (runtime.feedStorageError) throw new Error('Feed storage failure'); } });
           if (isCancelled()) break;
+          if (result && result.skipped) { appendFeed(`SKIP @${row.account}: pending/confirmed — без повторной отправки.`); continue; }
           sent += 1;
           appendFeed(`OK @${row.account}: self-award ${(spend / 100).toFixed(2)}%, энергия была ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
         } catch (error) {
@@ -6727,7 +6765,12 @@
       if (!isCancelled()) renderFeed(`Проверка VIZ self-award завершена: аккаунтов ${selected.length}, наград отправлено ${sent}. Следующая проверка через 7 минут 12 секунд.`);
       return { selected: selected.length, sent, cancelled: isCancelled() };
       };
-      const promise = execute();
+      if (continuity.remaining(scope) > 0) { renderFeed(); return null; }
+      const promise = continuity.exclusive(scope, async () => {
+        if (continuity.remaining(scope) > 0) return null;
+        continuity.schedule(scope,VIZ_SELF_AWARD_TICK_MS);
+        return execute();
+      });
       runtime.tickPromise = promise;
       try {
         return await promise;
@@ -6737,6 +6780,7 @@
     }
 
     function stop(message) {
+      if (!hasAndroidWorkerBridge) continuity.stop(scope);
       runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
       if (runtime.interval) clearInterval(runtime.interval);
       runtime.interval = null;
@@ -6761,18 +6805,21 @@
       });
     }
     if (startButton && stopButton && form) {
-      startButton.addEventListener('click', async () => {
+      const startTask = async (restoring = false) => {
         try {
-          const settings = collectSettings();
+          const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
           const selected = settings.filter((row) => row.enabled && row.account);
           if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
+          if (!hasAndroidWorkerBridge && runtime.feedStorageError) throw new Error(runtime.feedStorageError);
+          if (!hasAndroidWorkerBridge) runtime.consentEpoch = (restoring ? continuity.readRun(scope) : continuity.start(scope,settings)).epoch;
           runtime.running = true;
           runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
           const runGeneration = runtime.cancelGeneration;
           runtime.settings = settings;
           startButton.disabled = true;
           stopButton.disabled = false;
-          appendFeed(`Запуск VIZ self-award для ${selected.map((row) => `@${row.account}`).join(', ')}. Memo: ${VIZ_SELF_AWARD_MEMO}`);
+          if (hasAndroidWorkerBridge) appendFeed(`Запуск VIZ self-award для ${selected.map((row) => `@${row.account}`).join(', ')}. Memo: ${VIZ_SELF_AWARD_MEMO}`);
+          else renderFeed('VIZ self-award: Start разрешён в текущей сессии браузера.');
           if (hasAndroidWorkerBridge) {
             await startAndroidVizSelfAward(settings);
             if (runGeneration !== runtime.cancelGeneration) return;
@@ -6781,7 +6828,9 @@
             setStatus('VIZ автонаграда себе запущена в Android-приложении.', 'ok');
             return;
           }
-          await runTick(settings, runGeneration);
+          const firstTick = runTick(settings, runGeneration);
+          if (!restoring) await firstTick;
+          else void firstTick.catch(error => { appendFeed(formatDiagnosticError(error)); });
           if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           if (runtime.interval) clearInterval(runtime.interval);
           runtime.interval = setInterval(() => {
@@ -6789,16 +6838,19 @@
               appendFeed(`Ошибка проверки: ${formatDiagnosticError(error)}`);
               setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
             });
-          }, VIZ_SELF_AWARD_TICK_MS);
+          }, 1000);
           setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
         } catch (error) {
+          if (!hasAndroidWorkerBridge) { try { if (continuity.readRun(scope).epoch === runtime.consentEpoch) continuity.stop(scope); } catch (_) {} }
           runtime.running = false;
           startButton.disabled = false;
           stopButton.disabled = true;
           if (feed) feed.textContent = `Ошибка запуска: ${formatDiagnosticError(error)}`;
           setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
         }
-      });
+      };
+      startButton.addEventListener('click', () => { void startTask(); });
+      if (!hasAndroidWorkerBridge && !runtime.running && !runtime.feedStorageError && continuity.readRun(scope).running) await startTask(true);
       stopButton.addEventListener('click', async () => {
         stop('Остановка запрошена. Уже отправленную транзакцию отменить нельзя.');
         if (hasAndroidWorkerBridge) {
@@ -6980,6 +7032,11 @@
       };
     }
     const runtime = global.__dposAutoUpvoterRuntimes[chainId];
+    if (!nativeAndroidWorkerBridge() && !runtime.feedRestored) {
+      runtime.feedRestored = true;
+      try { runtime.scannerState.feed = global.DposAutomationFeed.read(`upvoter:${chainId}`); }
+      catch (error) { runtime.feedStorageError = error.message; }
+    }
     if (!runtime.scannerState || typeof runtime.scannerState !== 'object') runtime.scannerState = { seen: new Set(), feed: [] };
     if (!(runtime.scannerState.seen instanceof Set)) runtime.scannerState.seen = new Set(runtime.scannerState.seen || []);
     if (!Array.isArray(runtime.scannerState.feed)) runtime.scannerState.feed = [];
@@ -7150,7 +7207,7 @@
     });
   }
 
-  async function renderGolosAutoUpvoter(chain) {
+  async function renderGolosAutoUpvoter(chain, mount = appEl) {
     const capturedRouteEpoch = routeRenderGeneration;
     await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
     const isGolos = chain.id === 'golos';
@@ -7217,7 +7274,7 @@
       </fieldset>`;
     }).join('');
 
-    appEl.innerHTML = `<section class="panel auto-upvoter" aria-labelledby="auto-upvoter-heading">
+    mount.innerHTML = `<section class="panel auto-upvoter" aria-labelledby="auto-upvoter-heading">
       <h2 id="auto-upvoter-heading">${escapeHtml(chain.title)} автоапвоутер</h2>
       <p>Настройки нескольких аккаунтов, планирование действий и безопасный запуск scanner-loop без backend.</p>
         <p class="warning"><strong>Важно:</strong> кнопка Start — явное согласие на реальные автоматические vote${isGolos ? '/donate' : ''} без подтверждения каждого действия. Сохранённые posting-ключи будут расшифрованы локально в браузере, пока сайт открыт. Не запускайте на чужом устройстве.</p>
@@ -7249,15 +7306,17 @@
       </section>` : ''}
     </section>`;
 
-    const form = document.getElementById('auto-upvoter-form');
+    const form = mount.querySelector('#auto-upvoter-form');
     if (form) {
       applyAutoUpvoterStoredSettings(storedSettings);
       syncAutoDonatePoolVisibility(form);
     }
-    const startButton = document.getElementById('auto-upvoter-start');
-    const stopButton = document.getElementById('auto-upvoter-stop');
-    const feed = document.getElementById('auto-upvoter-feed');
+    const startButton = mount.querySelector('#auto-upvoter-start');
+    const stopButton = mount.querySelector('#auto-upvoter-stop');
+    const feed = mount.querySelector('#auto-upvoter-feed');
     const runtime = getAutoUpvoterRuntime(chain);
+    const continuity = global.DposAutomationContinuity;
+    const scope = `upvoter:${chain.id}`;
 
     function autoUpvoterManualDonateUrl(action) {
       return isGolos ? golosDonationPageUrl({ to: action && action.author, token: 'GOLOS' }) : '';
@@ -7301,7 +7360,7 @@
     }
 
     function updateAutoUpvoterBatteryControls() {
-      const block = document.getElementById('auto-upvoter-battery-controls');
+      const block = mount.querySelector('#auto-upvoter-battery-controls');
       if (block) block.textContent = `Перед запуском/остановкой: ${runtime.batterySummary || 'батарейка ещё не загружена.'}`;
     }
 
@@ -7320,8 +7379,31 @@
     }
 
     function renderScannerFeed(prefix) {
+      if (runtime.renderUI && runtime.renderUI !== renderScannerFeed) runtime.renderUI(prefix);
       const rows = [];
+      if (!hasAndroidWorkerBridge) {
+        if (!runtime.feedStorageError) {
+          try { runtime.scannerState.feed = global.DposAutomationFeed.save(`upvoter:${chain.id}`, runtime.scannerState.feed); }
+          catch (error) {
+            runtime.feedStorageError = error.message;
+            try { continuity.stop(scope); } catch (_) { global.DposVault.lock(); }
+            cancelBrowserRuntime(runtime, 'scannerInterval');
+            if (startButton) startButton.disabled = true;
+            if (stopButton) stopButton.disabled = true;
+          }
+        }
+        if (runtime.feedStorageError) {
+          if (startButton) startButton.disabled = true;
+          if (stopButton) stopButton.disabled = true;
+          rows.push(`<p class="warning">${escapeHtml(runtime.feedStorageError)}</p>`);
+        }
+      }
+      if (!hasAndroidWorkerBridge) {
+        if (startButton) startButton.disabled = runtime.running || Boolean(runtime.feedStorageError);
+        if (stopButton) stopButton.disabled = !runtime.running || Boolean(runtime.feedStorageError);
+      }
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
+      if (!hasAndroidWorkerBridge && runtime.running) rows.push(`<p>Следующая проверка через ${Math.ceil(continuity.remaining(scope)/1000)} сек.</p>`);
       rows.push(renderAutoUpvoterBatterySummary('Перед списком постов'));
       runtime.scannerState.feed.slice(-30).reverse().forEach((entry) => {
         const message = entry && entry.message ? entry.message : String(entry || '');
@@ -7329,16 +7411,18 @@
         const postLink = action && action.author && action.permlink
           ? ` <a data-i18n-skip href="${escapeHtml(autoUpvoterPostUrl(action))}" target="_blank" rel="noopener">${escapeHtml(autoUpvoterActionLabel(action))}</a>`
           : '';
-        const donateLink = isGolos && action && action.author && !autoUpvoterActionHasDonate(entry)
+        const donateLink = isGolos && action && action.author && !entry.persisted && !autoUpvoterActionHasDonate(entry)
           ? ` <a href="${escapeHtml(autoUpvoterManualDonateUrl(action))}" target="_blank" rel="noopener">Ручной донат автору @${escapeHtml(action.author)} с подтверждением</a>`
           : '';
         const diagnostics = entry && entry.diagnostics && typeof entry.diagnostics === 'object'
           ? ` <span class="muted">Android key: ${escapeHtml(entry.diagnostics.derivedPublicKey || 'н/д')}; authority: ${escapeHtml(Array.isArray(entry.diagnostics.authorityPublicKeys) ? entry.diagnostics.authorityPublicKeys.join(', ') : '')}</span>`
           : '';
-        rows.push(`<div><span data-i18n-skip>${escapeHtml(message)}</span>${postLink}${donateLink}${renderAutoUpvoterManualAction(action)}${diagnostics}</div>`);
+        rows.push(`<div><span data-i18n-skip>${escapeHtml(message)}</span>${postLink}${donateLink}${entry.persisted ? '' : renderAutoUpvoterManualAction(action)}${diagnostics}</div>`);
       });
       feed.innerHTML = rows.length > 1 ? rows.join('') : `${rows.join('')}<p>Сканер запущен, событий пока нет.</p>`;
     }
+
+    if (mount === appEl) runtime.renderUI = renderScannerFeed;
 
     function appendScannerFeed(message) {
       runtime.scannerState.feed.push({ type: 'info', message: `${new Date().toLocaleTimeString()}: ${message}` });
@@ -7347,9 +7431,19 @@
 
     async function createAutoUpvoterAdapter() {
       const connection = await getConnection(chain);
+      const sourceIdentity = () => JSON.stringify([chain.id,connection.node || null, connection.client?.config?.get?.('websocket'),connection.client?.config?.get?.('url'),connection.client?.api?.options?.url,localStorage.getItem(`${chain.id}_node`)]);
+      const endpoint = sourceIdentity();
+      const assertSource = () => { if (sourceIdentity() !== endpoint) throw new Error('Golos intake endpoint changed; progress retained'); };
+      const digest = await global.crypto.subtle.digest('SHA-256',new global.TextEncoder().encode(endpoint));
+      const sourceBinding = Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
       return {
-        async getAccountHistory(account, limit) {
-          return profiles.apiCall(connection, 'getAccountHistory', [account, -1, limit || 30]);
+        sourceBinding: isGolos ? sourceBinding : null,
+        assertSource,
+        async getAccountHistory(account, limit, from) {
+          if (isGolos) assertSource();
+          const rows = await profiles.apiCall(connection, 'getAccountHistory', [account, Number.isSafeInteger(from) ? from : -1, limit || 30]);
+          if (isGolos) assertSource();
+          return rows;
         },
         async getFavoritePosts(account, limit) {
           const query = { tag: account, limit: limit || 20 };
@@ -7401,17 +7495,35 @@
     }
 
     async function runAutoUpvoterScan(settings, generation) {
+      renderScannerFeed();
       const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
-      return runBrowserAutomationSingleFlight(runtime, 'scanPromise', runGeneration, createAutoUpvoterAdapter, async (adapter, isCancelled) => {
+      const savedRun = continuity.readRun(scope);
+      if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'scannerInterval'); renderScannerFeed(); return null; }
+      if (continuity.remaining(scope) > 0) { renderScannerFeed(); return null; }
+      const durableGuard = continuity.guard(scope);
+      return continuity.exclusive(scope, async () => {
+      if (continuity.remaining(scope) > 0) return null;
+      continuity.schedule(scope,60000);
+      return runBrowserAutomationSingleFlight(runtime, 'scanPromise', runGeneration, createAutoUpvoterAdapter, async (adapter, localCancelled) => {
+        const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return localCancelled(); };
         const tick = await helper.runScannerTick(chain, settings, adapter, runtime.scannerState, {
           isCancelled,
+          recoverPending: isGolos ? async () => {
+            const recovered = await broadcast.recoverAutomation(chain,scope,isCancelled);
+            if (recovered && recovered.confirmed && !isCancelled()) appendScannerFeed(`Golos: подтверждены прежние pending: ${recovered.confirmed}; без повторных отправок и донатов.`);
+          } : null,
           feed: runtime.scannerState.feed,
+          onResult: () => { renderScannerFeed(); if (runtime.feedStorageError) throw new Error('Feed storage failure'); },
           broadcaster: async (scanChain, action) => {
+            try {
+            renderScannerFeed();
             const isActionCancelled = () => isCancelled() || Boolean(runtime.revokedAccounts && runtime.revokedAccounts.has(action.account));
             if (isActionCancelled()) return { cancelled: true };
+            const eligibilityHeadAt = global.performance.now();
+            const eligibilityHead = isGolos ? await adapter.getDynamicGlobalProperties().catch(()=>null) : null;
             const content = await adapter.getContent(action.author, action.permlink).catch(() => null);
             if (isActionCancelled()) return { cancelled: true };
-            const rootPostSkip = isGolos ? helper.rootPostSkipReason(content, action) : null;
+            const rootPostSkip = isGolos ? helper.voteEligibilitySkipReason(content, action,helper.golosChainTime(eligibilityHead)+Math.ceil(global.performance.now()-eligibilityHeadAt)) : null;
             if (rootPostSkip) return { skipped: true, reason: rootPostSkip };
             if (hasGolosVoteFrom(content || action, action.account)) {
               return { skipped: true, reason: 'already-voted' };
@@ -7438,7 +7550,24 @@
               donateAction = helper.enrichActionDonateFromEmission(action, donateAccount, dynamicProperties);
             }
             if (isActionCancelled()) return { cancelled: true };
-            return helper.broadcastPlannedAction(scanChain, donateAction, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start', isCancelled: isActionCancelled });
+            return await helper.broadcastPlannedAction(scanChain, donateAction, { confirmExecute: false, autoConsent: 'golos-auto-upvoter-start', isCancelled: isActionCancelled, continuityScope: scope, finalCheck: isGolos ? async () => {
+              const finalAccount = await adapter.getAccount(action.account).catch(()=>null);
+              if (isActionCancelled()) throw new Error('Automation cancelled');
+              const energy = helper.currentAccountEnergy(finalAccount);
+              if (minEnergy > 0 && !Number.isFinite(energy)) return 'battery-unavailable';
+              if (Number.isFinite(energy) && (energy < minEnergy || helper.estimateVoteEnergyAfter(energy,action.weight) < minEnergy)) return 'low-battery';
+              const finalHeadAt = global.performance.now();
+              const finalHead = await adapter.getDynamicGlobalProperties().catch(()=>null);
+              const finalContent = await adapter.getContent(action.author,action.permlink).catch(()=>null);
+              if (isActionCancelled()) throw new Error('Automation cancelled');
+              return helper.voteEligibilitySkipReason(finalContent,action,helper.golosChainTime(finalHead)+Math.ceil(global.performance.now()-finalHeadAt)) || (hasGolosVoteFrom(finalContent,action.account) ? 'already-voted' : null);
+            } : null, beforeSend: () => { appendScannerFeed(`Pending @${action.account}: @${action.author}/${action.permlink}`); if (runtime.feedStorageError) throw new Error('Feed storage failure'); } });
+            } catch (error) {
+              // The complete preparation path is definitely unsent only when no
+              // durable intent exists. Attempted/unknown RPCs stay quarantined.
+              if (isGolos && !continuity.pending(scope,`${action.account}/${action.author}/${action.permlink}`)) error.automationUnsent = true;
+              throw error;
+            }
           }
         });
         if (!tick || isCancelled()) return tick;
@@ -7446,6 +7575,7 @@
         if (isCancelled()) return tick;
         renderScannerFeed(`Последний scan: ${tick.events.length} событий, ${tick.actions.length} новых действий. Seen: ${runtime.scannerState.seen.size}.`);
         return tick;
+      });
       });
     }
 
@@ -7543,6 +7673,7 @@
     }
 
     function stopAutoUpvoter(message) {
+      if (!hasAndroidWorkerBridge) continuity.stop(scope);
       const pending = runtime.scanPromise;
       runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
       if (runtime.scannerInterval) {
@@ -7620,7 +7751,7 @@
 
 
     function updateAndroidWorkerStatus(result) {
-      const statusNode = document.getElementById('android-worker-status');
+      const statusNode = mount.querySelector('#android-worker-status');
       if (!statusNode) return;
       statusNode.textContent = renderAndroidWorkerStatus(result);
       runtime.nativeWorkerStatus = result || null;
@@ -7697,7 +7828,7 @@
     }
 
     async function copyAndroidWorkerDiagnostics() {
-      const status = document.getElementById('support-copy-diagnostics-status');
+      const status = mount.querySelector('#support-copy-diagnostics-status');
       try {
         const result = await callAndroidWorkerBridge('getWorkerStatus');
         updateAndroidWorkerStatus(result);
@@ -7709,7 +7840,7 @@
       }
     }
 
-    const copyDiagnosticsButton = document.getElementById('support-copy-diagnostics');
+    const copyDiagnosticsButton = mount.querySelector('#support-copy-diagnostics');
     if (copyDiagnosticsButton) copyDiagnosticsButton.addEventListener('click', copyAndroidWorkerDiagnostics);
 
     function findStoredAutoUpvoterUser(account) {
@@ -7857,8 +7988,8 @@
     }
 
     if (startButton && form && helper) {
-      startButton.addEventListener('click', async () => {
-        if (runtime.starting || runtime.running) return;
+      const startTask = async (restoring = false) => {
+        if (!form || runtime.running) return;
         runtime.starting = true;
         runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
         const startGeneration = runtime.cancelGeneration;
@@ -7866,11 +7997,15 @@
         startButton.disabled = true;
         stopButton.disabled = false;
         try {
+          const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
+          if (!hasAndroidWorkerBridge || !nativeAutoVoteSupported) {
+            if (!settings.some(row=>row.enabled && row.account)) throw new Error('Select at least one account');
+            runtime.consentEpoch = (restoring ? continuity.readRun(scope) : continuity.start(scope,settings)).epoch;
+          }
           await loadScript(chain.libraryPath);
           if (runtime.cancelGeneration !== startGeneration) return;
           await loadScript(chain.cryptoPath);
           if (runtime.cancelGeneration !== startGeneration) return;
-          const settings = collectSettings();
           if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
             await startAndroidAutoUpvoter(settings, startGeneration);
             return;
@@ -7879,10 +8014,11 @@
           await loadAutoUpvoterBatterySummary(settings);
           if (runtime.cancelGeneration !== startGeneration) return;
           renderScannerFeed('Перед запуском: текущая батарейка загружена.');
+          if (runtime.feedStorageError) throw new Error(runtime.feedStorageError);
           runtime.runners = helper.upsertRunnerState(runtime.runners, settings);
           const accounts = Object.keys(runtime.runners);
           if (!accounts.length) throw new Error('Выберите хотя бы один аккаунт галочкой «Включить этот аккаунт».');
-          runtime.runnerLock = helper.claimRunnerLocks(chain, accounts, runtime.runnerLock && runtime.runnerLock.owner);
+          runtime.runnerLock = null; // Web Locks excludes the entire scan/send path, including suspended tabs.
           if (runtime.scannerInterval) clearInterval(runtime.scannerInterval);
           runtime.running = true;
           runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
@@ -7891,11 +8027,12 @@
           runtime.hiddenNoticeSent = false;
           startButton.disabled = true;
           stopButton.disabled = false;
-          appendScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
-          await runAutoUpvoterScan(settings, runGeneration);
+          renderScannerFeed(`Запуск local active-tab scanner для: ${accounts.map((account) => `@${account}`).join(', ')}. ${availability.warning || ''}`);
+          const firstScan = runAutoUpvoterScan(settings, runGeneration);
+          if (!restoring) await firstScan;
+          else void firstScan.catch(error => { appendScannerFeed(formatDiagnosticError(error)); });
           if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           runtime.scannerInterval = setInterval(() => {
-            if (runtime.runnerLock) runtime.runnerLock = helper.claimRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
             runAutoUpvoterScan(settings, runGeneration).catch((error) => {
               appendScannerFeed(`Ошибка scan: ${formatDiagnosticError(error)}`);
               setStatus(`Ошибка автоапвоутера: ${formatDiagnosticError(error)}`, 'error');
@@ -7907,7 +8044,7 @@
                 });
               }
             });
-          }, 60000);
+          }, 1000);
           if (pwa && typeof pwa.notify === 'function') {
             pwa.notify('Автоапвоутер запущен', {
               body: `${chain.title}: local scanner работает для ${accounts.map((account) => `@${account}`).join(', ')}. Можно переключиться на другое приложение, пока PWA/вкладка остаётся живой.`,
@@ -7919,6 +8056,7 @@
           }
           setStatus(`${chain.title} автоапвоутер запущен локально во вкладке.`, 'ok');
         } catch (error) {
+          if (!hasAndroidWorkerBridge || !nativeAutoVoteSupported) { try { if (continuity.readRun(scope).epoch === runtime.consentEpoch) continuity.stop(scope); } catch (_) {} }
           if (runtime.runnerLock && helper && typeof helper.releaseRunnerLocks === 'function') {
             helper.releaseRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner);
             runtime.runnerLock = null;
@@ -7938,10 +8076,12 @@
           }
         } finally {
           runtime.starting = false;
-          startButton.disabled = runtime.running;
+          startButton.disabled = runtime.running || Boolean(runtime.feedStorageError);
           stopButton.disabled = !runtime.running;
         }
-      });
+      };
+      startButton.addEventListener('click', () => { void startTask(); });
+      if (!hasAndroidWorkerBridge && !runtime.running && !runtime.feedStorageError && continuity.readRun(scope).running) await startTask(true);
       stopButton.addEventListener('click', async () => {
         if (hasAndroidWorkerBridge && nativeAutoVoteSupported) {
           runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
@@ -7966,6 +8106,7 @@
       }
       setStatus(`${chain.title} автоапвоутер уже запущен локально во вкладке.`, 'ok');
     } else if (!(runtime.nativeWorkerStatus && (runtime.nativeWorkerStatus.workerEnabled || runtime.nativeWorkerStatus.running))) {
+      renderScannerFeed('Остановлен. Сохранённая лента — история, а не разрешение на отправку.');
       setStatus(`${chain.title} автоапвоутер готов к настройке.`, 'info');
     }
   }
@@ -17306,11 +17447,28 @@ Memo key: ${keys.memo}`);
     return { imported, started, checked, enabled, stale: !isCurrent() };
   }
 
+  let browserResumeTasks = null;
+  async function resumeBrowserAutomations() {
+    if (nativeAndroidWorkerBridge() || !global.DposAutomationContinuity || global.DposVault.status().state !== 'unlocked') return;
+    if (!browserResumeTasks) browserResumeTasks = (async () => {
+      const continuity = global.DposAutomationContinuity;
+      const mount = document.createElement('div');
+      if (continuity.readRun('viz-self-award').running) await renderVizSelfAward(chains.viz,mount);
+      for (const id of ['golos','hive','steem']) {
+        if (continuity.readRun(`upvoter:${id}`).running) await renderGolosAutoUpvoter(chains[id],mount);
+      }
+    })().catch(error => { browserResumeTasks = null; setStatus(formatDiagnosticError(error),'error'); });
+    await browserResumeTasks;
+  }
+
   async function renderRoute() {
+    if (global.DposVault && global.DposVault.ready) await global.DposVault.ready;
     if (clearVizAgentSecrets) { clearVizAgentSecrets(); clearVizAgentSecrets = null; }
     const renderGeneration = ++routeRenderGeneration;
     const isCurrentRoute = () => renderGeneration === routeRenderGeneration;
     const requestedState = parseHash();
+    if (global.DposAutomationContinuity && global.DposVault && global.DposVault.status().state === 'unlocked') await resumeBrowserAutomations();
+    if (!isCurrentRoute()) return;
     if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'route.open', { chain: requestedState.chain || '', app: requestedState.app || 'home' });
     if (requestedState.app === 'notifications' && !requestedState.chain && !requestedState.account && global.DposNotificationInbox) {
       await global.DposNotificationInbox.render(appEl, { isCurrent: isCurrentRoute });
@@ -17611,7 +17769,22 @@ Memo key: ${keys.memo}`);
     void renderRoute().catch(error => setStatus(formatDiagnosticError(error), 'error'));
     if (notificationsController && typeof notificationsController.refresh === 'function') notificationsController.refresh();
   });
-  global.addEventListener('dpos-vault-lock', () => { void cancelAllBrowserAutomation(); });
+  global.addEventListener('dpos-vault-lock', () => { browserResumeTasks = null; void cancelAllBrowserAutomation(); });
+  global.addEventListener('storage', event => {
+    if (!event.key || !event.key.startsWith('dpos_web_automation_continuity_v1_') || !event.key.endsWith('_control')) return;
+    const scope = event.key.slice('dpos_web_automation_continuity_v1_'.length,-'_control'.length);
+    const runtime = scope === 'viz-self-award' ? global.__dposVizSelfAwardRuntime : global.__dposAutoUpvoterRuntimes && global.__dposAutoUpvoterRuntimes[scope.split(':')[1]];
+    if (!runtime) return;
+    // Reconcile current durable consent, not a delayed event's old value.
+    try {
+      const saved = global.DposAutomationContinuity.readRun(scope);
+      if (saved.running && saved.epoch === runtime.consentEpoch) return;
+    } catch (error) {
+      runtime.feedStorageError = formatDiagnosticError(error);
+    }
+    cancelBrowserRuntime(runtime,scope === 'viz-self-award' ? 'interval' : 'scannerInterval');
+    if (runtime.renderUI) runtime.renderUI('Остановлен в другой вкладке.');
+  });
   if (notifications && notificationsPanel) {
     notificationsController = notifications.init(notificationsPanel, chains, { setStatus });
   }

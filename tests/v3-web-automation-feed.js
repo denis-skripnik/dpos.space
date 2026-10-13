@@ -1,0 +1,45 @@
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const storage = new Map();
+let fail = false;
+const context = { window: { localStorage: {
+  getItem: key => storage.get(key) ?? null,
+  setItem: (key, value) => { if (fail) throw Error('quota'); storage.set(key, value); }
+}, DposDiagnostics: { sanitize: text => text.replace(/fixture-secret/g, '[REDACTED]') } } };
+vm.runInNewContext(fs.readFileSync('v3/js/automation-feed.js', 'utf8'), context);
+const helper = context.window.DposAutomationFeed;
+const rows = Array.from({ length: 150 }, (_, index) => ({ type: 'info', message: `row ${index}`, action: { account: 'alice', author: 'bob', permlink: 'post', privateKey: 'fixture-secret' }, result: { privateKey: 'fixture-secret' }, secret: 'fixture-secret' }));
+assert.strictEqual(helper.save('upvoter:golos', rows), rows, 'retain scanner feed reference across callbacks');
+assert.equal(rows.length, 100);
+assert.equal(helper.read('upvoter:golos').length, 100);
+assert.equal(helper.read('upvoter:golos')[0].message, 'row 50');
+assert(!JSON.stringify(helper.read('upvoter:golos')).includes('fixture-secret'));
+assert(!JSON.stringify(helper.read('upvoter:golos')).includes('privateKey'));
+helper.save('viz-self-award', ['fixture-secret ' + 'a'.repeat(3000)]);
+assert(helper.read('viz-self-award')[0].length <= 1000);
+assert(helper.read('viz-self-award')[0].startsWith('[REDACTED]'));
+assert.equal(helper.read('upvoter:hive').length, 0);
+assert.throws(() => helper.save('invalid', []));
+fail = true;
+assert.throws(() => helper.save('viz-self-award', ['new']), /сохранить/);
+fail = false;
+assert(helper.read('viz-self-award')[0].startsWith('[REDACTED]'));
+const key = helper.storageKey('upvoter:golos');
+storage.set(key, '{broken');
+assert.throws(() => helper.read('upvoter:golos'), /повреждена/);
+storage.set(key, JSON.stringify({ version: 1, rows: [{ message: 'fixture-secret', action: { account: 'alice', seed: 'fixture-secret' }, result: { password: 'fixture-secret' } }] }));
+assert(!JSON.stringify(helper.read('upvoter:golos')).includes('fixture-secret'));
+assert(!JSON.stringify(helper.read('upvoter:golos')).includes('seed'));
+const app = fs.readFileSync('v3/js/app.js', 'utf8');
+assert(app.includes("DposAutomationFeed.read('viz-self-award')"));
+assert(app.includes('DposAutomationFeed.read(`upvoter:${chainId}`)'));
+assert(app.includes("DposAutomationFeed.save('viz-self-award', runtime.feed)"));
+assert(app.includes('DposAutomationFeed.save(`upvoter:${chain.id}`, runtime.scannerState.feed)'));
+const stale = ['first'];
+helper.save('upvoter:steem', stale);
+helper.save('upvoter:steem', ['first','confirmed in another tab']);
+helper.save('upvoter:steem', stale);
+assert(helper.read('upvoter:steem').some(row=>row === 'confirmed in another tab'),'stale render cannot erase another tab result');
+console.log('web automation feed: bounded persistence, projection/redaction, corrupt/quota isolation PASS');

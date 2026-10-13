@@ -10,7 +10,8 @@ assert(appSource.includes('global.__dposAutoUpvoterRuntimes'), 'auto-upvoter run
 assert(appSource.includes('runtime.running') && appSource.includes('runtime.settings'), 'runtime stores running state and start settings across SPA route changes');
 assert(appSource.includes('if (runtime.running &&') && appSource.includes('startButton.disabled = true') && appSource.includes('stopButton.disabled = false'), 'returning to auto-upvoter page restores running Start/Stop UI state');
 assert(appSource.includes('runtime.scannerInterval = setInterval') && appSource.includes('clearInterval(runtime.scannerInterval)'), 'scanner interval handle is persisted and stoppable after route changes');
-assert(appSource.includes('runtime.runnerLock = helper.claimRunnerLocks') && appSource.includes('helper.releaseRunnerLocks(chain, runtime.runnerLock.accounts, runtime.runnerLock.owner)'), 'runner lock owner survives re-render so Stop can release it');
+// Expiring storage leases are replaced by browser Web Locks.
+// Real exclusion/lifetime/Stop behavior: v3-web-automation-continuity.js and browser/web-reload-continuity.py.
 assert(!appSource.includes('let scannerInterval = null;'), 'scanner interval is no longer a per-render local that is lost on navigation');
 
 console.log('v3 auto-upvoter route persistence smoke passed');

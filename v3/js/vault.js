@@ -20,6 +20,86 @@
   let lastEnvelopeText = '';
   let cleanupSnapshot = {};
   let writeQueue = Promise.resolve();
+  const RESUME_KEY = 'dpos_vault_session_resume_v1';
+  const REVOCATION_KEY = 'dpos_vault_session_revocation_v1';
+  const keyMaterial = new WeakMap();
+  let loadedRevocation = null;
+  let loadedSessionCookie = null;
+  const COOKIE_KEY = '__Host-dpos_vault_browser_session_v1';
+  const browserResume = () => Boolean(global.document && typeof global.document.cookie === 'string' && !global.DposAndroidTransport && !global.DposAndroid);
+  function resumeCookie() {
+    return (global.document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith(`${COOKIE_KEY}=`)) || '').slice(COOKIE_KEY.length + 1);
+  }
+  function setResumeCookie(value) {
+    global.document.cookie = `${COOKIE_KEY}=${value}; Path=/; SameSite=Strict; Secure${value ? '' : '; Max-Age=0'}`;
+  }
+
+  async function importVaultKey(raw) {
+    const key = await requireCrypto().subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    keyMaterial.set(key, new Uint8Array(raw));
+    return key;
+  }
+
+  async function envelopeBinding(text) {
+    return bytesToBase64(new Uint8Array(await requireCrypto().subtle.digest('SHA-256', encoder.encode(text))));
+  }
+
+  function removeResume() {
+    try { if (browserResume()) setResumeCookie(''); global.localStorage.removeItem(RESUME_KEY); } catch (_) {}
+  }
+
+  async function saveResume() {
+    if (!browserResume()) return;
+    const requestedGeneration = generation;
+    const text = lastEnvelopeText;
+    const revocation = global.localStorage.getItem(REVOCATION_KEY);
+    const binding = await envelopeBinding(text);
+    const wrapBytes = randomBytes(32);
+    const wrapKey = await requireCrypto().subtle.importKey('raw', wrapBytes, 'AES-GCM', false, ['encrypt']);
+    const iv = randomBytes(12);
+    const raw = keyMaterial.get(cryptoKey);
+    if (!raw) throw vaultError('Session resume key недоступен.');
+    const cipher = await requireCrypto().subtle.encrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(JSON.stringify([global.location.origin, binding, revocation])) }, wrapKey, raw);
+    if (generation !== requestedGeneration || state !== 'unlocked' || global.localStorage.getItem(STORAGE_KEYS.active) !== text || global.localStorage.getItem(REVOCATION_KEY) !== revocation) throw vaultError('Session resume отменён: vault изменён.');
+    const value = JSON.stringify({ version: 1, binding, revision: loadedRevision, revocation, iv: bytesToBase64(iv), ciphertext: bytesToBase64(new Uint8Array(cipher)) });
+    setResumeCookie(bytesToBase64(wrapBytes));
+    if (resumeCookie() !== bytesToBase64(wrapBytes)) throw vaultError('Browser session cookie недоступен.');
+    global.localStorage.setItem(RESUME_KEY, value);
+    if (global.localStorage.getItem(RESUME_KEY) !== value) throw vaultError('Session resume storage проверка не пройдена.');
+    loadedRevocation = revocation;
+    loadedSessionCookie = resumeCookie();
+  }
+
+  async function resume() {
+    if (!browserResume() || state !== 'locked') return;
+    const requestedGeneration = generation;
+    try {
+      const value = global.localStorage.getItem(RESUME_KEY);
+      if (!value || !resumeCookie()) return;
+      const item = JSON.parse(value);
+      const text = global.localStorage.getItem(STORAGE_KEYS.active);
+      const envelope = readActiveEnvelope();
+      const revocation = global.localStorage.getItem(REVOCATION_KEY);
+      if (item.version !== 1 || item.revision !== envelope.revision || item.revocation !== revocation || item.binding !== await envelopeBinding(text)) throw new Error('stale resume');
+      const wrapKey = await requireCrypto().subtle.importKey('raw', base64ToBytes(resumeCookie()), 'AES-GCM', false, ['decrypt']);
+      const raw = await requireCrypto().subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(item.iv), additionalData: encoder.encode(JSON.stringify([global.location.origin, item.binding, revocation])) }, wrapKey, base64ToBytes(item.ciphertext));
+      const key = await importVaultKey(raw);
+      const payload = await decryptEnvelope(envelope, key);
+      if (payload.storageRestore || generation !== requestedGeneration || global.localStorage.getItem(STORAGE_KEYS.active) !== text || global.localStorage.getItem(REVOCATION_KEY) !== revocation) throw new Error('resume cancelled');
+      memoryRecords = materializeLegacy(payload.records);
+      cryptoKey = key;
+      loadedRevision = envelope.revision;
+      loadedRevocation = revocation;
+      loadedSessionCookie = resumeCookie();
+      lastEnvelopeText = text;
+      cleanupSnapshot = clone(payload.legacySnapshot || {});
+      state = 'unlocked';
+      sessionEpoch += 1;
+      generation += 1;
+      notify('session-resumed');
+      if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-vault-ready'));
+    } catch (_) { /* Preserve the authoritative vault and other tabs' fresh resume. */ }
+  }
 
   function vaultError(message, cause) {
     const error = new Error(message);
@@ -230,15 +310,15 @@
     if (typeof password !== 'string' || password.length < 10) throw vaultError('Новый пароль vault должен содержать не менее 10 символов.');
     const iterations = Number(kdf.iterations || PASSWORD_ITERATIONS);
     if (!Number.isSafeInteger(iterations) || iterations < 210000) throw vaultError('Параметры PBKDF2 vault небезопасны или повреждены.');
-    const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
-    return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: base64ToBytes(kdf.salt), iterations }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+    return importVaultKey(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: base64ToBytes(kdf.salt), iterations }, material, 256));
   }
 
   async function hkdfKey(prfBytes, kdf) {
     const crypto = requireCrypto();
     if (!(prfBytes instanceof Uint8Array) || prfBytes.byteLength < 16) throw vaultError('Passkey PRF не вернул криптографический результат.');
-    const material = await crypto.subtle.importKey('raw', prfBytes, 'HKDF', false, ['deriveKey']);
-    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: base64ToBytes(kdf.hkdfSalt), info: encoder.encode('dpos.space browser vault v1') }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const material = await crypto.subtle.importKey('raw', prfBytes, 'HKDF', false, ['deriveBits']);
+    return importVaultKey(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: base64ToBytes(kdf.hkdfSalt), info: encoder.encode('dpos.space browser vault v1') }, material, 256));
   }
 
   function randomBytes(length) {
@@ -376,6 +456,7 @@
     generation += 1;
     cleanupLegacyRecords(cleanupSnapshot);
     global.localStorage.removeItem(STORAGE_KEYS.staging);
+    try { await saveResume(); } catch (error) { lock(); throw error; }
     return status();
   }
 
@@ -445,11 +526,18 @@
     generation += 1;
     cleanupLegacyRecords(cleanupSnapshot);
     global.localStorage.removeItem(STORAGE_KEYS.staging);
+    try { await saveResume(); } catch (error) { lock(); throw error; }
     return status();
   }
 
-  function lock() {
+  // Observing another tab's change only invalidates this tab's memory/guards.
+  // Never republish revocation or delete a newer shared resume capability.
+  function invalidateLocal() {
+    loadedRevocation = global.localStorage.getItem(REVOCATION_KEY);
+    lastEnvelopeText = global.localStorage.getItem(STORAGE_KEYS.active);
+    loadedSessionCookie = browserResume() ? resumeCookie() : null;
     sessionEpoch += 1;
+    if (cryptoKey) { const raw = keyMaterial.get(cryptoKey); if (raw) raw.fill(0); keyMaterial.delete(cryptoKey); }
     memoryRecords = null;
     cryptoKey = null;
     loadedRevision = 0;
@@ -458,6 +546,14 @@
     state = global.localStorage.getItem(STORAGE_KEYS.active) ? 'locked' : (hasLegacyRecords() ? 'legacy' : 'empty');
     if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-vault-lock'));
     return status();
+  }
+
+  function lock() {
+    removeResume();
+    if (browserResume()) {
+      try { global.localStorage.setItem(REVOCATION_KEY, bytesToBase64(randomBytes(16))); } catch (_) {}
+    }
+    return invalidateLocal();
   }
 
   function status() {
@@ -470,8 +566,8 @@
   }
 
   function requireUnlocked() {
-    if (state === 'unlocked' && global.localStorage.getItem(STORAGE_KEYS.active) !== lastEnvelopeText) {
-      lock();
+    if (state === 'unlocked' && (global.localStorage.getItem(STORAGE_KEYS.active) !== lastEnvelopeText || (browserResume() && (global.localStorage.getItem(REVOCATION_KEY) !== loadedRevocation || resumeCookie() !== loadedSessionCookie)))) {
+      invalidateLocal();
       throw vaultError('Vault изменён в другой вкладке; текущая копия устарела и заблокирована.');
     }
     if (state !== 'unlocked' || !memoryRecords || !cryptoKey) throw vaultError('Vault заблокирован. Разблокируйте его перед чтением или подписью.');
@@ -483,7 +579,7 @@
     return clone(memoryRecords);
   }
 
-  function mutate(mutator) {
+  function mutate(mutator, persistResume = true) {
     const operation = writeQueue.then(async () => {
       requireUnlocked();
       const requestedGeneration = generation;
@@ -521,6 +617,7 @@
       loadedRevision = nextRevision;
       lastEnvelopeText = text;
       generation += 1;
+      if (persistResume) { try { await saveResume(); } catch (error) { lock(); throw error; } }
       return result;
     });
     writeQueue = operation.catch(() => undefined);
@@ -592,6 +689,9 @@
   function importWithStorageTransaction(input, ordinaryEntries) {
     const operation = writeQueue.then(async () => {
       requireUnlocked();
+      removeResume();
+      loadedSessionCookie = browserResume() ? resumeCookie() : null;
+      if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-vault-lock'));
       const requestedGeneration = generation;
       const operationKey = cryptoKey;
       const checkGeneration = () => {
@@ -682,16 +782,20 @@
   }
 
   async function importLegacy(input, options) {
+    removeResume();
+    loadedSessionCookie = browserResume() ? resumeCookie() : null;
+    if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-vault-lock'));
     const imported = normalizeImportedRecords(input);
     if (!global.localStorage.getItem(STORAGE_KEYS.active)) return activate(imported, await protectionForSetup(options));
     const materialized = materializeLegacy(imported);
-    return mutate((records) => {
+    await mutate((records) => {
       CHAINS.forEach((chainId) => {
         const keys = accountKeys(chainId);
         records[keys.users] = materialized[keys.users];
         records[keys.current] = materialized[keys.current];
       });
-    });
+    }, false);
+    removeResume();
   }
 
   function issueGuard(chain, user) {
@@ -715,6 +819,7 @@
 
   function initialize() {
     try {
+      loadedRevocation = global.localStorage.getItem(REVOCATION_KEY);
       const envelope = readActiveEnvelope();
       if (envelope) {
         state = 'locked';
@@ -726,15 +831,30 @@
     }
     if (typeof global.addEventListener === 'function') {
       global.addEventListener('storage', (event) => {
-        if (event && event.key === STORAGE_KEYS.active && event.newValue !== lastEnvelopeText) {
-          lock();
+        if (!event) return;
+        // Storage events are queued snapshots, not current authority. A delayed
+        // removal/revoke must not cancel a password unlock issued afterwards.
+        if (browserResume() && event.key === RESUME_KEY) {
+          const current = global.localStorage.getItem(RESUME_KEY);
+          if (!current && state === 'unlocked') invalidateLocal();
+          else if (current) {
+            if (state === 'unlocked' && resumeCookie() !== loadedSessionCookie) invalidateLocal();
+            if (state === 'locked') void resume();
+          }
+          return;
+        }
+        if ((event.key === STORAGE_KEYS.active && global.localStorage.getItem(STORAGE_KEYS.active) !== lastEnvelopeText) ||
+            (event.key === REVOCATION_KEY && global.localStorage.getItem(REVOCATION_KEY) !== loadedRevocation)) {
+          invalidateLocal();
           detail = 'Vault изменён в другой вкладке и был заблокирован.';
+          if (browserResume()) void resume();
         }
       });
     }
   }
 
   initialize();
+  const ready = resume();
 
   function withStorageLock(action) {
     return (...args) => {
@@ -753,6 +873,7 @@
   }
 
   global.DposVault = Object.freeze({
+    ready,
     setup: withStorageLock(setup),
     migrate: withStorageLock(migrate),
     unlock: withStorageLock(unlock),

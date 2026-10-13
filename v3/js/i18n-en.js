@@ -1,5 +1,10 @@
 // First-party interface translations. No runtime translation service.
 window.DposEnglish = Object.freeze({
+  "Некорректная область ленты.": "Invalid feed scope.",
+  "[История скрыта: очистка секретов недоступна]": "[History hidden: secret sanitization is unavailable]",
+  "Локальная лента повреждена или недоступна; сохранённые данные не изменены.": "Local history is corrupt or unavailable; saved data was not changed.",
+  "Не удалось сохранить локальную ленту. Новых автоматических отправок не будет.": "Local history could not be saved. No new automatic broadcasts will be made.",
+  "Остановлен. Сохранённая лента — история, а не разрешение на отправку.": "Stopped. Saved history does not authorize broadcasts.",
   "Ключ агента: ⟦0⟧": "Agent key: ⟦0⟧",
   "Операции агента: ⟦0⟧": "Agent operations: ⟦0⟧",
   "Окончание UTC: ⟦0⟧": "Expiration UTC: ⟦0⟧",
@@ -1839,6 +1844,7 @@ window.DposEnglish = Object.freeze({
   "Сканер запущен, событий пока нет.": "Scanner started; there are no events yet.",
   "выберите аккаунты, чтобы показать батарейку.": "select accounts to show voting power.",
   "не удалось загрузить: ⟦0⟧": "could not load: ⟦0⟧",
+  "Golos: подтверждены прежние pending: ⟦0⟧; без повторных отправок и донатов.": "Golos: previously pending transactions confirmed: ⟦0⟧; no repeat sends or donations.",
   "Последний scan: ⟦0⟧ событий, ⟦1⟧ новых действий. Seen: ⟦2⟧.": "Last scan: ⟦0⟧ events, ⟦1⟧ new actions. Seen: ⟦2⟧.",
   "Не хватает данных для ручного голосования.": "Insufficient data for manual voting.",
   "SKIP @⟦0⟧ уже голосовал за @⟦1⟧/⟦2⟧.": "SKIP @⟦0⟧ has already voted for @⟦1⟧/⟦2⟧.",
@@ -3959,5 +3965,14 @@ window.DposEnglish = Object.freeze({
   "https://telegra.ph/... или https://mirror.xyz/...": "https://telegra.ph/... or https://mirror.xyz/...",
   "VIZ analytics ⟦0⟧ год by inov8": "VIZ analytics for ⟦0⟧ by inov8",
   "если пусто — попробуем взять текущий URL валидатора": "if empty, try to use the current validator URL",
-  "Быстрые действия валидатора": "Quick validator actions"
+  "Быстрые действия валидатора": "Quick validator actions",
+  "Session resume key недоступен.": "Session resume key is unavailable.",
+  "Session resume отменён: vault изменён.": "Session resume cancelled: vault changed.",
+  "Browser session cookie недоступен.": "Browser session cookie is unavailable.",
+  "Session resume storage проверка не пройдена.": "Session resume storage verification failed.",
+  "Следующая проверка через ⟦0⟧ сек.": "Next check in ⟦0⟧ seconds.",
+  "SKIP @⟦0⟧: pending/confirmed — без повторной отправки.": "SKIP @⟦0⟧: pending/confirmed — no repeat send.",
+  "Остановлен в другой вкладке.": "Stopped in another tab.",
+  "VIZ self-award: Start разрешён в текущей сессии браузера.": "VIZ self-award: Start authorized in the current browser session.",
+  "Разблокировка общая для вкладок этого браузера и сохраняется при обновлении страницы. Lock блокирует все вкладки. Браузер может восстановить сессионную cookie после перезапуска: для гарантированной блокировки нажмите Lock. Код этого сайта, включая XSS, имеет доступ к сессионной возможности расшифровки.": "Unlock is shared across this browser's tabs and survives refresh. Lock locks all tabs. The browser may restore the session cookie after restarting: press Lock to guarantee locking. Code on this site, including XSS, can access the session decryption capability."
 });

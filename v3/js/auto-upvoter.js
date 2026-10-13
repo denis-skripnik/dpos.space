@@ -342,6 +342,7 @@
     const rows = [];
     (Array.isArray(events) ? events : []).forEach((event) => {
       accounts.forEach((account) => {
+        if (event && event.onlyAccount && event.onlyAccount !== account.account) return;
         let action = null;
         const budget = energyBudget.get(account.account);
         const planningAccount = Number.isFinite(budget) ? Object.assign({}, account, { currentEnergy: budget }) : account;
@@ -364,7 +365,7 @@
   }
 
   function dedupePlannedActions(actions, seen) {
-    const nextSeen = seen instanceof Set ? seen : new Set(seen || []);
+    const nextSeen = new Set(seen || []);
     const result = [];
     (Array.isArray(actions) ? actions : []).forEach((action) => {
       if (!action || !action.account || !action.author || !action.permlink) return;
@@ -526,6 +527,16 @@
   }
 
   async function broadcastPlannedAction(chain, action, options) {
+    try { return await sendPlannedAction(chain,action,options); }
+    catch (error) {
+      const scope = options && options.continuityScope;
+      const target = action && `${action.account}/${action.author}/${action.permlink}`;
+      if (chain && chain.id === 'golos' && scope && global.DposAutomationContinuity && !global.DposAutomationContinuity.pending(scope,target)) error.automationUnsent = true;
+      throw error;
+    }
+  }
+
+  async function sendPlannedAction(chain, action, options) {
     if (cancellationRequested(options)) return { cancelled: true };
     if (!global.DposBroadcast) throw new Error('DposBroadcast helper is unavailable.');
     const broadcastStatus = assertBroadcastAvailable(chain);
@@ -546,7 +557,9 @@
       action.weight
     ], { feature: 'golos-auto-upvoter', source: action.source });
     if (cancellationRequested(options)) return { cancelled: true };
+    broadcastOptions.continuityTarget = `${action.account}/${action.author}/${action.permlink}`;
     const result = await global.DposBroadcast.broadcast(chain, prepared, broadcastOptions);
+    if (result && result.skipped) return result;
     if (cancellationRequested(options)) return { cancelled: true, vote: result };
     const donations = [];
     const donateSkipped = [];
@@ -583,26 +596,31 @@
     const feed = Array.isArray(settings.feed) ? settings.feed : null;
     for (const action of (Array.isArray(actions) ? actions : [])) {
       if (cancellationRequested(settings)) break;
+      markActionsSeen(state,[action]);
       try {
         const broadcasterOptions = Object.assign({}, settings.broadcastOptions || {}, { isCancelled: settings.isCancelled });
         const result = await settings.broadcaster(chain, action, broadcasterOptions);
         // This skip happens before signing/broadcast. Do not retain the provisional
         // seen reservation when the fresh content proof is unavailable.
-        if (result && result.skipped && result.reason === 'root-post-unknown' && state && state.seen instanceof Set) {
+        if (result && result.skipped && ['root-post-unknown','eligibility-unknown','battery-unavailable','low-battery'].includes(result.reason) && state && state.seen instanceof Set) {
           state.seen.delete(actionKey(action));
         }
+        if (result && result.cancelled && !result.vote && state && state.seen instanceof Set) state.seen.delete(actionKey(action));
         const row = { ok: true, action, result };
         results.push(row);
         if (feed) {
           if (result && (result.skipped || result.cancelled)) continue;
           feed.push({ type: 'success', message: `OK @${action.account} voted @${action.author}/${action.permlink}`, action, result });
         }
+        if (typeof settings.onResult === 'function') settings.onResult(row);
         if (result && result.cancelled) break;
         if (cancellationRequested(settings)) break;
       } catch (error) {
+        if (error.automationUnsent && state && state.seen instanceof Set) state.seen.delete(actionKey(action));
         const row = { ok: false, action, error };
         results.push(row);
         if (feed) feed.push({ type: 'error', message: `ERROR @${action.account} @${action.author}/${action.permlink}: ${error && error.message ? error.message : error}`, action, error });
+        if (typeof settings.onResult === 'function') settings.onResult(row);
       }
     }
     if (state && typeof state === 'object') state.lastResults = results;
@@ -613,6 +631,38 @@
     if (!state || typeof state !== 'object') return;
     if (!(state.seen instanceof Set)) state.seen = new Set(state.seen || []);
     (Array.isArray(actions) ? actions : []).forEach((action) => state.seen.add(actionKey(action)));
+  }
+
+  function boundedSourceRead(fn, timeout) {
+    let timer;
+    return Promise.race([Promise.resolve().then(fn),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Source read timed out')),timeout || 4000);})]).finally(()=>clearTimeout(timer));
+  }
+  function golosChainTime(properties) {
+    const value = properties && properties.time;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return NaN;
+    const ms = Date.parse(value+'Z');
+    return Number.isFinite(ms) && new Date(ms).toISOString().slice(0,19) === value ? ms : NaN;
+  }
+  function voteEligibilitySkipReason(content, target, now) {
+    const root = rootPostSkipReason(content,target); if (root) return root;
+    const utc = value => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return NaN;
+      const ms = Date.parse(value+'Z');
+      return Number.isFinite(ms) && new Date(ms).toISOString().slice(0,19) === value ? ms : NaN;
+    };
+    if (content.allow_votes === false) return 'votes-disabled';
+    if (content.allow_votes !== true) return 'eligibility-unknown';
+    const payout = utc(content.last_payout), cashout = utc(content.cashout_time);
+    if (!Number.isFinite(payout) || !Number.isFinite(cashout)) return 'eligibility-unknown';
+    if (payout !== 0) return 'paid-out';
+    if (now !== undefined && !Number.isSafeInteger(now)) return 'eligibility-unknown';
+    if (cashout <= (now === undefined ? Date.now() : now)+60000) return 'cashout-lockout';
+    if (target.source === 'favorite' || target.kind === 'favorite_post') {
+      const created = utc(content.created), updated = utc(content.last_update);
+      if (!Number.isFinite(created) || !Number.isFinite(updated) || !Number.isSafeInteger(content.num_changes) || content.num_changes < 0) return 'eligibility-unknown';
+      if (content.num_changes !== 0 || created !== updated) return 'favorite-edited';
+    }
+    return null;
   }
 
   function rootPostSkipReason(content, target) {
@@ -643,19 +693,157 @@
     return result;
   }
 
+  const BACKLOG_PREFIX = 'dpos_golos_event_backlog_v1_';
+  function readBacklog(binding) {
+    if (!/^[a-f0-9]{64}$/.test(binding || '')) throw new Error('Invalid Golos source scope');
+    const text = global.localStorage.getItem(BACKLOG_PREFIX+binding);
+    const data = text ? JSON.parse(text) : {version:1,sources:{},inbox:{},sourceCursor:0,eventCursor:0};
+    if (!data || data.version !== 1 || !data.sources || Array.isArray(data.sources) || !data.inbox || Array.isArray(data.inbox) || !Number.isSafeInteger(data.sourceCursor) || !Number.isSafeInteger(data.eventCursor)) throw new Error('Golos backlog storage corrupt');
+    for (const source of Object.values(data.sources)) {
+      if (!source || !Number.isSafeInteger(source.high) || source.high < -1 || !Number.isSafeInteger(source.from) || source.from < -1 || !Number.isSafeInteger(source.headFrom) || source.headFrom < -1 || !Number.isSafeInteger(source.headStop) || source.headStop < -1 || !Number.isSafeInteger(source.headTop) || source.headTop < -1) throw new Error('Golos source progress corrupt');
+    }
+    for (const entry of Object.values(data.inbox)) if (!entry || typeof entry.source !== 'string' || !entry.event || typeof entry.event.onlyAccount !== 'string') throw new Error('Golos inbox corrupt');
+    return data;
+  }
+  function writeBacklog(binding, data) {
+    if (global.DposAutomationContinuity) global.DposAutomationContinuity.assertExclusive('upvoter:golos');
+    const text = JSON.stringify(data), key = BACKLOG_PREFIX+binding;
+    try { global.localStorage.setItem(key,text); if (global.localStorage.getItem(key) !== text) throw new Error('readback'); }
+    catch (_) { if (global.DposVault) global.DposVault.lock(); throw new Error('Golos inbox storage unavailable; signing stopped'); }
+  }
+  function favoriteHistoryEvent(row, account) {
+    const unpacked = unpackHistoryRow(row), op = unpackOperation(unpacked.entry);
+    if (op.name !== 'comment' || op.data.author !== account || op.data.parent_author !== '') return null;
+    return discussionRowToFavoritePostEvent(op.data,account);
+  }
+  async function collectDurableGolosEvents(adapter, accountSettings, options) {
+    if (typeof adapter.assertSource === 'function') adapter.assertSource();
+    const binding = adapter.sourceBinding, data = readBacklog(binding);
+    const accounts = accountSettings.map(normalizeAccountSettings).filter(a=>a.enabled && a.account);
+    const active = new Map();
+    for (const kind of ['curator','favorite']) for (const account of accounts) for (const name of account[kind === 'curator' ? 'curators' : 'favorites']) {
+      const id = kind+':'+name;
+      if (!active.has(id)) active.set(id,{kind,name,accounts:[]});
+      active.get(id).accounts.push(account.account);
+    }
+    for (const [id,source] of Object.entries(data.sources)) source.active=active.has(id);
+    for (const id of active.keys()) {
+      if (!data.sources[id]) {
+        if (Object.keys(data.sources).length >= 100) {
+          if (options && Array.isArray(options.feed)) options.feed.push({type:'info',message:`Golos source ${id}: source capacity reached; no unsafe eviction`});
+          continue;
+        }
+        data.sources[id]={high:-1,from:-1,headFrom:-1,headStop:-1,headTop:-1,active:true};
+      }
+      const members = active.get(id).accounts.slice().sort().join(',');
+      if (data.sources[id].members !== members) Object.assign(data.sources[id],{high:-1,from:-1,headFrom:-1,headStop:-1,headTop:-1,members});
+    }
+    const ids = Array.from(active.keys()).filter(id=>data.sources[id]);
+    const offset = ids.length ? data.sourceCursor%ids.length : 0;
+    const selected = Array.from({length:Math.min(8,ids.length)},(_,i)=>ids[(offset+i)%ids.length]);
+    // Independent, bounded reads. Timed-out promises never mutate persistent state.
+    const requests = selected.flatMap(id => [{id,role:'head',from:data.sources[id].headFrom ?? -1},...(data.sources[id].from > 0 ? [{id,role:'older',from:data.sources[id].from}] : [])]);
+    const pages = await Promise.all(requests.map(async request => {
+      const {id,from} = request;
+      try { return {...request,rows:await boundedSourceRead(()=>adapter.getAccountHistory(active.get(id).name,from === -1 ? 30 : Math.max(1,Math.min(30,from)),from),options && options.sourceTimeoutMs)}; }
+      catch (_) { return {...request,error:'source-unavailable'}; }
+    }));
+    if (cancellationRequested(options)) return [];
+    for (const id of selected) data.sources[id].warning='';
+    for (const {id,role,from,rows,error} of pages) {
+      const source = data.sources[id];
+      if (error || !Array.isArray(rows)) { source.warning=error || 'malformed-page';continue; }
+      if (!rows.length) {
+        // Empty older page is a retained-history boundary, not a transport failure.
+        if (role === 'older') {source.boundary=from;source.from=-1;source.warning='retention-boundary';}
+        else source.warning=from === -1 ? 'empty-head' : 'history-gap';
+        continue;
+      }
+      if (!rows.every(r=>Array.isArray(r) && r.length === 2 && Number.isSafeInteger(r[0]) && r[0]>=0 && r[1] && Array.isArray(r[1].op))) {source.warning='malformed-page';continue;}
+      const sorted = rows.slice().sort((a,b)=>a[0]-b[0]);
+      const details = active.get(id);
+      const malformed = sorted.some(row => {
+        const op = row && row[1] && row[1].op, fields = op && op[1];
+        if (!Array.isArray(op) || op.length !== 2 || typeof op[0] !== 'string' || !fields || typeof fields !== 'object') return true;
+        if (details.kind === 'curator' && op[0] === 'vote') return !['voter','author','permlink'].every(k=>typeof fields[k] === 'string' && fields[k].length) || !Number.isSafeInteger(fields.weight) || fields.weight < -10000 || fields.weight > 10000;
+        if (details.kind === 'favorite' && op[0] === 'comment') return !['author','permlink'].every(k=>typeof fields[k] === 'string' && fields[k].length) || typeof fields.parent_author !== 'string';
+        return false;
+      });
+      if (malformed) { source.warning='malformed-operation';continue; }
+      const valid = sorted.every((r,i)=>Array.isArray(r) && r.length === 2 && Number.isSafeInteger(r[0]) && r[0]>=0 && r[1] && Array.isArray(r[1].op) && (!i || r[0] === sorted[i-1][0]+1));
+      if (!valid || (from !== -1 && sorted[sorted.length-1][0] !== from)) {source.warning='history-gap';continue;}
+      const head = sorted[sorted.length-1][0], low = sorted[0][0];
+      if (role === 'head' && from === -1 && head < source.high) {source.warning='history-regressed';continue;}
+      const additions = {};
+      for (const row of sorted) {
+        if (role === 'head' && row[0] <= (from === -1 ? source.high : source.headStop)) continue;
+        const event = details.kind === 'curator' ? historyRowToCuratorVoteEvent(row) : favoriteHistoryEvent(row,details.name);
+        if (!event || (details.kind === 'curator' && event.voter !== details.name)) continue;
+        for (const account of details.accounts) {
+          const key = `${id}/${row[0]}/${account}`;
+          if (!data.inbox[key]) additions[key]={source:id,event:Object.assign({},event,{onlyAccount:account,backlogId:key})};
+        }
+      }
+      // Per-source capacity: stalled/disabled sources cannot consume healthy quotas.
+      if (Object.values(data.inbox).filter(e=>e.source === id).length+Object.keys(additions).length > 1000) {source.warning='capacity-backpressure';continue;}
+      Object.assign(data.inbox,additions);
+      if (role === 'older') source.from=low > 1 ? low-1 : -1;
+      else if (source.high < 0) {source.high=head;source.from=low > 1 ? low-1 : -1;}
+      else if (from === -1) {
+        if (low <= source.high+1) source.high=head;
+        else {source.headStop=source.high;source.headTop=head;source.headFrom=low-1;}
+      } else if (low <= source.headStop+1) {source.high=source.headTop;source.headFrom=-1;}
+      else source.headFrom=low-1;
+      if (role === 'head') source.ticks=(source.ticks || 0)+1;
+      if (role === 'head' && source.from === -1 && source.boundary > 0 && source.ticks%32 === 0) source.from=source.boundary;
+    }
+    data.sourceCursor=ids.length ? (offset+selected.length)%ids.length : 0;
+    const pending = Object.keys(data.inbox).filter(k=>active.has(data.inbox[k].source) && active.get(data.inbox[k].source).accounts.includes(data.inbox[k].event.onlyAccount));
+    const eventOffset = pending.length ? data.eventCursor%pending.length : 0;
+    const batch = Array.from({length:Math.min(64,pending.length)},(_,i)=>data.inbox[pending[(eventOffset+i)%pending.length]].event);
+    data.eventCursor=pending.length ? (eventOffset+batch.length)%pending.length : 0;
+    if (typeof adapter.assertSource === 'function') adapter.assertSource();
+    writeBacklog(binding,data); // Atomic source progress + inbox BEFORE any planning.
+    if (options && Array.isArray(options.feed)) for (const id of selected) if (data.sources[id].warning) options.feed.push({type:'info',message:`Golos source ${id}: ${data.sources[id].warning}; progress retained`});
+    return batch;
+  }
+  function settleDurableGolosEvents(adapter, events, state) {
+    const data = readBacklog(adapter.sourceBinding);
+    for (const event of events) {
+      const key = `${event.onlyAccount}|${event.author}|${event.permlink}`;
+      // Unsent transient outcomes release seen; unknown sends remain in the
+      // separate exact-target intent ledger and are never replayed from inbox.
+      if (state.seen.has(key)) delete data.inbox[event.backlogId];
+    }
+    writeBacklog(adapter.sourceBinding,data);
+  }
+
   async function runScannerTick(chain, accountSettings, adapter, state, options) {
     const tickState = state && typeof state === 'object' ? state : {};
     if (!(tickState.seen instanceof Set)) tickState.seen = new Set(tickState.seen || []);
-    const collectedEvents = await collectEventsFromAdapter(adapter, accountSettings, options);
-    const events = chain && chain.id === 'golos'
-      ? await filterRootPostEvents(adapter, collectedEvents, options) : collectedEvents;
+    if (options && typeof options.recoverPending === 'function') await options.recoverPending();
+    if (cancellationRequested(options)) return {events:[],actions:[],results:[],state:tickState,cancelled:true};
+    const durable = chain && chain.id === 'golos' && adapter.sourceBinding;
+    const collectedEvents = durable ? await collectDurableGolosEvents(adapter,accountSettings,options) : await collectEventsFromAdapter(adapter, accountSettings, options);
+    let events;
+    if (durable) {
+      const headAt = global.performance.now();
+      const head = await boundedSourceRead(()=>adapter.getDynamicGlobalProperties(),options && options.sourceTimeoutMs).catch(()=>null);
+      const checked = await Promise.all(collectedEvents.map(async event => {
+        const content = await boundedSourceRead(()=>adapter.getContent(event.author,event.permlink),options && options.sourceTimeoutMs).catch(()=>null);
+        const reason = voteEligibilitySkipReason(content,event,golosChainTime(head)+Math.ceil(global.performance.now()-headAt)) || (hasVoteFrom(content && content.active_votes,event.onlyAccount) ? 'already-voted' : null);
+        if (reason && !['root-post-unknown','eligibility-unknown'].includes(reason)) tickState.seen.add(`${event.onlyAccount}|${event.author}|${event.permlink}`);
+        return reason ? null : event;
+      }));
+      events = checked.filter(Boolean);
+    } else events = chain && chain.id === 'golos' ? await filterRootPostEvents(adapter,collectedEvents,options) : collectedEvents;
     if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
     const settingsWithEnergy = await enrichSettingsWithCurrentEnergy(accountSettings, adapter, options);
     if (cancellationRequested(options)) return { events, actions: [], results: [], state: tickState, cancelled: true };
     tickState.chainId = chain && chain.id;
     const actions = planActionsForEvents(settingsWithEnergy, events, tickState);
-    markActionsSeen(tickState, actions);
     const results = await executePlannedActions(chain, actions, tickState, options);
+    if (durable && !cancellationRequested(options)) settleDurableGolosEvents(adapter,collectedEvents,tickState);
     tickState.lastScanAt = new Date().toISOString();
     return { events, actions, results, state: tickState };
   }
@@ -667,6 +855,9 @@
     calculateDonateFromEmission,
     claimRunnerLocks,
     collectEventsFromAdapter,
+    collectDurableGolosEvents,
+    readBacklog,
+    settleDurableGolosEvents,
     createCancellationController,
     createNonOverlappingRunner,
     currentAccountEnergy,
@@ -680,6 +871,8 @@
     historyRowToCuratorVoteEvent,
     isRootPost,
     rootPostSkipReason,
+    voteEligibilitySkipReason,
+    golosChainTime,
     normalizeAccountSettings,
     planActionsForEvents,
     releaseRunnerLocks,
