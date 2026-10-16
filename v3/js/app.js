@@ -6614,9 +6614,20 @@
         }
       }
       if (!hasAndroidWorkerBridge) {
+        rows.push(`<p>${runtime.running ? 'Работает в этой вкладке.' : 'Остановлено. Для новых автонаград нажмите Start.'}</p>`);
         if (startButton) startButton.disabled = runtime.running || Boolean(runtime.feedStorageError);
         if (stopButton) stopButton.disabled = !runtime.running || Boolean(runtime.feedStorageError);
       }
+      if (runtime.startupError && !hasAndroidWorkerBridge) {
+        try {
+          const saved = continuity.readRun(scope);
+          if (saved.running && saved.epoch !== runtime.startupError.epoch) {
+            runtime.startupError = null;
+            setStatus('VIZ автонаграда себе готова к настройке.', 'info');
+          }
+        } catch (_) { /* A failed status read must not hide the fatal reason. */ }
+      }
+      if (runtime.startupError) rows.push(`<p class="warning">Ошибка запуска: ${escapeHtml(runtime.startupError.reason)}</p>`);
       if (prefix) rows.push(`<p>${escapeHtml(prefix)}</p>`);
       if (!hasAndroidWorkerBridge && runtime.running) rows.push(`<p>Следующая проверка через ${Math.ceil(continuity.remaining(scope)/1000)} сек.</p>`);
       runtime.feed.slice(-30).reverse().forEach((entry) => rows.push(`<div data-i18n-skip>${escapeHtml(entry)}</div>`));
@@ -6705,6 +6716,7 @@
       return new Map((Array.isArray(rows) ? rows : []).map((row) => [String(row && row.name || '').trim().replace(/^@/, ''), row]));
     }
 
+    const retryableInitialReads = new WeakSet();
     async function runTick(settings, generation) {
       if (runtime.tickPromise) return null;
       const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
@@ -6712,6 +6724,18 @@
       if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'interval'); renderFeed(); return null; }
       const durableGuard = continuity.guard(scope);
       const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return runGeneration !== runtime.cancelGeneration || !runtime.running; };
+      const initialRead = async task => {
+        durableGuard();
+        if (isCancelled()) return null;
+        try { return await task(); }
+        catch (error) {
+          durableGuard();
+          if (isCancelled()) return null;
+          // Only RPC provenance from these pre-sign reads can retain Start.
+          if (error instanceof profiles.ReadOnlyRpcError) retryableInitialReads.add(error);
+          throw error;
+        }
+      };
       const execute = async () => {
       renderFeed();
       if (isCancelled()) return null;
@@ -6721,9 +6745,9 @@
       if (isCancelled()) return null;
       await loadScript(chain.cryptoPath);
       if (isCancelled()) return null;
-      await profiles.connect(chain);
+      await initialRead(() => profiles.connect(chain));
       if (isCancelled()) return null;
-      const accountMap = await fetchVizAccounts(selected.map((row) => row.account));
+      const accountMap = await initialRead(() => fetchVizAccounts(selected.map((row) => row.account)));
       if (isCancelled()) return null;
       let sent = 0;
       for (const row of selected) {
@@ -6789,7 +6813,8 @@
       if (startButton) startButton.disabled = false;
       if (stopButton) stopButton.disabled = true;
       renderFeed(message || 'Остановлено. Новых автонаград не будет.');
-      setStatus('VIZ автонаграда себе остановлена.', 'info');
+      if (runtime.startupError) setStatus(`Ошибка VIZ автонаграды: ${runtime.startupError.reason}`, 'error');
+      else setStatus('VIZ автонаграда себе остановлена.', 'info');
     }
 
     if (form) {
@@ -6805,6 +6830,21 @@
       });
     }
     if (startButton && stopButton && form) {
+      const failStart = error => {
+        const reason = formatDiagnosticError(error);
+        runtime.startupError = { reason, epoch: runtime.consentEpoch };
+        if (!hasAndroidWorkerBridge) {
+          try {
+            if (continuity.readRun(scope).epoch === runtime.consentEpoch) runtime.startupError.epoch = continuity.stop(scope).epoch;
+          }
+          catch (_) { global.DposVault.lock(); }
+        }
+        cancelBrowserRuntime(runtime, 'interval');
+        startButton.disabled = false;
+        stopButton.disabled = true;
+        renderFeed();
+        setStatus(`Ошибка VIZ автонаграды: ${reason}`, 'error');
+      };
       const startTask = async (restoring = false) => {
         try {
           const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
@@ -6812,6 +6852,7 @@
           if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
           if (!hasAndroidWorkerBridge && runtime.feedStorageError) throw new Error(runtime.feedStorageError);
           if (!hasAndroidWorkerBridge) runtime.consentEpoch = (restoring ? continuity.readRun(scope) : continuity.start(scope,settings)).epoch;
+          runtime.startupError = null;
           runtime.running = true;
           runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
           const runGeneration = runtime.cancelGeneration;
@@ -6828,25 +6869,27 @@
             setStatus('VIZ автонаграда себе запущена в Android-приложении.', 'ok');
             return;
           }
-          const firstTick = runTick(settings, runGeneration);
+          // A failed read-only first check is not a revoked Start. Keep the same
+          // durable cadence and retry path used by subsequent/restored checks.
+          const reportTickError = (error) => {
+            if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
+            if (!retryableInitialReads.has(error)) throw error;
+            continuity.guard(scope)();
+            if (continuity.remaining(scope) <= 0) throw error;
+            appendFeed(`Ошибка проверки: ${formatDiagnosticError(error)} Автоматическая повторная проверка по расписанию.`);
+            setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)} Повторная проверка по расписанию.`, 'error');
+          };
+          setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
+          const firstTick = runTick(settings, runGeneration).catch(reportTickError);
           if (!restoring) await firstTick;
-          else void firstTick.catch(error => { appendFeed(formatDiagnosticError(error)); });
+          else void firstTick.catch(failStart);
           if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           if (runtime.interval) clearInterval(runtime.interval);
           runtime.interval = setInterval(() => {
-            runTick(runtime.settings, runGeneration).catch((error) => {
-              appendFeed(`Ошибка проверки: ${formatDiagnosticError(error)}`);
-              setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
-            });
+            runTick(runtime.settings, runGeneration).catch(reportTickError).catch(failStart);
           }, 1000);
-          setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
         } catch (error) {
-          if (!hasAndroidWorkerBridge) { try { if (continuity.readRun(scope).epoch === runtime.consentEpoch) continuity.stop(scope); } catch (_) {} }
-          runtime.running = false;
-          startButton.disabled = false;
-          stopButton.disabled = true;
-          if (feed) feed.textContent = `Ошибка запуска: ${formatDiagnosticError(error)}`;
-          setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)}`, 'error');
+          failStart(error);
         }
       };
       startButton.addEventListener('click', () => { void startTask(); });
@@ -6903,7 +6946,8 @@
         setStatus('VIZ автонаграда себе уже запущена.', 'ok');
       } else {
         renderFeed();
-        setStatus('VIZ автонаграда себе готова к настройке.', 'info');
+        if (runtime.startupError) setStatus(`Ошибка VIZ автонаграды: ${runtime.startupError.reason}`, 'error');
+        else setStatus('VIZ автонаграда себе готова к настройке.', 'info');
       }
     }
   }

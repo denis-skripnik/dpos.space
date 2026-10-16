@@ -1,12 +1,13 @@
 (function exposeProfiles(global) {
   'use strict';
 
-  function withApiDeadline(task, milliseconds, onTimeout) {
+  function withApiDeadline(task, milliseconds, onTimeout, timeoutError) {
     if (typeof global.setTimeout !== 'function') return Promise.resolve().then(task);
     let timer;
     const timeout = new Promise((_, reject) => {
       timer = global.setTimeout(() => {
-        reject(new Error('Превышено время ожидания API.'));
+        const error = new Error('Превышено время ожидания API.');
+        reject(timeoutError ? timeoutError(error) : error);
         if (onTimeout) onTimeout();
       }, milliseconds);
     });
@@ -14,15 +15,24 @@
       .finally(() => global.clearTimeout(timer));
   }
 
+  // Provenance, not an error-message allowlist: only an actual public SDK read
+  // rejection/deadline may receive this type. Configuration/storage errors do not.
+  class ReadOnlyRpcError extends Error {
+    constructor(cause) { super(formatError(cause)); this.name = 'ReadOnlyRpcError'; this.cause = cause; }
+  }
+
   function callApi(chain, method, args) {
-    // This helper is for public reads; never introduce ambiguous write timeouts.
-    if (/^(?:get|lookup|find|list)/i.test(method)) {
-      return withApiDeadline(() => callApiUnbounded(chain, method, args), 10000);
+    const api = chain.client && chain.client.api;
+    // Missing capabilities and synchronous SDK guards remain unclassified.
+    if (/^(?:get|lookup|find|list)/i.test(method) && api &&
+        (typeof api[`${method}Async`] === 'function' || typeof api[method] === 'function')) {
+      const read = callApiUnbounded(chain, method, args, true);
+      return withApiDeadline(() => read, 10000, null, error => new ReadOnlyRpcError(error));
     }
     return callApiUnbounded(chain, method, args);
   }
 
-  function callApiUnbounded(chain, method, args) {
+  function callApiUnbounded(chain, method, args, publicRead) {
     const api = chain.client && chain.client.api;
     const asyncName = `${method}Async`;
 
@@ -31,14 +41,15 @@
     }
 
     if (typeof api[asyncName] === 'function') {
-      return api[asyncName](...args);
+      const result = api[asyncName](...args);
+      return publicRead ? Promise.resolve(result).catch(error => { throw new ReadOnlyRpcError(error); }) : result;
     }
 
     if (typeof api[method] === 'function') {
       return new Promise((resolve, reject) => {
         api[method](...args, (error, result) => {
           if (error) {
-            reject(error);
+            reject(publicRead ? new ReadOnlyRpcError(error) : error);
             return;
           }
           resolve(result);
@@ -105,11 +116,13 @@
         global.localStorage.setItem(nodeStorageKey, nodeUrl);
         return chain;
       } catch (error) {
+        if (!(error instanceof ReadOnlyRpcError)) throw error;
         lastError = error;
       }
     }
 
-    throw new Error(`Не найдена рабочая публичная нода для ${chainConfig.title}. Последняя ошибка: ${formatError(lastError)}`);
+    const unavailable = new Error(`Не найдена рабочая публичная нода для ${chainConfig.title}. Последняя ошибка: ${formatError(lastError)}`);
+    throw lastError instanceof ReadOnlyRpcError ? new ReadOnlyRpcError(unavailable) : unavailable;
   }
 
   async function fetchJson(url, options, timeoutMs = 10000) {
@@ -968,6 +981,7 @@
   }
 
   global.DposProfiles = Object.freeze({
+    ReadOnlyRpcError,
     apiCall: callApi,
     connect,
     enrichAccount,
