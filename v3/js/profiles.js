@@ -15,6 +15,7 @@
       .finally(() => global.clearTimeout(timer));
   }
 
+  const diagnosticStorageFailures = new WeakSet();
   // Provenance, not an error-message allowlist: only an actual public SDK read
   // rejection/deadline may receive this type. Configuration/storage errors do not.
   class ReadOnlyRpcError extends Error {
@@ -101,7 +102,9 @@
     let lastError = null;
 
     const nodeStorageKey = `${chainConfig.id}${chainConfig.network === 'testnet' ? '_testnet' : ''}_node`;
-    const storedNode = global.localStorage.getItem(nodeStorageKey);
+    let storedNode;
+    try { storedNode = global.localStorage.getItem(nodeStorageKey); }
+    catch (error) { if (error && typeof error === 'object') diagnosticStorageFailures.add(error); throw error; }
     const normalizedStoredNode = storedNode && storedNode.replace(/\/$/, '');
     const shouldPreferStoredNode = chainConfig.id !== 'viz' || chainConfig.network === 'testnet';
     const nodes = shouldPreferStoredNode && normalizedStoredNode && chainConfig.nodes.includes(normalizedStoredNode)
@@ -113,7 +116,8 @@
         setNode(chain, nodeUrl);
         await callApi(chain, 'getDynamicGlobalProperties', []);
         chain.node = nodeUrl;
-        global.localStorage.setItem(nodeStorageKey, nodeUrl);
+        try { global.localStorage.setItem(nodeStorageKey, nodeUrl); }
+        catch (error) { if (error && typeof error === 'object') diagnosticStorageFailures.add(error); throw error; }
         return chain;
       } catch (error) {
         if (!(error instanceof ReadOnlyRpcError)) throw error;
@@ -981,6 +985,9 @@
   }
 
   global.DposProfiles = Object.freeze({
+    diagnosticBuild: '20261016-viz-safe-diagnostics',
+    diagnosticFailureReason: error => diagnosticStorageFailures.has(error) ? 'storage_unavailable' : 'unclassified',
+    diagnosticSource: global.document && global.document.currentScript && global.document.currentScript.src,
     ReadOnlyRpcError,
     apiCall: callApi,
     connect,

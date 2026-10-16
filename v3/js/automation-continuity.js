@@ -53,6 +53,7 @@
     return writeControl(scope, item);
   }
   function stop(scope) {
+    try { if (scope === 'viz-self-award' && global.DposDiagnostics) void global.DposDiagnostics.record('info', 'viz.stop_before_invalidation', diagnosticSnapshot()); } catch (_) {}
     const item = read(scope); item.running = false; item.epoch += 1;
     return writeControl(scope, item);
   }
@@ -170,8 +171,22 @@
     current.recoveryCursor = (start+selected.length)%targets.length;
     write(scope,current); return {checked:selected.length,confirmed};
   }
+  // Read-only: do not call readRun/binding/issueGuard, which can invalidate vault state.
+  function diagnosticSnapshot() {
+    const result = { build: '20261016-viz-safe-diagnostics' };
+    try {
+      const item = read('viz-self-award');
+      const vault = global.DposVault && global.DposVault.diagnosticSnapshot ? global.DposVault.diagnosticSnapshot() : null;
+      const raw = JSON.parse(global.localStorage.getItem('dpos_vault_session_resume_v1') || 'null');
+      result.savedStart = item.running;
+      result.nextAt = item.nextAt;
+      result.bindingMatches = Boolean(raw && item.binding === `${raw.binding}|${raw.iv}`);
+      result.reason = !item.running ? 'missing_consent' : !vault || vault.state !== 'unlocked' ? 'vault_locked' : !raw ? 'resume_record_missing' : !result.bindingMatches ? 'start_binding_mismatch' : 'eligible';
+    } catch (_) { result.reason = 'storage_unavailable_or_invalid'; }
+    return result;
+  }
   function stopAll() {
     ['viz-self-award','upvoter:golos','upvoter:hive','upvoter:steem'].forEach(scope => { if (global.localStorage.getItem(controlKey(scope))) stop(scope); });
   }
-  global.DposAutomationContinuity = Object.freeze({ assertExclusive,reconcile,start,stop,stopAll,readRun,guard,remaining,schedule,exclusive,pending,send,transaction,storageKey:key });
+  global.DposAutomationContinuity = Object.freeze({ diagnosticSnapshot,assertExclusive,reconcile,start,stop,stopAll,readRun,guard,remaining,schedule,exclusive,pending,send,transaction,storageKey:key });
 })(window);

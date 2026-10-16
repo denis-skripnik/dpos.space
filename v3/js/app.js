@@ -1,5 +1,7 @@
 (function bootstrapDposV3(global) {
   'use strict';
+  global.__dposAppDiagnosticBuild = '20261016-viz-safe-diagnostics';
+  global.__dposAppDiagnosticSource = global.document && global.document.currentScript && global.document.currentScript.src;
 
   const chains = global.DposChains;
   const auth = global.DposAuth;
@@ -6756,12 +6758,14 @@
           const account = accountMap.get(row.account);
           const liveEnergy = currentVizEnergy(account);
           if (!Number.isFinite(liveEnergy)) {
+            runtime.diagnosticBlockedReason = 'energy_unavailable';
             appendFeed(`SKIP @${row.account}: не удалось определить энергию.`);
             continue;
           }
           const minEnergy = normalizeVizSelfAwardMinEnergy(row.minEnergy);
           const spend = vizSelfAwardSpend(liveEnergy, minEnergy);
           if (spend <= 0) {
+            runtime.diagnosticBlockedReason = 'low_energy';
             appendFeed(`SKIP @${row.account}: энергия ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
             continue;
           }
@@ -6779,10 +6783,11 @@
           if (isCancelled()) break;
           const result = await global.DposBroadcast.broadcast(chain, prepared, { confirmExecute: false, autoConsent: 'viz-self-award-start', continuityScope: scope, isCancelled, beforeSend: () => { appendFeed(`Pending @${row.account}: self-award`); if (runtime.feedStorageError) throw new Error('Feed storage failure'); } });
           if (isCancelled()) break;
-          if (result && result.skipped) { appendFeed(`SKIP @${row.account}: pending/confirmed — без повторной отправки.`); continue; }
+          if (result && result.skipped) { runtime.diagnosticBlockedReason = 'pending_or_confirmed_no_replay'; appendFeed(`SKIP @${row.account}: pending/confirmed — без повторной отправки.`); continue; }
           sent += 1;
           appendFeed(`OK @${row.account}: self-award ${(spend / 100).toFixed(2)}%, энергия была ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
         } catch (error) {
+          runtime.diagnosticBlockedReason = 'operation_error';
           appendFeed(`ERROR @${row.account}: ${formatDiagnosticError(error)}`);
         }
       }
@@ -6793,7 +6798,10 @@
       const promise = continuity.exclusive(scope, async () => {
         if (continuity.remaining(scope) > 0) return null;
         continuity.schedule(scope,VIZ_SELF_AWARD_TICK_MS);
-        return execute();
+        runtime.diagnosticCheckStarted = Date.now();
+        runtime.diagnosticBlockedReason = 'none_observed';
+        try { return await execute(); }
+        finally { runtime.diagnosticCheckCompleted = Date.now(); }
       });
       runtime.tickPromise = promise;
       try {
@@ -6831,6 +6839,9 @@
     }
     if (startButton && stopButton && form) {
       const failStart = error => {
+        runtime.diagnosticResumeOutcome = 'resume_or_start_error';
+        runtime.diagnosticBlockedReason = !global.navigator?.locks ? 'web_locks_unavailable' : runtime.feedStorageError ? 'feed_storage_unavailable' : profiles.diagnosticFailureReason && profiles.diagnosticFailureReason(error) === 'storage_unavailable' ? 'storage_unavailable' : 'startup_failed';
+        try { if (global.DposDiagnostics) void global.DposDiagnostics.record('warning', 'viz.start_failed_before_invalidation', { savedRun:continuity.diagnosticSnapshot(), reason:runtime.diagnosticBlockedReason }); } catch (_) {}
         const reason = formatDiagnosticError(error);
         runtime.startupError = { reason, epoch: runtime.consentEpoch };
         if (!hasAndroidWorkerBridge) {
@@ -6846,6 +6857,8 @@
         setStatus(`Ошибка VIZ автонаграды: ${reason}`, 'error');
       };
       const startTask = async (restoring = false) => {
+        runtime.diagnosticResumeOutcome = restoring ? 'automatic_resume_requested' : 'manual_start_requested';
+        try { if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'viz.start_requested', { automatic:restoring, savedRun:continuity.diagnosticSnapshot() }); } catch (_) {}
         try {
           const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
           const selected = settings.filter((row) => row.enabled && row.account);
@@ -6876,6 +6889,8 @@
             if (!retryableInitialReads.has(error)) throw error;
             continuity.guard(scope)();
             if (continuity.remaining(scope) <= 0) throw error;
+            runtime.diagnosticBlockedReason = 'rpc_read_failed_retry_scheduled';
+            try { if (global.DposDiagnostics) void global.DposDiagnostics.record('warning', 'viz.check_read_failed', { reason:'rpc_read_failed_retry_scheduled', nextAt:continuity.diagnosticSnapshot().nextAt }); } catch (_) {}
             appendFeed(`Ошибка проверки: ${formatDiagnosticError(error)} Автоматическая повторная проверка по расписанию.`);
             setStatus(`Ошибка VIZ автонаграды: ${formatDiagnosticError(error)} Повторная проверка по расписанию.`, 'error');
           };
@@ -6888,6 +6903,7 @@
           runtime.interval = setInterval(() => {
             runTick(runtime.settings, runGeneration).catch(reportTickError).catch(failStart);
           }, 1000);
+          runtime.diagnosticResumeOutcome = restoring ? 'automatic_resume_scheduled' : 'manual_start_scheduled';
         } catch (error) {
           failStart(error);
         }
@@ -17501,7 +17517,10 @@ Memo key: ${keys.memo}`);
       for (const id of ['golos','hive','steem']) {
         if (continuity.readRun(`upvoter:${id}`).running) await renderGolosAutoUpvoter(chains[id],mount);
       }
-    })().catch(error => { browserResumeTasks = null; setStatus(formatDiagnosticError(error),'error'); });
+    })().catch(error => {
+      try { if (global.DposDiagnostics) void global.DposDiagnostics.record('warning', 'browser.resume_error', { reason:'resume_error', savedRun:global.DposAutomationContinuity.diagnosticSnapshot() }); } catch (_) {}
+      browserResumeTasks = null; setStatus(formatDiagnosticError(error),'error');
+    });
     await browserResumeTasks;
   }
 

@@ -34,6 +34,34 @@
     global.document.cookie = `${COOKIE_KEY}=${value}; Path=/; SameSite=Strict; Secure${value ? '' : '; Max-Age=0'}`;
   }
 
+  // Metadata only: never retain a capability, envelope binding, account or key.
+  const diagnosticBuild = '20261016-viz-safe-diagnostics';
+  const diagnosticHistory = [];
+  function diagnosticSnapshot() {
+    const result = { build: diagnosticBuild, state, history: diagnosticHistory.map(entry => Object.assign({}, entry)) };
+    try {
+      result.capabilityPresent = Boolean(browserResume() && resumeCookie());
+      const raw = global.localStorage.getItem(RESUME_KEY);
+      result.resumeRecordPresent = Boolean(raw);
+      const control = JSON.parse(global.localStorage.getItem('dpos_web_automation_continuity_v1_viz-self-award_control') || 'null');
+      result.savedStart = Boolean(control && control.running === true);
+      const item = raw ? JSON.parse(raw) : null;
+      result.savedStartBindingMatches = result.savedStart && Boolean(item && control.binding === `${item.binding}|${item.iv}`);
+      result.storageReadable = true;
+    } catch (_) { result.storageReadable = false; }
+    return result;
+  }
+  function diagnosticEvent(reason) {
+    try {
+      const current = diagnosticSnapshot();
+      delete current.history;
+      const entry = Object.assign(current, { time: Date.now(), reason });
+      diagnosticHistory.push(entry);
+      if (diagnosticHistory.length > 16) diagnosticHistory.shift();
+      if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'vault.continuity', entry);
+    } catch (_) { /* Observation cannot change vault failure semantics. */ }
+  }
+
   async function importVaultKey(raw) {
     const key = await requireCrypto().subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
     keyMaterial.set(key, new Uint8Array(raw));
@@ -73,18 +101,23 @@
   async function resume() {
     if (!browserResume() || state !== 'locked') return;
     const requestedGeneration = generation;
+    let reason = 'storage_unavailable';
     try {
       const value = global.localStorage.getItem(RESUME_KEY);
-      if (!value || !resumeCookie()) return;
+      if (!value || !resumeCookie()) { diagnosticEvent(!value ? 'resume_record_missing' : 'capability_missing'); return; }
+      reason = 'resume_record_invalid';
       const item = JSON.parse(value);
       const text = global.localStorage.getItem(STORAGE_KEYS.active);
       const envelope = readActiveEnvelope();
       const revocation = global.localStorage.getItem(REVOCATION_KEY);
+      reason = item.version !== 1 ? 'resume_version_mismatch' : item.revision !== envelope.revision ? 'envelope_revision_mismatch' : item.revocation !== revocation ? 'revocation_mismatch' : 'envelope_binding_mismatch';
       if (item.version !== 1 || item.revision !== envelope.revision || item.revocation !== revocation || item.binding !== await envelopeBinding(text)) throw new Error('stale resume');
+      reason = 'decrypt_failed';
       const wrapKey = await requireCrypto().subtle.importKey('raw', base64ToBytes(resumeCookie()), 'AES-GCM', false, ['decrypt']);
       const raw = await requireCrypto().subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(item.iv), additionalData: encoder.encode(JSON.stringify([global.location.origin, item.binding, revocation])) }, wrapKey, base64ToBytes(item.ciphertext));
       const key = await importVaultKey(raw);
       const payload = await decryptEnvelope(envelope, key);
+      reason = 'resume_cancelled';
       if (payload.storageRestore || generation !== requestedGeneration || global.localStorage.getItem(STORAGE_KEYS.active) !== text || global.localStorage.getItem(REVOCATION_KEY) !== revocation) throw new Error('resume cancelled');
       memoryRecords = materializeLegacy(payload.records);
       cryptoKey = key;
@@ -96,9 +129,10 @@
       state = 'unlocked';
       sessionEpoch += 1;
       generation += 1;
+      diagnosticEvent('auto_resume_succeeded');
       notify('session-resumed');
       if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-vault-ready'));
-    } catch (_) { /* Preserve the authoritative vault and other tabs' fresh resume. */ }
+    } catch (_) { diagnosticEvent(reason); /* Preserve the authoritative vault and other tabs' fresh resume. */ }
   }
 
   function vaultError(message, cause) {
@@ -499,6 +533,7 @@
   }
 
   async function unlock(options) {
+    diagnosticEvent('manual_unlock_requested');
     const requestedGeneration = generation;
     const activeText = global.localStorage.getItem(STORAGE_KEYS.active);
     const envelope = readActiveEnvelope();
@@ -527,12 +562,16 @@
     cleanupLegacyRecords(cleanupSnapshot);
     global.localStorage.removeItem(STORAGE_KEYS.staging);
     try { await saveResume(); } catch (error) { lock(); throw error; }
+    diagnosticEvent('manual_unlock_succeeded');
     return status();
   }
 
   // Observing another tab's change only invalidates this tab's memory/guards.
   // Never republish revocation or delete a newer shared resume capability.
   function invalidateLocal() {
+    try {
+      diagnosticEvent(global.localStorage.getItem(STORAGE_KEYS.active) !== lastEnvelopeText ? 'envelope_changed_before_invalidation' : global.localStorage.getItem(REVOCATION_KEY) !== loadedRevocation ? 'revocation_changed_before_invalidation' : browserResume() && resumeCookie() !== loadedSessionCookie ? 'capability_changed_before_invalidation' : 'local_invalidation_before');
+    } catch (_) { diagnosticEvent('observation_unavailable_before_invalidation'); }
     loadedRevocation = global.localStorage.getItem(REVOCATION_KEY);
     lastEnvelopeText = global.localStorage.getItem(STORAGE_KEYS.active);
     loadedSessionCookie = browserResume() ? resumeCookie() : null;
@@ -549,6 +588,7 @@
   }
 
   function lock() {
+    diagnosticEvent('lock_invoked_before_revocation');
     removeResume();
     if (browserResume()) {
       try { global.localStorage.setItem(REVOCATION_KEY, bytesToBase64(randomBytes(16))); } catch (_) {}
@@ -854,6 +894,7 @@
   }
 
   initialize();
+  diagnosticEvent('bootstrap');
   const ready = resume();
 
   function withStorageLock(action) {
@@ -874,6 +915,7 @@
 
   global.DposVault = Object.freeze({
     ready,
+    diagnosticSnapshot,
     setup: withStorageLock(setup),
     migrate: withStorageLock(migrate),
     unlock: withStorageLock(unlock),
