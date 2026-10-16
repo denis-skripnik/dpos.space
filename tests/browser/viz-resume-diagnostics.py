@@ -75,7 +75,7 @@ with sync_playwright() as p:
     page.reload();ready()
     s=snap()
     assert s['savedRun']['reason']=='eligible' and s['savedRun']['nextAt']==deadline
-    assert s['appBuild']==BUILD and s['profilesBuild']==BUILD and s['diagnosticsBuild']==BUILD
+    assert s['appBuild']=='20261016-viz-manual-unlock' and s['profilesBuild']==BUILD and s['diagnosticsBuild']==BUILD
     assert s['vizRuntime']['resumeOutcome']=='automatic_resume_scheduled'
     assert s['executionMode']=='browser_no_native_bridge (physical APK unknown)'
     assert any(h['reason']=='auto_resume_succeeded' for h in s['vault']['history'])
@@ -102,19 +102,20 @@ with sync_playwright() as p:
     assert 'capability_missing' in report() and sends()==1
     unlock()
     s=snap()
-    assert s['savedRun']['reason']=='start_binding_mismatch' and s['savedRun']['savedStart']
-    assert not s['vizRuntime'].get('running',False) and sends()==1
+    ready();s=snap()
+    assert s['savedRun']['reason']=='eligible' and s['savedRun']['savedStart']
+    assert s['vizRuntime'].get('running',False) and sends()==1
     assert 'manual_unlock_requested' in report() and 'manual_unlock_succeeded' in report()
     # A read-only export must not call issueGuard/assertGuard, cancel or consume old evidence.
     state_before=page.evaluate("""JSON.stringify([localStorage.dpos_vault_session_resume_v1,localStorage.getItem(DposAutomationContinuity.storageKey('viz-self-award')+'_control'),DposVault.status().state])""")
     text=report()
     state_after=page.evaluate("""JSON.stringify([localStorage.dpos_vault_session_resume_v1,localStorage.getItem(DposAutomationContinuity.storageKey('viz-self-award')+'_control'),DposVault.status().state])""")
-    assert state_before==state_after and 'start_binding_mismatch' in text
+    assert state_before==state_after and 'viz_rebind_succeeded' in text
     canaries=page.evaluate("()=>[fixtureWif,'fixture-only-browser-password',localStorage.syntheticPrivatePayload,...document.cookie.split(';').map(x=>x.trim().split('=').slice(1).join('=')),...Object.values(JSON.parse(localStorage.dpos_vault_session_resume_v1)).filter(x=>typeof x==='string' && x.length>16)]")
     assert all(not c or c not in text for c in canaries), 'Secret canary appeared in export'
-    checks.append('cookie-loss bootstrap + manual unlock require new Start; pre-Start export read-only and secret-free')
+    checks.append('authenticated cookie-loss manual unlock resumes without deadline reset; export read-only and secret-free')
 
-    start();assert sends()==1  # unchanged durable deadline/confirmed intent
+    assert sends()==1  # unchanged durable deadline/confirmed intent
     due();page.evaluate("localStorage.fixtureFailure='accounts'");page.reload()
     wait('window.fixtureReadFailures>0 && !!window.__dposVizSelfAwardRuntime?.interval && !__dposVizSelfAwardRuntime.tickPromise')
     s=snap()
@@ -145,7 +146,7 @@ with sync_playwright() as p:
     assert 'lock_invoked_before_revocation' in report()
     assert snap()['vault']['state']=='locked'
     unlock();assert not snap()['vizRuntime']['running'] and sends()==1
-    checks.append('Stop/Lock remain revocations; manual unlock never restarts')
+    checks.append('Stop/Lock remain revocations; unlock never revives revoked Start')
 
     # Successful vault capability resume does not imply storage/runtime admission.
     start()
@@ -178,7 +179,7 @@ with sync_playwright() as p:
 
     # Actual old production bytes under a NEW requested URL must not masquerade as a new build.
     for name in ['profiles', 'app']:
-        old_assets['/v3/js/'+name+'.js']=subprocess.check_output(['git','show','HEAD:v3/js/'+name+'.js'],cwd=root).decode()
+        old_assets['/v3/js/'+name+'.js']=subprocess.check_output(['git','show','HEAD^:v3/js/'+name+'.js'],cwd=root).decode()
     page.reload();wait('!!window.DposV3 && !!document.querySelector("#viz-self-award-start")')
     s=snap()
     assert s['profilesBuild'].startswith('unknown') and s['appBuild'].startswith('unknown')

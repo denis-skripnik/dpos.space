@@ -1,5 +1,6 @@
 // First-party interface translations. No runtime translation service.
 window.DposEnglish = Object.freeze({
+  "VIZ Start proof unavailable; нажмите Start заново.": "VIZ Start proof unavailable; press Start again.",
   "Некорректная область ленты.": "Invalid feed scope.",
   "[История скрыта: очистка секретов недоступна]": "[History hidden: secret sanitization is unavailable]",
   "Локальная лента повреждена или недоступна; сохранённые данные не изменены.": "Local history is corrupt or unavailable; saved data was not changed.",

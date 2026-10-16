@@ -43,9 +43,10 @@
   }
   function readRun(scope) {
     const item = read(scope);
-    return Object.assign({}, item, { running: item.running && item.binding === binding() });
+    return Object.assign({}, item, { running: item.running && item.binding === binding() && (scope !== 'viz-self-award' || global.DposVault.vizAutomationAdmitted()) });
   }
   function start(scope, settings) {
+    if (scope === 'viz-self-award') return global.DposVault.startVizAutomation(settings);
     const item = read(scope);
     item.running = true; item.epoch += 1; item.binding = binding();
     // Caller supplies public settings only. Never persist account records/keys.
@@ -54,6 +55,9 @@
   }
   function stop(scope) {
     try { if (scope === 'viz-self-award' && global.DposDiagnostics) void global.DposDiagnostics.record('info', 'viz.stop_before_invalidation', diagnosticSnapshot()); } catch (_) {}
+    // Separate synchronous cancellation authority: late cross-tab control writes
+    // cannot restore Stop, even though localStorage compare/write is not CAS.
+    if (scope === 'viz-self-award') persist(controlKey(scope)+'_cancel', Array.from(global.crypto.getRandomValues(new Uint32Array(4))));
     const item = read(scope); item.running = false; item.epoch += 1;
     return writeControl(scope, item);
   }
@@ -173,7 +177,7 @@
   }
   // Read-only: do not call readRun/binding/issueGuard, which can invalidate vault state.
   function diagnosticSnapshot() {
-    const result = { build: '20261016-viz-safe-diagnostics' };
+    const result = { build: '20261016-viz-manual-unlock' };
     try {
       const item = read('viz-self-award');
       const vault = global.DposVault && global.DposVault.diagnosticSnapshot ? global.DposVault.diagnosticSnapshot() : null;

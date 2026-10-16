@@ -1,6 +1,6 @@
 (function bootstrapDposV3(global) {
   'use strict';
-  global.__dposAppDiagnosticBuild = '20261016-viz-safe-diagnostics';
+  global.__dposAppDiagnosticBuild = '20261016-viz-manual-unlock';
   global.__dposAppDiagnosticSource = global.document && global.document.currentScript && global.document.currentScript.src;
 
   const chains = global.DposChains;
@@ -6531,7 +6531,7 @@
 
   async function renderVizSelfAward(chain, mount = appEl) {
     const capturedRouteEpoch = routeRenderGeneration;
-    await awaitRouteTask(capturedRouteEpoch, async () => (loadScript(chain.cryptoPath)));
+    // The shell already provides SJCL; install Stop before SDK/crypto awaits.
     const users = auth.getUsers(chain);
     const hasAndroidWorkerBridge = Boolean(nativeAndroidWorkerBridge());
     const stored = readVizSelfAwardSettings();
@@ -6722,6 +6722,7 @@
     async function runTick(settings, generation) {
       if (runtime.tickPromise) return null;
       const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
+      if (runGeneration !== runtime.cancelGeneration || !runtime.running) return null;
       const savedRun = continuity.readRun(scope);
       if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'interval'); renderFeed(); return null; }
       const durableGuard = continuity.guard(scope);
@@ -6787,6 +6788,7 @@
           sent += 1;
           appendFeed(`OK @${row.account}: self-award ${(spend / 100).toFixed(2)}%, энергия была ${(liveEnergy / 100).toFixed(2)}%, минимум ${(minEnergy / 100).toFixed(2)}%.`);
         } catch (error) {
+          if (isCancelled()) break;
           runtime.diagnosticBlockedReason = 'operation_error';
           appendFeed(`ERROR @${row.account}: ${formatDiagnosticError(error)}`);
         }
@@ -6801,7 +6803,7 @@
         runtime.diagnosticCheckStarted = Date.now();
         runtime.diagnosticBlockedReason = 'none_observed';
         try { return await execute(); }
-        finally { runtime.diagnosticCheckCompleted = Date.now(); }
+        finally { if (runGeneration === runtime.cancelGeneration) runtime.diagnosticCheckCompleted = Date.now(); }
       });
       runtime.tickPromise = promise;
       try {
@@ -6838,13 +6840,14 @@
       });
     }
     if (startButton && stopButton && form) {
-      const failStart = error => {
+      const failStart = (error, attempt) => {
+        if (attempt !== runtime.cancelGeneration) return;
         runtime.diagnosticResumeOutcome = 'resume_or_start_error';
         runtime.diagnosticBlockedReason = !global.navigator?.locks ? 'web_locks_unavailable' : runtime.feedStorageError ? 'feed_storage_unavailable' : profiles.diagnosticFailureReason && profiles.diagnosticFailureReason(error) === 'storage_unavailable' ? 'storage_unavailable' : 'startup_failed';
         try { if (global.DposDiagnostics) void global.DposDiagnostics.record('warning', 'viz.start_failed_before_invalidation', { savedRun:continuity.diagnosticSnapshot(), reason:runtime.diagnosticBlockedReason }); } catch (_) {}
         const reason = formatDiagnosticError(error);
         runtime.startupError = { reason, epoch: runtime.consentEpoch };
-        if (!hasAndroidWorkerBridge) {
+        if (!hasAndroidWorkerBridge && !error.vizAdmissionFailure) {
           try {
             if (continuity.readRun(scope).epoch === runtime.consentEpoch) runtime.startupError.epoch = continuity.stop(scope).epoch;
           }
@@ -6857,18 +6860,29 @@
         setStatus(`Ошибка VIZ автонаграды: ${reason}`, 'error');
       };
       const startTask = async (restoring = false) => {
+        const runGeneration = runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
+        runtime.running = true;
+        startButton.disabled = true; stopButton.disabled = false;
         runtime.diagnosticResumeOutcome = restoring ? 'automatic_resume_requested' : 'manual_start_requested';
         try { if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'viz.start_requested', { automatic:restoring, savedRun:continuity.diagnosticSnapshot() }); } catch (_) {}
         try {
+          if (!hasAndroidWorkerBridge) runtime.consentEpoch = continuity.readRun(scope).epoch;
+          if (restoring && !hasAndroidWorkerBridge) {
+            if (!await global.DposVault.admitVizAutomation()) throw Object.assign(new Error('VIZ Start proof unavailable; нажмите Start заново.'), {vizAdmissionFailure:true});
+            if (runGeneration !== runtime.cancelGeneration) return;
+          }
           const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
           const selected = settings.filter((row) => row.enabled && row.account);
           if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
           if (!hasAndroidWorkerBridge && runtime.feedStorageError) throw new Error(runtime.feedStorageError);
-          if (!hasAndroidWorkerBridge) runtime.consentEpoch = (restoring ? continuity.readRun(scope) : continuity.start(scope,settings)).epoch;
+          if (!hasAndroidWorkerBridge) {
+            const accepted = restoring ? continuity.readRun(scope) : await continuity.start(scope,settings);
+            if (runGeneration !== runtime.cancelGeneration) return;
+            if (!accepted.running) throw new Error('VIZ Start cancelled');
+            runtime.consentEpoch = accepted.epoch;
+          }
           runtime.startupError = null;
           runtime.running = true;
-          runtime.cancelGeneration = (runtime.cancelGeneration || 0) + 1;
-          const runGeneration = runtime.cancelGeneration;
           runtime.settings = settings;
           startButton.disabled = true;
           stopButton.disabled = false;
@@ -6897,19 +6911,18 @@
           setStatus('VIZ автонаграда себе запущена во вкладке.', 'ok');
           const firstTick = runTick(settings, runGeneration).catch(reportTickError);
           if (!restoring) await firstTick;
-          else void firstTick.catch(failStart);
+          else void firstTick.catch(error => failStart(error,runGeneration));
           if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           if (runtime.interval) clearInterval(runtime.interval);
           runtime.interval = setInterval(() => {
-            runTick(runtime.settings, runGeneration).catch(reportTickError).catch(failStart);
+            runTick(runtime.settings, runGeneration).catch(reportTickError).catch(error => failStart(error,runGeneration));
           }, 1000);
           runtime.diagnosticResumeOutcome = restoring ? 'automatic_resume_scheduled' : 'manual_start_scheduled';
         } catch (error) {
-          failStart(error);
+          failStart(error,runGeneration);
         }
       };
       startButton.addEventListener('click', () => { void startTask(); });
-      if (!hasAndroidWorkerBridge && !runtime.running && !runtime.feedStorageError && continuity.readRun(scope).running) await startTask(true);
       stopButton.addEventListener('click', async () => {
         stop('Остановка запрошена. Уже отправленную транзакцию отменить нельзя.');
         if (hasAndroidWorkerBridge) {
@@ -6918,6 +6931,8 @@
         }
         stop('Остановлено пользователем. Новых автонаград не будет.');
       });
+      // Stop is installed before any SDK/crypto restoration await.
+      if (!hasAndroidWorkerBridge && !runtime.running && !runtime.feedStorageError && continuity.diagnosticSnapshot().savedStart) await startTask(true);
     }
 
     let androidStatusRendered = false;
@@ -17508,12 +17523,12 @@ Memo key: ${keys.memo}`);
   }
 
   let browserResumeTasks = null;
-  async function resumeBrowserAutomations() {
+  async function resumeBrowserAutomations(skipViz) {
     if (nativeAndroidWorkerBridge() || !global.DposAutomationContinuity || global.DposVault.status().state !== 'unlocked') return;
     if (!browserResumeTasks) browserResumeTasks = (async () => {
       const continuity = global.DposAutomationContinuity;
       const mount = document.createElement('div');
-      if (continuity.readRun('viz-self-award').running) await renderVizSelfAward(chains.viz,mount);
+      if (!skipViz && continuity.diagnosticSnapshot().savedStart) await renderVizSelfAward(resolveChainNetwork(chains.viz,storedNetwork(chains.viz)),mount);
       for (const id of ['golos','hive','steem']) {
         if (continuity.readRun(`upvoter:${id}`).running) await renderGolosAutoUpvoter(chains[id],mount);
       }
@@ -17530,7 +17545,7 @@ Memo key: ${keys.memo}`);
     const renderGeneration = ++routeRenderGeneration;
     const isCurrentRoute = () => renderGeneration === routeRenderGeneration;
     const requestedState = parseHash();
-    if (global.DposAutomationContinuity && global.DposVault && global.DposVault.status().state === 'unlocked') await resumeBrowserAutomations();
+    if (global.DposAutomationContinuity && global.DposVault && global.DposVault.status().state === 'unlocked') await resumeBrowserAutomations(requestedState.chain === 'viz' && requestedState.app === 'viz-self-award');
     if (!isCurrentRoute()) return;
     if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'route.open', { chain: requestedState.chain || '', app: requestedState.app || 'home' });
     if (requestedState.app === 'notifications' && !requestedState.chain && !requestedState.account && global.DposNotificationInbox) {
@@ -17847,6 +17862,15 @@ Memo key: ${keys.memo}`);
     }
     cancelBrowserRuntime(runtime,scope === 'viz-self-award' ? 'interval' : 'scannerInterval');
     if (runtime.renderUI) runtime.renderUI('Остановлен в другой вкладке.');
+    if (scope === 'viz-self-award' && global.DposVault.status().state === 'unlocked') {
+      const attempt = runtime.cancelGeneration;
+      // A newer remote Start may clear a fatal presentation only after private
+      // authentication. This does not start this tab or trust event.oldValue.
+      void global.DposVault.admitVizAutomation().then(admitted => {
+        if (!admitted || attempt !== runtime.cancelGeneration || runtime.running) return;
+        if (global.DposAutomationContinuity.readRun(scope).running && runtime.renderUI) runtime.renderUI();
+      }).catch(() => {});
+    }
   });
   if (notifications && notificationsPanel) {
     notificationsController = notifications.init(notificationsPanel, chains, { setStatus });

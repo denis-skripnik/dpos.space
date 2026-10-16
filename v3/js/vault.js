@@ -35,7 +35,7 @@
   }
 
   // Metadata only: never retain a capability, envelope binding, account or key.
-  const diagnosticBuild = '20261016-viz-safe-diagnostics';
+  const diagnosticBuild = '20261016-viz-manual-unlock';
   const diagnosticHistory = [];
   function diagnosticSnapshot() {
     const result = { build: diagnosticBuild, state, history: diagnosticHistory.map(entry => Object.assign({}, entry)) };
@@ -45,6 +45,8 @@
       result.resumeRecordPresent = Boolean(raw);
       const control = JSON.parse(global.localStorage.getItem('dpos_web_automation_continuity_v1_viz-self-award_control') || 'null');
       result.savedStart = Boolean(control && control.running === true);
+      result.vizProofPresent = Boolean(control && control.evidence);
+      result.vizResumeOutcome = vizResumeOutcome;
       const item = raw ? JSON.parse(raw) : null;
       result.savedStartBindingMatches = result.savedStart && Boolean(item && control.binding === `${item.binding}|${item.iv}`);
       result.storageReadable = true;
@@ -60,6 +62,199 @@
       if (diagnosticHistory.length > 16) diagnosticHistory.shift();
       if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'vault.continuity', entry);
     } catch (_) { /* Observation cannot change vault failure semantics. */ }
+  }
+
+  // VIZ consent is authenticated separately from the mutable cadence ledger.
+  // These keys/receipts never leave this closure. No generic MAC service.
+  const VIZ_CONTROL = 'dpos_web_automation_continuity_v1_viz-self-award_control';
+  const VIZ_CANCEL = VIZ_CONTROL + '_cancel';
+  const VIZ_SETTINGS = 'dpos_viz_self_award_settings';
+  let vizAdmission = null;
+  let vizResumeOutcome = 'not_attempted';
+  function vizSnapshot() {
+    const snapshot = [VIZ_CONTROL, VIZ_CANCEL, VIZ_SETTINGS, STORAGE_KEYS.active, REVOCATION_KEY,
+      'dpos_network_viz', RESUME_KEY].map(k => global.localStorage.getItem(k));
+    snapshot.splice(6,0,JSON.stringify(vizPolicy().public));
+    return snapshot;
+  }
+  function vizUnchanged(snapshot) { return JSON.stringify(vizSnapshot()) === JSON.stringify(snapshot); }
+  function vizPolicy() {
+    const base = global.DposChains && global.DposChains.viz;
+    if (!base) throw vaultError('VIZ configuration unavailable');
+    const networkRaw = global.localStorage.getItem('dpos_network_viz');
+    if (networkRaw !== null && networkRaw !== 'mainnet' && networkRaw !== 'testnet') throw vaultError('VIZ network invalid');
+    const network = networkRaw === 'testnet' ? 'testnet' : 'mainnet';
+    const chain = Object.assign({}, base, network === 'testnet' ? base.testnet : {}, {network});
+    const storedNode = global.localStorage.getItem(network === 'testnet' ? 'viz_testnet_node' : 'viz_node');
+    const preferred = storedNode && storedNode.replace(/\/$/, '');
+    // Match profiles.connect's effective order, not its automatically written cache.
+    const endpointOrder = network === 'testnet' && preferred && chain.nodes.includes(preferred)
+      ? [preferred, ...chain.nodes.filter(node=>node !== preferred)] : chain.nodes.slice();
+    return {chain, public: {networkRaw, network, endpointOrder,
+      id:chain.id, nodes:chain.nodes.slice(), libraryGlobal:chain.libraryGlobal, libraryPath:chain.libraryPath, cryptoPath:chain.cryptoPath}};
+  }
+  async function vizSdk(chain) {
+    for (const path of [chain.libraryPath, chain.cryptoPath]) {
+      if (global[chain.libraryGlobal] && (path === chain.libraryPath || global.sjcl)) continue;
+      await new Promise((resolve,reject) => {
+        const script = global.document.createElement('script');
+        script.src = path; script.onload = () => { script.dataset.dposLoaded = 'true'; resolve(); }; script.onerror = () => reject(vaultError('VIZ SDK unavailable'));
+        global.document.head.appendChild(script);
+      });
+    }
+  }
+  function vizDescriptor() {
+    const policy = vizPolicy(), sdk = global[policy.chain.libraryGlobal];
+    if (!sdk || !sdk.config || typeof sdk.config.get !== 'function') throw vaultError('VIZ SDK unavailable');
+    // viz_node is a connection-result cache, not configured mainnet policy.
+    // Actual per-transaction endpoint identity remains guarded by broadcast.js.
+    return Object.assign({}, policy.public, {chainId:sdk.config.get('chain_id') ?? null, addressPrefix:sdk.config.get('address_prefix') ?? null});
+  }
+  function vizControl() {
+    const item = JSON.parse(global.localStorage.getItem(VIZ_CONTROL) || 'null');
+    if (!item || JSON.stringify(Object.keys(item).sort()) !== JSON.stringify(['binding','epoch','evidence','running','settings','version']) || item.version !== 1 || item.running !== true || !Number.isSafeInteger(item.epoch) || item.epoch < 1 || item.epoch >= Number.MAX_SAFE_INTEGER || !Array.isArray(item.settings)) throw vaultError('VIZ Start required');
+    return item;
+  }
+  function vizCheckAccounts(item) {
+    const settings = JSON.parse(global.localStorage.getItem(VIZ_SETTINGS) || 'null');
+    if (!settings || !settings.accounts || Array.isArray(settings.accounts) || typeof settings.autoStart !== 'boolean') throw vaultError('VIZ settings invalid');
+    const selected = item.settings.filter(row => row.enabled);
+    if (!selected.length || new Set(item.settings.map(r=>r.account)).size !== item.settings.length) throw vaultError('VIZ accounts invalid');
+    const chain = vizPolicy().chain;
+    for (const row of item.settings) {
+      const saved = settings.accounts[row.account];
+      if (typeof row.account !== 'string' || typeof row.enabled !== 'boolean' || !Number.isInteger(Number(row.minEnergy)) || Number(row.minEnergy) < 0 || Number(row.minEnergy) > 9999 || !saved || saved.enabled !== row.enabled || String(saved.minEnergy) !== String(row.minEnergy)) throw vaultError('VIZ settings changed');
+      if (!row.enabled) continue;
+      const user = (memoryRecords.viz_users || []).find(u => loginOf(u) === row.account);
+      if (!user || !global.DposBroadcast) throw vaultError('VIZ regular key unavailable');
+      // Exercise the actual regular-key preparation, including external-account
+      // rejection, without signing or retaining/exporting the prepared key.
+      global.DposBroadcast.prepareForUser(chain, user, 'regular', 'award', [row.account,row.account,1,0,'dpos.space: VIZ self-award',[]], {});
+    }
+  }
+  async function vizMacKey() {
+    const raw = keyMaterial.get(cryptoKey);
+    if (!raw) throw vaultError('VIZ authority unavailable');
+    const material = await requireCrypto().subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);
+    return requireCrypto().subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt:encoder.encode(global.location.origin),info:encoder.encode('dpos/viz-self-award/start-evidence/v1')},material,{name:'HMAC',hash:'SHA-256',length:256},false,['sign','verify']);
+  }
+  async function vizPayload(item, descriptor) {
+    return encoder.encode(JSON.stringify({version:1,origin:global.location.origin,scope:'viz-self-award',
+      envelope:await envelopeBinding(lastEnvelopeText),revision:loadedRevision,revocation:global.localStorage.getItem(REVOCATION_KEY),
+      cancel:global.localStorage.getItem(VIZ_CANCEL),resumeRaw:global.localStorage.getItem(RESUME_KEY),binding:item.binding,epoch:item.epoch,startId:item.evidence.startId,
+      settings:item.settings,settingsRaw:global.localStorage.getItem(VIZ_SETTINGS),descriptor}));
+  }
+  function vizRemember(snapshot, item, guard) {
+    const expected = snapshot.slice(); expected[0] = JSON.stringify(item);
+    vizAdmission = {snapshot:expected,descriptor:JSON.stringify(item.evidence.descriptor),guard};
+    if (!vizAutomationAdmitted()) throw vaultError('VIZ admission changed');
+  }
+  function vizAutomationAdmitted() {
+    try {
+      if (!vizAdmission) return false;
+      assertGuard(vizAdmission.guard);
+      if (!vizUnchanged(vizAdmission.snapshot) || JSON.stringify(vizDescriptor()) !== vizAdmission.descriptor) throw vaultError('VIZ authority changed');
+      return true;
+    } catch (_) { vizAdmission = null; return false; }
+  }
+  async function vizVerify(item, snapshot, check) {
+    if (!item.evidence || JSON.stringify(Object.keys(item.evidence).sort()) !== JSON.stringify(['descriptor','mac','startId','version']) || item.evidence.version !== 1 || typeof item.evidence.startId !== 'string' || !/^[A-Za-z0-9+/=]{24}$/.test(item.evidence.startId) || typeof item.evidence.mac !== 'string') throw vaultError('VIZ Start proof required');
+    await vizSdk(vizPolicy().chain); check();
+    const descriptor = vizDescriptor();
+    const unchangedConfig = () => { check(); if (JSON.stringify(vizDescriptor()) !== JSON.stringify(item.evidence.descriptor)) throw vaultError('VIZ configuration changed'); };
+    unchangedConfig();
+    vizCheckAccounts(item);
+    const macKey = await vizMacKey(); unchangedConfig();
+    const payload = await vizPayload(item, descriptor); unchangedConfig();
+    const verified = await requireCrypto().subtle.verify('HMAC',macKey,base64ToBytes(item.evidence.mac),payload); unchangedConfig();
+    if (!verified || !vizUnchanged(snapshot)) throw vaultError('VIZ proof invalid');
+    return macKey;
+  }
+  async function vizSign(item, macKey, check) {
+    const payload = await vizPayload(item,item.evidence.descriptor); check();
+    item.evidence.mac = bytesToBase64(new Uint8Array(await requireCrypto().subtle.sign('HMAC',macKey,payload))); check();
+  }
+  function persistVizControl(item) {
+    try { writeStorage(VIZ_CONTROL,JSON.stringify(item),'VIZ consent storage unavailable'); }
+    catch (error) { lock(); throw error; }
+  }
+  async function startVizAutomation(settings, captured) {
+    requireUnlocked();
+    const guard = issueGuard();
+    let descriptorText = null;
+    const check = () => { assertGuard(guard); if (!vizUnchanged(captured) || (descriptorText && JSON.stringify(vizDescriptor()) !== descriptorText)) throw vaultError('VIZ Start cancelled'); };
+    check();
+    await vizSdk(vizPolicy().chain); check();
+    descriptorText = JSON.stringify(vizDescriptor());
+    const prior = JSON.parse(captured[0] || 'null');
+    const epoch = prior ? prior.epoch : 0;
+    if (!Number.isSafeInteger(epoch) || epoch < 0 || epoch >= Number.MAX_SAFE_INTEGER-1) throw vaultError('VIZ epoch invalid');
+    const resumeRecord = JSON.parse(global.localStorage.getItem(RESUME_KEY) || 'null');
+    if (!resumeRecord || resumeRecord.version !== 1 || resumeRecord.revision !== loadedRevision || resumeRecord.revocation !== loadedRevocation || resumeRecord.binding !== await envelopeBinding(lastEnvelopeText)) throw vaultError('VIZ resume unavailable');
+    check();
+    // Do not certify an accidentally corrupted/mixed wrapping record at Start.
+    // Validate using the existing session cookie; no new capability is retained.
+    const wrapKey = await requireCrypto().subtle.importKey('raw',base64ToBytes(resumeCookie()),'AES-GCM',false,['decrypt']); check();
+    const resumedRaw = new Uint8Array(await requireCrypto().subtle.decrypt({name:'AES-GCM',iv:base64ToBytes(resumeRecord.iv),additionalData:encoder.encode(JSON.stringify([global.location.origin,resumeRecord.binding,loadedRevocation]))},wrapKey,base64ToBytes(resumeRecord.ciphertext)));
+    let matches = false;
+    try {
+      check();
+      const raw = keyMaterial.get(cryptoKey);
+      matches = raw && raw.length === resumedRaw.length && raw.every((byte,index)=>byte === resumedRaw[index]);
+    } finally { resumedRaw.fill(0); }
+    if (!matches) throw vaultError('VIZ resume invalid');
+    const item = {version:1,running:true,epoch:epoch+1,binding:`${resumeRecord.binding}|${resumeRecord.iv}`,
+      settings:settings.map(r=>({account:r.account,enabled:r.enabled,minEnergy:r.minEnergy})),
+      evidence:{version:1,startId:bytesToBase64(randomBytes(16)),descriptor:JSON.parse(descriptorText)}};
+    vizCheckAccounts(item);
+    const macKey = await vizMacKey(); check();
+    await vizSign(item,macKey,check); check();
+    persistVizControl(item);
+    vizRemember(captured,item,guard); return item;
+  }
+  async function admitVizAutomation() {
+    vizAdmission = null;
+    requireUnlocked();
+    const snapshot = vizSnapshot(), guard = issueGuard(), item = vizControl();
+    const check = () => { assertGuard(guard); if (!vizUnchanged(snapshot)) throw vaultError('VIZ admission cancelled'); };
+    const record = JSON.parse(global.localStorage.getItem(RESUME_KEY) || 'null');
+    if (!record || item.binding !== `${record.binding}|${record.iv}`) return false;
+    try { await vizVerify(item,snapshot,check); check(); vizRemember(snapshot,item,guard); return true; }
+    catch (_) { return false; }
+  }
+  function captureVizRebind() {
+    vizResumeOutcome = 'no_candidate';
+    try {
+      if (!browserResume() || resumeCookie()) return null;
+      const snapshot = vizSnapshot(), item = vizControl();
+      const record = JSON.parse(global.localStorage.getItem(RESUME_KEY) || 'null');
+      if (!item.evidence || !record || record.version !== 1 || record.revocation !== snapshot[4] || item.binding !== `${record.binding}|${record.iv}`) return null;
+      return {snapshot,item,resume:global.localStorage.getItem(RESUME_KEY)};
+    } catch (_) { return null; }
+  }
+  async function prepareVizRebind(candidate) {
+    if (!candidate) return null;
+    const guard = issueGuard();
+    const check = () => { assertGuard(guard); if (!vizUnchanged(candidate.snapshot) || global.localStorage.getItem(RESUME_KEY) !== candidate.resume) throw vaultError('VIZ rebind cancelled'); };
+    try {
+      check();
+      const record = JSON.parse(candidate.resume);
+      if (record.revision !== loadedRevision || record.binding !== await envelopeBinding(lastEnvelopeText)) return null;
+      check(); candidate.macKey = await vizVerify(candidate.item,candidate.snapshot,check); check(); vizResumeOutcome = 'proof_verified'; return candidate;
+    } catch (_) { vizResumeOutcome = 'proof_or_snapshot_rejected'; return null; }
+  }
+  async function finishVizRebind(candidate) {
+    if (!candidate) return;
+    const guard = issueGuard(), resumeText = global.localStorage.getItem(RESUME_KEY);
+    const snapshot = candidate.snapshot.slice(); snapshot[7] = resumeText;
+    const check = () => { assertGuard(guard); if (!vizUnchanged(snapshot) || global.localStorage.getItem(RESUME_KEY) !== resumeText || JSON.stringify(vizDescriptor()) !== JSON.stringify(candidate.item.evidence.descriptor)) throw vaultError('VIZ rebind cancelled'); };
+    try {
+      check(); const record = JSON.parse(resumeText), item = candidate.item;
+      item.epoch += 1; item.binding = `${record.binding}|${record.iv}`;
+      await vizSign(item,candidate.macKey,check); check();
+      persistVizControl(item);
+      vizRemember(snapshot,item,guard); vizResumeOutcome = 'rebound'; diagnosticEvent('viz_rebind_succeeded');
+    } catch (_) { vizAdmission = null; vizResumeOutcome = 'cancelled'; diagnosticEvent('viz_rebind_cancelled'); }
   }
 
   async function importVaultKey(raw) {
@@ -535,6 +730,8 @@
   async function unlock(options) {
     diagnosticEvent('manual_unlock_requested');
     const requestedGeneration = generation;
+    const candidate = captureVizRebind();
+    const unlockRevocation = global.localStorage.getItem(REVOCATION_KEY);
     const activeText = global.localStorage.getItem(STORAGE_KEYS.active);
     const envelope = readActiveEnvelope();
     if (!envelope) throw vaultError('Активный vault не найден.');
@@ -542,7 +739,8 @@
     if (envelope.kdf.type === 'password') key = await passwordKey((options || {}).password, envelope.kdf);
     else key = await unlockPasskey(envelope);
     let payload = await decryptEnvelope(envelope, key);
-    if (generation !== requestedGeneration || global.localStorage.getItem(STORAGE_KEYS.active) !== activeText) throw vaultError('Разблокировка отменена: состояние хранилища изменено.');
+    if (generation !== requestedGeneration || global.localStorage.getItem(STORAGE_KEYS.active) !== activeText || global.localStorage.getItem(REVOCATION_KEY) !== unlockRevocation) throw vaultError('Разблокировка отменена: состояние хранилища изменено.');
+    const storageRecovery = Boolean(payload.storageRestore);
     if (payload.storageRestore) {
       const recovered = await recoverStorageRestore(payload, envelope, key);
       payload = recovered.payload;
@@ -553,6 +751,8 @@
     memoryRecords = materializeLegacy(payload.records);
     cryptoKey = key;
     loadedRevision = payload.revision;
+    loadedRevocation = unlockRevocation;
+    loadedSessionCookie = browserResume() ? resumeCookie() : null;
     lastEnvelopeText = global.localStorage.getItem(STORAGE_KEYS.active);
     cleanupSnapshot = clone(payload.legacySnapshot || {});
     state = 'unlocked';
@@ -561,7 +761,9 @@
     generation += 1;
     cleanupLegacyRecords(cleanupSnapshot);
     global.localStorage.removeItem(STORAGE_KEYS.staging);
+    const rebind = storageRecovery ? null : await prepareVizRebind(candidate);
     try { await saveResume(); } catch (error) { lock(); throw error; }
+    await finishVizRebind(rebind);
     diagnosticEvent('manual_unlock_succeeded');
     return status();
   }
@@ -569,6 +771,7 @@
   // Observing another tab's change only invalidates this tab's memory/guards.
   // Never republish revocation or delete a newer shared resume capability.
   function invalidateLocal() {
+    vizAdmission = null;
     try {
       diagnosticEvent(global.localStorage.getItem(STORAGE_KEYS.active) !== lastEnvelopeText ? 'envelope_changed_before_invalidation' : global.localStorage.getItem(REVOCATION_KEY) !== loadedRevocation ? 'revocation_changed_before_invalidation' : browserResume() && resumeCookie() !== loadedSessionCookie ? 'capability_changed_before_invalidation' : 'local_invalidation_before');
     } catch (_) { diagnosticEvent('observation_unavailable_before_invalidation'); }
@@ -916,6 +1119,13 @@
   global.DposVault = Object.freeze({
     ready,
     diagnosticSnapshot,
+    // Fixed VIZ consent operations only; no caller-selected payload/key/MAC.
+    startVizAutomation: settings => {
+      const captured = vizSnapshot();
+      return withStorageLock(startVizAutomation)(clone(settings),captured);
+    },
+    admitVizAutomation: withStorageLock(admitVizAutomation),
+    vizAutomationAdmitted,
     setup: withStorageLock(setup),
     migrate: withStorageLock(migrate),
     unlock: withStorageLock(unlock),

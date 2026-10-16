@@ -138,7 +138,7 @@ with sync_playwright() as p:
         page.wait_for_timeout(2300)
         result=page.evaluate("""()=>({running:__dposVizSelfAwardRuntime.running,
           interval:!!__dposVizSelfAwardRuntime.interval,vault:DposVault.status().state,
-          control:JSON.parse(localStorage.getItem(DposAutomationContinuity.storageKey('viz-self-award')+'_control')||'null'),
+          control:(()=>{const c=JSON.parse(localStorage.getItem(DposAutomationContinuity.storageKey('viz-self-award')+'_control')||'null');return c&&{running:c.running,epoch:c.epoch};})(),
           faults:window.fixtureStorageFaults||0,sends:Number(localStorage.fixtureSends||0),
           feed:document.querySelector('#viz-self-award-feed')?.innerText})""")
         print(json.dumps({'safetyCase':case,'state':result,'pageErrors':errors,'externalRequests':blocked},ensure_ascii=False),flush=True)
@@ -154,7 +154,7 @@ with sync_playwright() as p:
             else:
                 assert result['vault']=='locked',result
         if case.endswith('locks') or case in ['node-storage','restored-node-storage']:
-            reason = 'Web Locks required' if case.endswith('locks') else 'fixture write denied'
+            reason = ('Web Locks required' if case=='interval-locks' else 'Для безопасной записи аккаунтов') if case.endswith('locks') else 'fixture write denied'
             # Inspect after startup's final render, then after an explicit full rerender.
             assert reason in result['feed'],result
             page.evaluate("async()=>{await DposV3.renderRoute();DposI18n.setLocale('ru');}")
@@ -258,17 +258,19 @@ with sync_playwright() as p:
     before=sends();context.clear_cookies();page.reload();wait('DposVault?.status().state==="locked"')
     page.evaluate("async()=>{await DposVault.unlock({password:'fixture-only-browser-password'});dispatchEvent(new CustomEvent('dpos-vault-ready'));}")
     wait('!!document.querySelector("#viz-self-award-start")')
-    assert not state()['running'] and not state()['consent'] and sends()==before
-    checks.append('lost session cookie + later unlock requires explicit new Start')
+    wait('__dposVizSelfAwardRuntime.running && !!__dposVizSelfAwardRuntime.interval')
+    assert state()['consent'] and sends()==before
+    checks.append('authenticated cookie-loss manual unlock preserves Start and remaining cadence')
+    stop()
     # No regular key or insufficient energy must never become a send.
     fresh_intent();page.evaluate("localStorage.fixtureEnergy='9000'");start()
     wait('!__dposVizSelfAwardRuntime.tickPromise && !!__dposVizSelfAwardRuntime.interval')
     assert sends()==before and 'SKIP @alice' in state()['feed']
     stop();page.evaluate("delete localStorage.fixtureEnergy")
     page.evaluate("async()=>{await DposVault.mutate(records=>{delete records.viz_users[0].regular;});}")
-    open_app();fresh_intent();start();wait('!__dposVizSelfAwardRuntime.tickPromise && !!__dposVizSelfAwardRuntime.interval')
-    assert sends()==before and 'ERROR @alice' in state()['feed']
-    stop();checks.append('low energy and missing regular key produce zero sends')
+    open_app();fresh_intent();start();wait('__dposVizSelfAwardRuntime.startupError && !__dposVizSelfAwardRuntime.running')
+    assert sends()==before and 'Ошибка запуска' in state()['feed']
+    checks.append('low energy and missing regular key produce zero sends; unusable regular key rejected before Start admission')
     assert errors==[], errors
     print(json.dumps({'checks':checks,'pageErrors':errors,'mainnetBroadcasts':0,'externalRequestsFulfilledLocally':len(blocked)},ensure_ascii=False))
     context.close();browser.close()

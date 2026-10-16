@@ -6,13 +6,20 @@ assert(fs.existsSync('v3/js/automation-continuity.js'),'durable automation conti
 vm.runInContext(fs.readFileSync('v3/js/automation-continuity.js','utf8'),c);
 (async()=>{
  data.set('dpos_vault_session_resume_v1',JSON.stringify({binding:'vault-a'}));
- const a=c.DposAutomationContinuity; a.start('viz-self-award',[]);assert(a.readRun('viz-self-award').running);
- let sends=0;await assert.rejects(()=>a.exclusive('viz-self-award',async()=>{a.schedule('viz-self-award',432000);await a.send('viz-self-award','alice','award',()=>{},async()=>{sends++;return {};},async()=>false);}),/unknown/);
- assert.equal(sends,1);assert(a.pending('viz-self-award','alice'));assert.equal(a.remaining('viz-self-award'),432000);
- await a.exclusive('viz-self-award',async()=>{await a.send('viz-self-award','alice','award',()=>{},async()=>{sends++;},async()=>true);});assert.equal(sends,1,'unknown never replayed');
- now+=1000;assert.equal(a.remaining('viz-self-award'),431000);
- const guard=a.guard('viz-self-award');a.stop('viz-self-award');assert.throws(guard,/cancel|отмен/i);assert(!a.readRun('viz-self-award').running);assert(a.pending('viz-self-award','alice'),'Stop retains unresolved pending');
- data.set('dpos_vault_session_resume_v1',JSON.stringify({binding:'vault-b'}));assert(!a.readRun('viz-self-award').running);
+ const a=c.DposAutomationContinuity;
+ // VIZ now requires the private authenticated vault admission, even for an
+ // otherwise well-formed plaintext legacy control with a matching binding.
+ c.DposVault.vizAutomationAdmitted=()=>false;
+ data.set(a.storageKey('viz-self-award')+'_control',JSON.stringify({version:1,running:true,epoch:1,binding:'vault-a|undefined',settings:[]}));
+ assert(!a.readRun('viz-self-award').running,'plaintext legacy VIZ Start is not authority');
+ assert.throws(()=>a.start('viz-self-award',[]),/startVizAutomation/);
+ a.start('upvoter:steem',[]);assert(a.readRun('upvoter:steem').running);
+ let sends=0;await assert.rejects(()=>a.exclusive('upvoter:steem',async()=>{a.schedule('upvoter:steem',432000);await a.send('upvoter:steem','alice','award',()=>{},async()=>{sends++;return {};},async()=>false);}),/unknown/);
+ assert.equal(sends,1);assert(a.pending('upvoter:steem','alice'));assert.equal(a.remaining('upvoter:steem'),432000);
+ await a.exclusive('upvoter:steem',async()=>{await a.send('upvoter:steem','alice','award',()=>{},async()=>{sends++;},async()=>true);});assert.equal(sends,1,'unknown never replayed');
+ now+=1000;assert.equal(a.remaining('upvoter:steem'),431000);
+ const guard=a.guard('upvoter:steem');a.stop('upvoter:steem');assert.throws(guard,/cancel|отмен/i);assert(!a.readRun('upvoter:steem').running);assert(a.pending('upvoter:steem','alice'),'Stop retains unresolved pending');
+ data.set('dpos_vault_session_resume_v1',JSON.stringify({binding:'vault-b'}));assert(!a.readRun('upvoter:steem').running);
  a.start('upvoter:hive',[]);
  let release; const flight=a.exclusive('upvoter:hive',()=>a.send('upvoter:hive','alice/bob/post','vote',()=>{},()=>new Promise(r=>{release=r;}),async()=>true));
  const overlap=await a.exclusive('upvoter:hive',()=>{throw Error('overlap ran');});
