@@ -836,6 +836,14 @@
       const draft = clone(memoryRecords);
       const result = await mutator(draft);
       const canonical = canonicalizeLegacy(draft);
+      // Selecting the current account is a read-only navigation action. Do not
+      // rotate the envelope/resume authority when canonical records did not change
+      // (legacy SJCL ciphertext is randomized separately for users/current).
+      if (JSON.stringify(canonical) === JSON.stringify(canonicalizeLegacy(memoryRecords))) {
+        checkGeneration();
+        requireUnlocked();
+        return result;
+      }
       const nextRevision = loadedRevision + 1;
       const payload = { version: VERSION, revision: nextRevision, records: canonical, legacySnapshot: clone(cleanupSnapshot) };
       const envelope = await encryptPayload(payload, cryptoKey, active.kdf);

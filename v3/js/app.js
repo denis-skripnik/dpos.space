@@ -17821,7 +17821,9 @@ Memo key: ${keys.memo}`);
     event.preventDefault();
     const baseChain = chains[chainSelect.value];
     const network = networkSelect && !networkSelect.disabled ? normalizeNetworkId(baseChain, networkSelect.value) : 'mainnet';
-    try { global.localStorage.setItem(networkStorageKey(baseChain), network); } catch (error) { /* optional */ }
+    // Opening a route must not materialize a default network and revoke Start.
+    // An actual network selection remains an explicit authority change above.
+    try { if (network !== storedNetwork(baseChain)) global.localStorage.setItem(networkStorageKey(baseChain), network); } catch (error) { /* optional */ }
     const chain = resolveChainNetwork(baseChain, network);
     const app = baseChain.apps.find((item) => item.id === appSelect.value) || baseChain.apps[0];
     const selectedLogin = accountSelect && !accountSelect.disabled ? await selectSavedAccount(chain, accountSelect.value) : '';
