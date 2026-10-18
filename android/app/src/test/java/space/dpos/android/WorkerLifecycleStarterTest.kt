@@ -88,6 +88,27 @@ class WorkerLifecycleStarterTest {
         assertTrue(starter.resume(context, "app foregrounded"))
     }
 
+    @Test fun unverifiedBootstrapPausesLifecycleResumeWithoutPreferenceWritesOrCrash() {
+        val base = context
+        val name = "bootstrap-lifecycle-${java.util.UUID.randomUUID()}"
+        val root = java.io.File(base.filesDir, name).apply { mkdirs() }
+        java.io.File(root, "transaction-checkpoint").writeText("blocked directory fixture")
+        val prefs = base.getSharedPreferences(name, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("worker_enabled", true)
+            .putString("accounts", JSONArray().put(JSONObject().put("chainId", "viz").put("account", "alice").put("enabled", true)).toString())
+            .putBoolean("vizSelfAward:viz:alice", true).commit()
+        val isolated = object : android.content.ContextWrapper(base) {
+            override fun getFilesDir() = root
+            override fun getSharedPreferences(key: String, mode: Int) = if (key == "dpos_worker") prefs else super.getSharedPreferences(key, mode)
+        }
+        var starts = 0
+        val starter = WorkerLifecycleStarter(serviceRunning = { false }, serviceStarter = { _, _ -> starts++ })
+        assertFalse(starter.resume(isolated, "storage fault app open"))
+        assertEquals(0, starts)
+        assertTrue(prefs.getBoolean("worker_enabled", false))
+        assertTrue(prefs.getBoolean("vizSelfAward:viz:alice", false))
+    }
+
     private fun configureAccount(enabled: Boolean, notifications: Boolean, autoStart: Boolean) {
         val account = "alice"
         val chain = "viz"

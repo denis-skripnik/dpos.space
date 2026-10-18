@@ -25,8 +25,92 @@ data class AutoUpvoterGrantState(
     val removeGrant: Boolean = false
 )
 
-class WorkerStore(context: Context, private val securePrefsForTest: SharedPreferences? = null) : GolosDonateLedger {
-    private val prefs = context.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE)
+class WorkerStore(context: Context, private val securePrefsForTest: SharedPreferences? = null, prefsForTest: SharedPreferences? = null, checkpointForTest: TransactionCheckpointStore? = null) : GolosDonateLedger, space.dpos.android.upvoter.GolosEventBacklogStore, space.dpos.android.upvoter.VoteArchiveStore, space.dpos.android.upvoter.GolosRecoveryStore {
+    private val legacyPrefs = prefsForTest ?: context.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE)
+    internal val checkpoint = checkpointForTest ?: TransactionCheckpointStore(java.io.File(context.filesDir, "transaction-checkpoint"), legacyPrefs)
+    private val prefs: SharedPreferences = CheckpointPreferences(legacyPrefs, checkpoint)
+    override fun requiresGolosRecovery(): Boolean = checkpoint.legacyIdentityIncomplete()
+    override fun readGolosRecoveryFence(): JSONObject? = synchronized(checkpoint.lock) {
+        (checkpoint.read("golosRecoveryFence") as? String)?.let { JSONObject(it) }
+    }
+    override fun saveGolosRecoveryFence(fence: JSONObject) = synchronized(checkpoint.lock) {
+        space.dpos.android.upvoter.GolosRecoveryFence.validateFence(fence)
+        val prior = readGolosRecoveryFence()
+        if (prior != null) {
+            check(fence.getLong("cutoff") >= prior.getLong("cutoff") && fence.getLong("drain") >= prior.getLong("drain"))
+            if (prior.getBoolean("verified")) check(fence.getString("headId") == prior.getString("headId"))
+        }
+        val changes = mutableMapOf<String, Any?>("golosRecoveryFence" to fence.toString())
+        if (prior != null && prior.getString("headId") != fence.getString("headId")) {
+            changes["golosRecoveryRejectedFence:${prior.getString("headId")}"] = prior.toString()
+        }
+        checkpoint.put(changes)
+    }
+    /** Called only while the runner owns the global writer gate, after independent admission.
+     * Ordinary saveGolosRecoveryFence keeps its verified-anchor immutability unchanged. */
+    fun migrateReviewedGolosFence(admitted: space.dpos.android.upvoter.GolosProductionPolicy.Admitted, canAct: () -> Boolean): Boolean = synchronized(checkpoint.lock) {
+        checkpoint.assertActivated()
+        val prior = readGolosRecoveryFence() ?: return@synchronized false
+        val committed = readGolosProductionTransition()
+        if (committed != null) {
+            check(prior.getLong("cutoff") >= JSONObject(committed.getString("initialFence")).getLong("cutoff"))
+            return@synchronized false // Never recapture/restart the drain of a committed epoch.
+        }
+        if (!space.dpos.android.upvoter.GolosProductionPolicy.isReviewedForeign(prior)) return@synchronized false
+        check(checkpoint.legacyIdentityIncomplete() && canAct()) { "production_migration_not_permitted" }
+        val drain = maxOf(prior.getLong("drain"), prior.getLong("cutoff"), Math.addExact(maxOf(admitted.headTime, admitted.observedAtMs / 1000), 3720L))
+        val next = JSONObject().put("schema", 1).put("chainId", space.dpos.android.upvoter.GrapheneChainSpecs.require("golos").networkChainIdHex)
+            .put("endpoint", admitted.rpc.recoveryEndpoint).put("head", admitted.head).put("headId", admitted.headId).put("headTime", admitted.headTime)
+            .put("observedAtMs", admitted.observedAtMs).put("observedLib", admitted.lib).put("verifiedLib", 0L).put("verifiedLibTime", 0L)
+            .put("verifiedAtMs", 0L).put("drain", drain).put("cutoff", maxOf(prior.getLong("cutoff"), drain, admitted.headTime)).put("verified", false)
+        space.dpos.android.upvoter.GolosRecoveryFence.validateFence(next)
+        checkpoint.mutate { state ->
+            check(canAct()) { "production_cancelled" }
+            val entries = state.getJSONObject("entries")
+            check(!entries.has("golosProductionTransition")) { "production_transition_already_committed" }
+            val raw = TransactionCheckpointStore.untyped(entries.getJSONObject("golosRecoveryFence")) as String
+            check(raw == prior.toString()) { "production_fence_changed" }
+            val quarantined = JSONArray()
+            entries.keys().asSequence().filter { it.startsWith("pendingTransaction:") || it.startsWith("voteArchive:golos:") }.toList().forEach { key ->
+                // Invalid scopes remain untouched and fail closed in their existing readers.
+                if (!state.getJSONObject("invalid").has(key)) {
+                    val value = TransactionCheckpointStore.untyped(entries.getJSONObject(key)) as String
+                    if (key.startsWith("voteArchive:golos:")) {
+                        val rows = JSONArray(value)
+                        for (i in 0 until rows.length()) quarantined.put(TransactionCheckpointStore.identity(rows.getJSONObject(i).getJSONObject("intent")))
+                    } else {
+                        val p = JSONObject(value)
+                        if (p.optString("chainId") == "golos") quarantined.put(TransactionCheckpointStore.identity(p))
+                    }
+                }
+            }
+            val record = JSONObject().put("schema", 1).put("policy", space.dpos.android.upvoter.GolosProductionPolicy.ID)
+                .put("checkpointId", space.dpos.android.upvoter.GolosProductionPolicy.CHECKPOINT_ID).put("oldFence", raw)
+                .put("provenance", "reviewed-device-anchor-beta-next-header-and-LIB;golos.id-product-config;irreversible-user-bot-block")
+                .put("initialFence", next.toString()).put("epoch", space.dpos.android.upvoter.GolosProductionPolicy.ID + ":" + admitted.headId)
+                .put("quarantinedIdentities", quarantined)
+            entries.put("golosProductionTransition", TransactionCheckpointStore.typed(record.toString()))
+            entries.put("golosRecoveryFence", TransactionCheckpointStore.typed(next.toString()))
+        }
+        true
+    }
+    fun readGolosProductionTransition(): JSONObject? = (checkpoint.read("golosProductionTransition") as? String)?.let { JSONObject(it) }
+    override fun golosProductionEpoch(): String? = readGolosProductionTransition()?.getString("epoch")
+    override fun isGolosForeignIntent(intent: PendingBroadcastIntent): Boolean {
+        if (intent.chainId != "golos") return false
+        val r = readGolosProductionTransition() ?: return false
+        val id = TransactionCheckpointStore.identity(pendingJson(intent))
+        val ids = r.getJSONArray("quarantinedIdentities")
+        return (0 until ids.length()).any { ids.getString(it) == id }
+    }
+    override fun golosFenceForGeneration(generation: JSONObject): JSONObject? {
+        val active = readGolosRecoveryFence()
+        if (active?.optString("headId") == generation.optString("fenceId")) return active
+        return readGolosProductionTransition()?.getString("oldFence")?.let { JSONObject(it) }
+            ?.takeIf { it.getString("headId") == generation.optString("fenceId") }
+    }
+    fun checkpointStatus(): JSONObject = checkpoint.status()
+    fun retryCheckpointStorage(force: Boolean = true): Boolean = checkpoint.retryStorage(force)
     private val diagnosticJournal = DiagnosticJournal(context.applicationContext)
     private val secure by lazy {
         securePrefsForTest ?: run {
@@ -42,6 +126,15 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     }
 
     fun workerEnabled(): Boolean = prefs.getBoolean("worker_enabled", false)
+    // A new epoch starts independent intake; the complete old key remains immutable evidence.
+    // Endpoint/API scoping stays inside each epoch's GolosEventBacklog state.
+    private fun voteBacklogKey(account: String): String = "voteBacklog:golos:$account" +
+        ":epoch:" + (golosProductionEpoch() ?: "${space.dpos.android.upvoter.GolosProductionPolicy.ID}:initial")
+    override fun readVoteBacklog(account: String): JSONObject =
+        JSONObject(prefs.getString(voteBacklogKey(account), "{}") ?: "{}")
+    override fun saveVoteBacklog(account: String, state: JSONObject) {
+        check(prefs.edit().putString(voteBacklogKey(account), state.toString()).commit()) { "could not durably save vote inbox" }
+    }
     fun setWorkerEnabled(enabled: Boolean) = prefs.edit().putBoolean("worker_enabled", enabled).apply()
 
     /** Only transfers a previously opted-in pool into an existing active native grant. */
@@ -221,8 +314,82 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         }
     }
 
+    private fun voteCommit(editor: SharedPreferences.Editor) {
+        checkpoint.assertActivated()
+        check(editor.commit()) { "checkpoint write unverified; sends blocked" }
+    }
+    private fun archiveKey(chainId: String, account: String) = "voteArchive:${chainId.lowercase()}:${account.lowercase()}"
+    private fun validateArchived(intent: PendingBroadcastIntent, chainId: String, account: String) {
+        val fields = intent.fingerprint.split('|')
+        require(intent.kind == "vote" && intent.chainId == chainId && intent.account == account &&
+            fields.size == 3 && fields[0].isNotBlank() && fields[1].isNotBlank() &&
+            fields[2].toIntOrNull()?.let { it in -10000..10000 } == true &&
+            (intent.transactionId == null || Regex("[0-9a-fA-F]{40}").matches(intent.transactionId))) {
+            "invalid archived vote; sends blocked"
+        }
+        intent.recoveryGeneration?.let { encoded ->
+            val g = JSONObject(encoded)
+            val original = golosFenceForGeneration(g) ?: error("original generation fence unavailable; archive retained")
+            space.dpos.android.upvoter.GolosRecoveryFence.validateGeneration(g, original, intent.fingerprint)
+        }
+    }
+    override fun voteArchive(chainId: String, account: String): List<space.dpos.android.upvoter.ArchivedVote> = synchronized(checkpoint.lock) {
+        checkpoint.assertActivated()
+        val rows = JSONArray(prefs.getString(archiveKey(chainId, account), "[]"))
+        (0 until rows.length()).map { i ->
+            val row = rows.getJSONObject(i)
+            val intent = parsePending(row.getJSONObject("intent").toString())
+            validateArchived(intent, chainId, account)
+            require(row.opt("confirmed") is Boolean) { "invalid archive state; sends blocked" }
+            space.dpos.android.upvoter.ArchivedVote(intent, row.getBoolean("confirmed"))
+        }
+    }
+    private fun archiveJson(entries: List<space.dpos.android.upvoter.ArchivedVote>) = JSONArray().apply {
+        entries.forEach { put(JSONObject().put("intent", pendingJson(it.intent)).put("confirmed", it.confirmed)) }
+    }.toString()
+    override fun archiveActiveVote(chainId: String, account: String) = synchronized(checkpoint.lock) {
+        val entries = voteArchive(chainId, account).toMutableList() // validate entire ledger even without an active slot
+        val active = readPending("vote", chainId, account) ?: return@synchronized
+        validateArchived(active, chainId, account)
+        // No overwrite, even if two observations carry the same identity.
+        require(entries.none { it.intent.transactionId != null && it.intent.transactionId == active.transactionId }) { "duplicate active/archive identity; sends blocked" }
+        entries += space.dpos.android.upvoter.ArchivedVote(active.copy(state = PendingBroadcastState.UNKNOWN))
+        voteCommit(prefs.edit().putString(archiveKey(chainId, account), archiveJson(entries)).remove(pendingKey("vote", chainId, account)))
+    }
+    override fun updateArchivedVote(entry: space.dpos.android.upvoter.ArchivedVote) = synchronized(checkpoint.lock) {
+        val intent = entry.intent
+        validateArchived(intent, intent.chainId, intent.account)
+        val entries = voteArchive(intent.chainId, intent.account).toMutableList()
+        val index = entries.indexOfFirst { TransactionCheckpointStore.identity(pendingJson(it.intent)) == TransactionCheckpointStore.identity(pendingJson(intent)) }
+        check(index >= 0) { "archive identity missing; sends blocked" }
+        check(!entries[index].confirmed || entry.confirmed) { "confirmed archive cannot become unknown" }
+        check(entries[index].intent.recoveryGeneration == intent.recoveryGeneration) { "archived generation evidence is immutable" }
+        check(!entry.confirmed || entries[index].confirmed || !isGolosForeignIntent(intent)) { "retired proof cannot confirm on production" }
+        entries[index] = entry
+        checkpoint.mutate { state ->
+            state.getJSONObject("entries").put(archiveKey(intent.chainId, intent.account), TransactionCheckpointStore.typed(archiveJson(entries)))
+            if (entry.confirmed) {
+                val identity = pendingJson(intent); val id = TransactionCheckpointStore.identity(identity)
+                val terminals = state.getJSONObject("terminal")
+                if (!terminals.has(id)) terminals.put(id, JSONObject().put("identity", identity).put("reason", "confirmed").put("atMs", System.currentTimeMillis()))
+            }
+        }
+    }
+    override fun nextArchivedVote(chainId: String, account: String): space.dpos.android.upvoter.ArchivedVote? = synchronized(checkpoint.lock) {
+        val entries = voteArchive(chainId, account).toMutableList()
+        val index = entries.indexOfFirst { !it.confirmed } .takeIf { it >= 0 } ?: return@synchronized null
+        val selected = entries.removeAt(index)
+        entries += selected
+        voteCommit(prefs.edit().putString(archiveKey(chainId, account), archiveJson(entries)))
+        selected
+    }
+
     override fun readPending(kind: String, chainId: String, account: String): PendingBroadcastIntent? {
+        checkpoint.assertActivated()
         val raw = prefs.getString(pendingKey(kind, chainId, account), null) ?: return null
+        return parsePending(raw)
+    }
+    private fun parsePending(raw: String): PendingBroadcastIntent {
         return runCatching {
             val json = JSONObject(raw)
             PendingBroadcastIntent(
@@ -234,12 +401,80 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
                 json.optLong("expirationEpochSeconds", -1).takeIf { it > 0 },
                 json.optLong("observedChainTimeSeconds", -1).takeIf { it > 0 },
                 json.optLong("observedHeadBlock", -1).takeIf { it > 0 },
-                json.optLong("includedBlockNumber", -1).takeIf { it > 0 }
+                json.optLong("includedBlockNumber", -1).takeIf { it > 0 },
+                json.optJSONObject("recoveryCursors")?.let { obj -> obj.keys().asSequence().associateWith { obj.getLong(it) } } ?: emptyMap(),
+                json.optInt("recoveryScopeTurn", 0),
+                json.optString("recoveryGeneration").takeIf { it.isNotBlank() }
             )
         }.getOrElse { throw IllegalStateException("pending transaction record is invalid; automatic replay is blocked") }
     }
 
-    override fun savePending(intent: PendingBroadcastIntent) {
+    override fun savePending(intent: PendingBroadcastIntent) = synchronized(checkpoint.lock) {
+        val json = pendingJson(intent)
+        val id = TransactionCheckpointStore.identity(json)
+        var currentPreparation = false
+        checkpoint.mutate { state ->
+            val entries = state.getJSONObject("entries")
+            val key = pendingKey(intent.kind, intent.chainId, intent.account)
+            check(!state.getJSONObject("invalid").has(key)) { "invalid legacy section retained" }
+            check(!state.getJSONObject("terminal").has(id)) { "terminal intent cannot be resurrected" }
+            val old = entries.optJSONObject(key)?.let { JSONObject(TransactionCheckpointStore.untyped(it) as String) }
+            if (old == null && intent.kind == "vote" && intent.chainId == "golos") {
+                if (state.getBoolean("legacyIdentityIncomplete")) {
+                    val fence = entries.getJSONObject("golosRecoveryFence").let { JSONObject(TransactionCheckpointStore.untyped(it) as String) }
+                    space.dpos.android.upvoter.GolosRecoveryFence.validateGeneration(JSONObject(intent.recoveryGeneration ?: error("future generation proof required")), fence, intent.fingerprint)
+                }
+                val archiveKey = archiveKey(intent.chainId, intent.account)
+                check(!state.getJSONObject("invalid").has(archiveKey)) { "invalid archive scope retained" }
+                val rows = entries.optJSONObject(archiveKey)?.let { JSONArray(TransactionCheckpointStore.untyped(it) as String) } ?: JSONArray()
+                for (i in 0 until rows.length()) {
+                    val prior = rows.getJSONObject(i).getJSONObject("intent")
+                    check(TransactionCheckpointStore.identity(prior) != id) { "archived identity cannot be resurrected" }
+                    check(prior.getString("fingerprint").split('|').take(2) != intent.fingerprint.split('|').take(2)) { "known target remains quarantined across generations and weights" }
+                }
+            }
+            currentPreparation = old == null && intent.state == PendingBroadcastState.PREPARED
+            if (old != null) {
+                check(TransactionCheckpointStore.identity(old) == id) { "active intent overwrite blocked" }
+                check(old.optString("state") != "UNKNOWN" || intent.state == PendingBroadcastState.UNKNOWN) { "unknown intent cannot become prepared" }
+                check(old.opt("recoveryGeneration") == json.opt("recoveryGeneration")) { "generation evidence cannot change" }
+                // Receipt observations and signed expiration may not be erased by a stale update.
+                listOf("expirationEpochSeconds", "observedChainTimeSeconds", "observedHeadBlock", "includedBlockNumber").forEach { field ->
+                    if (old.has(field)) check(json.has(field) && old.getLong(field) == json.getLong(field)) { "stale intent metadata update" }
+                }
+            }
+            entries.put(key, TransactionCheckpointStore.typed(json.toString()))
+        }
+        if (currentPreparation) checkpoint.registerCurrentPreparation(id)
+    }
+    override fun markTransportEntered(intent: PendingBroadcastIntent, canAct: () -> Boolean): Boolean = synchronized(checkpoint.lock) {
+        val current = readPending(intent.kind, intent.chainId, intent.account)
+        val id = TransactionCheckpointStore.identity(pendingJson(intent))
+        check(current != null && TransactionCheckpointStore.identity(pendingJson(current)) == id) { "transport identity lost" }
+        check(!isGolosForeignIntent(intent)) { "retired branch intent cannot enter transport" }
+        check(checkpoint.currentUnsent(id)) { "only a current, never-attempted preparation may enter transport" }
+        // Refresh permission after potentially blocking filesystem reads, before consuming proof.
+        if (!canAct()) return@synchronized false
+        check(checkpoint.enterTransport(id)) { "transport already entered" }
+        true
+    }
+    override fun assertTransactionAuthority(kind: String, chainId: String, account: String) {
+        checkpoint.assertActivated()
+        checkpoint.read(pendingKey(kind, chainId, account)) // Validate this scope before signing.
+    }
+    override fun assertFreshIntentAllowed(kind: String, chainId: String, account: String) = synchronized(checkpoint.lock) {
+        assertTransactionAuthority(kind, chainId, account)
+        if (kind == "vote" && chainId == "golos") {
+            voteArchive(chainId, account)
+            check(!checkpoint.legacyIdentityIncomplete()) {
+                "legacy Golos identity set incomplete; only endpoint-bound verified future-generation preparation is allowed"
+            }
+        }
+    }
+    override fun confirmedAt(kind: String, chainId: String, account: String): Long? =
+        if (kind == "self_award" && chainId == "viz") lastVizSelfAwardAt(account) else null
+
+    private fun pendingJson(intent: PendingBroadcastIntent): JSONObject {
         val json = JSONObject().put("kind", intent.kind).put("chainId", intent.chainId)
             .put("account", intent.account).put("fingerprint", intent.fingerprint)
             .put("historyBaseline", intent.historyBaseline).put("state", intent.state.name)
@@ -249,16 +484,65 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         intent.observedChainTimeSeconds?.let { json.put("observedChainTimeSeconds", it) }
         intent.observedHeadBlock?.let { json.put("observedHeadBlock", it) }
         intent.includedBlockNumber?.let { json.put("includedBlockNumber", it) }
-        check(prefs.edit().putString(pendingKey(intent.kind, intent.chainId, intent.account), json.toString()).commit()) {
-            "could not durably save pending broadcast intent"
+        json.put("recoveryCursors", JSONObject(intent.recoveryCursors))
+        json.put("recoveryScopeTurn", intent.recoveryScopeTurn)
+        intent.recoveryGeneration?.let { json.put("recoveryGeneration", it) }
+        return json
+    }
+
+    override fun clearPending(kind: String, chainId: String, account: String): Unit =
+        error("identity-bearing completion and explicit reason required; blind clear rejected")
+
+    override fun completePending(intent: PendingBroadcastIntent, reason: space.dpos.android.upvoter.PendingCompletionReason, atMs: Long) = synchronized(checkpoint.lock) {
+        check(!isGolosForeignIntent(intent)) { "retired branch intent cannot settle or be cleared on production" }
+        val identity = pendingJson(intent)
+        val id = TransactionCheckpointStore.identity(identity)
+        val terminalReason = reason.name.lowercase(java.util.Locale.ROOT)
+        checkpoint.mutate { state ->
+            val terminals = state.getJSONObject("terminal")
+            if (terminals.has(id)) {
+                check(terminals.getJSONObject(id).getString("reason") == terminalReason) { "terminal reason conflict" }
+                return@mutate
+            }
+            require(atMs > 0)
+            val entries = state.getJSONObject("entries")
+            val key = pendingKey(intent.kind, intent.chainId, intent.account)
+            check(!state.getJSONObject("invalid").has(key)) { "invalid legacy section retained" }
+            val active = entries.optJSONObject(key)?.let { JSONObject(TransactionCheckpointStore.untyped(it) as String) }
+            check(active != null && TransactionCheckpointStore.identity(active) == id) { "stale completion identity" }
+            // UNSENT_CANCELLED is issued only by the current runtime before entering transport.
+            if (reason == space.dpos.android.upvoter.PendingCompletionReason.UNSENT_CANCELLED)
+                check(active.optString("state") == "PREPARED" && checkpoint.currentUnsent(id)) { "persisted PREPARED alone is not proof of unsent" }
+            checkpoint.retirePreparation(id)
+            if (reason == space.dpos.android.upvoter.PendingCompletionReason.UNKNOWN_EXPIRED)
+                require(intent.kind == "self_award" && intent.chainId == "viz")
+            terminals.put(id, JSONObject().put("identity", active).put("reason", terminalReason).put("atMs", atMs))
+            entries.remove(key)
+            if (reason == space.dpos.android.upvoter.PendingCompletionReason.CONFIRMED) when (intent.kind) {
+                "donate" -> entries.put("donateReceipt:golos:${intent.account}:${intent.fingerprint.substringBefore('|')}", TransactionCheckpointStore.typed(true))
+                "self_award" -> {
+                    val cadenceKey = "lastVizSelfAwardAt:viz:${intent.account}"
+                    val oldAt = entries.optJSONObject(cadenceKey)?.let { TransactionCheckpointStore.untyped(it) as Long } ?: 0L
+                    entries.put(cadenceKey, TransactionCheckpointStore.typed(maxOf(oldAt, atMs)))
+                }
+            }
         }
     }
 
-    override fun clearPending(kind: String, chainId: String, account: String) {
-        prefs.edit().remove(pendingKey(kind, chainId, account)).commit()
-    }
-
     fun pendingDiagnostics(kind: String, chainId: String, account: String, now: Long): JSONObject {
+        val result = pendingActiveDiagnostics(kind, chainId, account, now)
+        if (kind == "vote" && chainId == "golos") {
+            try {
+                val archive = voteArchive(chainId, account)
+                result.put("archive", JSONArray().apply { archive.forEach { entry ->
+                    put(pendingJson(entry.intent).put("confirmed", entry.confirmed))
+                } })
+                result.put("unresolvedCount", archive.count { !it.confirmed })
+            } catch (_: Exception) { result.put("archiveStatus", "invalid_record_replay_blocked") }
+        }
+        return result
+    }
+    private fun pendingActiveDiagnostics(kind: String, chainId: String, account: String, now: Long): JSONObject {
         val pending = runCatching { readPending(kind, chainId, account) }.getOrElse {
             return JSONObject().put("kind", kind).put("status", "invalid_record_replay_blocked")
         } ?: return JSONObject().put("kind", kind).put("status", "none")
@@ -279,6 +563,8 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         return JSONObject().put("kind", kind).put("status", pending.state.name.lowercase())
             .put("operation", identity)
             .put("historyBaseline", pending.historyBaseline)
+            .put("recoveryCursors", JSONObject(pending.recoveryCursors))
+            .put("recoveryScopeTurn", pending.recoveryScopeTurn)
             .put("transactionId", txId ?: JSONObject.NULL)
             .put("identity", if (txId != null) "exact_transaction" else "operation_only")
             .put("ageSeconds", pending.createdAtMs?.let { ((now - it).coerceAtLeast(0L)) / 1000 } ?: JSONObject.NULL)
@@ -301,11 +587,18 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
 
     fun appendLog(message: String, level: String = "info") {
         val sanitized = DiagnosticSanitizer.sanitize(message, 16_000)
+        // Independent diagnostic sinks cannot block callbacks, Stop or service lifecycle.
         diagnosticJournal.append(sanitized, level)
-        synchronized(shortLogLock) {
-            val old = prefs.getString("logs", "").orEmpty().lines().filter { it.isNotBlank() }.takeLast(120)
-            val next = (old + "${System.currentTimeMillis()} [$level] ${PayloadSanitizer.redactLog(sanitized)}").takeLast(160).joinToString("\n")
-            prefs.edit().putString("logs", next).apply()
+        runCatching { android.util.Log.println(android.util.Log.INFO, "DposWorker", DiagnosticSanitizer.sanitize(sanitized, 2000)) }
+        runCatching {
+            synchronized(shortLogLock) {
+                // Reject BEFORE even opening the ordinary editor. A log-only flush can
+                // persist poisoned legacy transaction values from Android's cached map.
+                checkpoint.assertPreferencesWritable()
+                val old = prefs.getString("logs", "").orEmpty().lines().filter { it.isNotBlank() }.takeLast(120)
+                val next = (old + "${System.currentTimeMillis()} [$level] ${PayloadSanitizer.redactLog(sanitized)}").takeLast(160).joinToString("\n")
+                prefs.edit().putString("logs", next).apply()
+            }
         }
     }
     fun clearLogs() = prefs.edit().remove("logs").remove("lastError").remove("lastRunSummary").apply()

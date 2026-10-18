@@ -124,6 +124,7 @@ class VizSelfAwardRuntime(
     fun execute(account: String, minEnergy: Int, keyRef: EncryptedKeyRef?, privateWif: String?): VizSelfAwardResult {
         val clean = account.trim().removePrefix("@").lowercase(Locale.ROOT)
         if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked before signing", VizSelfAwardOperation(clean, 1))
+        pendingStore?.assertTransactionAuthority("self_award", "viz", clean)
         val accountJson = try { rpcClient.getAccount(clean) } catch (e: Exception) {
             return VizSelfAwardResult(false, "account_fetch_failed", "could not fetch VIZ account @${clean}: ${PayloadSanitizer.text(e.message, 160)}", VizSelfAwardOperation(clean, 1))
         } ?: return VizSelfAwardResult(false, "account_not_found", "VIZ account @${clean} not found", VizSelfAwardOperation(clean, 1))
@@ -145,7 +146,7 @@ class VizSelfAwardRuntime(
                 runCatching { confirmSelfAward(clean, previousSpend, pending.historyBaseline, pending.transactionId, requireDefaultBeneficiary = isFeeAward) }.getOrNull()
             } else null
             if (confirmed != null) {
-                pendingStore.clearPending("self_award", "viz", clean)
+                pendingStore.completePending(pending, PendingCompletionReason.CONFIRMED)
                 return VizSelfAwardResult(true, "broadcast_confirmed", "previous VIZ self-award confirmed irreversible at block #${confirmed.index}", VizSelfAwardOperation(clean, previousSpend!!))
             }
             if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
@@ -164,7 +165,7 @@ class VizSelfAwardRuntime(
             if (deadline != null && watched.observedHeadBlock != null && head.first > watched.observedHeadBlock && head.second >= deadline &&
                 (watched.includedBlockNumber == null || lib >= watched.includedBlockNumber)) {
                 if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
-                pendingStore.clearPending("self_award", "viz", clean)
+                pendingStore.completePending(watched, PendingCompletionReason.UNKNOWN_EXPIRED)
                 // The old signed transaction cannot be accepted now. This tick has already
                 // passed the full cadence; proceed through the normal fresh-award guards.
                 expiredPriorPending = true
@@ -176,6 +177,10 @@ class VizSelfAwardRuntime(
             return VizSelfAwardResult(true, "low_energy_skip", "@${clean}: energy ${current?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"}% is not above minimum ${VizSelfAwardPolicy.normalizeMinEnergy(minEnergy) / 100.0}%", op,
                 diagnostics = if (expiredPriorPending) JSONObject().put("priorPendingOutcome", "unknown_expired") else null)
         }
+        pendingStore?.assertFreshIntentAllowed("self_award", "viz", clean)
+        val lastConfirmedAt = pendingStore?.confirmedAt("self_award", "viz", clean)
+        if (lastConfirmedAt != null && System.currentTimeMillis() - lastConfirmedAt < 432_000L)
+            return VizSelfAwardResult(true, "recent_skip", "confirmed VIZ cooldown retained in transaction authority", op)
         val fingerprint = "v2|$spend|$VIZ_SELF_AWARD_MEMO|$VIZ_DEFAULT_BENEFICIARY_ACCOUNT|$VIZ_DEFAULT_BENEFICIARY_WEIGHT"
         val authorityCheck = verifyRegularAuthority(clean, keyRef, privateWif, accountJson, op)
         if (authorityCheck != null) return authorityCheck
@@ -211,14 +216,18 @@ class VizSelfAwardRuntime(
                 return signed.copy(ok = false, status = "stale_chain_head", reason = "VIZ signing head became stale before durable intent")
             pendingStore?.savePending(pending)
             if (!canAct()) {
-                pendingStore?.clearPending("self_award", "viz", clean)
+                pendingStore?.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
+                return signed.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
+            }
+            if (pendingStore?.markTransportEntered(pending, canAct) == false) {
+                pendingStore.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
                 return signed.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
             }
             val response = broadcaster.broadcast(signed.signedTransaction)
             pendingStore?.savePending(pending.copy(state = PendingBroadcastState.UNKNOWN))
             val confirmation = confirmSelfAward(clean, spend, baseline, txId, requireDefaultBeneficiary = true)
             if (confirmation != null) {
-                pendingStore?.clearPending("self_award", "viz", clean)
+                pendingStore?.completePending(pending, PendingCompletionReason.CONFIRMED)
                 signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award irreversible: @${clean} spent ${spend} energy bp in block #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedBlockNumber", confirmation.index))
             } else if (spec.asyncBroadcastOnly) {
                 signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ async broadcast returned; exact transaction is not yet irreversible; next periodic check will retry read-only confirmation", rpcResponse = response)
@@ -235,7 +244,8 @@ class VizSelfAwardRuntime(
                 }
             }
         } catch (e: Exception) {
-            pendingStore?.readPending("self_award", "viz", clean)?.let { pendingStore.savePending(it.copy(state = PendingBroadcastState.UNKNOWN)) }
+            // No recursive storage repair or fresh read after transport; PREPARED also remains unknown after restart.
+            // A failed terminal write may already have replaced the base, so never resurrect here.
             signed.copy(ok = false, status = "broadcast_error", reason = PayloadSanitizer.text(e.message.orEmpty().ifBlank { "native VIZ self-award broadcast failed" }, 300), rpcResponse = JSONObject().put("error", PayloadSanitizer.text(e.message.orEmpty(), 500)))
         }
         return if (expiredPriorPending) submission.copy(diagnostics = (submission.diagnostics ?: JSONObject()).put("priorPendingOutcome", "unknown_expired")) else submission

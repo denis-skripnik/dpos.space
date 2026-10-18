@@ -103,9 +103,32 @@ class DposWorkerRunner(
     private val historyOverride: ((String) -> GolosHistoryClient)? = null,
     private val rpcOverride: ((String) -> GolosRpcClient)? = null,
     private val eventsOverride: ((String, List<AccountSettings>) -> List<VoteEvent>)? = null,
+    private val recoveryWall: () -> Long = { System.currentTimeMillis() },
+    private val recoveryMonotonic: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    private val productionPolicy: space.dpos.android.upvoter.GolosProductionPolicy = space.dpos.android.upvoter.GolosProductionPolicy(),
     private val statusSink: ((String) -> Unit)? = null
 ) {
 
+    private fun pinRecoveryRpc(rpc: GolosRpcClient, permit: () -> Boolean): GolosRpcClient {
+        val lane = space.dpos.android.upvoter.GolosRecoveryFence(store::readGolosRecoveryFence, store::saveGolosRecoveryFence, recoveryWall, recoveryMonotonic, permit)
+        var detail = "production_endpoint_unavailable"
+        for (endpoint in rpc.recoveryClients()) {
+            check(permit()) { "recovery_cancelled" }
+            val admitted = try { productionPolicy.admit(endpoint, recoveryWall, recoveryMonotonic, permit) }
+                catch (e: Exception) { detail = PayloadSanitizer.text(e.message, 180); continue }
+            // Ownership is held across admission, atomic retirement and all subsequent writers.
+            store.migrateReviewedGolosFence(admitted, permit)
+            if (store.requiresGolosRecovery()) {
+                try { lane.verify(admitted.rpc) } catch (e: Exception) {
+                    store.checkpoint.assertActivated()
+                    detail = PayloadSanitizer.text(e.message, 180)
+                    continue
+                }
+            }
+            return admitted.rpc
+        }
+        throw IllegalStateException("production_degraded: $detail; no peer fallback or replay")
+    }
     private fun publishStatus(status: String) {
         statusSink?.invoke(PayloadSanitizer.text(status, 520))
     }
@@ -145,6 +168,12 @@ class DposWorkerRunner(
     private fun runOnceLocked(reason: String = "manual"): WorkerRunSummary {
         val runToken = WorkerCancellation.token { store.workerEnabled() }
         val startedAt = System.currentTimeMillis()
+        if (store.checkpointStatus().optString("authority") != "verified" && !store.retryCheckpointStorage(force = false)) {
+            val message = "Хранилище транзакций не подтверждено; отправка приостановлена, повторная проверка с задержкой; ключи и настройки сохранены."
+            publishStatus(message)
+            return WorkerRunSummary(false, "storage_unverified", 0, 0, 0, 0, 0, 0, 0, listOf(message), listOf(message), startedAt)
+        }
+        if (!runToken.mayContinue()) return WorkerRunSummary(true, "cancelled", 0, 0, 0, 0, 0, 0, 1, emptyList(), emptyList(), startedAt)
         store.setLastTick(startedAt)
         store.setLastError(null)
         store.appendLog("check started; reason=$reason; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE}); vizBroadcast=${if (GrapheneChainSpecs.require("viz").asyncBroadcastOnly) "broadcast_transaction" else "broadcast_transaction_synchronous"}")
@@ -164,7 +193,8 @@ class DposWorkerRunner(
         val messages = mutableListOf<String>()
         val autoUpvoterFeed = mutableListOf<JSONObject>()
         val storedAccounts = store.readAccounts()
-        val activeAccounts = storedAccounts.filter { it.enabled }
+        val golosOnly = reason == "foreground-golos"
+        val activeAccounts = storedAccounts.filter { it.enabled && (!golosOnly || it.chainId == "golos" && store.autoUpvoterEnabled("golos", it.account)) }
         val enabledStored = storedAccounts.count { it.enabled }
         store.appendLog("accounts loaded; active=${activeAccounts.size}; stored=${storedAccounts.size}; enabled=$enabledStored")
         publishStatus("проверка началась; аккаунтов: ${activeAccounts.size}; уведомление обновляется тихо без звука")
@@ -183,7 +213,7 @@ class DposWorkerRunner(
                 val vizEnergyLabel = vizEnergy?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"
                 store.appendLog("viz:${account.account}: energy monitor; energy=${vizEnergyLabel}%")
             }
-            if (store.notificationEnabled(account.chainId, account.account)) {
+            if (!golosOnly && store.notificationEnabled(account.chainId, account.account)) {
                 notificationChecks += 1
                 try {
                     val cursor = store.readCursor(account.chainId, account.account)
@@ -223,18 +253,28 @@ class DposWorkerRunner(
                     skipped += 1
                     continue
                 }
-                // Reconcile before key, energy, or candidate planning. No signing/broadcast here.
-                if (spec.id == "golos" && store.autoDonatePool("golos", account.account) != null) {
-                    val permit = { runToken.mayContinue() && store.autoUpvoterEnabled("golos", account.account) && store.autoDonatePool("golos", account.account) != null }
-                    if (permit()) try {
-                        val result = GolosDonateRuntime(rpcClient(spec), historyClient(spec), store, canAct = permit)
-                            .reconcilePending(account.account)
-                        if (result.status != "donate_no_pending") store.appendLog("golos:${account.account}: pending auto-donate ${result.status}", if (result.confirmed) "info" else "warning")
-                    } catch (e: Exception) {
-                        store.appendLog("golos:${account.account}: pending auto-donate reconciliation unavailable: ${PayloadSanitizer.text(e.message.orEmpty(), 200)}", "warning")
-                    }
-                }
+                // Admission/retirement runs under exclusive ownership BEFORE any GOLOS
+                // reconciliation, including donations. Migration/drain cannot settle old work.
                 try {
+                    val accountPermit = { runToken.mayContinue() && store.autoUpvoterEnabled(account.chainId, account.account) }
+                    val configuredRpc = rpcClient(spec)
+                    val rpc = if (spec.id == "golos") pinRecoveryRpc(configuredRpc, accountPermit) else configuredRpc
+                    val voteHistory = if (spec.id == "golos") rpc.recoveryHistory() ?: error("production_history_unbound") else historyClient(spec)
+                    if (spec.id == "golos" && store.autoDonatePool("golos", account.account) != null) {
+                        val permit = { accountPermit() && store.autoDonatePool("golos", account.account) != null }
+                        val result = GolosDonateRuntime(rpc, voteHistory, store, canAct = permit).reconcilePending(account.account)
+                        if (result.status != "donate_no_pending") store.appendLog("golos:${account.account}: pending auto-donate ${result.status}", if (result.confirmed) "info" else "warning")
+                    }
+                    val pendingVote = if (spec.id == "golos") VoteRuntime(rpc,
+                        historyClient = voteHistory, canAct = accountPermit, pendingStore = store, recoveryWall = recoveryWall, recoveryMonotonic = recoveryMonotonic)
+                        .reconcilePending(spec.id, account.account) else null
+                    if (pendingVote != null) {
+                        val msg = "${account.chainId}:${account.account}: recovery ${pendingVote.status}: ${PayloadSanitizer.text(pendingVote.reason, 400)}"
+                        store.appendLog(msg, if (pendingVote.ok) "info" else "warning")
+                        messages += msg
+                        // Late Golos archive confirmation is not a new send/counter or donation.
+                        if (pendingVote.ok && spec.id != "golos") autoUpvoterBroadcasted += 1
+                    }
                     val keyRef = store.defaultPostingKeyRef(account.chainId, account.account)
                     val key = store.readPostingKey(account.chainId, account.account)
                     if (key.isNullOrBlank()) {
@@ -244,7 +284,6 @@ class DposWorkerRunner(
                         skipped += 1
                         continue
                     }
-                    val rpc = rpcClient(spec)
                     val minEnergy = store.minEnergy(account.chainId, account.account)
                     val liveEnergy = fetchNativeVoteEnergy(rpc, account.account)
                     val energyLabel = liveEnergy?.let { "%.2f".format(Locale.US, it / 100.0) } ?: "unknown"
@@ -271,29 +310,50 @@ class DposWorkerRunner(
                         donatePool = if (spec.id == "golos") store.autoDonatePool(spec.id, account.account)?.let { GolosDonatePool.parse(it) } else null
                     )
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер загружаю события; curators=${settings.curators.size}; favorites=${settings.favorites.size}; timeout=45s")
-                    val events = collectAutoVoteEventsWithTimeout(spec.id, listOf(settings))
+                    val events = collectAutoVoteEventsWithTimeout(spec.id, listOf(settings), pinnedHistory = voteHistory)
+                    if (pendingVote != null && !pendingVote.ok) {
+                        autoUpvoterSkipSummary["broadcast_unknown"] = (autoUpvoterSkipSummary["broadcast_unknown"] ?: 0) + 1
+                        if (spec.id != "golos") {
+                            errors += "${account.chainId}: ${space.dpos.android.upvoter.VoteOutcomePresentation.message(pendingVote)}"
+                            skipped += 1
+                            continue
+                        }
+                        // Unknown Golos archived votes block their target only, not the account.
+                    }
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер события загружены; count=${events.size}")
                     val curatorEvents = events.count { it.kind == "curator_vote" }
                     val favoriteEvents = events.count { it.kind == "favorite_post" }
                     val sourceSummary = "кураторов=${settings.curators.size}; любимых=${settings.favorites.size}; событий=${events.size}; голоса кураторов=$curatorEvents; посты любимых=$favoriteEvents"
                     publishStatus("${account.chainId}:${account.account}: лента проверена; событий=${events.size}; планирую голоса")
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер планирую голоса")
-                    val accountPermit = { runToken.mayContinue() && store.autoUpvoterEnabled(account.chainId, account.account) }
-                    val donateRuntime = if (spec.id == "golos" && settings.donatePool != null) GolosDonateRuntime(rpc, historyClient(spec), store,
+                    val donateRuntime = if (spec.id == "golos" && settings.donatePool != null) GolosDonateRuntime(rpc, voteHistory, store,
                         canAct = { accountPermit() && store.autoDonatePool("golos", account.account) != null }) else null
-                    val runtime = AutoVoteRuntime(VoteRuntime(rpc, signer = GrapheneVoteSigner(spec), broadcaster = GolosBroadcastClient(rpc), historyClient = historyClient(spec), canAct = accountPermit, pendingStore = store), object : PostingKeyProvider {
+                    val runtime = AutoVoteRuntime(VoteRuntime(rpc, signer = GrapheneVoteSigner(spec), broadcaster = GolosBroadcastClient(rpc), historyClient = voteHistory, canAct = accountPermit, pendingStore = store, recoveryWall = recoveryWall, recoveryMonotonic = recoveryMonotonic), object : PostingKeyProvider {
                         override fun keyRef(chainId: String, account: String): EncryptedKeyRef = keyRef
                         override fun privateWif(chainId: String, account: String): String? = key
                     }, chainId = spec.id, pauseAfterSuccessfulBroadcastMs = 5_000L, canAct = accountPermit, donateRuntime = donateRuntime)
                     val plan = runtime.plan(listOf(settings), events)
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер план готов; actions=${plan.actions.size}; skip=${plan.skips.size}")
                     if (plan.actions.isEmpty()) {
+                        if (spec.id == "golos" && accountPermit()) space.dpos.android.upvoter.GolosEventBacklog(voteHistory, store).acknowledge(account.account, null, plan)
                         if (accountPermit() && plan.skips.none { it.startsWith("energy:") || it.startsWith("root_post_unknown:") || it.startsWith("cancelled:") }) persistCuratorCursors(spec.id, account.account, events)
                         plan.skips.groupingBy { it.substringBefore(':') }.eachCount().forEach { (key, value) ->
                             autoUpvoterSkipSummary[key] = (autoUpvoterSkipSummary[key] ?: 0) + value
                         }
-                        val msg = "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
-                        publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
+                        val allUnavailable = spec.id == "golos" && events.isNotEmpty() && plan.skips.isNotEmpty() &&
+                            plan.skips.all { space.dpos.android.upvoter.GolosContentStatus.unavailable(it) }
+                        if (allUnavailable) {
+                            val endpointId = space.dpos.android.storage.TransactionCheckpointStore.digest(rpc.recoveryEndpoint.toByteArray()).take(12)
+                            val samples = plan.skips.take(3).joinToString("; ") { PayloadSanitizer.text(it, 130) }
+                            val detail = "golos:${account.account}: autovoter_degraded; content verification unavailable; endpoint=$endpointId; policy=${space.dpos.android.upvoter.GolosProductionPolicy.ID}; epoch=${store.golosProductionEpoch() ?: "initial"}; samples=$samples"
+                            errors += detail
+                            store.appendLog(detail, "warning")
+                            messages += detail
+                            publishStatus("golos:${account.account}: автоапвоутер временно недоступен: не удалось проверить содержимое постов")
+                        }
+                        val msg = if (allUnavailable) "golos:${account.account}: autovoter_degraded; unavailable=${plan.skips.size}; zero sends"
+                            else "${account.chainId}:${account.account}: лента проверена ($sourceSummary), подходящих действий нет, skip=${plan.skips.size}"
+                        if (!allUnavailable) publishStatus("${account.chainId}:${account.account}: автоапвоутер завершён; действий нет; skip=${plan.skips.size}")
                         store.appendLog(msg)
                         messages += msg
                         skipped += plan.skips.size
@@ -302,6 +362,7 @@ class DposWorkerRunner(
                     publishStatus("${account.chainId}:${account.account}: обрабатываю кандидатов vote; кандидатов=${plan.actions.size}; пауза между успешными голосами 5 секунд")
                     store.appendLog("${account.chainId}:${account.account}: автоапвоутер обрабатывает кандидатов vote; candidates=${plan.actions.size}; pauseAfterSuccessfulBroadcast=5s; timeout=dynamic")
                     val report = runAutoVoteRuntimeWithTimeout(account.chainId, account.account, runtime, plan)
+                    if (spec.id == "golos" && accountPermit()) space.dpos.android.upvoter.GolosEventBacklog(voteHistory, store).acknowledge(account.account, report, plan)
                     // Candidate outcomes are not failures merely because broadcasted=0.
                     // Log bounded sanitized statuses even for successful already_voted/skip.
                     report.results.take(12).forEach { result ->
@@ -396,7 +457,7 @@ class DposWorkerRunner(
                     }
                     if (result.ok && result.status == "broadcast_confirmed") {
                         vizSelfAwardBroadcasted += 1
-                        store.markVizSelfAward(account.account)
+                        // Cooldown was committed atomically with the identity-bearing terminal receipt.
                     }
                     if (result.ok && result.status == "low_energy_skip") skipped += 1
                     val msg = "viz:${account.account}: self-award ${result.status}: ${PayloadSanitizer.text(result.reason, 220)}"
@@ -415,13 +476,21 @@ class DposWorkerRunner(
             }
         }
 
-        val nextTick = System.currentTimeMillis() + store.intervalMinutes() * 60_000L
+        val nextDelay = if (DposForegroundService.isRunning || reason.startsWith("foreground-")) {
+            if (store.activeAccounts().any { it.chainId == "golos" && store.autoUpvoterEnabled("golos", it.account) }) 30_000L
+            else space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
+        } else store.intervalMinutes() * 60_000L
+        val nextTick = System.currentTimeMillis() + nextDelay
         store.setNextTick(nextTick)
         val ok = errors.isEmpty()
-        store.addAutoUpvoterBroadcasted(autoUpvoterBroadcasted)
-        store.addVizSelfAwardBroadcasted(vizSelfAwardBroadcasted)
-        val totalVotes = store.totalAutoUpvoterBroadcasted()
-        val totalVizSelfAwards = store.totalVizSelfAwardBroadcasted()
+        // Totals remain best-effort runner aggregates, never send authority. A crash may undercount.
+        // Never repair or rewrite an uncertain checkpoint from this result/exception path.
+        if (store.checkpointStatus().optString("authority") == "verified") {
+            runCatching { store.addAutoUpvoterBroadcasted(autoUpvoterBroadcasted) }
+            runCatching { store.addVizSelfAwardBroadcasted(vizSelfAwardBroadcasted) }
+        }
+        val totalVotes = runCatching { store.totalAutoUpvoterBroadcasted() }.getOrDefault(0)
+        val totalVizSelfAwards = runCatching { store.totalVizSelfAwardBroadcasted() }.getOrDefault(0)
         store.saveAutoUpvoterFeed(autoUpvoterFeed)
         val status = when {
             !ok -> "checked_with_errors"
@@ -435,7 +504,7 @@ class DposWorkerRunner(
         return summary
     }
 
-    private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = ((plan.actions.size * 10L) + 30L).coerceIn(60L, 600L)): AutoVoteRuntimeReport {
+    private fun runAutoVoteRuntimeWithTimeout(chainId: String, account: String, runtime: AutoVoteRuntime, plan: VotePlan, timeoutSeconds: Long = autoVoteTimeoutSeconds(chainId, plan.actions.size)): AutoVoteRuntimeReport {
         val executor = Executors.newSingleThreadExecutor()
         return try {
             val future = executor.submit<AutoVoteRuntimeReport> { runtime.execute(plan) }
@@ -572,10 +641,10 @@ class DposWorkerRunner(
             .put("diagnostics", result.diagnostics ?: JSONObject.NULL)
     }
 
-    private fun collectAutoVoteEventsWithTimeout(chainId: String, settings: List<AccountSettings>, timeoutSeconds: Long = 45L): List<VoteEvent> {
+    private fun collectAutoVoteEventsWithTimeout(chainId: String, settings: List<AccountSettings>, timeoutSeconds: Long = 45L, pinnedHistory: GolosHistoryClient? = null): List<VoteEvent> {
         val executor = Executors.newSingleThreadExecutor()
         return try {
-            val future = executor.submit<List<VoteEvent>> { collectAutoVoteEvents(chainId, settings) }
+            val future = executor.submit<List<VoteEvent>> { collectAutoVoteEvents(chainId, settings, pinnedHistory) }
             future.get(timeoutSeconds, TimeUnit.SECONDS)
         } catch (e: TimeoutException) {
             throw IllegalStateException("${chainId} auto-upvoter event collection exceeded ${timeoutSeconds}s; curator/favorite feed RPC did not finish in time")
@@ -584,9 +653,17 @@ class DposWorkerRunner(
         }
     }
 
-    private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>): List<VoteEvent> {
+    private fun collectAutoVoteEvents(chainId: String, settings: List<AccountSettings>, pinnedHistory: GolosHistoryClient? = null): List<VoteEvent> {
         eventsOverride?.let { return it(chainId, settings) }
         val spec = GrapheneChainSpecs.requireVote(chainId)
+        if (spec.id == "golos") {
+            val setting = settings.single()
+            val intake = space.dpos.android.upvoter.GolosEventBacklog(pinnedHistory ?: historyClient(spec), store,
+                canAct = { store.workerEnabled() && store.autoUpvoterEnabled(chainId, setting.account) && !Thread.currentThread().isInterrupted })
+            val events = intake.collect(setting)
+            intake.warnings.forEach { store.appendLog("golos:${setting.account}: intake partial: $it", "warning") }
+            return events
+        }
         val cursors = settings.flatMap { it.curators }.associate { curator ->
             val clean = curator.trim().removePrefix("@").lowercase()
             clean to store.autoVoteSourceCursor(chainId, "${settings.single().account}:$clean")
@@ -598,6 +675,7 @@ class DposWorkerRunner(
     }
 
     private fun persistCuratorCursors(chainId: String, account: String, events: List<VoteEvent>) {
+        if (chainId == "golos") return // GOLOS progress is atomic epoch+endpoint/API inbox progress, never this legacy counter.
         events.filter { it.kind == "curator_vote" && it.sourceIndex >= 0 }
             .groupBy { it.voter }
             .forEach { (curator, rows) ->
@@ -620,4 +698,13 @@ class DposWorkerRunner(
     companion object {
         private val globalRunLock = AtomicBoolean(false)
     }
+}
+
+// Cancellation budget only; WorkerCancellation retains ownership until child termination.
+// Preserve the existing base and allow one fresh 45s finality window per Golos candidate.
+// Cap very large plans at one hour (15 candidates: 180 + 675 = 855 seconds).
+internal fun autoVoteTimeoutSeconds(chainId: String, candidates: Int): Long {
+    val count = candidates.coerceAtLeast(0).toLong()
+    val base = (count * 10L + 30L).coerceIn(60L, 600L)
+    return if (chainId == "golos") (base + 45L * count).coerceAtMost(3_600L) else base
 }

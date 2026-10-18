@@ -11,16 +11,30 @@ data class HistoryEvent(val index: Long, val type: String, val data: Map<String,
 data class DposEventNotification(val id: String, val title: String, val text: String, val route: String, val sourceIndex: Long)
 
 interface GolosHistoryClient {
+    val historyScope: String get() = "injected"
+    fun recoverySources(): List<GolosHistoryClient> = listOf(this)
+    fun irreversibleVote(event: HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String): Boolean = false
     fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent>
 }
 
 class HttpGrapheneHistoryClient(private val endpoint: String, private val legacyCallRpc: Boolean = false, private val apiName: String = "condenser_api") : GolosHistoryClient {
+    override val historyScope: String get() = "$endpoint|$apiName"
+    override fun irreversibleVote(event: HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String): Boolean {
+        val block = event.data["block"]?.toLongOrNull() ?: return false
+        val index = event.data["trx_in_block"]?.toIntOrNull() ?: return false
+        if (block <= 0 || index < 0) return false
+        val rpc = space.dpos.android.upvoter.HttpGrapheneRpcClient(GrapheneChainSpecs.require("golos"), endpoint)
+        return space.dpos.android.upvoter.GolosVoteProof.inBlock(operation, transactionId, block, index, rpc.getBlock(block), rpc.getDynamicGlobalProperties())
+    }
     override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 12_000
             readTimeout = 20_000
             doOutput = true
+            instanceFollowRedirects = apiName != "account_history" // pinned Golos recovery never redirects
+            useCaches = false
+            setRequestProperty("Cache-Control", "no-cache, no-store")
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
         }
@@ -32,6 +46,7 @@ class HttpGrapheneHistoryClient(private val endpoint: String, private val legacy
 }
 
 class FallbackGrapheneHistoryClient(private val clients: List<GolosHistoryClient>) : GolosHistoryClient {
+    override fun recoverySources(): List<GolosHistoryClient> = clients.flatMap { it.recoverySources() }
     override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
         var lastError: Exception? = null
         for (client in clients) {
@@ -76,10 +91,10 @@ object GolosHistoryRpc {
         val result = root.optJSONArray("result") ?: throw IllegalStateException("Graphene RPC response has no result array")
         val rows = mutableListOf<HistoryEvent>()
         for (i in 0 until result.length()) {
-            val pair = result.optJSONArray(i) ?: continue
+            val pair = result.optJSONArray(i) ?: error("malformed history row")
             val index = pair.optLong(0, -1L)
-            val item = pair.optJSONObject(1) ?: continue
-            val op = item.optJSONArray("op") ?: continue
+            val item = pair.optJSONObject(1) ?: error("malformed history item")
+            val op = item.optJSONArray("op") ?: error("malformed history operation")
             val type = op.optString(0)
             val dataObject = op.optJSONObject(1) ?: JSONObject()
             val data = mutableMapOf<String, String>()
@@ -89,7 +104,11 @@ object GolosHistoryRpc {
                 data[key] = dataObject.opt(key)?.toString().orEmpty()
             }
             item.optString("trx_id").takeIf { it.isNotBlank() }?.let { data["trx_id"] = it }
-            if (index >= 0 && type.isNotBlank()) rows += HistoryEvent(index, type, data, item.optString("timestamp"))
+            for (key in listOf("block", "trx_in_block", "op_in_trx", "virtual_op")) {
+                if (item.has(key)) data[key] = item.get(key).toString()
+            }
+            require(index >= 0 && type.isNotBlank()) { "malformed history identity" }
+            rows += HistoryEvent(index, type, data, item.optString("timestamp"))
         }
         return rows
     }

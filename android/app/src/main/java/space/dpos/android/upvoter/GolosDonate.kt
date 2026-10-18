@@ -126,6 +126,11 @@ class GolosDonateTransactionBuilder(private val amounts: GolosDonateAmounts) : T
 interface GolosDonateLedger : PendingBroadcastStore {
     fun donated(account: String, fingerprint: String): Boolean
     fun markDonated(account: String, fingerprint: String)
+    override fun completePending(intent: PendingBroadcastIntent, reason: PendingCompletionReason, atMs: Long) {
+        // Compatibility for small in-memory runtime adapters. Production overrides atomically.
+        if (reason == PendingCompletionReason.CONFIRMED) markDonated(intent.account, intent.fingerprint.substringBefore('|'))
+        clearPending(intent.kind, intent.chainId, intent.account)
+    }
 }
 
 data class GolosDonateResult(val status: String, val amount: GolosDonateAmounts? = null) {
@@ -149,8 +154,7 @@ class GolosDonateRuntime(
         if (pending.kind != "donate" || pending.chainId != "golos" || pending.account != account)
             return GolosDonateResult("donate_unknown")
         if (!confirm(pending) || !canAct()) return GolosDonateResult("donate_unknown")
-        ledger.markDonated(account, pending.fingerprint.substringBefore('|'))
-        ledger.clearPending("donate", "golos", account)
+        ledger.completePending(pending, PendingCompletionReason.CONFIRMED)
         return GolosDonateResult("donate_confirmed")
     }
 
@@ -163,11 +167,11 @@ class GolosDonateRuntime(
         if (pending != null) {
             val confirmed = confirm(pending)
             if (!confirmed) return GolosDonateResult("donate_unknown")
-            ledger.markDonated(operation.voter, pending.fingerprint.substringBefore('|'))
-            ledger.clearPending("donate", "golos", operation.voter)
+            ledger.completePending(pending, PendingCompletionReason.CONFIRMED)
             if (pending.fingerprint.substringBefore('|') == fingerprint) return GolosDonateResult("donate_duplicate")
         }
         if (!canAct()) return GolosDonateResult("donate_cancelled")
+        ledger.assertFreshIntentAllowed("donate", "golos", operation.voter)
         // Never pre-authorize funds based on the stale snapshot used by vote planning.
         val account = rpc.getAccount(operation.voter) ?: return GolosDonateResult("donate_account_unavailable")
         val props = rpc.getDynamicGlobalProperties()
@@ -188,22 +192,28 @@ class GolosDonateRuntime(
             transactionId = TransactionConfirmation.transactionId(GolosDonateTransactionBuilder(amounts).signingBytes(operation, header)),
             createdAtMs = System.currentTimeMillis())
         ledger.savePending(intent) // durable before transport, fail closed on process death
-        if (!canAct()) { ledger.clearPending("donate", "golos", operation.voter); return GolosDonateResult("donate_cancelled") }
+        if (!canAct()) { ledger.completePending(intent, PendingCompletionReason.UNSENT_CANCELLED); return GolosDonateResult("donate_cancelled") }
         try {
+            if (!ledger.markTransportEntered(intent, canAct)) {
+                ledger.completePending(intent, PendingCompletionReason.UNSENT_CANCELLED)
+                return GolosDonateResult("donate_cancelled")
+            }
             broadcaster.broadcast(signed.payload.signedTransaction)
             ledger.savePending(intent.copy(state = PendingBroadcastState.UNKNOWN))
         } catch (_: Exception) {
             // Any transport failure after send may be an accepted transaction. Never retry blindly.
-            ledger.savePending(intent.copy(state = PendingBroadcastState.UNKNOWN))
+            // PREPARED is already durable and is not definitely-unsent after transport entry.
+            // No recursive storage mutation when the UNKNOWN write itself failed.
+            return GolosDonateResult("donate_unknown", amounts)
         }
         if (!confirm(intent.copy(state = PendingBroadcastState.UNKNOWN,
                 transactionId = ledger.readPending("donate", "golos", operation.voter)?.transactionId))) return GolosDonateResult("donate_unknown", amounts)
-        ledger.markDonated(operation.voter, fingerprint)
-        ledger.clearPending("donate", "golos", operation.voter)
+        ledger.completePending(intent, PendingCompletionReason.CONFIRMED)
         return GolosDonateResult("donate_confirmed", amounts)
     }
 
     private fun confirm(intent: PendingBroadcastIntent): Boolean {
+        if ((ledger as? GolosRecoveryStore)?.isGolosForeignIntent(intent) == true) return false
         val parts = intent.fingerprint.split('|')
         if (parts.size != 5 || parts[0].length != 64 || intent.transactionId?.matches(Regex("[0-9a-fA-F]{40}")) != true) return false
         repeat(confirmationRetries.coerceAtLeast(1)) { retry ->

@@ -16,8 +16,8 @@ android {
         applicationId = "space.dpos.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 81
-        versionName = "3.1.3"
+        versionCode = 82
+        versionName = "3.1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DPOS_WEB_URL", "\"https://dpos.blinddev.xyz/\"")
         // Operator-supplied base64 raw Ed25519 public key; absent means updater disabled.
@@ -56,6 +56,8 @@ android {
 }
 
 dependencies {
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

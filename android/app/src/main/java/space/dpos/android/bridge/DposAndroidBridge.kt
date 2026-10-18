@@ -154,10 +154,17 @@ class DposAndroidBridge(
 
     fun stopWorker(): String {
         WorkerCancellation.cancelAll()
-        store.setWorkerEnabled(false)
-        WorkManager.getInstance(activity.applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
-        val intent = Intent(activity, DposForegroundService::class.java).setAction(DposForegroundService.ACTION_STOP)
-        activity.startService(intent)
+        try {
+            store.setWorkerEnabled(false)
+        } finally {
+            // Bootstrap can prohibit persistence, never cancellation. Do not create a
+            // new service just to stop it, especially while its storage is unavailable.
+            try {
+                WorkManager.getInstance(activity.applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
+            } finally {
+                activity.stopService(Intent(activity, DposForegroundService::class.java))
+            }
+        }
         return JSONObject().put("ok", true).put("status", "stopping").toString()
     }
 
@@ -165,7 +172,7 @@ class DposAndroidBridge(
         return try {
             DposWorkerRunner(activity.applicationContext).runOnce(reason = "manual").toJson().toString()
         } catch (e: Exception) {
-            store.setLastError(e.message)
+            runCatching { store.setLastError(e.message) }
             store.appendLog("manual check error: ${e.message}", "error")
             JSONObject()
                 .put("ok", false)
@@ -262,12 +269,12 @@ class DposAndroidBridge(
             respond(response)
         }
         // Read-only report generation and the explicit save picker never queue behind network checks.
-        if (request.method == "getAppInfo") {
-            finish(AndroidBridgeProtocol.success(request.id, getAppInfo()))
-            return
-        }
-        if (request.method == "getDiagnosticReport") {
-            finish(AndroidBridgeProtocol.success(request.id, getDiagnosticReport()))
+        if (request.method in setOf("getAppInfo", "getDiagnosticReport", "getWorkerStatus")) {
+            val response = runCatching { invoke(request.method, request.payload) }.fold(
+                onSuccess = { AndroidBridgeProtocol.success(request.id, it) },
+                onFailure = { AndroidBridgeProtocol.failure(request.id, "native_error", it.message ?: "diagnostic error") }
+            )
+            finish(response)
             return
         }
         if (request.method == "getNotificationInbox" || request.method == "markAllNotificationsRead") {
@@ -284,15 +291,19 @@ class DposAndroidBridge(
                 finish(AndroidBridgeProtocol.failure(request.id, "export_unavailable", "diagnostic export is unavailable"))
                 return
             }
-            val webReport = request.payload.optString("webReport", "")
-            val combined = DiagnosticReportBuilder.combine(
-                DiagnosticReportBuilder.build(store, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                webReport
-            )
-            store.appendLog("bridge diagnostic save picker requested; webReportChars=${webReport.length.coerceAtMost(80_000)}")
-            saver(combined) { result ->
-                store.appendLog("bridge diagnostic save picker completed; ok=${result.optBoolean("ok", false)}; cancelled=${result.optBoolean("cancelled", false)}")
-                finish(AndroidBridgeProtocol.success(request.id, result.toString()))
+            try {
+                val webReport = request.payload.optString("webReport", "")
+                val combined = DiagnosticReportBuilder.combine(
+                    DiagnosticReportBuilder.build(store, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                    webReport
+                )
+                store.appendLog("bridge diagnostic save picker requested; webReportChars=${webReport.length.coerceAtMost(80_000)}")
+                saver(combined) { result ->
+                    store.appendLog("bridge diagnostic save picker completed; ok=${result.optBoolean("ok", false)}; cancelled=${result.optBoolean("cancelled", false)}")
+                    finish(AndroidBridgeProtocol.success(request.id, result.toString()))
+                }
+            } catch (e: Exception) {
+                finish(AndroidBridgeProtocol.failure(request.id, "native_error", e.message ?: "diagnostic export error"))
             }
             return
         }

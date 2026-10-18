@@ -18,6 +18,11 @@ class DposApplication : Application() {
 
     private fun prepareVersionLog() {
         val store = WorkerStore(this)
+        if (store.checkpointStatus().optString("authority") != "verified") {
+            // Never flush cached legacy transaction values through startup logging.
+            android.util.Log.e("DposCheckpoint", "Transaction storage unverified; startup preference writes paused")
+            return
+        }
         val version = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
         if (store.markAppVersion(version)) {
             store.clearLogs()
@@ -46,6 +51,10 @@ internal class WorkerLifecycleStarter(
 
     fun resume(context: android.content.Context, source: String): Boolean {
         val store = WorkerStore(context)
+        if (store.checkpointStatus().optString("authority") != "verified") {
+            android.util.Log.w("DposCheckpoint", "Worker lifecycle resume paused: transaction storage unverified")
+            return false
+        }
         val hasEnabledFeature = store.activeAccounts().any { account ->
             store.notificationEnabled(account.chainId, account.account) ||
                 store.autoUpvoterEnabled(account.chainId, account.account) ||

@@ -18,13 +18,48 @@ data class PendingBroadcastIntent(
     val expirationEpochSeconds: Long? = null,
     val observedChainTimeSeconds: Long? = null,
     val observedHeadBlock: Long? = null,
-    val includedBlockNumber: Long? = null
+    val includedBlockNumber: Long? = null,
+    // Each history index belongs to one endpoint/API, never to the chain globally.
+    val recoveryCursors: Map<String, Long> = emptyMap(),
+    val recoveryScopeTurn: Int = 0,
+    /** Current-generation evidence, never a replacement for textual target quarantine. */
+    val recoveryGeneration: String? = null
 )
+
+interface GolosRecoveryStore {
+    fun requiresGolosRecovery(): Boolean
+    fun readGolosRecoveryFence(): org.json.JSONObject?
+    fun saveGolosRecoveryFence(fence: org.json.JSONObject)
+    fun golosProductionEpoch(): String? = null
+    fun isGolosForeignIntent(intent: PendingBroadcastIntent): Boolean = false
+    fun golosFenceForGeneration(generation: org.json.JSONObject): org.json.JSONObject? = readGolosRecoveryFence()
+}
+
+interface VoteArchiveStore : PendingBroadcastStore {
+    /** Atomically move the active slot before another intent may be prepared. */
+    fun archiveActiveVote(chainId: String, account: String)
+    fun voteArchive(chainId: String, account: String): List<ArchivedVote>
+    fun updateArchivedVote(entry: ArchivedVote)
+    /** Durable fair rotation; returns at most one unresolved record per worker tick. */
+    fun nextArchivedVote(chainId: String, account: String): ArchivedVote?
+}
+
+data class ArchivedVote(val intent: PendingBroadcastIntent, val confirmed: Boolean = false)
+
+enum class PendingCompletionReason { CONFIRMED, UNKNOWN_EXPIRED, UNSENT_CANCELLED }
 
 interface PendingBroadcastStore {
     fun readPending(kind: String, chainId: String, account: String): PendingBroadcastIntent?
     fun savePending(intent: PendingBroadcastIntent)
+    fun markTransportEntered(intent: PendingBroadcastIntent, canAct: () -> Boolean = { true }): Boolean = canAct()
+    fun assertTransactionAuthority(kind: String, chainId: String, account: String) {}
+    fun assertFreshIntentAllowed(kind: String, chainId: String, account: String) = assertTransactionAuthority(kind, chainId, account)
+    fun confirmedAt(kind: String, chainId: String, account: String): Long? = null
+    /** Legacy test adapters only. Production WorkerStore rejects identity-less clearing. */
     fun clearPending(kind: String, chainId: String, account: String)
+    fun completePending(intent: PendingBroadcastIntent, reason: PendingCompletionReason, atMs: Long = System.currentTimeMillis()) {
+        clearPending(intent.kind, intent.chainId, intent.account)
+    }
 }
 
 object TransactionConfirmation {

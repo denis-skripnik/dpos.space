@@ -26,11 +26,11 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private const val GOLOS_CHAIN_ID = "782a3039b478c839e4cb0c941ff4eaeb7df40bdd68bd441afd444b9da763de12"
+internal const val GOLOS_CHAIN_ID = "782a3039b478c839e4cb0c941ff4eaeb7df40bdd68bd441afd444b9da763de12"
 private const val HIVE_CHAIN_ID = "beeab0de00000000000000000000000000000000000000000000000000000000"
 private const val STEEM_CHAIN_ID = "0000000000000000000000000000000000000000000000000000000000000000"
 private const val VIZ_CHAIN_ID = "2040effda178d4fffff5eab7a915d4019879f5205cc5392e4bcced2b6edda0cd"
-private const val DEFAULT_GOLOS_RPC = "https://golosapi.ecurrex.ru"
+private const val DEFAULT_GOLOS_RPC = "https://api-full.golos.id"
 private const val DEFAULT_HIVE_RPC = "https://api.hive.blog"
 private const val DEFAULT_STEEM_RPC = "https://api.steemit.com"
 private const val DEFAULT_VIZ_RPC = "https://api.viz.world"
@@ -54,7 +54,7 @@ data class GrapheneChainSpec(
 
 object GrapheneChainSpecs {
     private val specs = mapOf(
-        "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, rpcEndpoints = listOf(DEFAULT_GOLOS_RPC, "https://api-full.golos.id", "https://apibeta.golos.today"), legacyCallRpc = true, historyApiName = "account_history", discussionApiName = "tags", notificationOps = listOf("content_mentions", "comment_mention", "comment", "custom_json", "transfer", "donate", "author_reward", "curation_reward", "comment_benefactor_reward"), asyncBroadcastOnly = true),
+        "golos" to GrapheneChainSpec("golos", GOLOS_CHAIN_ID, DEFAULT_GOLOS_RPC, rpcEndpoints = listOf(DEFAULT_GOLOS_RPC), legacyCallRpc = true, historyApiName = "account_history", discussionApiName = "tags", notificationOps = listOf("content_mentions", "comment_mention", "comment", "custom_json", "transfer", "donate", "author_reward", "curation_reward", "comment_benefactor_reward"), asyncBroadcastOnly = true),
         "hive" to GrapheneChainSpec("hive", HIVE_CHAIN_ID, DEFAULT_HIVE_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "proposal_create", "proposal_update", "proposal_delete")),
         "steem" to GrapheneChainSpec("steem", STEEM_CHAIN_ID, DEFAULT_STEEM_RPC, publicKeyPrefix = "STM", notificationOps = listOf("comment", "transfer", "transfer_to_vesting", "withdraw_vesting", "delegate_vesting_shares", "return_vesting_delegation", "author_reward", "curation_reward", "comment_benefactor_reward", "account_witness_vote", "producer_reward")),
         "viz" to GrapheneChainSpec("viz", VIZ_CHAIN_ID, DEFAULT_VIZ_RPC, rpcEndpoints = listOf(DEFAULT_VIZ_RPC, "https://node.viz.cx"), publicKeyPrefix = "VIZ", legacyCallRpc = true, historyApiName = "account_history", nativeVoteSupported = false, notificationOps = listOf("comment", "transfer", "award", "fixed_award", "receive_award", "benefactor_award"), asyncBroadcastOnly = true)
@@ -89,7 +89,9 @@ data class BlockHeaderRef(
     val refBlockNum: Int,
     val refBlockPrefix: Long,
     val expirationEpochSeconds: Long,
-    val headBlockId: String
+    val headBlockId: String,
+    val observedChainTimeSeconds: Long? = null,
+    val observedHeadBlock: Long? = null
 )
 
 data class SignedVotePayload(
@@ -142,8 +144,15 @@ interface VoteBroadcaster {
 }
 
 interface GolosRpcClient {
+    /** Nonblank only for an indivisible endpoint. Fallback must be pinned before use. */
+    val recoveryEndpoint: String get() = ""
+    fun recoveryClients(): List<GolosRpcClient> = listOf(this)
+    fun recoveryHistory(): GolosHistoryClient? = null
+    fun getGolosConfig(): JSONObject? = null
+    fun getBlockHeader(number: Long): JSONObject? = null
     fun getDynamicGlobalProperties(): JSONObject
     /** VIZ-only read-only lookup; other chains keep their existing confirmation paths. */
+    fun getGolosTransaction(transactionId: String): JSONObject? = null
     fun getVizTransaction(transactionId: String): JSONObject? = null
     fun getBlock(blockNumber: Long): JSONObject?
     fun getAccount(account: String): JSONObject?
@@ -359,11 +368,23 @@ class GrapheneVoteSigner(
 class GolosVoteSigner(builder: TransactionBuilder = GolosTransactionBuilder()) : VoteSigner by GrapheneVoteSigner(GrapheneChainSpecs.requireVote("golos"), builder)
 
 class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val endpoint: String = spec.defaultRpcEndpoint) : GolosRpcClient {
+    override val recoveryEndpoint: String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(endpoint.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+    override fun recoveryHistory(): GolosHistoryClient = space.dpos.android.notifications.HttpGrapheneHistoryClient(endpoint, spec.legacyCallRpc, "account_history")
+    override fun getGolosConfig(): JSONObject? = postApi("database_api", "get_config", JSONArray()).optJSONObject("result")
+    override fun getBlockHeader(number: Long): JSONObject? = postApi("database_api", "get_block_header", JSONArray().put(number)).optJSONObject("result")
     override fun getGolosContent(author: String, permlink: String): JSONObject? {
         if (spec.id != "golos") return null
         // Explicit Golos social_network optional arguments: no active votes needed.
         return postApi("social_network", "get_content", JSONArray().put(author).put(permlink).put(0).put(0))
             .optJSONObject("result")
+    }
+    override fun getGolosTransaction(transactionId: String): JSONObject? {
+        if (spec.id != "golos") return null
+        require(transactionId.matches(Regex("[0-9a-fA-F]{40}")))
+        val tx = postApi("operation_history", "get_transaction", JSONArray().put(transactionId)).optJSONObject("result") ?: return null
+        val blockNumber = tx.optLong("block_num", -1)
+        return tx.put("_golosEndpoint", recoveryEndpoint).put("_golosHead", getDynamicGlobalProperties()).put("_golosBlock", if (blockNumber > 0) getBlock(blockNumber) else JSONObject.NULL)
     }
     override fun getVizTransaction(transactionId: String): JSONObject? {
         if (spec.id != "viz") return null
@@ -404,6 +425,7 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
             if (row.optString("voter") == voter) {
                 // Golos `weight` is curation weight, NOT the voting percentage.
                 return row.opt("percent")?.toString()?.toIntOrNull()?.takeIf { it in -10000..10000 }
+                    ?: error("Golos own vote percentage is unavailable")
             }
         }
         return null
@@ -434,6 +456,9 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
                 connectTimeout = 10_000
                 readTimeout = if (label.endsWith(".broadcast_transaction")) 8_000 else 20_000
                 doOutput = true
+                instanceFollowRedirects = spec.id != "golos" // Golos proof/signature pipelines never redirect
+                useCaches = false
+                setRequestProperty("Cache-Control", "no-cache, no-store")
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("User-Agent", "dpos.space-android-worker/1.0")
             }
@@ -455,6 +480,14 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
 }
 
 class FallbackGrapheneRpcClient(private val clients: List<GolosRpcClient>) : GolosRpcClient {
+    override fun recoveryClients(): List<GolosRpcClient> = clients.flatMap { it.recoveryClients() }
+    override fun getGolosTransaction(transactionId: String): JSONObject? {
+        for (client in clients) {
+            val result = runCatching { client.getGolosTransaction(transactionId) }.getOrNull()
+            if (result != null) return result
+        }
+        return null
+    }
     override fun getVizTransaction(transactionId: String): JSONObject? {
         // A node can lag in operation_history without a transport failure.
         for (client in clients) {
@@ -529,8 +562,56 @@ class VoteRuntime(
     private val confirmationRetries: Int = 2,
     private val confirmationDelayMs: Long = 1_500L,
     private val canAct: () -> Boolean = { true },
-    private val pendingStore: PendingBroadcastStore? = null
+    private val pendingStore: PendingBroadcastStore? = null,
+    private val recoveryPinned: Boolean = false,
+    private val recoveryWall: () -> Long = { System.currentTimeMillis() },
+    private val recoveryMonotonic: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    private val freshMonotonic: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val freshWait: (Long) -> Unit = { Thread.sleep(it) }
 ) {
+    private val recoveryStore get() = pendingStore as? GolosRecoveryStore
+    private fun recoveryLane() = recoveryStore?.let { GolosRecoveryFence(it::readGolosRecoveryFence, it::saveGolosRecoveryFence, recoveryWall, recoveryMonotonic, canAct) }
+    internal val supportsVoteArchive: Boolean get() = pendingStore is VoteArchiveStore
+
+    private fun recoveryFailure(operation: VoteOperation, error: Exception): VoteBroadcastResult {
+        val status = when (error.message) {
+            "already_voted", "recovery_old_generation", "not_root_post" -> error.message!!
+            "recovery_cancelled" -> "cancelled"
+            else -> "recovery_deferred"
+        }
+        return VoteBroadcastResult(status == "already_voted", status, operation, PayloadSanitizer.text(error.message, 180))
+    }
+    private fun selectRecoveryEndpoint(): Pair<GolosRpcClient?, String> {
+        var detail = "recovery_endpoint_unavailable"
+        for (endpoint in rpcClient.recoveryClients()) {
+            if (!canAct()) return null to "recovery_cancelled"
+            try { recoveryLane()!!.verify(endpoint); return endpoint to "" }
+            catch (e: Exception) { detail = PayloadSanitizer.text(e.message, 180) }
+        }
+        return null to detail
+    }
+    private fun checkRecoveryWindow(lane: GolosRecoveryFence, operation: VoteOperation, generation: JSONObject, header: BlockHeaderRef) {
+        val chainNow = lane.recheck(rpcClient, operation, generation)
+        check(header.expirationEpochSeconds > maxOf(chainNow, recoveryWall() / 1000 - 15)) { "recovery_header_expired" }
+    }
+    private fun freshRecoveryReceipt(required: Boolean, tx: JSONObject? = null): Boolean {
+        if (!required) return true
+        return try {
+            val proof = recoveryLane()!!.verify(rpcClient)
+            if (tx != null) {
+                check(tx.optString("_golosEndpoint") == rpcClient.recoveryEndpoint)
+                val head = tx.getJSONObject("_golosHead")
+                val time = GolosRecoveryFence.timestamp(head.getString("time"))
+                val number = GolosRecoveryFence.integer(head, "head_block_number")
+                val lib = GolosRecoveryFence.integer(head, "last_irreversible_block_num")
+                val id = head.getString("head_block_id")
+                check(id.matches(Regex("[0-9a-f]{40}")) && id.substring(0, 8).toLong(16) == number)
+                check(lib in 0..number && lib <= proof.libHeight && recoveryWall() / 1000 - time in -15..120)
+            }
+            canAct()
+        } catch (_: Exception) { false }
+    }
+
     private data class ConfirmationCheck(
         val event: HistoryEvent? = null,
         val status: String,
@@ -542,7 +623,9 @@ class VoteRuntime(
         val props = rpcClient.getDynamicGlobalProperties()
         val head = props.optLong("head_block_number")
         val previousBlock = rpcClient.getBlock(head - 2)
-        return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock)
+        return GolosTransactionHeaderFactory.fromGolosJsReference(props, previousBlock).copy(
+            observedChainTimeSeconds = LocalDateTime.parse(props.getString("time")).toEpochSecond(ZoneOffset.UTC),
+            observedHeadBlock = head)
     }
 
     fun previewUnsigned(operation: VoteOperation): JSONObject {
@@ -563,17 +646,135 @@ class VoteRuntime(
 
     /** Auto-upvoter only: manual votes may still target comments. Never coerce JSON fields. */
     internal fun golosRootPostSkip(author: String, permlink: String): String? {
-        val content = try { rpcClient.getGolosContent(author, permlink) } catch (_: Exception) { null }
-            ?: return "root_post_unknown"
+        val content = try { rpcClient.getGolosContent(author, permlink) } catch (_: Exception) { return "root_post_transport" }
+            ?: return "root_post_empty"
+        if (content.optString("author").isEmpty() && content.optString("permlink").isEmpty()) return "root_post_empty"
         if (content.opt("author") !is String || content.opt("author") != author ||
             content.opt("permlink") !is String || content.opt("permlink") != permlink ||
-            content.opt("parent_author") !is String) return "root_post_unknown"
+            content.opt("parent_author") !is String) return "root_post_malformed"
         return if (content.getString("parent_author").isEmpty()) null else "not_root_post"
     }
 
-    fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?): VoteBroadcastResult {
+    internal fun golosCuratorOwnVoteSkip(voter: String, author: String, permlink: String): String? = try {
+        if (rpcClient.getActiveVotePercent(author, permlink, voter) != null) "already_voted" else null
+    } catch (_: Exception) { "own_vote_unavailable" }
+
+    internal fun golosEligibilitySkip(author: String, permlink: String, favorite: Boolean = false, weight: Int = 10000): String? {
+        val content = try { rpcClient.getGolosContent(author, permlink) } catch (_: Exception) { return "root_post_transport" }
+            ?: return "root_post_empty"
+        if (content.optString("author").isEmpty() && content.optString("permlink").isEmpty()) return "root_post_empty"
+        if (content.opt("author") !is String || content.opt("author") != author ||
+            content.opt("permlink") !is String || content.opt("permlink") != permlink ||
+            content.opt("parent_author") !is String) return "root_post_malformed"
+        if (content.getString("parent_author").isNotEmpty()) return "not_root_post"
+        if (weight > 0) {
+            if (content.opt("allow_votes") !is Boolean) return "root_post_malformed"
+            if (!content.getBoolean("allow_votes")) return "votes_disabled"
+        }
+        val lastPayout = content.optString("last_payout")
+        if (lastPayout.isBlank() || runCatching { java.time.LocalDateTime.parse(lastPayout) }.isFailure)
+            return "root_post_malformed"
+        if (lastPayout.isNotBlank() && lastPayout != "1970-01-01T00:00:00") {
+            if (runCatching { java.time.LocalDateTime.parse(lastPayout) }.isFailure) return "root_post_malformed"
+            return "payout_ended"
+        }
+        val cashout = content.optString("cashout_time")
+        if (cashout.isBlank()) return "root_post_malformed"
+        if (cashout.isNotBlank()) {
+            val end = runCatching { java.time.LocalDateTime.parse(cashout).toEpochSecond(java.time.ZoneOffset.UTC) }.getOrNull()
+                ?: return "root_post_malformed"
+            val chainNow = runCatching {
+                java.time.LocalDateTime.parse(rpcClient.getDynamicGlobalProperties().getString("time"))
+                    .toEpochSecond(java.time.ZoneOffset.UTC)
+            }.getOrNull() ?: return "root_post_malformed"
+            if (end <= chainNow) return "payout_ended" // automation curation policy, not failure evidence
+            if (weight > 0 && end - chainNow <= 60) return "cashout_lockout"
+        }
+        if (favorite) {
+            val created = content.optString("created")
+            val updated = content.optString("last_update")
+            val changes = content.opt("num_changes")?.toString()?.toLongOrNull()
+            if (created.isBlank() || updated.isBlank() || changes == null || changes < 0 ||
+                runCatching { LocalDateTime.parse(created); LocalDateTime.parse(updated) }.isFailure) return "root_post_malformed"
+            if (created != updated || changes > 0) return "favorite_edited"
+        }
+        return null
+    }
+
+    /** Target identity ignores weight and event kind; unknown votes also block dependent donations. */
+    internal fun archivedTarget(chainId: String, account: String, author: String, permlink: String): ArchivedVote? {
+        val ledger = (pendingStore as? VoteArchiveStore)?.takeIf { chainId == "golos" } ?: return null
+        ledger.archiveActiveVote(chainId, account)
+        return ledger.voteArchive(chainId, account).firstOrNull {
+            val fields = it.intent.fingerprint.split('|')
+            fields[0] == author && fields[1] == permlink
+        }
+    }
+
+    /** Reconcile only an existing exact intent; no key, energy or new candidate is needed. */
+    fun reconcilePending(chainId: String, account: String): VoteBroadcastResult? {
+        val ledger = (pendingStore as? VoteArchiveStore)?.takeIf { chainId == "golos" }
+        if (ledger != null) {
+            ledger.archiveActiveVote(chainId, account)
+            var entry = ledger.nextArchivedVote(chainId, account) ?: return null
+            // Reuse bounded exact-ID history recovery through an archive-bound adapter.
+            // The adapter has no active slot and cannot produce a new transaction.
+            val ownerRecovery = recoveryStore
+            if (ownerRecovery?.isGolosForeignIntent(entry.intent) == true) {
+                entry.intent.recoveryGeneration?.let { encoded ->
+                    val generation = JSONObject(encoded)
+                    val original = ownerRecovery.golosFenceForGeneration(generation) ?: error("archived_original_fence_unavailable")
+                    GolosRecoveryFence.validateGeneration(generation, original, entry.intent.fingerprint)
+                }
+                return VoteBroadcastResult(false, "broadcast_unknown", VoteOperation(chainId, account, entry.intent.fingerprint.substringBefore('|'), entry.intent.fingerprint.split('|')[1], 0),
+                    "Retired branch evidence quarantined; no cross-branch confirmation, replay, counters or donation catch-up")
+            }
+            val adapter = object : PendingBroadcastStore, GolosRecoveryStore {
+                override fun requiresGolosRecovery() = ownerRecovery?.requiresGolosRecovery() == true
+                override fun readGolosRecoveryFence() = ownerRecovery?.readGolosRecoveryFence()
+                override fun saveGolosRecoveryFence(fence: JSONObject) { ownerRecovery?.saveGolosRecoveryFence(fence) ?: error("recovery owner unavailable") }
+                override fun readPending(kind: String, chainId: String, account: String) = entry.intent
+                override fun savePending(intent: PendingBroadcastIntent) {
+                    entry = entry.copy(intent = intent)
+                    ledger.updateArchivedVote(entry)
+                }
+                override fun clearPending(kind: String, chainId: String, account: String): Unit = error("archive completion identity required")
+                override fun completePending(intent: PendingBroadcastIntent, reason: PendingCompletionReason, atMs: Long) {
+                    require(reason == PendingCompletionReason.CONFIRMED)
+                    val current = entry.intent
+                    require(listOf(current.kind, current.chainId, current.account, current.fingerprint, current.transactionId, current.createdAtMs, current.historyBaseline) ==
+                        listOf(intent.kind, intent.chainId, intent.account, intent.fingerprint, intent.transactionId, intent.createdAtMs, intent.historyBaseline))
+                    entry = entry.copy(confirmed = true)
+                    ledger.updateArchivedVote(entry)
+                }
+            }
+            val proofRpc = if (entry.intent.recoveryGeneration != null) rpcClient.recoveryClients().firstOrNull {
+                runCatching { recoveryLane()!!.verify(it) }.isSuccess
+            } ?: return VoteBroadcastResult(false, "broadcast_unknown", VoteOperation(chainId, account, entry.intent.fingerprint.substringBefore('|'), entry.intent.fingerprint.split('|')[1], 0),
+                "Future vote receipt waits for fresh canonical endpoint; no replay or catch-up") else rpcClient
+            return VoteRuntime(proofRpc, signer, broadcaster, if (entry.intent.recoveryGeneration != null) proofRpc.recoveryHistory() ?: historyClient else historyClient,
+                confirmationRetries, confirmationDelayMs, canAct, adapter, entry.intent.recoveryGeneration != null, recoveryWall, recoveryMonotonic)
+                .reconcilePending(chainId, account)
+        }
+        val pending = pendingStore?.readPending("vote", chainId, account) ?: return null
+        val parts = pending.fingerprint.split('|')
+        val weight = parts.getOrNull(2)?.toIntOrNull()
+        val operation = VoteOperation(chainId, account, parts.firstOrNull().orEmpty(), parts.getOrNull(1).orEmpty(), weight ?: 0)
+        if (parts.size != 3 || weight == null || parts[0].isBlank() || parts[1].isBlank())
+            return VoteBroadcastResult(false, "broadcast_unknown", operation, "invalid pending vote; replay blocked")
+        return execute(operation, null, null)
+    }
+
+    fun execute(operation: VoteOperation, keyRef: EncryptedKeyRef?, privateWif: String?, skipAnyExistingVote: Boolean = false, requireGolosEligibility: Boolean = false, favoritePost: Boolean = false): VoteBroadcastResult {
         if (!canAct()) return VoteBroadcastResult(false, "cancelled", operation, "worker permission was revoked before signing")
+        pendingStore?.assertTransactionAuthority("vote", operation.chainId, operation.voter)
         val fingerprint = "${operation.author}|${operation.permlink}|${operation.weight}"
+        archivedTarget(operation.chainId, operation.voter, operation.author, operation.permlink)?.let { archived ->
+            return VoteBroadcastResult(archived.confirmed, if (archived.confirmed) "already_voted" else "broadcast_unknown", operation,
+                if (archived.confirmed) "Exact archived vote confirmed; no replay or donation catch-up."
+                else "Previous vote for this target remains unknown; every weight/kind and dependent donation blocked. Unrelated eligible targets may proceed.",
+                diagnostics = JSONObject().put("pendingTxId", archived.intent.transactionId ?: JSONObject.NULL))
+        }
         pendingStore?.readPending("vote", operation.chainId, operation.voter)?.let { pending ->
             val previousAuthor = pending.fingerprint.substringBefore('|')
             val previousWeight = pending.fingerprint.substringAfterLast('|').toIntOrNull()
@@ -584,7 +785,10 @@ class VoteRuntime(
                 else ConfirmationCheck(status = "unavailable", detail = "сохранённые параметры операции повреждены")
             val diagnostics = pendingDiagnostics(pending, previous, check)
             if (check.event != null && !pending.transactionId.isNullOrBlank()) {
-                pendingStore.clearPending("vote", operation.chainId, operation.voter)
+                check.event.data["block"]?.toLongOrNull()?.takeIf { it > 0 }?.let { block ->
+                    pendingStore.savePending(pending.copy(includedBlockNumber = block))
+                }
+                pendingStore.completePending(pending, PendingCompletionReason.CONFIRMED)
                 if (pending.fingerprint == fingerprint) return VoteBroadcastResult(
                     true,
                     "broadcast_confirmed",
@@ -603,16 +807,43 @@ class VoteRuntime(
                 return VoteBroadcastResult(false, "broadcast_unknown", operation, reason, diagnostics = diagnostics)
             }
         }
+        val recoveryRequired = operation.chainId == "golos" && recoveryStore?.requiresGolosRecovery() == true
+        if (recoveryRequired && !recoveryPinned) {
+            val (endpoint, detail) = selectRecoveryEndpoint()
+            if (endpoint == null) return VoteBroadcastResult(false, if (canAct()) "recovery_deferred" else "cancelled", operation,
+                "Future-generation recovery will retry automatically without replay", diagnostics = JSONObject().put("recoveryReason", detail))
+            // Pin every proof/content/authority/signature/transport observation, never per-method fallback.
+            return VoteRuntime(endpoint, signer, if (broadcaster is GolosBroadcastClient) GolosBroadcastClient(endpoint) else broadcaster,
+                endpoint.recoveryHistory() ?: historyClient, confirmationRetries, confirmationDelayMs, canAct, pendingStore,
+                true, recoveryWall, recoveryMonotonic, freshMonotonic, freshWait).execute(operation, keyRef, privateWif, true, true, favoritePost)
+        }
+        val lane = if (recoveryRequired) recoveryLane() else null
+        val generation = if (lane != null) try { lane.generation(rpcClient, operation, lane.verify(rpcClient)) }
+            catch (e: Exception) { return recoveryFailure(operation, e) } else null
         // A fresh intent may be skipped before any send; this must never resolve a persisted unknown.
-        if (operation.chainId == "golos" && operation.weight != 0 &&
-            runCatching { rpcClient.getActiveVotePercent(operation.author, operation.permlink, operation.voter) }.getOrNull() == operation.weight) {
+        val existingVote = if (operation.chainId == "golos" && operation.weight != 0) try {
+            rpcClient.getActiveVotePercent(operation.author, operation.permlink, operation.voter)
+        } catch (_: Exception) {
+            if (skipAnyExistingVote || requireGolosEligibility) return VoteBroadcastResult(false, "own_vote_unavailable", operation,
+                "fresh own-vote eligibility unavailable; signing deferred")
+            null
+        } else null
+        if (existingVote != null && (skipAnyExistingVote || existingVote == operation.weight)) {
             return VoteBroadcastResult(true, "already_voted", operation,
                 "Нужный голос за @${operation.author}/${operation.permlink} уже стоит в блокчейне; отправка не требуется.")
         }
+        if (lane == null) pendingStore?.assertFreshIntentAllowed("vote", operation.chainId, operation.voter)
         val header = buildHeaderLikeGolosJs()
         val authorityCheck = verifyPostingAuthority(operation, keyRef, privateWif)
         if (authorityCheck != null) return authorityCheck
+        if (requireGolosEligibility && operation.chainId == "golos") {
+            val verdict = golosEligibilitySkip(operation.author, operation.permlink, favoritePost, operation.weight)
+            if (verdict != null) return VoteBroadcastResult(false, verdict, operation, "fresh target eligibility: $verdict")
+        }
         if (!canAct()) return VoteBroadcastResult(false, "cancelled", operation, "worker permission was revoked before signing")
+        if (lane != null && generation != null) try { checkRecoveryWindow(lane, operation, generation, header) }
+        catch (e: Exception) { return VoteBroadcastResult(false, "recovery_deferred", operation, PayloadSanitizer.text(e.message, 180)) }
+        if (!canAct()) return VoteBroadcastResult(false, "cancelled", operation, "permission revoked during final generation lookup")
         val signed = signer.sign(operation, keyRef, privateWif, header)
         if (!signed.ok || signed.payload == null) return signed
         val signedWithAuthority = signed.copy(diagnostics = mergeDiagnostics(signed.diagnostics, authorityDiagnostics(operation, privateWif)))
@@ -625,22 +856,40 @@ class VoteRuntime(
         if (!canAct()) return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "worker permission was revoked during history lookup")
         val pending = PendingBroadcastIntent("vote", operation.chainId, operation.voter, fingerprint, baseline,
             transactionId = if (pendingStore != null) TransactionConfirmation.transactionId(GrapheneTransactionBuilder(GrapheneChainSpecs.requireVote(operation.chainId)).signingBytes(operation, header)) else null,
-            createdAtMs = System.currentTimeMillis())
+            createdAtMs = System.currentTimeMillis(), expirationEpochSeconds = header.expirationEpochSeconds,
+            observedChainTimeSeconds = header.observedChainTimeSeconds, observedHeadBlock = header.observedHeadBlock, recoveryGeneration = generation?.toString())
         pendingStore?.savePending(pending)
         if (!canAct()) {
-            pendingStore?.clearPending("vote", operation.chainId, operation.voter)
+            pendingStore?.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
             return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
+        }
+        if (lane != null && generation != null) try { checkRecoveryWindow(lane, operation, generation, header) }
+        catch (e: Exception) {
+            pendingStore?.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
+            return signedWithAuthority.copy(ok = false, status = "recovery_deferred", reason = PayloadSanitizer.text(e.message, 180))
+        }
+        if (!canAct()) {
+            pendingStore?.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
+            return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "permission revoked during final generation lookup")
         }
         var sentPending = pending
         return try {
+            if (pendingStore?.markTransportEntered(pending, canAct) == false) {
+                pendingStore.completePending(pending, PendingCompletionReason.UNSENT_CANCELLED)
+                return signedWithAuthority.copy(ok = false, status = "cancelled", reason = "permission revoked before transport")
+            }
             val response = broadcaster.broadcast(signed.payload.signedTransaction)
+            val confirmationStarted = freshMonotonic()
             val txId = pending.transactionId
             sentPending = pending.copy(state = PendingBroadcastState.UNKNOWN)
             pendingStore?.savePending(sentPending)
-            val confirmationCheck = confirmVote(operation, baseline, txId)
+            val freshGolos = operation.chainId == "golos" && pendingStore != null
+            val confirmationCheck = if (freshGolos) confirmFreshGolosVote(operation, sentPending, confirmationStarted)
+                else confirmVote(operation, baseline, txId)
             val confirmation = confirmationCheck.event
             if (confirmation != null && (pendingStore == null || !txId.isNullOrBlank())) {
-                pendingStore?.clearPending("vote", operation.chainId, operation.voter)
+                if (freshGolos) checkFreshConfirmation(sentPending, confirmationStarted)
+                pendingStore?.completePending(sentPending, PendingCompletionReason.CONFIRMED)
                 signedWithAuthority.copy(status = "broadcast_confirmed", reason = "vote confirmed in ${operation.chainId} history: @${operation.voter} -> @${operation.author}/${operation.permlink} at #${confirmation.index}", rpcResponse = response, diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, JSONObject().put("confirmedHistoryIndex", confirmation.index).put("confirmedTimestamp", confirmation.timestamp)))
             } else if (historyClient != null) {
                 val unknownPending = pending.copy(state = PendingBroadcastState.UNKNOWN, transactionId = txId)
@@ -659,22 +908,15 @@ class VoteRuntime(
             }
         } catch (e: Exception) {
             if (e is InterruptedException) Thread.currentThread().interrupt()
-            val unknown = sentPending.copy(state = PendingBroadcastState.UNKNOWN)
-            pendingStore?.savePending(unknown)
-            val classified = classifyBroadcastFailure(operation, signedWithAuthority, e)
-            if (pendingStore != null) {
-                val check = confirmVote(operation, baseline, unknown.transactionId)
-                val diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, pendingDiagnostics(unknown, operation, check))
-                if (check.event != null && !unknown.transactionId.isNullOrBlank()) {
-                    pendingStore.clearPending("vote", operation.chainId, operation.voter)
-                    signedWithAuthority.copy(ok = true, status = "broadcast_confirmed", reason = "Голос за @${operation.author}/${operation.permlink} подтверждён в истории на позиции #${check.event.index}, несмотря на ошибку ответа RPC.", diagnostics = diagnostics)
-                } else {
-                    val state = if (unknown.transactionId.isNullOrBlank()) "ID транзакции отсутствует; совпадение операции не доказывает её личность"
-                        else if (check.status == "unavailable") "проверка истории недоступна (${check.detail})" else "подтверждение в доступной истории пока не найдено"
-                    signedWithAuthority.copy(ok = false, status = "broadcast_unknown",
-                        reason = "Результат отправки голоса за @${operation.author}/${operation.permlink} неизвестен: ошибка ответа RPC (${PayloadSanitizer.text(e.message, 180)}); $state. Повторная отправка заблокирована. Приложение повторит проверку истории; не отправляйте этот голос повторно вслепую.", diagnostics = diagnostics)
-                }
-            } else classified
+            // The durable pre-transport identity is retained even if UNKNOWN/terminal persistence failed.
+            // Do not read/write/repair recursively here or resurrect a terminal record after a late error.
+            if (pendingStore != null) signedWithAuthority.copy(ok = false, status = "broadcast_unknown",
+                reason = "Результат отправки или записи транзакции неизвестен. Личность операции сохранена; проверка продолжится в следующем цикле. Повторная отправка заблокирована.",
+                diagnostics = mergeDiagnostics(signedWithAuthority.diagnostics, JSONObject().put("pendingOperation", JSONObject()
+                    .put("chain", operation.chainId).put("account", operation.voter).put("author", operation.author)
+                    .put("permlink", operation.permlink).put("weight", operation.weight)
+                    .put("pendingTxId", sentPending.transactionId ?: JSONObject.NULL))))
+            else classifyBroadcastFailure(operation, signedWithAuthority, e)
         }
     }
 
@@ -698,52 +940,156 @@ class VoteRuntime(
         )
     }
 
+    // Eligibility deadline, not an I/O timeout: ownership remains held until this call exits.
+    private fun checkFreshConfirmation(intent: PendingBroadcastIntent, started: Long) {
+        check(canAct() && !Thread.currentThread().isInterrupted) { "fresh_confirmation_cancelled" }
+        val store = checkNotNull(pendingStore)
+        store.assertTransactionAuthority(intent.kind, intent.chainId, intent.account)
+        check(store.readPending(intent.kind, intent.chainId, intent.account) == intent) { "fresh_confirmation_intent_changed" }
+        check(recoveryStore?.isGolosForeignIntent(intent) != true) { "fresh_confirmation_retired" }
+        intent.recoveryGeneration?.let { encoded ->
+            val generation = JSONObject(encoded)
+            val fence = checkNotNull(recoveryStore?.readGolosRecoveryFence())
+            GolosRecoveryFence.validateGeneration(generation, fence, intent.fingerprint)
+            check(generation.getString("endpoint") == rpcClient.recoveryEndpoint) { "fresh_confirmation_endpoint_changed" }
+        }
+        // Storage validation can block too. Recheck permission and time afterwards.
+        check(canAct() && !Thread.currentThread().isInterrupted) { "fresh_confirmation_cancelled" }
+        check(freshMonotonic() - started in 0 until 45_000L) { "fresh_confirmation_deadline" }
+    }
+
+    private fun confirmFreshGolosVote(operation: VoteOperation, intent: PendingBroadcastIntent, started: Long): ConfirmationCheck {
+        val txId = checkNotNull(intent.transactionId)
+        val endpoint = rpcClient.recoveryEndpoint
+        // Production worker pins before signing. Never introduce fallback/history endpoint mixing here.
+        check(endpoint.isNotBlank()) { "fresh_confirmation_endpoint_unbound" }
+        while (true) {
+            checkFreshConfirmation(intent, started)
+            val tx = try { rpcClient.getGolosTransaction(txId) } catch (e: InterruptedException) { throw e }
+                catch (_: Exception) { null }
+            checkFreshConfirmation(intent, started)
+            if (tx != null && tx.optString("_golosEndpoint") == endpoint && GolosVoteProof.lookup(operation, txId, tx)) {
+                checkFreshConfirmation(intent, started)
+                val fresh = freshRecoveryReceipt(intent.recoveryGeneration != null, tx)
+                checkFreshConfirmation(intent, started)
+                if (fresh) return ConfirmationCheck(
+                    HistoryEvent(-1, "vote", mapOf("trx_id" to txId, "block" to tx.getLong("block_num").toString())),
+                    "confirmed", "exact transaction in irreversible canonical block")
+            }
+            checkFreshConfirmation(intent, started)
+            freshWait(minOf(1_500L, 45_000L - (freshMonotonic() - started)))
+            checkFreshConfirmation(intent, started)
+        }
+    }
+
     private fun confirmVote(operation: VoteOperation, baseline: Long, transactionId: String? = null): ConfirmationCheck {
         if (transactionId.isNullOrBlank() && pendingStore != null)
             return ConfirmationCheck(status = "identity_unavailable", detail = "ID транзакции отсутствует; поля операции и индекс истории не доказывают личность")
-        val history = historyClient ?: return ConfirmationCheck(status = "unavailable", detail = "клиент истории не настроен")
-        var lastCheck = ConfirmationCheck(status = "unavailable", detail = "проверка ещё не выполнена")
-        var totalPages = 0
-        repeat(confirmationRetries.coerceAtLeast(1)) { attempt ->
-            if (attempt > 0 && confirmationDelayMs > 0) Thread.sleep(confirmationDelayMs)
-            var from = -1L
-            var limit = 30
-            var pages = 0
-            try {
-                while (totalPages < 20) {
-                    if (!canAct() || Thread.currentThread().isInterrupted) return ConfirmationCheck(status = "unavailable", detail = "проверка отменена", pagesScanned = totalPages)
-                    val rows = history.getAccountHistory(operation.voter, from, limit)
-                    pages += 1
-                    totalPages += 1
-                    val found = TransactionConfirmation.findCurrent(rows, baseline, transactionId) { event ->
-                        event.type == "vote" &&
-                            event.data["voter"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.voter &&
-                            event.data["author"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.author &&
-                            event.data["permlink"].orEmpty() == operation.permlink &&
-                            event.data["weight"].orEmpty().toIntOrNull() == operation.weight
-                    }
-                    if (found != null) return ConfirmationCheck(found, "confirmed", "операция найдена в истории", pages)
-                    if (rows.isEmpty()) {
-                        lastCheck = ConfirmationCheck(status = "checked_not_found", detail = "в доступной истории операция не найдена", pagesScanned = totalPages)
-                        return@repeat
-                    }
-                    val oldest = rows.minOf { it.index }
-                    if (oldest <= baseline && transactionId.isNullOrBlank()) {
-                        lastCheck = ConfirmationCheck(status = "checked_not_found", detail = "операция не найдена после исходной позиции", pagesScanned = totalPages)
-                        return@repeat
-                    }
-                    val nextFrom = oldest - 1
-                    if (nextFrom < 1 || (from >= 0 && nextFrom >= from)) break
-                    from = nextFrom
-                    // Graphene rejects low `from` values paired with a larger limit.
-                    limit = minOf(30L, nextFrom.coerceAtLeast(1L)).toInt()
+        val futureReceipt = pendingStore?.readPending("vote", operation.chainId, operation.voter)?.recoveryGeneration != null
+        if (!freshRecoveryReceipt(futureReceipt)) return ConfirmationCheck(status = "unavailable", detail = "fresh same-endpoint recovery finality unavailable")
+        if (operation.chainId == "golos" && transactionId != null && canAct()) {
+            val tx = runCatching { rpcClient.getGolosTransaction(transactionId) }.getOrNull()
+            if (tx != null && GolosVoteProof.lookup(operation, transactionId, tx, requireIrreversible = false)) {
+                pendingStore?.readPending("vote", operation.chainId, operation.voter)?.let { pending ->
+                    pendingStore.savePending(pending.copy(includedBlockNumber = tx.getLong("block_num")))
                 }
-                return ConfirmationCheck(status = "unavailable", detail = "полная область истории после исходной позиции не поместилась в безопасный лимит", pagesScanned = pages)
-            } catch (e: Exception) {
-                lastCheck = ConfirmationCheck(status = "unavailable", detail = PayloadSanitizer.text(e.message.orEmpty().ifBlank { e.javaClass.simpleName }, 180), pagesScanned = totalPages)
+            }
+            if (tx != null && GolosVoteProof.lookup(operation, transactionId, tx) && freshRecoveryReceipt(futureReceipt, tx)) {
+                return ConfirmationCheck(HistoryEvent(-1, "vote", mapOf("trx_id" to transactionId, "block" to tx.getLong("block_num").toString())), "confirmed", "exact transaction in irreversible canonical block")
             }
         }
-        return lastCheck
+        val history = historyClient ?: return ConfirmationCheck(status = "unavailable", detail = "клиент истории не настроен")
+        val sources = history.recoverySources().distinctBy { it.historyScope }
+        if (sources.isEmpty()) return ConfirmationCheck(status = "unavailable", detail = "нет узлов истории")
+        var intent = pendingStore?.readPending("vote", operation.chainId, operation.voter)
+            ?.takeIf { it.transactionId == transactionId }
+        val cursors = intent?.recoveryCursors?.toMutableMap() ?: mutableMapOf()
+        val start = (intent?.recoveryScopeTurn ?: 0).mod(sources.size)
+        // Advance rotation even if the first node consumes the entire time budget by failing.
+        // Cursor positions remain untouched; the next tick can try an independent healthy node.
+        intent?.let {
+            val rotated = it.copy(recoveryScopeTurn = (start + 1) % sources.size)
+            pendingStore?.savePending(rotated)
+            intent = rotated
+        }
+        var pages = 0
+        var unavailable: String? = null
+        fun checkpoint(scope: String, cursor: Long) {
+            cursors[scope] = cursor
+            intent?.let {
+                val next = it.copy(recoveryCursors = cursors.toMap(), recoveryScopeTurn = (start + 1) % sources.size)
+                pendingStore?.savePending(next)
+                intent = next
+            }
+        }
+        fun matches(event: HistoryEvent): Boolean = event.type == "vote" &&
+            event.data["voter"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.voter &&
+            event.data["author"].orEmpty().trim().removePrefix("@").lowercase(Locale.ROOT) == operation.author &&
+            event.data["permlink"].orEmpty() == operation.permlink &&
+            event.data["weight"].orEmpty().toIntOrNull() == operation.weight
+        // Fixed per-call work/time budget. Rotate nodes; never carry one node's index to another.
+        val deadline = System.nanoTime() + 15_000_000_000L
+        for (offset in sources.indices) {
+            val source = sources[(start + offset) % sources.size]
+            val scope = source.historyScope
+            var from = cursors[scope] ?: -1L
+            val nodeBudget = maxOf(1, 20 / sources.size)
+            try {
+                // Always recheck latest for delayed indexing while retaining the older sweep.
+                var headChecked = false
+                var nodePages = 0
+                var headAttempts = 0
+                while (pages < 20 && nodePages < nodeBudget && System.nanoTime() < deadline) {
+                    if (!canAct() || Thread.currentThread().isInterrupted)
+                        return ConfirmationCheck(status = "unavailable", detail = "проверка отменена", pagesScanned = pages)
+                    val requestFrom = if (!headChecked) -1L else from.coerceAtLeast(1)
+                    val limit = if (requestFrom < 0) 30 else minOf(30L, requestFrom.coerceAtLeast(1)).toInt()
+                    if (requestFrom == -1L) headAttempts++
+                    val rows = source.getAccountHistory(operation.voter, requestFrom, limit)
+                    pages++; nodePages++
+                    val found = TransactionConfirmation.findCurrent(rows, baseline, transactionId, ::matches)
+                    if (found != null && (operation.chainId != "golos" || transactionId == null || source.irreversibleVote(found, operation, transactionId)) && freshRecoveryReceipt(futureReceipt))
+                        return ConfirmationCheck(found, "confirmed", "точная транзакция найдена в необратимом блоке", pages)
+                    if (rows.isEmpty()) {
+                        // Empty/pruned/lagging is not rejection. Restart this sweep next tick.
+                        if (requestFrom == -1L && from >= 0) { headChecked = true; continue }
+                        checkpoint(scope, -1L)
+                        if (requestFrom == -1L && headAttempts < confirmationRetries.coerceIn(1, 3)) {
+                            if (confirmationDelayMs > 0 && System.nanoTime() + confirmationDelayMs * 1_000_000 < deadline)
+                                Thread.sleep(confirmationDelayMs)
+                            continue
+                        }
+                        break
+                    }
+                    if (rows.any { it.index < 0 || (requestFrom >= 0 && it.index > requestFrom) })
+                        throw IllegalStateException("узел вернул чужую/повторную страницу истории")
+                    val oldest = rows.minOf { it.index }
+                    if (!headChecked && from >= 0) {
+                        headChecked = true
+                        continue // preserve old progress even when fresh head grows
+                    }
+                    headChecked = true
+                    // Golos' count-based API cannot request from=0/limit=1; index 1 ends
+                    // its readable sweep. Reset instead of polling index 1 forever.
+                    if (oldest == 0L || (operation.chainId == "golos" && oldest == 1L) || (transactionId.isNullOrBlank() && oldest <= baseline)) {
+                        checkpoint(scope, -1L) // full sweep: revisit for delayed index insertion
+                        break
+                    }
+                    val next = oldest - 1
+                    if (requestFrom >= 0 && next >= requestFrom)
+                        throw IllegalStateException("страница истории не продвигается")
+                    from = next
+                    checkpoint(scope, from) // durable after every successfully validated page
+                }
+            } catch (e: Exception) {
+                if (e is InterruptedException) Thread.currentThread().interrupt()
+                unavailable = PayloadSanitizer.text(e.message ?: e.javaClass.simpleName, 180)
+                // Failed page retains its cursor; another independent node may still prove inclusion.
+            }
+        }
+        return ConfirmationCheck(status = if (unavailable != null) "unavailable" else "checking_progress",
+            detail = unavailable ?: "проверено страниц: $pages; позиции сохранены, проверка продолжится в следующем цикле",
+            pagesScanned = pages)
     }
 
     private fun extractTransactionId(response: JSONObject): String? {
@@ -774,6 +1120,9 @@ class VoteRuntime(
             .put("checked", check.status != "unavailable" && check.status != "identity_unavailable")
             .put("detail", check.detail)
             .put("pagesScanned", check.pagesScanned)
+        val progress = if (pending.transactionId.isNullOrBlank()) pending.recoveryCursors
+            else pendingStore?.readPending(pending.kind, pending.chainId, pending.account)?.recoveryCursors ?: pending.recoveryCursors
+        confirmation.put("recoveryCursors", JSONObject(progress))
         check.event?.let { confirmation.put("historyIndex", it.index).put("timestamp", it.timestamp) }
         val nextStep = if (check.event != null && !pending.transactionId.isNullOrBlank()) "Сохранённая блокировка снята после подтверждения в истории."
             else if (pending.transactionId.isNullOrBlank()) "ID транзакции отсутствует; автоматическая разблокировка невозможна. Скачайте журнал «Логи и диагностика» для ручной проверки; не отправляйте повторно вслепую."

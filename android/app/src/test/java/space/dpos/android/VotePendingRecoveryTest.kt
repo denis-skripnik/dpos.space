@@ -19,7 +19,8 @@ class VotePendingRecoveryTest {
     @Test fun recoveredConfirmedPendingIsClearedFromPaginatedHistory() {
         val store = MemoryPendingStore(PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 90, transactionId = "exact-tx"))
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = when (from) {
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = when (from) {
                 -1L -> (101L..130L).map { event(it, "noise", "post-$it", 1) }
                 100L -> listOf(event(95, "alice", "old-post", 5000, "exact-tx"))
                 else -> emptyList()
@@ -40,7 +41,8 @@ class VotePendingRecoveryTest {
         val pending = PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 90, transactionId = "known-tx")
         val store = MemoryPendingStore(pending)
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = throw IllegalStateException("RPC history offline")
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = throw IllegalStateException("RPC history offline")
         }
         val broadcaster = RecordingBroadcaster()
         val result = runtime(store, history, broadcaster).execute(VoteOperation("golos", "denis", "alice", "old-post", 5000), null, null)
@@ -69,7 +71,8 @@ class VotePendingRecoveryTest {
         val pending = PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 90)
         val store = MemoryPendingStore(pending)
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int) =
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int) =
                 if (from == -1L) listOf(event(91, "someone", "else", 10000)) else emptyList()
         }
         val broadcaster = RecordingBroadcaster()
@@ -88,7 +91,8 @@ class VotePendingRecoveryTest {
         val store = MemoryPendingStore(PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 90, transactionId = "exact-tx"))
         var calls = 0
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
                 calls++
                 return if (calls == 1) emptyList() else listOf(event(95, "alice", "old-post", 5000, "exact-tx"))
             }
@@ -110,7 +114,8 @@ class VotePendingRecoveryTest {
             override fun getActiveVotePercent(author: String, permlink: String, voter: String) = 5000
         }
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int) =
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int) =
                 if (from == -1L) listOf(event(95, "alice", "old-post", 5000, "other-tx")) else emptyList()
         }
         val broadcaster = RecordingBroadcaster()
@@ -118,16 +123,19 @@ class VotePendingRecoveryTest {
             confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = store)
             .execute(VoteOperation("golos", "denis", "alice", "old-post", 5000), null, null)
         assertEquals("broadcast_unknown", result.status)
-        assertEquals(pending, store.value)
+        // Identity remains immutable; recovery metadata is now deliberately durable.
+        assertEquals(pending, store.value?.copy(recoveryCursors = emptyMap(), recoveryScopeTurn = 0))
+        assertEquals(-1L, store.value!!.recoveryCursors["injected"])
         assertEquals(0, broadcaster.calls)
-        assertEquals("checked_not_found", result.diagnostics!!.getJSONObject("confirmation").getString("status"))
+        assertEquals("checking_progress", result.diagnostics!!.getJSONObject("confirmation").getString("status"))
     }
 
     @Test fun idlessMatchingPostBaselineVoteRemainsUnknownDespiteDivergentNodeIndexes() {
         val pending = PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 90)
         val store = MemoryPendingStore(pending)
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(event(105, "alice", "old-post", 5000, "other-tx"))
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(event(105, "alice", "old-post", 5000, "other-tx"))
         }
         val broadcaster = RecordingBroadcaster()
         val result = runtime(store, history, broadcaster).execute(VoteOperation("golos", "denis", "alice", "old-post", 5000), null, null)

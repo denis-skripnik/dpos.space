@@ -155,7 +155,8 @@ class VoteBroadcastPolicyTest {
     @Test fun stopDuringHistoryBaselinePreventsBroadcast() {
         var allowed = true
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
                 allowed = false
                 return emptyList()
             }
@@ -181,7 +182,8 @@ class VoteBroadcastPolicyTest {
 
     @Test fun delayedOldIdenticalHistoryDoesNotConfirmCurrentVote() {
         val old = HistoryEvent(99, "vote", mapOf("voter" to "denis", "author" to "alice", "permlink" to "post", "weight" to "10000"))
-        val history = object : GolosHistoryClient { override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(old) }
+        val history = object : GolosHistoryClient { override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int) = listOf(old) }
         val result = VoteRuntime(FakeRpc(), broadcaster = RecordingBroadcaster(), historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0)
             .execute(VoteOperation("golos", "denis", "alice", "post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
         assertFalse(result.ok)
@@ -193,7 +195,8 @@ class VoteBroadcastPolicyTest {
         val firstBroadcaster = ThrowingBroadcaster("transport timed out after send")
         val operation = VoteOperation("golos", "denis", "alice", "post", 10000)
         val keyRef = EncryptedKeyRef("golos", "denis", "posting", "posting")
-        val history = object : GolosHistoryClient { override fun getAccountHistory(account: String, from: Long, limit: Int) = emptyList<HistoryEvent>() }
+        val history = object : GolosHistoryClient { override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int) = emptyList<HistoryEvent>() }
         val first = VoteRuntime(FakeRpc(), broadcaster = firstBroadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = store)
             .execute(operation, keyRef, deterministicNonSecretWif())
         assertEquals("broadcast_unknown", first.status)
@@ -242,7 +245,8 @@ class VoteBroadcastPolicyTest {
         val operation = VoteOperation("golos", "denis", "alice", "post", 10000)
         val pending = MemoryPendingStore()
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = emptyList()
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> = emptyList()
         }
         val rpc = space.dpos.android.upvoter.FallbackGrapheneRpcClient(listOf(
             object : GolosRpcClient by FakeRpc() {
@@ -354,6 +358,7 @@ class VoteBroadcastPolicyTest {
 
     private class ConfirmingVoteHistory(private val voter: String, private val author: String, private val permlink: String, private val weight: Int) : GolosHistoryClient {
         private var calls = 0
+        override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
         override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
             calls += 1
             return if (calls == 1) emptyList() else listOf(
@@ -367,13 +372,24 @@ class VoteBroadcastPolicyTest {
         pending.savePending(PendingBroadcastIntent("vote", "golos", "denis", "alice|old-post|5000", 0, transactionId = "old-exact-tx"))
         val broadcaster = RecordingBroadcaster()
         val history = object : GolosHistoryClient {
-            override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
+            override fun irreversibleVote(event: space.dpos.android.notifications.HistoryEvent, operation: space.dpos.android.upvoter.VoteOperation, transactionId: String) = true
+        override fun getAccountHistory(account: String, from: Long, limit: Int): List<HistoryEvent> {
                 val old = HistoryEvent(42, "vote", mapOf("voter" to account, "author" to "alice", "permlink" to "old-post", "weight" to "5000", "trx_id" to "old-exact-tx"), "2026-08-15T00:00:00")
                 val fresh = HistoryEvent(43, "vote", mapOf("voter" to account, "author" to "carol", "permlink" to "new-post", "weight" to "10000", "trx_id" to pending.readPending("vote", "golos", account)?.transactionId.orEmpty()), "2026-08-15T00:00:03")
                 return if (broadcaster.broadcastCount == 0) listOf(old) else listOf(old, fresh)
             }
         }
-        val runtime = VoteRuntime(FakeRpc(), broadcaster = broadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
+        val rpc = object : GolosRpcClient by FakeRpc() {
+            override val recoveryEndpoint = "fixture-pinned"
+            override fun getGolosTransaction(transactionId: String): JSONObject? {
+                val tx = broadcaster.lastTx ?: return null // Older pending still reconciles through history.
+                return JSONObject(tx.toString()).put("transaction_id", transactionId)
+                    .put("block_num", 120).put("transaction_num", 0).put("_golosEndpoint", recoveryEndpoint)
+                    .put("_golosBlock", JSONObject().put("transactions", org.json.JSONArray().put(tx)))
+                    .put("_golosHead", JSONObject().put("head_block_number", 123).put("last_irreversible_block_num", 120))
+            }
+        }
+        val runtime = VoteRuntime(rpc, broadcaster = broadcaster, historyClient = history, confirmationRetries = 1, confirmationDelayMs = 0, pendingStore = pending)
         val result = runtime.execute(VoteOperation("golos", "denis", "carol", "new-post", 10000), EncryptedKeyRef("golos", "denis", "posting", "posting"), deterministicNonSecretWif())
         assertEquals("broadcast_confirmed", result.status)
         assertEquals(1, broadcaster.broadcastCount)

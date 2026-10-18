@@ -45,12 +45,15 @@ class AutoUpvoterPlanner {
                 }
                 if (!matched) continue
                 val key = "${account.account}|${event.author}|${event.permlink}"
+                if ((event.kind == "curator_vote" && (event.weight <= 0 || account.curatorCoefficient <= 0)) ||
+                    (event.kind == "favorite_post" && account.favoritesPercent <= 0)) { skips += "zero_weight:$key|${event.kind}"; continue }
                 if (key in plannedKeys || event.activeVotes.any { it.equals(account.account, true) }) { skips += "duplicate:$key"; continue }
                 val weight = if (event.kind == "curator_vote") {
-                    if (account.curatorMode == "full") 10000 else (abs(event.weight) * account.curatorCoefficient / 100.0).roundToInt().coerceIn(1, 10000)
+                    if (account.curatorMode == "full") 10000 else (abs(event.weight) * account.curatorCoefficient / 100.0).roundToInt().coerceIn(0, 10000)
                 } else {
-                    (account.favoritesPercent * 100).coerceIn(1, 10000)
+                    (account.favoritesPercent * 100).coerceIn(0, 10000)
                 }
+                if (weight == 0) { skips += "zero_weight:$key|${event.kind}"; continue }
                 val current = energy[account.account]
                 val projected = current?.let { estimateEnergyAfter(it, weight) }
                 if (current != null && (current < account.minEnergy || (projected != null && projected < account.minEnergy))) { skips += "energy:$key"; continue }

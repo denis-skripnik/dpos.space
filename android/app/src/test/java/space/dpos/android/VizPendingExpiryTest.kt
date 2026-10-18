@@ -65,8 +65,15 @@ class VizPendingExpiryTest {
             return JSONObject().put("result", JSONObject())
         }
     }
+    private var fixtureSequence = 0
+    private lateinit var lastContext: Context
     private fun store(): WorkerStore {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        val ctx = object : android.content.ContextWrapper(base) {
+            private val isolated = java.io.File(base.filesDir, "viz-expiry-${++fixtureSequence}").apply { mkdirs() }
+            override fun getFilesDir() = isolated
+        }
+        lastContext = ctx
         ctx.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE).edit().clear().commit()
         return WorkerStore(ctx, ctx.getSharedPreferences("viz_expiry_test_secure", Context.MODE_PRIVATE))
     }
@@ -86,7 +93,7 @@ class VizPendingExpiryTest {
         val observed = store.readPending("self_award", "viz", "alice")!!
         assertEquals(start, observed.observedChainTimeSeconds)
         assertEquals(1000L, observed.observedHeadBlock)
-        val recreated = WorkerStore(ApplicationProvider.getApplicationContext(),
+        val recreated = WorkerStore(lastContext,
             ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("viz_expiry_test_secure", Context.MODE_PRIVATE))
         wall += 431; rpc.time += 431; rpc.height++
         assertEquals("broadcast_unknown", run(runtime(rpc, recreated, broadcaster, { wall })).status)
@@ -105,7 +112,7 @@ class VizPendingExpiryTest {
     }
 
     @Test fun futureExpiryAndClockJumpsOrStaleRpcNeverClearPending() {
-        val store = store()
+        var store = store()
         store.savePending(PendingBroadcastIntent("self_award", "viz", "alice", fingerprint, 42,
             transactionId = "a".repeat(40), expirationEpochSeconds = start + 500,
             observedChainTimeSeconds = start, observedHeadBlock = 1000))
@@ -114,7 +121,10 @@ class VizPendingExpiryTest {
         val broadcaster = Broadcaster()
         assertEquals("broadcast_unknown", run(runtime(rpc, store, broadcaster, { wall })).status) // malformed future expiry (>120s) blocks
         assertNotNull(store.readPending("self_award", "viz", "alice"))
-        store.savePending(store.readPending("self_award", "viz", "alice")!!.copy(expirationEpochSeconds = start + 60))
+        val previous = store.readPending("self_award", "viz", "alice")!!
+        assertTrue("signed expiration is immutable", runCatching { store.savePending(previous.copy(expirationEpochSeconds = start + 60)) }.isFailure)
+        store = store() // Keep the malformed original unknown; exercise a distinct new-authority fixture.
+        store.savePending(previous.copy(transactionId = "b".repeat(40), expirationEpochSeconds = start + 60))
         rpc.height = 1000
         assertEquals("broadcast_unknown", run(runtime(rpc, store, broadcaster, { wall })).status)
         rpc.height++

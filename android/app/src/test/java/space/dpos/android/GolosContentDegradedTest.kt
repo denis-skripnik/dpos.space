@@ -1,0 +1,47 @@
+package space.dpos.android
+
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import space.dpos.android.upvoter.*
+import space.dpos.android.worker.DposWorkerRunner
+
+@RunWith(RobolectricTestRunner::class)
+class GolosContentDegradedTest {
+    @Test fun allFiftyUnavailableTargetsAreScopedDegradedWithBoundedSamples() {
+        GolosProductionContractTest.Fixture().use { p ->
+            p.ready()
+            val rpc = object : GolosRpcClient by p.rpc {
+                override fun recoveryClients() = listOf(this)
+                override fun getGolosContent(author: String, permlink: String): JSONObject? =
+                    if (permlink == GolosProductionPolicy.SAMPLE_PERMLINK) p.rpc.getGolosContent(author, permlink) else JSONObject()
+            }
+            val report = DposWorkerRunner(p.f.context, p.f.restart(), rpcOverride = { rpc },
+                eventsOverride = { _, _ -> (1..50).map { VoteEvent("curator_vote", "alice", "target", "missing-$it", 7000, sourceIndex = it.toLong()) } },
+                recoveryWall = { p.f.recoveryWall }, recoveryMonotonic = { p.f.recoveryMono }, productionPolicy = p.policy).runOnce("degraded-loopback")
+            assertFalse(report.ok)
+            assertTrue(report.errors.any { it.contains("golos:fixture-voter: autovoter_degraded") })
+            assertEquals(50, report.autoUpvoterSkipSummary["root_post_empty"])
+            assertTrue(p.f.sends.isEmpty())
+            assertTrue(report.errors.joinToString().length < 1500)
+        }
+    }
+    @Test fun contentTransportEmptyMalformedAndOwnVoteFailuresAreDistinct() {
+        GolosProductionContractTest.Fixture().use { p ->
+            fun runtime(mode: String) = VoteRuntime(object : GolosRpcClient by p.rpc {
+                override fun getGolosContent(author: String, permlink: String): JSONObject? = when(mode) {
+                    "transport" -> error("offline")
+                    "empty" -> JSONObject()
+                    else -> JSONObject().put("author", author).put("permlink", permlink).put("parent_author", 3)
+                }
+                override fun getActiveVotePercent(author: String, permlink: String, voter: String): Int? = error("offline")
+            })
+            assertEquals("root_post_transport", runtime("transport").golosEligibilitySkip("target", "x"))
+            assertEquals("root_post_empty", runtime("empty").golosEligibilitySkip("target", "x"))
+            assertEquals("root_post_malformed", runtime("malformed").golosEligibilitySkip("target", "x"))
+            assertEquals("own_vote_unavailable", runtime("empty").golosCuratorOwnVoteSkip("fixture-voter", "target", "x"))
+        }
+    }
+}

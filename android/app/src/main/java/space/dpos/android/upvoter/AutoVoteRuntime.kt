@@ -25,35 +25,47 @@ class AutoVoteRuntime(
     private val canAct: () -> Boolean = { true },
     private val donateRuntime: GolosDonateRuntime? = null
 ) {
-    private val provenRoots = mutableSetOf<Pair<String, String>>()
-
     /** Validate individually eligible events before the cumulative energy budget is charged. */
     fun plan(settings: List<AccountSettings>, events: List<VoteEvent>): VotePlan {
-        provenRoots.clear()
         val planner = AutoUpvoterPlanner()
         if (chainId.trim().lowercase() != "golos") return planner.plan(settings, events)
         val skips = mutableListOf<String>()
-        val verdicts = mutableMapOf<Pair<String, String>, String?>()
+        val verdicts = mutableMapOf<Triple<String, String, Boolean>, String?>()
         val eligible = events.filter { event ->
             val individual = planner.plan(settings, listOf(event))
             if (individual.actions.isEmpty()) return@filter true
-            val target = event.author to event.permlink
+            val blocked = individual.actions.mapNotNull { action ->
+                voteRuntime.archivedTarget(chainId, action.account, action.author, action.permlink)?.let { action to it }
+            }
+            if (blocked.isNotEmpty()) {
+                skips += blocked.map { (action, archived) -> "${if (archived.confirmed) "already_voted" else "pending_confirmation"}:${action.account}|${action.author}|${action.permlink}|${event.kind}" }
+                return@filter false
+            }
+            val eligibilityKey = Triple(event.author, event.permlink, event.kind == "favorite_post")
             if (!canAct()) {
                 skips += individual.actions.map { "cancelled:${it.account}|${it.author}|${it.permlink}" }
                 return@filter false
             }
-            val verdict = if (verdicts.containsKey(target)) verdicts[target] else {
-                voteRuntime.golosRootPostSkip(event.author, event.permlink).also { verdicts[target] = it }
+            val verdict = if (verdicts.containsKey(eligibilityKey)) verdicts[eligibilityKey] else {
+                voteRuntime.golosEligibilitySkip(event.author, event.permlink, event.kind == "favorite_post").also { verdicts[eligibilityKey] = it }
             }
             if (!canAct()) {
                 skips += individual.actions.map { "cancelled:${it.account}|${it.author}|${it.permlink}" }
                 false
             } else if (verdict != null) {
-                skips += individual.actions.map { "$verdict:${it.account}|${it.author}|${it.permlink}" }
+                skips += individual.actions.map { "$verdict:${it.account}|${it.author}|${it.permlink}|${event.kind}" }
                 false
             } else {
-                provenRoots += target
-                true
+                // An existing own curator vote must not spend the planner's energy budget.
+                // Worker plans are account-scoped; retain the mixed-account case for runtime guards.
+                if (event.kind == "curator_vote" && individual.actions.size == 1) {
+                    val action = individual.actions.single()
+                    val ownSkip = voteRuntime.golosCuratorOwnVoteSkip(action.account, action.author, action.permlink)
+                    if (ownSkip != null) {
+                        skips += "$ownSkip:${action.account}|${action.author}|${action.permlink}|${event.kind}"
+                        false
+                    } else true
+                } else true
             }
         }
         val plan = planner.plan(settings, eligible)
@@ -64,8 +76,7 @@ class AutoVoteRuntime(
     fun execute(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = false)
 
     private fun run(plan: VotePlan, previewOnly: Boolean): AutoVoteRuntimeReport {
-        val validatedRoots = provenRoots.toSet()
-        provenRoots.clear() // Proofs belong to one immediate execution, never a later tick.
+
         val skips = plan.skips.toMutableList()
         val results = mutableListOf<VoteBroadcastResult>()
         val donateResults = mutableListOf<GolosDonateResult>()
@@ -92,14 +103,13 @@ class AutoVoteRuntime(
             // Old/synthetic history/blog events do not prove a root post. Check before
             // signing or creating a fresh donate intent; pending donations reconcile in the runner.
             if (chain == "golos") {
-                val rootSkip = if ((action.author to action.permlink) in validatedRoots) null
-                    else voteRuntime.golosRootPostSkip(action.author, action.permlink)
+                val rootSkip = voteRuntime.golosEligibilitySkip(action.author, action.permlink, action.reason == "favorite_post", action.weight)
                 if (!canAct()) {
                     skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
                     break
                 }
                 if (rootSkip != null) {
-                    skips += "$rootSkip:${action.account}|${action.author}|${action.permlink}"
+                    skips += "$rootSkip:${action.account}|${action.author}|${action.permlink}|${action.reason}"
                     continue
                 }
             }
@@ -107,9 +117,10 @@ class AutoVoteRuntime(
                 skips += "cancelled:${action.account}|${action.author}|${action.permlink}"
                 break
             }
-            val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key)
+            val result = if (previewOnly) voteRuntime.preview(operation, keyProvider.keyRef(chain, action.account), key) else voteRuntime.execute(operation, keyProvider.keyRef(chain, action.account), key,
+                skipAnyExistingVote = chain == "golos" && action.reason == "curator_vote", requireGolosEligibility = chain == "golos", favoritePost = action.reason == "favorite_post")
             results += result
-            if (!previewOnly && result.status == "broadcast_unknown") awaitingConfirmation += action.account
+            if (!previewOnly && result.status == "broadcast_unknown" && !(chain == "golos" && voteRuntime.supportsVoteArchive)) awaitingConfirmation += action.account
             if (!previewOnly && chain == "golos" && action.donatePool != null && result.ok && result.status == "broadcast_confirmed") {
                 val donation = try {
                     donateRuntime?.execute(operation, action.donatePool, keyProvider.keyRef(chain, action.account), key)

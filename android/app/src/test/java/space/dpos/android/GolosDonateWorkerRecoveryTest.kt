@@ -59,7 +59,7 @@ class GolosDonateWorkerRecoveryTest {
                 rows ?: error("history unavailable")
         }
         // The real runner entry point invokes reconciliation even when planning sees no events.
-        val summary = DposWorkerRunner(context, store = s, historyOverride = { history }, rpcOverride = { rpc },
+        val summary = DposWorkerRunner(context, store = s, historyOverride = { history }, productionPolicy = LegacyTestGolosPolicy(history), rpcOverride = { rpc },
             eventsOverride = { _, _ -> emptyList() }).runOnce("donate-restart")
         assertEquals(if (s.workerEnabled()) 1 else 0, summary.autoUpvoterChecks)
         assertEquals(0, summary.autoUpvoterBroadcasted)

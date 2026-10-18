@@ -22,7 +22,14 @@ object DiagnosticSanitizer {
     private fun json(value: Any?, depth: Int): Any? {
         if (depth > 30) return "[nested diagnostic omitted]"
         return when (value) {
-            is JSONObject -> JSONObject().also { out -> value.keys().forEach { key -> out.put(plain(key), if (field.containsMatchIn(key)) "[redacted]" else json(value.opt(key), depth + 1)) } }
+            is JSONObject -> JSONObject().also { out -> value.keys().forEach { key ->
+                val item = value.opt(key)
+                val publicId = key in setOf("transactionId", "pendingTxId", "transaction_id", "trx_id")
+                // Exact field-and-format allowlist only; enclosing signed payloads remain redacted.
+                out.put(safeKey(key), if (publicId) {
+                    if (item is String && item.matches(Regex("[0-9a-fA-F]{40}"))) item else "[redacted]"
+                } else if (field.containsMatchIn(key)) "[redacted]" else json(item, depth + 1))
+            } }
             is JSONArray -> JSONArray().also { out -> for (i in 0 until value.length()) out.put(json(value.opt(i), depth + 1)) }
             is String -> fragments(value, depth + 1)
             else -> value
@@ -58,6 +65,15 @@ object DiagnosticSanitizer {
         }
         flushPlain()
         return out.toString()
+    }
+
+    private fun safeKey(key: String): String {
+        if (key.startsWith("https://") || key.startsWith("http://")) {
+            // Opaque digest preserves endpoint/API distinction without leaking URL credentials.
+            return "history-scope-" + java.security.MessageDigest.getInstance("SHA-256")
+                .digest(key.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }.chunked(16).joinToString(".")
+        }
+        return plain(key)
     }
 
     private fun plain(input: String): String {

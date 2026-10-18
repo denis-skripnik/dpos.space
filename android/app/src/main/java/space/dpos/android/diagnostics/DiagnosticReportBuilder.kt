@@ -29,6 +29,7 @@ object DiagnosticReportBuilder {
 Generated: ${Instant.ofEpochMilli(now)}
 Version: $versionName ($versionCode)
 Worker enabled: ${store.workerEnabled()}
+Transaction checkpoint: ${store.checkpointStatus()}
 Foreground service running: ${space.dpos.android.worker.DposForegroundService.isRunning}
 Stored accounts: ${accounts.size}
 Enabled accounts: ${accounts.count { it.enabled }}

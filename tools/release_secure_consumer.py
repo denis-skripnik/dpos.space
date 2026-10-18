@@ -302,6 +302,14 @@ def dpos_release_sign(raw):
     return _factories(Path(__file__).resolve().parent.parent, _KEY_DIR, _SDK)[1](raw)
 
 
+def dpos_release_sign_314(raw):
+    """Purpose-bound 3.1.4 signing; activation requires separate reviewed config pin."""
+    if json.loads(raw) != {'release': '3.1.4'}:
+        raise ValueError('invalid 3.1.4 sign parameters')
+    return _factories(Path(__file__).resolve().parent.parent, _KEY_DIR, _SDK)[1](
+        canonical({'versionName': '3.1.4', 'versionCode': 82}))
+
+
 def dpos_release_sign_312(raw):
     if json.loads(raw) != {'release': _NAME}:
         raise ValueError('invalid legacy sign parameters')

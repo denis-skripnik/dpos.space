@@ -116,7 +116,7 @@ class GolosDonateTest {
         .put("timestamp", "2026-09-26T00:00:00")
     private class FakeRpc(val account: JSONObject, val props: JSONObject, val block: JSONObject) : GolosRpcClient {
         override fun getGolosContent(author: String, permlink: String): JSONObject =
-            JSONObject().put("author", author).put("permlink", permlink).put("parent_author", "")
+            JSONObject().put("author", author).put("permlink", permlink).put("parent_author", "").put("last_payout", "1970-01-01T00:00:00").put("cashout_time", "2099-01-01T00:00:00").put("created", "2026-01-01T00:00:00").put("last_update", "2026-01-01T00:00:00").put("num_changes", 0).put("allow_votes", true).put("active", "2026-01-01T00:00:00")
         var authority = true
         override fun getDynamicGlobalProperties() = props
         override fun getBlock(blockNumber: Long) = block
