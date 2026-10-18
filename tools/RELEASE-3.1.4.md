@@ -20,26 +20,31 @@ Do not uninstall the previous app or regenerate either signing identity.
   Preserve all existing downloads and protected untracked server files; verify a
   fresh encrypted backup and exact remote/live baseline immediately beforehand.
 
-## Secure manifest operation (not automatically registered)
+## Secure manifest operation (existing trusted generic signer)
 
-The project-owned `tools/release_secure_consumer.py` exposes
-`dpos_release_sign_314`. Its only accepted parameters are
-`{"release":"3.1.4"}`. It fixes versionName `3.1.4`, versionCode `82`, repository
-from its own location, historical certificate, existing private key directory,
-SDK tools, and immutable output `downloads/dpos-space-3.1.4.manifest.json`.
-The existing signer SHA-256 dependency pin and all clean/public-commit, artifact,
-anti-replacement, exclusive-write and one-shot checks remain unchanged.
-
-Register ONLY after reviewing the exact handler and dependency and pinning its
-path, factory, and SHA-256 in the installed Secure ENV canonical consumer config.
+Use existing Secure ENV operation `dpos_release_sign` with exactly
+`{"versionName":"3.1.4","versionCode":82}`. No new registration, config-pin change,
+activation or key-init is required. The installed trusted handler is
+`/home/assistent/ai-projects/dpos.space-release/tools/release_secure_consumer.py`,
+factory `dpos_release_sign`, SHA-256
+`752f987e6d6b715faf7b9ad2dadf2e88314f8b045f601545430c72dc55e72e4e`.
+After approved source/APK publication, fast-forward that clean trusted checkout to
+the frozen source HEAD without reset/rebase/force, then verify exact HEAD, clean
+status, handler/dependency pins and committed APK bytes before binding the form.
+The generic handler anchors its repository to its own location, fixes the
+historical certificate, existing private key directory and SDK tools, and writes
+immutable output `downloads/dpos-space-3.1.4.manifest.json`. Existing clean/public
+commit, anti-replacement, exclusive-write and one-shot checks remain unchanged.
 No executable path comes from operation arguments. Do not reuse the 3.1.2
-operation. No key-init operation is needed. Password entry is exclusively through
-the one-shot HTTPS form, never chat. The form is a private bearer capability.
+operation. Password entry is exclusively through the one-shot HTTPS form, never
+chat. The form is a private bearer capability, not verified submitter identity.
 
 The signer requires the frozen APK/source commit to be publicly reachable on the
 fixed GitHub origin before binding. A later manifest-publication commit may refer
-to this preceding source/APK commit. Its `notBefore` is at least 24 hours after
-signing; native first-seen policy also applies. Do not remove either delay.
+to this preceding source/APK commit. `publishedAt` is computed at form binding,
+and `notBefore = publishedAt +24h`, not 24h after password submission. Complete a
+fresh form promptly and verify signed timestamps; native first-seen policy also
+applies. Do not rewrite signed fields or remove either delay.
 After signing, verify Ed25519 against the separately trusted public pin and exact
 source/APK identity before publishing the versioned manifest and latest alias.
 
