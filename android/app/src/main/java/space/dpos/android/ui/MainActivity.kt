@@ -120,7 +120,16 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         DposApplication.resumeEnabledWorker(this, "app foregrounded")
-        nativeUpdater.check()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        nativeUpdater.onResume()
+    }
+
+    override fun onPause() {
+        nativeUpdater.onPause()
+        super.onPause()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

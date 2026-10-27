@@ -69,8 +69,59 @@ class NativeUpdaterRetryTest {
     }
     private val release = ReleasePolicy.parse(feed, pin, BuildConfig.DPOS_HISTORIC_CERT, BuildConfig.VERSION_CODE)
     private var apkRequests = 0
+    private var holdApk = false
+    private var manifestRequests = 0
+    private var holdManifestAt = -1
+    private val manifestEntered = java.util.concurrent.CountDownLatch(1)
+    private val manifestReleased = java.util.concurrent.CountDownLatch(1)
+    private val apkEntered = java.util.concurrent.CountDownLatch(1)
+    private val apkReleased = java.util.concurrent.CountDownLatch(1)
     private var provenanceValid = true
-    private fun updater(owner: Activity = activity): NativeUpdater = NativeUpdater(owner, { url ->
+    private var successfulApk = false
+    private var archivePackage = "space.dpos.android.debug"
+    private var archiveCode = 140L
+    private var archiveVersion = "4.2.0"
+    private var badCertificate = false
+    private var badInstalledCertificate = false
+    private var disconnectReleases = true
+    private var drip = false
+    private var holdAfterChunk = false
+    private val chunkEntered = java.util.concurrent.CountDownLatch(1)
+    private val chunkReleased = java.util.concurrent.CountDownLatch(1)
+    private var elapsed = 0L
+    private val ioThreads = mutableListOf<Thread>()
+    // Public DER certificate extracted from retained shipped APK; never a private key.
+    private val publicCertificate = "MIIC5DCCAcwCAQEwDQYJKoZIhvcNAQELBQAwNzEWMBQGA1UEAwwNQW5kcm9pZCBEZWJ1ZzEQMA4GA1UECgwHQW5kcm9pZDELMAkGA1UEBhMCVVMwIBcNMjYwNzI2MDQyNDQ2WhgPMjA1NjA3MTgwNDI0NDZaMDcxFjAUBgNVBAMMDUFuZHJvaWQgRGVidWcxEDAOBgNVBAoMB0FuZHJvaWQxCzAJBgNVBAYTAlVTMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAquuC8zfHZhL9vHhedlObDA6UDbQ/MNt9tEnPpkzttnL3vIrMWHsfKKpTEVIG1Zn515YBduhaWL/rLXjnSCVz4531gXzsSwk/jphQFNSfoBon3XdHCJDCX6exVqVNpmLk8PqeGI6IjnhmpTGvLISzFFAT/Iubm6NtuqeHHWv7jmf81d/lcfZfwrqan6zNI05ouzE+5xYMB0Z+pdSGwLtpNECutAH1KuobaO/qRpVg+2Fh1AI9tomV4wXgj71sQG/78Zvpl/ZC9cuabm1twip9Ci70fP0UCkTL3Q4T7WMBkesjS3b+9pIyty1uhsNE+kU8OQiH4fMFI1o+iF2/6PZbCwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB18vOECltFSlPrMHTth53LUhw8reZVHzm3Ng1QTfd8Zdvuw/PbJgiC3wcq0vNw4PDSb8WMZdJbJeKpIoI/O95KcuhrZXN73Mu5JqBTSlsL0kCJqJrMVLC83JZJxvleebMvicBfvHMQ04AbzBdJs+z/S0g67CDQ4VkgRjeXIhjOT9+ikvhBtyUQFoahzM6lmyI9lofssZQbzgaQXlWjVNv38hvcnjdBy9lrXAxsRXM8NCmehGzc2q1D5vKajdTzg1A+z2Ffq/rBg0hZSnVJY6B3ar9s+NtJeJZUtgMLWrhm5t4cBpa4UKB3GhbajDW8BgZfNY4HHOBZRH18q4GvaeS1"
+    private fun signingInfo(bad: Boolean = false): android.content.pm.SigningInfo {
+        val bytes = if (bad) byteArrayOf(1, 2, 3) else Base64.decode(publicCertificate, Base64.NO_WRAP)
+        if (!bad) assertEquals(BuildConfig.DPOS_HISTORIC_CERT, hex(MessageDigest.getInstance("SHA-256").digest(bytes)))
+        return android.content.pm.SigningInfo().also {
+            shadowOf(it).setSignatures(arrayOf(android.content.pm.Signature(bytes)))
+        }
+    }
+    @Suppress("DEPRECATION")
+    private fun setCertificate(info: android.content.pm.PackageInfo, bad: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT >= 28) info.signingInfo = signingInfo(bad)
+        else info.signatures = arrayOf(android.content.pm.Signature(
+            if (bad) byteArrayOf(1, 2, 3) else Base64.decode(publicCertificate, Base64.NO_WRAP)))
+    }
+    private fun archiveBoundary(owner: Activity) {
+        val pm = shadowOf(owner.packageManager)
+        setCertificate(pm.getInternalMutablePackageInfo(owner.packageName), badInstalledCertificate)
+        File(owner.filesDir, "updates").walkTopDown().filter { it.isDirectory }.forEach { directory ->
+            pm.setPackageArchiveInfo(File(directory, release.filename).absolutePath,
+                android.content.pm.PackageInfo().apply {
+                    packageName = archivePackage
+                    versionName = archiveVersion
+                    if (android.os.Build.VERSION.SDK_INT >= 28) longVersionCode = archiveCode
+                    else @Suppress("DEPRECATION") versionCode = archiveCode.toInt()
+                    setCertificate(this, badCertificate)
+                })
+        }
+    }
+    private fun updater(owner: Activity = activity, resume: Boolean = true): NativeUpdater = NativeUpdater(owner, { url ->
+        synchronized(ioThreads) { ioThreads += Thread.currentThread() }
+        val holdManifest = url.path == ReleasePolicy.MANIFEST_PATH && ++manifestRequests == holdManifestAt
         val bytes = when {
             url.path == ReleasePolicy.MANIFEST_PATH -> feed
             url.host == "api.github.com" && url.path.contains("/commits/") ->
@@ -84,14 +135,46 @@ class NativeUpdaterRetryTest {
         }
         object : HttpURLConnection(url) {
             override fun connect() = Unit
-            override fun disconnect() = Unit
+            override fun disconnect() {
+                synchronized(ioThreads) { ioThreads += Thread.currentThread() }
+                if (holdManifest) manifestReleased.countDown()
+                if (disconnectReleases && url.path == release.apk) {
+                    apkReleased.countDown()
+                    chunkReleased.countDown()
+                }
+            }
             override fun usingProxy() = false
             override fun getResponseCode() = 200
             override fun getContentLengthLong() = (bytes?.size ?: payload.size).toLong()
-            override fun getInputStream() = bytes?.let { ByteArrayInputStream(it) }
-                ?: throw IOException("Synthetic offline APK failure")
+            override fun getInputStream(): java.io.InputStream {
+                if (holdManifest) {
+                    manifestEntered.countDown()
+                    check(manifestReleased.await(10, TimeUnit.SECONDS))
+                }
+                if (holdApk && url.path == release.apk) {
+                    apkEntered.countDown()
+                    check(apkReleased.await(10, TimeUnit.SECONDS))
+                }
+                if (bytes != null) return ByteArrayInputStream(bytes)
+                if (!successfulApk) throw IOException("Synthetic offline APK failure")
+                archiveBoundary(owner)
+                return object : ByteArrayInputStream(payload) {
+                    override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
+                        if (drip) elapsed += 100_001L
+                        if (holdAfterChunk && pos > 0) {
+                            chunkEntered.countDown()
+                            check(chunkReleased.await(10, TimeUnit.SECONDS))
+                        }
+                        return super.read(buffer, offset, when {
+                            drip -> 1
+                            holdAfterChunk -> minOf(count, payload.size / 2)
+                            else -> count
+                        })
+                    }
+                }
+            }
         }
-    }, pin).also { updaters += it }
+    }, pin, { elapsed }).also { updaters += it; if (resume) it.onResume() }
 
     private fun settle(updater: NativeUpdater) {
         // Dispatch button listeners, wait for real updater IO, then drain main callbacks.
@@ -110,7 +193,359 @@ class NativeUpdaterRetryTest {
         assertNotNull("Expected updater dialog after eligible foreground check", dialog)
         return dialog!!
     }
-    @After fun cleanup() { updaters.forEach { it.close() }; prefs.edit().clear().commit() }
+    @org.junit.Before fun resetProvider() {
+        val field = androidx.core.content.FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
+        (field.get(null) as MutableMap<*, *>).clear()
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(false)
+    }
+    @After fun cleanup() {
+        updaters.forEach { it.close() }
+        updaters.forEach {
+            val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+            assertTrue((field.get(it) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
+        }
+        prefs.edit().clear().commit()
+    }
+
+    private fun downloadReady(updater: NativeUpdater) {
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление загружено", shadowOf(dialog()).title.toString())
+    }
+    private fun candidates() = File(activity.filesDir, "updates").walkTopDown().filter { it.isFile }.toList()
+
+    @Test @Config(sdk = [26, 34]) fun signedDownloadIdentityAndExplicitInstallerHandoff() {
+        seedObservation()
+        successfulApk = true
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(true)
+        val updater = updater()
+        downloadReady(updater)
+        assertEquals(1, candidates().size)
+        assertArrayEquals(payload, candidates().single().readBytes())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        val intent = shadowOf(activity).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_VIEW, intent.action)
+        assertEquals("application/vnd.android.package-archive", intent.type)
+        assertTrue(intent.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(0, intent.flags and android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        assertEquals(1, apkRequests)
+        assertTrue(ioThreads.isNotEmpty())
+        assertTrue("Network work must not run on UI", ioThreads.all { it != Looper.getMainLooper().thread })
+        val handedOff = candidates().single()
+        updater.close()
+        val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+        assertTrue((field.get(updater) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
+        assertTrue("Installer URI must survive Activity destruction", handedOff.exists())
+    }
+
+    @Test fun settingsDenialReturnThenGrantRevalidatesBeforeInstaller() {
+        seedObservation()
+        successfulApk = true
+        val updater = updater()
+        downloadReady(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            shadowOf(activity).nextStartedActivity.action)
+        updater.onPause()
+        updater.onResume()
+        assertEquals("Обновление загружено", shadowOf(dialog()).title.toString())
+        assertNull("Returning without grant must not open installer", shadowOf(activity).nextStartedActivity)
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(true)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals(android.content.Intent.ACTION_VIEW, shadowOf(activity).nextStartedActivity.action)
+        assertEquals(1, apkRequests)
+    }
+
+    @Test fun tamperAfterPermissionSettingsFailsRevalidation() {
+        seedObservation()
+        successfulApk = true
+        val updater = updater()
+        downloadReady(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            shadowOf(activity).nextStartedActivity.action)
+        updater.onPause()
+        candidates().single().writeText("changed bytes")
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(true)
+        updater.onResume()
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(candidates().isEmpty())
+    }
+
+    @Test fun successfulBytesWithWrongArchiveIdentityAreRejectedAndRetryWorks() {
+        seedObservation()
+        successfulApk = true
+        badCertificate = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertTrue(candidates().isEmpty())
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        badCertificate = false
+        downloadReady(updater)
+        assertEquals(2, apkRequests)
+    }
+
+    @Test fun pausedUpdaterDoesNotCheckOrPromptUntilResume() {
+        seedObservation()
+        val updater = updater(resume = false)
+        check(updater)
+        assertTrue(ioThreads.isEmpty())
+        assertNull(ShadowAlertDialog.getLatestAlertDialog())
+        updater.onResume()
+        settle(updater)
+        assertTrue(dialog().isShowing)
+        updater.onPause()
+        assertFalse(dialog().isShowing)
+        updater.onResume()
+        assertTrue(dialog().isShowing)
+        assertEquals(0, apkRequests)
+    }
+
+    @Test fun pausedDownloadCannotShowReadyOrLaunchInstaller() {
+        seedObservation()
+        successfulApk = true
+        holdApk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        updater.onPause()
+        settle(updater)
+        assertFalse(dialog().isShowing)
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(candidates().isEmpty())
+        holdApk = false
+        updater.onResume()
+        settle(updater)
+        downloadReady(updater)
+    }
+
+    @Test fun pauseDuringInstallerValidationCancelsHandoffAndPreservesReadyRetry() {
+        seedObservation()
+        successfulApk = true
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(true)
+        val updater = updater()
+        downloadReady(updater)
+        val file = candidates().single()
+        holdManifestAt = manifestRequests + 1
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(manifestEntered.await(10, TimeUnit.SECONDS))
+        updater.onPause()
+        updater.onResume() // Return before the cancelled IO callback has completed.
+        settle(updater)
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(file.exists())
+        assertEquals("Обновление загружено", shadowOf(dialog()).title.toString())
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals(android.content.Intent.ACTION_VIEW, shadowOf(activity).nextStartedActivity.action)
+    }
+
+    @Test fun rapidPauseResumeDuringDownloadOffersRetryAfterCancellationCompletes() {
+        seedObservation()
+        successfulApk = true
+        holdApk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        updater.onPause()
+        updater.onResume()
+        settle(updater)
+        settle(updater)
+        assertTrue(candidates().isEmpty())
+        assertEquals("Доступно обновление DPoS Space 4.2.0", shadowOf(dialog()).title.toString())
+        assertTrue(dialog().isShowing)
+    }
+
+    @Test fun slowDripExceedsTotalDeadlineDespiteMakingProgress() {
+        seedObservation()
+        successfulApk = true
+        drip = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertTrue(candidates().isEmpty())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        drip = false
+        downloadReady(updater)
+    }
+
+    class InstallerFailureActivity : Activity() {
+        var failLaunch = true
+        override fun startActivity(intent: android.content.Intent) {
+            if (failLaunch) throw android.content.ActivityNotFoundException("synthetic missing installer")
+            super.startActivity(intent)
+        }
+    }
+
+    @Test fun installerLaunchFailureKeepsVerifiedCandidateAndCanRetry() {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(InstallerFailureActivity::class.java).setup().get()
+        shadowOf(owner.packageManager).setCanRequestPackageInstalls(true)
+        val updater = updater(owner)
+        downloadReady(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertTrue(candidates().single().exists())
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        owner.failLaunch = false
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals(android.content.Intent.ACTION_VIEW, shadowOf(owner).nextStartedActivity.action)
+    }
+
+    @Test fun settingsLaunchFailureIsVisibleAndCanRetry() {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(InstallerFailureActivity::class.java).setup().get()
+        val updater = updater(owner)
+        downloadReady(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertTrue(candidates().single().exists())
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        owner.failLaunch = false
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            shadowOf(owner).nextStartedActivity.action)
+    }
+
+    @Test fun recreationOldCleanupCannotDeleteNewCandidate() {
+        seedObservation()
+        successfulApk = true
+        val first = updater()
+        downloadReady(first)
+        val oldFile = candidates().single()
+        val owner = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val second = updater(owner)
+        downloadReady(second)
+        val newFile = candidates().single { it != oldFile }
+        assertNotEquals(oldFile.parent, newFile.parent)
+        first.close()
+        val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+        assertTrue((field.get(first) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
+        assertFalse(oldFile.exists())
+        assertArrayEquals(payload, newFile.readBytes())
+        shadowOf(owner.packageManager).setCanRequestPackageInstalls(true)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(second)
+        assertEquals(android.content.Intent.ACTION_VIEW, shadowOf(owner).nextStartedActivity.action)
+    }
+
+
+    @Test fun progressAnnouncesPercentageAndCancelDoesNotBlockMain() {
+        seedObservation()
+        successfulApk = true
+        holdAfterChunk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(chunkEntered.await(10, TimeUnit.SECONDS))
+        shadowOf(Looper.getMainLooper()).idle()
+        val status = dialog().findViewById<android.widget.TextView>(android.R.id.message)
+        assertTrue(status.text.toString().contains("%"))
+        assertEquals(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE, status.accessibilityLiveRegion)
+        dialog().getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+        settle(updater)
+        assertTrue(candidates().isEmpty())
+        assertTrue(ioThreads.all { it != Looper.getMainLooper().thread })
+    }
+
+    @Test fun destroyedOldTransferCompletesAfterNewDownloadWithoutDeletingIt() {
+        seedObservation()
+        successfulApk = true
+        holdApk = true
+        disconnectReleases = false
+        val first = updater()
+        check(first)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        first.close()
+        holdApk = false
+        val owner = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val second = updater(owner)
+        downloadReady(second)
+        val file = candidates().single()
+        apkReleased.countDown()
+        val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+        assertTrue((field.get(first) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertArrayEquals(payload, file.readBytes())
+        assertEquals("Обновление загружено", shadowOf(dialog()).title.toString())
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test fun packageVersionAndInstalledCertificateMismatchAllFailClosed() {
+        seedObservation()
+        successfulApk = true
+        val updater = updater()
+        val mutations = listOf<() -> Unit>(
+            { archivePackage = "attacker.app" },
+            { archivePackage = activity.packageName; archiveVersion = "4.1.0" },
+            { archiveVersion = release.version; archiveCode = release.code - 1L },
+            { archiveCode = release.code.toLong(); badInstalledCertificate = true }
+        )
+        mutations.forEach { mutate ->
+            mutate()
+            check(updater)
+            dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            settle(updater)
+            assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+            assertTrue(candidates().isEmpty())
+            assertNull(shadowOf(activity).nextStartedActivity)
+            dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+    }
+
+    @Test fun completionQueuedBeforePauseCannotDisplayReadyOrKeepCancelledFile() {
+        seedObservation()
+        successfulApk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+        val executor = field.get(updater) as ExecutorService
+        executor.submit {}.get(10, TimeUnit.SECONDS)
+        updater.onPause()
+        shadowOf(Looper.getMainLooper()).idle()
+        executor.submit {}.get(10, TimeUnit.SECONDS)
+        assertTrue(candidates().isEmpty())
+        assertFalse(dialog().isShowing)
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
 
     @Test fun laterDefersThisActivityButNewActivityCheckOffersAgain() {
         seedObservation()
@@ -150,6 +585,33 @@ class NativeUpdaterRetryTest {
         settle(updater)
         assertEquals(2, apkRequests)
         assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test fun downloadImmediatelyShowsAccessibleStatusAndCanBeCancelled() {
+        seedObservation()
+        holdApk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        val progress = dialog()
+        assertEquals("Загрузка обновления", shadowOf(progress).title.toString())
+        assertTrue(progress.isShowing)
+        assertEquals("Отмена", progress.getButton(AlertDialog.BUTTON_NEGATIVE).text.toString())
+        progress.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+        settle(updater)
+        assertFalse(progress.isShowing)
+        assertFalse(File(activity.filesDir, "updates/${release.filename}").exists())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        check(updater)
+        assertEquals("Доступно обновление DPoS Space 4.2.0", shadowOf(dialog()).title.toString())
+    }
+
+    @Test fun appDeclaresPermissionForUserConfirmedApkInstallation() {
+        val info = activity.packageManager.getPackageInfo(activity.packageName,
+            android.content.pm.PackageManager.GET_PERMISSIONS)
+        assertTrue(info.requestedPermissions?.contains("android.permission.REQUEST_INSTALL_PACKAGES") == true)
     }
 
     @Test fun oldPersistentNotificationDoesNotSuppressEligibleRelease() {

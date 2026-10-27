@@ -77,14 +77,14 @@ androidContext.DposPwa.notify('Android native', { body: 'Bridge body', tag: 'bri
 assert.deepStrictEqual(bridgeCall, { title: 'Android native', body: 'Bridge body', tag: 'bridge', route: '#chain=golos&app=wallet' }, 'PWA notify routes to Android bridge when present');
 
 const apkUrl = pwaSource.match(/ANDROID_APK_LATEST_URL = '([^']+)'/)[1];
-assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.4.apk', 'stable APK uses the 3.1.4 public naming convention');
-assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.4'"), 'stable download version matches');
-assert(pwaSource.includes('download="dpos-space-3.1.4.apk"'), 'suggested download name matches public URL');
+assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.5.apk', 'stable APK uses the 3.1.5 public naming convention');
+assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.5'"), 'stable download version matches');
+assert(pwaSource.includes('download="dpos-space-3.1.5.apk"'), 'suggested download name matches public URL');
 assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
-assert(indexSource.includes('DPoS Space 3.1.4'), 'site footer shows current stable version');
-const pwaMarker = 'v3/js/pwa.js?v=20261018-release-3-1-4';
+assert(indexSource.includes('DPoS Space 3.1.5'), 'site footer shows current stable version');
+const pwaMarker = 'v3/js/pwa.js?v=20261027-release-3-1-5';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261018-release-3-1-4'"), 'service worker cache bumped for VIZ navigation binding');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261027-release-3-1-5'"), 'service worker cache bumped for VIZ navigation binding');
 assert(swSource.includes("pathname.startsWith('/downloads/') && pathname.endsWith('.apk')") && swSource.includes('event.respondWith(networkOnly(request))'), 'APK bypasses SW cache');
 assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'Android foreground guidance is retained');
 
