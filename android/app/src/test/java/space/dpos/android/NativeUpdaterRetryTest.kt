@@ -532,13 +532,21 @@ class NativeUpdaterRetryTest {
     @Test fun completionQueuedBeforePauseCannotDisplayReadyOrKeepCancelledFile() {
         seedObservation()
         successfulApk = true
+        holdApk = true
         val updater = updater()
         check(updater)
         dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        // Drain the click while IO is held: a fast download must not become ready in this idle.
         shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        assertEquals("Загрузка обновления", shadowOf(dialog()).title.toString())
+        apkReleased.countDown()
         val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
         val executor = field.get(updater) as ExecutorService
+        // Queue successful completion, but do not drain main until after pause cancels it.
         executor.submit {}.get(10, TimeUnit.SECONDS)
+        assertArrayEquals(payload, candidates().single().readBytes())
+        assertEquals("Загрузка обновления", shadowOf(dialog()).title.toString())
         updater.onPause()
         shadowOf(Looper.getMainLooper()).idle()
         executor.submit {}.get(10, TimeUnit.SECONDS)
