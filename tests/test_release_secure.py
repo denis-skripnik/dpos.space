@@ -348,10 +348,196 @@ class ReleaseTest(unittest.TestCase):
             with patch.object(consumer.subprocess, 'run') as spawn:
                 for operation in operations:
                     with self.subTest(summary=operation.summary):
-                        with self.assertRaisesRegex(ValueError, 'trusted signer changed'):
+                        with self.assertRaisesRegex(ValueError, '^dependency_mismatch$'):
                             operation.execute('synthetic-test-only-passphrase')
                 spawn.assert_not_called()
             self.assertFalse((self.key_dir / 'dpos-release-ed25519.pem').exists())
+            self.assertFalse((self.repo / 'downloads/dpos-space-3.1.2.manifest.json').exists())
+            self.assertEqual(self.receipt()['code'], 'dependency_mismatch')
+
+    def diagnostic_operation(self, *, initialize=True):
+        init, sign = consumer._factories(self.repo, self.key_dir, self.sdk)
+        if initialize:
+            init(json.dumps({'release': '3.1.2'})).execute('synthetic-test-only-passphrase')
+        return sign(json.dumps({'versionName': '3.1.2', 'versionCode': 80}))
+
+    def receipt(self):
+        path = self.key_dir / consumer.RECEIPT_NAME
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        data = json.loads(path.read_bytes())
+        self.assertEqual(set(data), {'attempt', 'boundAtNs', 'startedAtNs', 'finishedAtNs',
+                                    'versionName', 'versionCode', 'sourceCommit', 'code'})
+        self.assertEqual(data['sourceCommit'], 'b' * 40)
+        self.assertEqual((data['versionName'], data['versionCode']), ('3.1.2', 80))
+        self.assertLessEqual(data['boundAtNs'], data['startedAtNs'])
+        self.assertLessEqual(data['startedAtNs'], data['finishedAtNs'])
+        self.assertRegex(data['attempt'], '^[0-9a-f]{32}$')
+        self.assertNotIn('CANARY', path.read_text())
+        self.assertNotIn('synthetic-test-only-passphrase', path.read_text())
+        return data
+
+    def test_diagnostic_positive_and_immutable_attempt_retry(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            operation.execute('synthetic-test-only-passphrase')
+            receipt = self.receipt()
+            self.assertEqual(receipt['code'], 'signed')
+            self.assertRaisesRegex(consumer.SigningFailure, '^already_consumed$',
+                                   operation.execute, 'synthetic-test-only-passphrase')
+            self.assertEqual(self.receipt(), receipt)
+
+    def test_wrong_fixture_secret_and_malformed_key_share_decrypt_code(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            self.assertRaisesRegex(consumer.SigningFailure, '^key_decrypt$',
+                                   operation.execute, 'wrong-fixture-CANARY-password')
+            first = self.receipt()
+            key = self.key_dir / 'dpos-release-ed25519.pem'
+            key.write_bytes(b'MALFORMED-KEY-CANARY')
+            operation = self.diagnostic_operation(initialize=False)
+            self.assertRaisesRegex(consumer.SigningFailure, '^key_decrypt$',
+                                   operation.execute, 'synthetic-test-only-passphrase')
+            second = self.receipt()
+            self.assertEqual(first['code'], second['code'])
+            self.assertNotEqual(first['attempt'], second['attempt'])
+            self.assertFalse((self.repo / 'downloads/dpos-space-3.1.2.manifest.json').exists())
+
+    def test_signer_cli_only_fixed_failure_codes(self):
+        key = self.key_dir / 'key.pem'
+        manifest = {'apk':'/downloads/dpos-space-3.1.2.apk', 'sha256':'a'*64,
+                    'package':consumer._PACKAGE, 'certificateSha256':consumer._HISTORIC_CERT,
+                    'versionName':'3.1.2', 'versionCode':80, 'sourceCommit':'b'*40,
+                    'publishedAt':'2026-10-01T00:00:00Z', 'notBefore':'2026-10-02T00:00:00Z'}
+        release_signer.operate({'mode':'init', 'password':'synthetic-test-only-passphrase', 'manifest':None}, key)
+        request = {'mode':'sign', 'password':'wrong-fixture-CANARY-password', 'manifest':manifest}
+        for expected, mutate in [('key_decrypt', lambda: None),
+                                 ('key_decrypt', lambda: key.write_bytes(b'BROKEN-CANARY')),
+                                 ('key_permissions', lambda: key.chmod(0o644)),
+                                 ('request_policy', lambda: request.update(mode='CANARY'))]:
+            mutate()
+            result = subprocess.run([sys.executable, str(TOOLS / 'release_signer.py'), str(key)],
+                                    input=json.dumps(request).encode(), capture_output=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(json.loads(result.stdout), {'status':'failed', 'code':expected})
+            self.assertEqual(result.stderr, b'')
+            self.assertNotIn(b'CANARY', result.stdout)
+
+    def test_unsafe_receipt_targets_prevent_signing(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            target = self.key_dir / consumer.RECEIPT_NAME
+            outside = self.root / 'outside'
+            outside.write_bytes(b'UNTOUCHED')
+            target.symlink_to(outside)
+            with patch.object(consumer.subprocess, 'run') as spawn:
+                self.assertRaisesRegex(consumer.SigningFailure, '^receipt_io$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+                spawn.assert_not_called()
+            self.assertEqual(outside.read_bytes(), b'UNTOUCHED')
+            target.unlink()
+            for kind in ('hardlink', 'permissions', 'directory'):
+                with self.subTest(kind=kind):
+                    operation = self.diagnostic_operation(initialize=False)
+                    if kind == 'hardlink':
+                        os.link(outside, target)
+                    elif kind == 'permissions':
+                        target.write_bytes(b'OLD')
+                        target.chmod(0o644)
+                    else:
+                        target.mkdir()
+                    with patch.object(consumer.subprocess, 'run') as spawn:
+                        self.assertRaisesRegex(consumer.SigningFailure, '^receipt_io$',
+                                               operation.execute, 'synthetic-test-only-passphrase')
+                        spawn.assert_not_called()
+                    target.rmdir() if kind == 'directory' else target.unlink()
+
+    def test_receipt_io_failure_prevents_signing_and_hides_exception(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            with patch.object(consumer.os, 'replace', side_effect=OSError('IO-CANARY')), \
+                    patch.object(consumer.subprocess, 'run') as spawn:
+                self.assertRaisesRegex(consumer.SigningFailure, '^receipt_io$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+                spawn.assert_not_called()
+            self.assertEqual(list(self.key_dir.glob('.' + consumer.RECEIPT_NAME + '.*')), [])
+
+    def test_protocol_and_subprocess_failures_never_persist_untrusted_output(self):
+        cases = [({'status':'failed', 'code':'CANARY'}, 1, 'signer_protocol'),
+                 ({'status':'failed', 'code':'key_decrypt', 'extra':'CANARY'}, 1, 'signer_protocol'),
+                 (['CANARY'], 1, 'signer_runtime'),
+                 ({'status':'signed', 'publicKey':'CANARY', 'signature':'CANARY'}, 0, 'verification'),
+                 ({'status':'failed', 'code':'request_policy'}, 1, 'request_policy')]
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            self.diagnostic_operation()
+            for payload, returncode, expected in cases:
+                with self.subTest(expected=expected, payload=payload):
+                    operation = self.diagnostic_operation(initialize=False)
+                    fake = subprocess.CompletedProcess([], returncode, json.dumps(payload).encode())
+                    with patch.object(consumer.subprocess, 'run', return_value=fake):
+                        self.assertRaisesRegex(consumer.SigningFailure, '^' + expected + '$',
+                                               operation.execute, 'synthetic-test-only-passphrase')
+                    self.assertEqual(self.receipt()['code'], expected)
+            for exception in (OSError('CANARY'), subprocess.TimeoutExpired('CANARY', 20)):
+                operation = self.diagnostic_operation(initialize=False)
+                with patch.object(consumer.subprocess, 'run', side_effect=exception):
+                    self.assertRaisesRegex(consumer.SigningFailure, '^signer_subprocess$',
+                                           operation.execute, 'synthetic-test-only-passphrase')
+                self.assertEqual(self.receipt()['code'], 'signer_subprocess')
+
+    def test_source_and_manifest_write_canary_exceptions_are_fixed(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            with patch.object(consumer, 'collect', side_effect=ValueError('SOURCE-CANARY')):
+                self.assertRaisesRegex(consumer.SigningFailure, '^source_recheck$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+            self.assertEqual(self.receipt()['code'], 'source_recheck')
+            operation = self.diagnostic_operation(initialize=False)
+            original_open = consumer.os.open
+            def fail_manifest(path, *args, **kwargs):
+                if str(path).endswith('.manifest.json'):
+                    raise OSError('WRITE-CANARY')
+                return original_open(path, *args, **kwargs)
+            with patch.object(consumer.os, 'open', side_effect=fail_manifest):
+                self.assertRaisesRegex(consumer.SigningFailure, '^manifest_write$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+            self.assertEqual(self.receipt()['code'], 'manifest_write')
+
+    def test_signer_stage_callback_is_fixed_and_legacy_result_unchanged(self):
+        key = self.key_dir / 'key.pem'
+        stages = []
+        result = release_signer.operate({'mode':'init', 'password':'synthetic-test-only-passphrase',
+                                         'manifest':None}, key, stage=stages.append)
+        self.assertEqual(set(result), {'status', 'publicKey'})
+        self.assertEqual(stages, ['request_policy', 'sign'])
+        self.assertTrue(set(stages) <= release_signer.FAILURE_CODES)
+        stages.clear()
+        self.assertRaises(ValueError, release_signer.operate,
+                          {'mode':'CANARY', 'password':'CANARY', 'manifest':None}, key,
+                          stage=stages.append)
+        self.assertEqual(stages, ['request_policy'])
+
+    def test_replaced_private_directory_is_not_written_or_signed(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            self.key_dir.rename(self.root / 'old-keys')
+            self.key_dir.mkdir(mode=0o700)
+            with patch.object(consumer.subprocess, 'run') as spawn:
+                self.assertRaisesRegex(consumer.SigningFailure, '^receipt_io$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+                spawn.assert_not_called()
+            self.assertEqual(list(self.key_dir.iterdir()), [])
+
+    def test_post_write_verification_error_removes_only_own_manifest(self):
+        with patch.object(consumer, 'run_fixed', side_effect=self.fake_run):
+            operation = self.diagnostic_operation()
+            def fail_final(args, cwd):
+                if args[:2] == ['git', 'status'] and any(str(a).startswith(':(exclude)') for a in args):
+                    raise OSError('VERIFY-CANARY')
+                return self.fake_run(args, cwd)
+            with patch.object(consumer, 'run_fixed', side_effect=fail_final):
+                self.assertRaisesRegex(consumer.SigningFailure, '^verification$',
+                                       operation.execute, 'synthetic-test-only-passphrase')
+            self.assertEqual(self.receipt()['code'], 'verification')
             self.assertFalse((self.repo / 'downloads/dpos-space-3.1.2.manifest.json').exists())
 
     def test_generic_factory_anchors_repo_to_pinned_handler(self):

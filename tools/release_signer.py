@@ -42,7 +42,11 @@ def validate_release(version, code):
     return 'dpos-space-' + version + '.apk'
 
 
-def operate(request, key_path):
+FAILURE_CODES = frozenset({'request_policy', 'key_permissions', 'key_decrypt', 'sign', 'signer_runtime'})
+
+
+def operate(request, key_path, *, stage=lambda code: None):
+    stage('request_policy')
     if type(request) is not dict or set(request) != {'mode', 'password', 'manifest'}:
         raise ValueError('invalid request')
     mode, password, manifest = request['mode'], request['password'], request['manifest']
@@ -83,10 +87,13 @@ def operate(request, key_path):
             raise ValueError('invalid release timing') from None
         if (available - published).total_seconds() < 86400:
             raise ValueError('release delay too short')
+        stage('key_permissions')
         restricted_private_file(key_path)
+        stage('key_decrypt')
         private = serialization.load_pem_private_key(key_path.read_bytes(), password.encode())
         if not isinstance(private, ed25519.Ed25519PrivateKey):
             raise ValueError('invalid key type')
+    stage('sign')
     public = base64.b64encode(private.public_key().public_bytes(
         serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode()
     if mode == 'init':
@@ -95,23 +102,27 @@ def operate(request, key_path):
     return {'status': 'signed', 'publicKey': public, 'signature': signature}
 
 
-def main():
+def main(stage=lambda code: None):
+    stage('request_policy')
     # Fixed key location configured by operator; not taken from stdin or model parameters.
     if len(sys.argv) != 2:
         raise ValueError('expected trusted key location')
     key_path = Path(sys.argv[1])
     request = json.loads(sys.stdin.buffer.read(8193))
+    stage('key_permissions')
     if key_path.parent.is_symlink() or not key_path.parent.is_dir():
         raise ValueError('unsafe key directory')
     parent = key_path.parent.stat()
     if parent.st_uid != os.getuid() or parent.st_mode & 0o077:
         raise ValueError('unsafe key directory')
-    print(json.dumps(operate(request, key_path), sort_keys=True))
+    print(json.dumps(operate(request, key_path, stage=stage), sort_keys=True))
 
 
 if __name__ == '__main__':
+    phase = ['signer_runtime']
     try:
-        main()
+        main(lambda code: phase.__setitem__(0, code))
     except Exception:
-        print('{"status":"failed"}')
+        code = phase[0] if phase[0] in FAILURE_CODES else 'signer_runtime'
+        print(json.dumps({'status': 'failed', 'code': code}, sort_keys=True))
         sys.exit(1)

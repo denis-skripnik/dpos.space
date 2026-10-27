@@ -5,6 +5,7 @@ startup hook after installing the reviewed secure-env operations-capable build.
 No registration, gateway mutation or key creation occurs on import.
 """
 import hashlib
+import base64
 import json
 import os
 import re
@@ -12,6 +13,8 @@ import stat
 import subprocess
 import sys
 import threading
+import time
+import uuid
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,7 +41,47 @@ _LOCK = threading.Lock()
 _HISTORIC_CERT = '86b51e10c666cf9c2c4ecdea8407ec068380fb242adb2fae5d237351768f3b27'
 # Independently reviewed dependency pin, covered by this consumer's config digest.
 # Never derive trust from the adjacent file at registration or binding time.
-_SIGNER_SHA256 = '3233b585df748f4a93284d074c5b1ea746be034a97c7b821dc443cc9aaac5681'
+_SIGNER_SHA256 = '031692efaf408e890394c5b718f72f0f1180d3daf6bb5806f6311f4942b15e89'
+
+SIGNER_FAILURE_CODES = frozenset({'request_policy', 'key_permissions', 'key_decrypt', 'sign', 'signer_runtime'})
+FAILURE_CODES = SIGNER_FAILURE_CODES | frozenset({'source_recheck', 'dependency_mismatch',
+    'signer_subprocess', 'signer_protocol', 'receipt_io', 'manifest_write', 'verification', 'already_consumed'})
+RECEIPT_NAME = 'dpos-release-sign-attempt.json'
+
+
+class SigningFailure(ValueError):
+    def __init__(self, code):
+        self.code = code if code in FAILURE_CODES else 'signer_protocol'
+        super().__init__(self.code)
+
+
+def write_receipt(directory_fd, receipt):
+    """Only trusted metadata reaches disk; never copy signer output or errors here."""
+    def check_target():
+        try:
+            st = os.stat(RECEIPT_NAME, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if (not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid()
+                or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600):
+            raise SigningFailure('receipt_io')
+    check_target()
+    temporary = '.' + RECEIPT_NAME + '.' + uuid.uuid4().hex
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600, dir_fd=directory_fd)
+    try:
+        with os.fdopen(fd, 'wb') as target:
+            target.write(canonical(receipt) + b'\n')
+            target.flush()
+            os.fsync(target.fileno())
+        check_target()
+        os.replace(temporary, RECEIPT_NAME, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        os.fsync(directory_fd)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
 
 
 def run_fixed(argv, cwd):
@@ -159,6 +202,8 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
     from secure_env_ingress.operations import BoundOperation
     repo, key_dir, sdk = Path(repo).resolve(strict=True), Path(key_dir).resolve(strict=True), Path(sdk_build_tools).resolve(strict=True)
     assert_private_dir(key_dir)
+    key_directory = key_dir.stat()
+    key_directory_identity = (key_directory.st_dev, key_directory.st_ino)
     if expected_cert != _HISTORIC_CERT:
         raise ValueError('historical certificate differs from independently verified installed 3.1.1')
     key = key_dir / 'dpos-release-ed25519.pem'
@@ -171,16 +216,45 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
 
     def spawn(mode, password, manifest):
         # Recheck before serializing or delivering the password to a subprocess.
-        check_signer()
+        try:
+            check_signer()
+        except Exception:
+            raise SigningFailure('dependency_mismatch') from None
         payload = canonical({'mode': mode, 'password': password, 'manifest': manifest})
-        proc = subprocess.run([sys.executable, str(signer), str(key)], input=payload,
-                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                              env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'},
-                              timeout=20, check=True)
-        result = json.loads(proc.stdout)
+        try:
+            proc = subprocess.run([sys.executable, str(signer), str(key)], input=payload,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                  env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'},
+                                  timeout=20, check=False)
+        except Exception:
+            raise SigningFailure('signer_subprocess') from None
+        try:
+            if len(proc.stdout) > 1024:
+                raise ValueError()
+            result = json.loads(proc.stdout)
+            if type(result) is not dict:
+                raise ValueError()
+        except Exception:
+            raise SigningFailure('signer_runtime' if proc.returncode else 'signer_protocol') from None
+        if proc.returncode:
+            if (set(result) == {'status', 'code'} and result['status'] == 'failed'
+                    and type(result['code']) is str and result['code'] in SIGNER_FAILURE_CODES):
+                raise SigningFailure(result['code'])
+            raise SigningFailure('signer_protocol')
         if (set(result) != ({'status', 'publicKey'} if mode == 'init' else {'status', 'publicKey', 'signature'})
                 or result['status'] != ('initialized' if mode == 'init' else 'signed')):
-            raise ValueError('signer result invalid')
+            raise SigningFailure('signer_protocol')
+        try:
+            public = base64.b64decode(result['publicKey'], validate=True)
+            if len(public) != 32:
+                raise ValueError()
+            if mode == 'sign':
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+                signature = base64.b64decode(result['signature'], validate=True)
+                Ed25519PublicKey.from_public_bytes(public).verify(
+                    signature, b'dpos.space/release/v1\n' + canonical(manifest))
+        except Exception:
+            raise SigningFailure('verification') from None
         return result
 
     def init_factory(raw):
@@ -228,13 +302,14 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
         manifest = {**fields, 'publishedAt': instant.isoformat().replace('+00:00', 'Z'),
                     'notBefore': (instant + timedelta(hours=24)).isoformat().replace('+00:00', 'Z')}
         consumed = False
-        def execute(password):
-            nonlocal consumed
-            with _LOCK:
-                if consumed:
-                    raise ValueError('operation already consumed')
-                consumed = True
+        attempt = uuid.uuid4().hex
+        bound_at = time.time_ns()
+        phase = ['source_recheck']
+        def execute_impl(password):
             assert_private_dir(key_dir)
+            current_key_directory = key_dir.lstat()
+            if (current_key_directory.st_dev, current_key_directory.st_ino) != key_directory_identity:
+                raise SigningFailure('receipt_io')
             def recheck():
                 if output.exists() or output.is_symlink():
                     raise ValueError('release manifest already exists')
@@ -246,11 +321,14 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
                 if current_identity != identity or current != frozen or collect(repo, sdk, version=version, code=code, expected_cert=expected_cert) != fields:
                     raise ValueError('source or artifact changed')
             recheck()
+            phase[0] = 'signer_runtime'
             result = spawn('sign', password, manifest)
+            phase[0] = 'source_recheck'
             recheck()
             envelope = {'manifest': manifest, 'publicKey': result['publicKey'],
                         'signature': result['signature']}
             # First write wins. Secret and private key never go to the repo.
+            phase[0] = 'manifest_write'
             directory_fd = os.open(repo / 'downloads', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             created = None
             try:
@@ -264,6 +342,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
                     target.write(canonical(envelope) + b'\n')
                     target.flush()
                     os.fsync(target.fileno())
+                phase[0] = 'verification'
                 current, current_identity = artifact_snapshot(apk)
                 directory = (repo / 'downloads').lstat()
                 if (current_identity != identity or current != frozen
@@ -285,6 +364,44 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
                 raise
             finally:
                 os.close(directory_fd)
+        def execute(password):
+            nonlocal consumed
+            with _LOCK:
+                if consumed:
+                    raise SigningFailure('already_consumed')
+                consumed = True
+            receipt = {'attempt': attempt, 'boundAtNs': bound_at, 'startedAtNs': time.time_ns(),
+                       'versionName': version, 'versionCode': code, 'sourceCommit': fields['sourceCommit'],
+                       'code': 'started'}
+            receipt_fd = None
+            receipt_ready = False
+            try:
+                phase[0] = 'receipt_io'
+                assert_private_dir(key_dir)
+                receipt_fd = os.open(key_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                st = os.fstat(receipt_fd)
+                if (st.st_uid != os.getuid() or st.st_mode & 0o077
+                        or (st.st_dev, st.st_ino) != key_directory_identity):
+                    raise SigningFailure('receipt_io')
+                write_receipt(receipt_fd, receipt)
+                receipt_ready = True
+                phase[0] = 'source_recheck'
+                execute_impl(password)
+                receipt['code'] = 'signed'
+            except Exception as error:
+                failure = error.code if isinstance(error, SigningFailure) else phase[0]
+                receipt['code'] = failure if failure in FAILURE_CODES else 'signer_runtime'
+                raise SigningFailure(receipt['code']) from None
+            finally:
+                if receipt_fd is not None:
+                    receipt['finishedAtNs'] = time.time_ns()
+                    try:
+                        if receipt_ready:
+                            write_receipt(receipt_fd, receipt)
+                    except Exception:
+                        raise SigningFailure('receipt_io') from None
+                    finally:
+                        os.close(receipt_fd)
         return BoundOperation('Sign DPoS ' + version + ': package ' + _PACKAGE + ', code ' + str(code) + ', immutable output ' + output.name + ', APK SHA-256 '
                               + fields['sha256'] + ', certificate ' + fields['certificateSha256']
                               + ', GitHub commit ' + fields['sourceCommit'] + '. Earliest install: '
