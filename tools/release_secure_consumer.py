@@ -11,7 +11,6 @@ import os
 import re
 import stat
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -47,12 +46,33 @@ SIGNER_FAILURE_CODES = frozenset({'request_policy', 'key_permissions', 'key_decr
 FAILURE_CODES = SIGNER_FAILURE_CODES | frozenset({'source_recheck', 'dependency_mismatch',
     'signer_subprocess', 'signer_protocol', 'receipt_io', 'manifest_write', 'verification', 'already_consumed'})
 RECEIPT_NAME = 'dpos-release-sign-attempt.json'
+_SIGNER_ENV = {'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'}
 
 
 class SigningFailure(ValueError):
     def __init__(self, code):
         self.code = code if code in FAILURE_CODES else 'signer_protocol'
         super().__init__(self.code)
+
+
+def signer_python():
+    """Bind the installed Hermes dependency runtime, not its bare gateway Python."""
+    try:
+        from pm import environments
+        root = Path(environments.__file__).resolve().parent.parent
+        # Preserve the venv entry point: resolving this symlink loses site-packages.
+        python = str(environments.project_python(root))
+        probe = subprocess.run(
+            [python, '-c', 'from cryptography.hazmat.primitives import serialization; '
+             'from cryptography.hazmat.primitives.asymmetric import ed25519; '
+             'print("dpos-signer-runtime-v1")'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env=_SIGNER_ENV, timeout=20, check=False)
+        if probe.returncode != 0 or probe.stdout != b'dpos-signer-runtime-v1\n':
+            raise ValueError()
+        return python
+    except Exception:
+        raise SigningFailure('signer_runtime') from None
 
 
 def write_receipt(directory_fd, receipt):
@@ -214,7 +234,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
 
     check_signer()
 
-    def spawn(mode, password, manifest):
+    def spawn(python, mode, password, manifest):
         # Recheck before serializing or delivering the password to a subprocess.
         try:
             check_signer()
@@ -222,9 +242,9 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
             raise SigningFailure('dependency_mismatch') from None
         payload = canonical({'mode': mode, 'password': password, 'manifest': manifest})
         try:
-            proc = subprocess.run([sys.executable, str(signer), str(key)], input=payload,
+            proc = subprocess.run([python, str(signer), str(key)], input=payload,
                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                  env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'},
+                                  env=_SIGNER_ENV,
                                   timeout=20, check=False)
         except Exception:
             raise SigningFailure('signer_subprocess') from None
@@ -263,6 +283,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
             raise ValueError('invalid init parameters')
         if key.exists() or key.is_symlink():
             raise ValueError('release key already exists')
+        python = signer_python()
         consumed = False
         def execute(password):
             nonlocal consumed
@@ -271,7 +292,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
                     raise ValueError('operation already consumed')
                 consumed = True
             assert_private_dir(key_dir)
-            result = spawn('init', password, None)
+            result = spawn(python, 'init', password, None)
             # Public pin may be read by operator; not model/secret return value.
             public_path = key_dir / 'dpos-release-ed25519.public'
             fd = os.open(public_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -286,6 +307,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
             raise ValueError('invalid sign parameters')
         version, code = params['versionName'], params['versionCode']
         filename = release_filename(version, code)
+        python = signer_python()
         # Immutable per-version output; latest alias is separately reviewed/published.
         output = repo / 'downloads' / ('dpos-space-' + version + '.manifest.json')
         fields = collect(repo, sdk, version=version, code=code, expected_cert=expected_cert)
@@ -322,7 +344,7 @@ def _factories(repo, key_dir, sdk_build_tools, *, expected_cert=_HISTORIC_CERT):
                     raise ValueError('source or artifact changed')
             recheck()
             phase[0] = 'signer_runtime'
-            result = spawn('sign', password, manifest)
+            result = spawn(python, 'sign', password, manifest)
             phase[0] = 'source_recheck'
             recheck()
             envelope = {'manifest': manifest, 'publicKey': result['publicKey'],
