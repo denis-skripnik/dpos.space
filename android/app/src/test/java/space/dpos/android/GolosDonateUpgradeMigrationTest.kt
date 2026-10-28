@@ -25,6 +25,8 @@ class GolosDonateUpgradeMigrationTest {
 
     @Before fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        // Application startup writes preferences asynchronously; finish it before seeding legacy state.
+        awaitNativeStorage()
         context.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE).edit().clear().commit()
         store = WorkerStore(context, context.getSharedPreferences("upgrade-migration-secure", Context.MODE_PRIVATE))
     }
