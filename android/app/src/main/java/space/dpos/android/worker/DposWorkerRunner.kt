@@ -133,7 +133,7 @@ class DposWorkerRunner(
         statusSink?.invoke(PayloadSanitizer.text(status, 520))
     }
 
-    fun runOnce(reason: String = "manual"): WorkerRunSummary {
+    fun runOnce(reason: String = "manual", admission: WorkerCancellation.Token? = null): WorkerRunSummary {
         if (!globalRunLock.compareAndSet(false, true)) {
             val now = System.currentTimeMillis()
             val msg = "worker run skipped; previous run still running; reason=$reason"
@@ -159,14 +159,14 @@ class DposWorkerRunner(
             return summary
         }
         return try {
-            runOnceLocked(reason)
+            runOnceLocked(reason, admission)
         } finally {
             globalRunLock.set(false)
         }
     }
 
-    private fun runOnceLocked(reason: String = "manual"): WorkerRunSummary {
-        val runToken = WorkerCancellation.token { store.workerEnabled() }
+    private fun runOnceLocked(reason: String = "manual", admission: WorkerCancellation.Token? = null): WorkerRunSummary {
+        val runToken = WorkerCancellation.token { admission?.mayContinue() != false && store.workerEnabled() }
         val startedAt = System.currentTimeMillis()
         if (store.checkpointStatus().optString("authority") != "verified" && !store.retryCheckpointStorage(force = false)) {
             val message = "Хранилище транзакций не подтверждено; отправка приостановлена, повторная проверка с задержкой; ключи и настройки сохранены."

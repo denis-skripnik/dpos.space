@@ -15,6 +15,43 @@ import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 class DiagnosticDocumentSaveTest {
+    @Test fun selectedDocumentWriteNeverBlocksMainAndDestroyedOwnerCompletesOnlyOnce() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        val request = MainActivity::class.java.getDeclaredMethod("requestDiagnosticSave", String::class.java, kotlin.jvm.functions.Function1::class.java).apply { isAccessible = true }
+        val complete = MainActivity::class.java.getDeclaredMethod("onActivityResult", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Intent::class.java).apply { isAccessible = true }
+        val release = java.util.concurrent.CountDownLatch(1)
+        val returned = java.util.concurrent.CountDownLatch(1)
+        val calls = java.util.concurrent.atomic.AtomicInteger(0)
+        request.invoke(activity, "fixture report", { _: JSONObject -> calls.incrementAndGet() })
+        val launched = shadowOf(activity).nextStartedActivityForResult
+        val uri = Uri.parse("content://diagnostic-test/slow.log")
+        shadowOf(activity.contentResolver).registerOutputStream(uri, object : java.io.OutputStream() {
+            override fun write(value: Int) { check(release.await(10, java.util.concurrent.TimeUnit.SECONDS)) }
+        })
+        val main = Thread.currentThread()
+        val watchdog = Thread {
+            if (!returned.await(800, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                System.err.println("DOCUMENT WRITE MAIN STACK\n" + main.stackTrace.joinToString("\n"))
+                release.countDown()
+            }
+        }
+        watchdog.start()
+        try {
+            complete.invoke(activity, launched.requestCode, Activity.RESULT_OK, Intent().setData(uri))
+            assertEquals("selected document IO blocked main", 1L, release.count)
+            controller.pause().stop().destroy()
+        } finally {
+            returned.countDown(); release.countDown(); watchdog.join(5000)
+            val writer = org.robolectric.util.ReflectionHelpers.getField<java.util.concurrent.ExecutorService>(activity, "diagnosticWriter")
+            // The fixture stream is released before waiting, never an unbounded shutdown.
+            writer.shutdown()
+            assertTrue(writer.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS))
+            awaitNativeStorage()
+        }
+        assertEquals(1, calls.get())
+    }
+
     @Test fun actualDocumentPickerWritesWholeUtf8LogAndCancellationDoesNotWrite() {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         val activity = controller.get()
@@ -33,6 +70,7 @@ class DiagnosticDocumentSaveTest {
         val stream = ByteArrayOutputStream()
         shadowOf(activity.contentResolver).registerOutputStream(uri, stream)
         complete.invoke(activity, launched.requestCode, Activity.RESULT_OK, Intent().setData(uri))
+        awaitUiCondition { response != null }
         assertEquals(body, stream.toString("UTF-8"))
         assertTrue(response!!.getBoolean("ok"))
         response = null
@@ -47,6 +85,7 @@ class DiagnosticDocumentSaveTest {
             override fun write(value: Int) { throw java.io.IOException("fixture write failed") }
         })
         complete.invoke(activity, failed.requestCode, Activity.RESULT_OK, Intent().setData(uri))
+        awaitUiCondition { response != null }
         assertFalse(response!!.getBoolean("ok"))
         response = null
         request.invoke(activity, body, callback)

@@ -41,21 +41,44 @@ class MainActivity : Activity() {
     private lateinit var androidBridge: DposAndroidBridge
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var diagnosticExport: PendingDiagnosticExport? = null
+    private var diagnosticWrite: PendingDiagnosticExport? = null
+    // A document provider may stall; it must not own the worker's persistence lane.
+    private val diagnosticWriter = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task, "dpos-diagnostic-document").apply { isDaemon = true }
+    }
     private var runtimeCacheRefreshPending = false
     private var runtimeCacheRefreshInjected = false
     private lateinit var nativeUpdater: NativeUpdater
+    @Volatile private var destroyed = false
+    @Volatile private var started = false
+    private var finishedPageUrl: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nativeUpdater = NativeUpdater(this)
         title = "DPoS Space"
-        NotificationHelper.ensureChannels(this)
+        NotificationHelper.ensureWorkerChannel(this)
         requestNotificationsIfNeeded()
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         webView = WebView(this)
-        runtimeCacheRefreshPending = shouldRefreshRuntimeCache()
-        if (runtimeCacheRefreshPending) webView.clearCache(true)
+        space.dpos.android.storage.NativeStorageQueue.execute {
+            NotificationHelper.ensureChannels(applicationContext)
+            val refresh = shouldRefreshRuntimeCache()
+            runOnUiThread {
+                if (!destroyed && refresh) {
+                    runtimeCacheRefreshPending = true
+                    webView.clearCache(true)
+                    // Record only an effect this live UI actually performed. A destroyed
+                    // predecessor must not suppress its replacement's cache refresh.
+                    space.dpos.android.storage.NativeStorageQueue.execute {
+                        getSharedPreferences("dpos_android_runtime", MODE_PRIVATE).edit()
+                            .putInt("runtime_cache_version", BuildConfig.VERSION_CODE).apply()
+                    }
+                    finishedPageUrl?.let { refreshRuntimeCachesAfterAppUpdate(webView, it) }
+                }
+            }
+        }
         setContentView(webView)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -98,6 +121,8 @@ class MainActivity : Activity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+                if (destroyed) return
+                finishedPageUrl = url
                 refreshRuntimeCachesAfterAppUpdate(view, url)
             }
         }
@@ -119,7 +144,13 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        DposApplication.resumeEnabledWorker(this, "app foregrounded")
+        started = true
+        DposApplication.resumeEnabledWorker(this, "app foregrounded") { started && !destroyed }
+    }
+
+    override fun onStop() {
+        started = false
+        super.onStop()
     }
 
     override fun onResume() {
@@ -139,19 +170,26 @@ class MainActivity : Activity() {
             if (pending == null) return
             val uri = data?.data
             if (resultCode != RESULT_OK || uri == null) {
-                pending.callback(JSONObject().put("ok", false).put("cancelled", true))
+                pending.complete(JSONObject().put("ok", false).put("cancelled", true))
                 return
             }
-            val result = runCatching {
-                contentResolver.openOutputStream(uri, "w")?.use { output ->
-                    output.write(pending.report.toByteArray(StandardCharsets.UTF_8))
-                    output.flush()
-                } ?: throw IllegalStateException("selected document could not be opened")
-                JSONObject().put("ok", true).put("filename", pending.filename)
-            }.getOrElse { error ->
-                JSONObject().put("ok", false).put("error", PayloadSanitizer.text(error.message, 240))
+            diagnosticWrite = pending
+            diagnosticWriter.execute {
+                val result = runCatching {
+                    check(!destroyed) { "activity closed" }
+                    contentResolver.openOutputStream(uri, "w")?.use { output ->
+                        output.write(pending.report.toByteArray(StandardCharsets.UTF_8))
+                        output.flush()
+                    } ?: throw IllegalStateException("selected document could not be opened")
+                    JSONObject().put("ok", true).put("filename", pending.filename)
+                }.getOrElse { error ->
+                    JSONObject().put("ok", false).put("error", PayloadSanitizer.text(error.message, 240))
+                }
+                runOnUiThread {
+                    if (diagnosticWrite === pending) diagnosticWrite = null
+                    pending.complete(result)
+                }
             }
-            pending.callback(result)
             return
         }
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
@@ -164,11 +202,16 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        destroyed = true
+        started = false
         nativeUpdater.close()
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
-        diagnosticExport?.callback(JSONObject().put("ok", false).put("cancelled", true))
+        diagnosticExport?.complete(JSONObject().put("ok", false).put("cancelled", true))
         diagnosticExport = null
+        diagnosticWrite?.complete(JSONObject().put("ok", false).put("cancelled", true))
+        diagnosticWrite = null
+        diagnosticWriter.shutdown()
         if (::androidBridge.isInitialized) androidBridge.close()
         super.onDestroy()
     }
@@ -189,14 +232,18 @@ class MainActivity : Activity() {
                 return@addWebMessageListener
             }
             androidBridge.dispatch(request) { response ->
-                runOnUiThread { replyProxy.postMessage(response.toString()) }
+                runOnUiThread { if (!destroyed) replyProxy.postMessage(response.toString()) }
             }
         }
     }
 
     private fun requestDiagnosticSave(report: String, callback: (JSONObject) -> Unit) {
         runOnUiThread {
-            if (diagnosticExport != null) {
+            if (destroyed) {
+                callback(JSONObject().put("ok", false).put("cancelled", true))
+                return@runOnUiThread
+            }
+            if (diagnosticExport != null || diagnosticWrite != null) {
                 callback(JSONObject().put("ok", false).put("reason", "A diagnostic save is already in progress"))
                 return@runOnUiThread
             }
@@ -221,7 +268,6 @@ class MainActivity : Activity() {
         val seenVersion = prefs.getInt("runtime_cache_version", -1)
         val currentVersion = BuildConfig.VERSION_CODE
         if (seenVersion == currentVersion) return false
-        prefs.edit().putInt("runtime_cache_version", currentVersion).apply()
         return true
     }
 
@@ -323,9 +369,14 @@ class MainActivity : Activity() {
         private const val DIAGNOSTIC_EXPORT_REQUEST_CODE = 2002
     }
 
-    private data class PendingDiagnosticExport(
+    private class PendingDiagnosticExport(
         val report: String,
         val filename: String,
         val callback: (JSONObject) -> Unit
-    )
+    ) {
+        private val completed = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun complete(result: JSONObject) {
+            if (completed.compareAndSet(false, true)) callback(result)
+        }
+    }
 }

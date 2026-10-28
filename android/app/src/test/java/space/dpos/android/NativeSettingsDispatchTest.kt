@@ -18,8 +18,33 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 class NativeSettingsDispatchTest {
+    class MissingBatterySettingsActivity : Activity() {
+        override fun startActivity(intent: android.content.Intent) {
+            throw android.content.ActivityNotFoundException("fixture settings app unavailable")
+        }
+    }
+
+    @Test fun batterySettingsUiFailureRepliesExactlyOnceInsteadOfCrashingMain() {
+        val activity = Robolectric.buildActivity(MissingBatterySettingsActivity::class.java).setup().get()
+        val bridge = DposAndroidBridge(activity) { JSONObject() }
+        var reply: JSONObject? = null
+        var count = 0
+        try {
+            bridge.dispatch(BridgeRequest("battery", "openBatterySettings", JSONObject())) { reply = it; count++ }
+            awaitNativeStorage()
+            assertEquals(1, count)
+            assertFalse(reply!!.getBoolean("ok"))
+            val progress = java.util.concurrent.atomic.AtomicBoolean(false)
+            android.os.Handler(android.os.Looper.getMainLooper()).post { progress.set(true) }
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertTrue(progress.get())
+        } finally { bridge.close() }
+    }
+
     private fun store(): WorkerStore {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        awaitNativeStorage()
+        space.dpos.android.worker.WorkerCancellation.resetForTest()
         context.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE).edit().clear().commit()
         return WorkerStore(context, context.getSharedPreferences("settings-dispatch-fixture", Context.MODE_PRIVATE))
     }
@@ -67,6 +92,7 @@ class NativeSettingsDispatchTest {
         )) {
             var reply: JSONObject? = null
             bridge.dispatch(BridgeRequest(method, method, payload)) { reply = it }
+            awaitNativeStorage()
             assertTrue(reply.toString(), reply!!.getJSONObject("result").getBoolean("ok"))
         }
         assertTrue(store.activeAccounts().isEmpty())

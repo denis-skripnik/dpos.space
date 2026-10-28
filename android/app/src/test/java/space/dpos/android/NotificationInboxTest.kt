@@ -152,10 +152,12 @@ class NotificationInboxTest {
 
         var getResponse: JSONObject? = null
         bridge.dispatch(BridgeRequest("inbox-get", "getNotificationInbox", JSONObject())) { getResponse = it }
+        awaitNativeStorage()
         assertEquals(1, getResponse!!.getJSONObject("result").getInt("unreadCount"))
 
         var readResponse: JSONObject? = null
         bridge.dispatch(BridgeRequest("inbox-read", "markAllNotificationsRead", JSONObject())) { readResponse = it }
+        awaitNativeStorage()
         assertEquals(0, readResponse!!.getJSONObject("result").getInt("unreadCount"))
         bridge.close()
     }

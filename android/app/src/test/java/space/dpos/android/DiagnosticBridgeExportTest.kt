@@ -31,6 +31,7 @@ class DiagnosticBridgeExportTest {
         bridge.dispatch(BridgeRequest("save-1", "saveDiagnosticLog", JSONObject()
             .put("filename", "../../not-accepted.log")
             .put("webReport", "password=web-secret\n" + "x".repeat(90_000)))) { response = it }
+        awaitNativeStorage()
 
         assertEquals(null, response)
         assertFalse(written.contains("web-secret"))
@@ -50,6 +51,7 @@ class DiagnosticBridgeExportTest {
         }) { JSONObject() }
         var response: JSONObject? = null
         bridge.dispatch(BridgeRequest("save-2", "saveDiagnosticLog", JSONObject().put("webReport", "safe"))) { response = it }
+        awaitNativeStorage()
         val result = response!!.getJSONObject("result")
         assertFalse(result.getBoolean("ok"))
         assertTrue(result.getBoolean("cancelled"))

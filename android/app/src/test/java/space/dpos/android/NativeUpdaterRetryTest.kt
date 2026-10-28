@@ -214,6 +214,47 @@ class NativeUpdaterRetryTest {
         assertEquals("Обновление загружено", shadowOf(dialog()).title.toString())
     }
     private fun candidates() = File(activity.filesDir, "updates").walkTopDown().filter { it.isFile }.toList()
+    private fun assertSweepRetainsLiveCandidates() {
+        val files = candidates()
+        assertTrue(files.isNotEmpty())
+        files.forEach { assertTrue(it.setLastModified(now - 8 * ReleasePolicy.DAY)) }
+        val installed = space.dpos.android.update.UpdateStaging.Archive(activity.packageName, "9.0.0", 999, BuildConfig.DPOS_HISTORIC_CERT)
+        val result = space.dpos.android.update.UpdateStaging.sweep(File(activity.filesDir, "updates"), installed, now, { 0L }) {
+            installed.copy(version = release.version, code = release.code.toLong())
+        }
+        assertEquals(0, result.deleted)
+        assertTrue(files.all { it.exists() })
+    }
+
+    @Test @Config(sdk = [26, 34]) fun resumeAutomaticallyReclaimsOnlyVerifiedOldPrivateApk() {
+        val pm = shadowOf(activity.packageManager)
+        val installed = pm.getInternalMutablePackageInfo(activity.packageName)
+        installed.versionCode = BuildConfig.VERSION_CODE
+        setCertificate(installed, false)
+        val old = File(activity.filesDir, "updates/dpos-space-3.1.5.apk")
+        val attempt = File(activity.filesDir, "updates/${java.util.UUID.randomUUID()}/dpos-space-3.1.5.apk")
+        listOf(old, attempt).forEach { apk ->
+            apk.parentFile!!.mkdirs()
+            apk.writeText("synthetic historical APK")
+            apk.setLastModified(now - 8 * ReleasePolicy.DAY)
+            pm.setPackageArchiveInfo(apk.absolutePath, android.content.pm.PackageInfo().apply {
+                packageName = activity.packageName
+                versionName = "3.1.5"
+                versionCode = BuildConfig.VERSION_CODE - 1
+                setCertificate(this, false)
+            })
+        }
+        val unknown = File(old.parentFile, "user-data.txt").apply { writeText("keep") }
+        val updater = updater()
+        settle(updater)
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while ((old.exists() || attempt.exists()) && System.nanoTime() < end) Thread.sleep(10)
+        assertFalse("onResume must schedule stale APK cleanup without a download", old.exists())
+        assertFalse(attempt.exists())
+        assertFalse(attempt.parentFile!!.exists())
+        assertEquals("keep", unknown.readText())
+        assertTrue(old.parentFile!!.isDirectory)
+    }
 
     @Test @Config(sdk = [26, 34]) fun signedDownloadIdentityAndExplicitInstallerHandoff() {
         seedObservation()
@@ -223,6 +264,7 @@ class NativeUpdaterRetryTest {
         downloadReady(updater)
         assertEquals(1, candidates().size)
         assertArrayEquals(payload, candidates().single().readBytes())
+        assertSweepRetainsLiveCandidates() // READY lease, even with an artificially old archive/code
         assertNull(shadowOf(activity).nextStartedActivity)
         dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
         settle(updater)
@@ -239,6 +281,28 @@ class NativeUpdaterRetryTest {
         val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
         assertTrue((field.get(updater) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
         assertTrue("Installer URI must survive Activity destruction", handedOff.exists())
+        assertSweepRetainsLiveCandidates() // process lease survives close/handoff
+    }
+
+    @Test fun laterValidationFailureMustNotRemoveAlreadyGrantedInstallerFile() {
+        seedObservation()
+        successfulApk = true
+        shadowOf(activity.packageManager).setCanRequestPackageInstalls(true)
+        val updater = updater()
+        downloadReady(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals(android.content.Intent.ACTION_VIEW, shadowOf(activity).nextStartedActivity.action)
+        val file = candidates().single()
+        file.writeText("modified after installer handoff")
+        updater.onResume()
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertTrue("A previous installer may still hold its read URI", file.exists())
+        updater.close()
+        val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+        assertTrue((field.get(updater) as ExecutorService).awaitTermination(10, TimeUnit.SECONDS))
+        assertTrue(file.exists())
     }
 
     @Test fun settingsDenialReturnThenGrantRevalidatesBeforeInstaller() {
@@ -449,6 +513,7 @@ class NativeUpdaterRetryTest {
         val second = updater(owner)
         downloadReady(second)
         val newFile = candidates().single { it != oldFile }
+        assertSweepRetainsLiveCandidates() // both overlapping activity leases
         assertNotEquals(oldFile.parent, newFile.parent)
         first.close()
         val field = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
@@ -471,6 +536,7 @@ class NativeUpdaterRetryTest {
         dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(chunkEntered.await(10, TimeUnit.SECONDS))
+        assertSweepRetainsLiveCandidates() // actual stream writer is held after its first chunk
         shadowOf(Looper.getMainLooper()).idle()
         val status = dialog().findViewById<android.widget.TextView>(android.R.id.message)
         assertTrue(status.text.toString().contains("%"))

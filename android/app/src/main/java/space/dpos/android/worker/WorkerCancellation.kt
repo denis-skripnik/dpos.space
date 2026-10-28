@@ -10,13 +10,29 @@ import java.util.concurrent.atomic.AtomicLong
 /** Process-wide cancellation generation shared by every worker entry point. */
 object WorkerCancellation {
     private val generation = AtomicLong(0)
+    private val pendingRevocations = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** New runs must also fail closed while a UI Stop/disable is waiting for durable IO. */
+    fun beginRevocation(): () -> Unit {
+        pendingRevocations.incrementAndGet()
+        cancelAll()
+        val completed = java.util.concurrent.atomic.AtomicBoolean(false)
+        return { if (completed.compareAndSet(false, true)) pendingRevocations.decrementAndGet() }
+    }
 
     class Token internal constructor(
         private val generationAtStart: Long,
         private val guard: () -> Boolean
     ) {
         fun mayContinue(): Boolean =
-            generation.get() == generationAtStart && guard() && !Thread.currentThread().isInterrupted
+            current() && guard() && current()
+
+        private fun current(): Boolean = sameGeneration() && pendingRevocations.get() == 0
+
+        private fun sameGeneration(): Boolean = generation.get() == generationAtStart && !Thread.currentThread().isInterrupted
+
+        // Mutation ordering/lifecycle fence only. This never authorizes signing or sends.
+        internal fun mayApplySettings(): Boolean = sameGeneration() && guard() && sameGeneration()
     }
 
     fun token(guard: () -> Boolean): Token = Token(generation.get(), guard)
@@ -26,6 +42,7 @@ object WorkerCancellation {
 
     internal fun resetForTest() {
         generation.set(1L)
+        pendingRevocations.set(0)
     }
 
     fun shutdownAndAwait(executor: ExecutorService) {

@@ -54,6 +54,7 @@ class GolosForegroundCadenceTest {
         val controller = Robolectric.buildService(DposForegroundService::class.java).create()
         val service = controller.get()
         controller.destroy()
+        awaitNativeStorage()
         val busy = DposForegroundService::class.java.getDeclaredField("tickRunning").apply { isAccessible = true }.get(service) as AtomicBoolean
         busy.set(true) // avoid starting any worker/RPC even in the failing baseline branch
         val tick = DposForegroundService::class.java.getDeclaredField("tick").apply { isAccessible = true }.get(service) as Runnable

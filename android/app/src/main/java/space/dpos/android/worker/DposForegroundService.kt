@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import space.dpos.android.BuildConfig
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.storage.NativeStorageQueue
 import space.dpos.android.storage.WorkerStore
 import space.dpos.android.upvoter.VIZ_SELF_AWARD_TICK_MS
 import java.util.concurrent.atomic.AtomicBoolean
@@ -32,109 +33,133 @@ class DposForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunning = AtomicBoolean(false)
     private val destroyed = AtomicBoolean(false)
+    private val stopping = AtomicBoolean(false)
     private var lastFullTickAt = -1L
+    private fun live() = !destroyed.get() && !stopping.get()
     private fun storageVerified(store: WorkerStore): Boolean = store.checkpointStatus().optString("authority") == "verified"
     private fun pauseUnverifiedStorage(store: WorkerStore) {
         WorkerCancellation.cancelAll()
-        handler.removeCallbacks(tick)
         WorkManager.getInstance(applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
         store.appendLog("foreground service storage unverified; sends blocked", "warning")
-        updateForegroundStatus("хранилище не подтверждено; отправки заблокированы")
-        stopSelf()
+        handler.post {
+            if (live()) {
+                stopping.set(true)
+                handler.removeCallbacks(tick)
+                updateForegroundStatus("хранилище не подтверждено; отправки заблокированы")
+                stopSelf()
+            }
+        }
     }
     private fun nextDelay(store: WorkerStore): Long = if (store.activeAccounts().any {
         it.chainId == "golos" && store.autoUpvoterEnabled("golos", it.account)
     }) 30_000L else VIZ_SELF_AWARD_TICK_MS
     private fun workerStatusText(status: String): String = "DPoS Space: ${space.dpos.android.core.PayloadSanitizer.text(status, 520)}"
     private fun updateForegroundStatus(status: String) {
-        if (!destroyed.get()) NotificationHelper.updateForeground(this, NOTIFICATION_ID, workerStatusText(status))
+        handler.post {
+            if (!destroyed.get()) NotificationHelper.updateForeground(this, NOTIFICATION_ID, workerStatusText(status))
+        }
     }
     private val tick = object : Runnable {
         override fun run() {
-            val store = WorkerStore(this@DposForegroundService)
-            if (destroyed.get() || !store.workerEnabled()) return
-            if (!storageVerified(store)) {
-                pauseUnverifiedStorage(store)
-                return
-            }
-            updateForegroundStatus("ждёт проверки; аккаунтов: ${store.activeAccounts().size}; Голос до 30 секунд после завершения, VIZ 7 минут 12 секунд")
-            if (!tickRunning.compareAndSet(false, true)) {
-                store.appendLog("foreground tick skipped; previous tick still running", "warning")
-                updateForegroundStatus("предыдущая проверка ещё идёт; следующий тик запланирован")
-                handler.postDelayed(this, nextDelay(store))
-                return
-            }
-            Thread {
+            // Admission is memory-only. The owner schedules the next tick after all children drain.
+            if (!live() || !tickRunning.compareAndSet(false, true)) return
+            val admission = WorkerCancellation.token { live() }
+            Thread({
                 try {
+                    val store = WorkerStore(this@DposForegroundService)
+                    if (!admission.mayContinue() || !store.workerEnabled()) return@Thread
+                    if (!storageVerified(store)) {
+                        pauseUnverifiedStorage(store)
+                        return@Thread
+                    }
                     updateForegroundStatus("проверка запущена; аккаунтов: ${store.activeAccounts().size}")
                     val now = SystemClock.elapsedRealtime()
                     val full = foregroundFullTickDue(lastFullTickAt, now)
-                    val summary = DposWorkerRunner(applicationContext) { updateForegroundStatus(it) }
-                        .runOnce(reason = if (full) "foreground-7m12s" else "foreground-golos")
+                    val summary = DposWorkerRunner(applicationContext, store = store, statusSink = { updateForegroundStatus(it) })
+                        .runOnce(reason = if (full) "foreground-7m12s" else "foreground-golos", admission = admission)
                     if (full && summary.status != "skipped_overlap") lastFullTickAt = now
                     if (summary.status == "skipped_overlap") {
                         updateForegroundStatus("предыдущая проверка ещё идёт; последний успешный статус сохраняется")
                     } else {
                         updateForegroundStatus(foregroundCompletionStatus(summary))
                     }
-                } catch (e: Exception) {
-                    WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${e.message}", "error")
-                    updateForegroundStatus("ошибка проверки: ${e.message ?: "unknown"}")
+                } catch (error: Exception) {
+                    WorkerStore(this@DposForegroundService).appendLog("foreground loop error: ${error.message}", "error")
+                    updateForegroundStatus("ошибка проверки: ${error.message ?: "unknown"}")
                 } finally {
+                    // DposWorkerRunner retains its global guard until children actually terminate.
                     tickRunning.set(false)
-                    handler.post {
-                        if (!destroyed.get() && store.workerEnabled()) {
-                            if (storageVerified(store)) handler.postDelayed(this, nextDelay(store))
-                            else pauseUnverifiedStorage(store)
+                    // Completion's verified reads and scheduling policy also stay off main,
+                    // including the exception path. A stopped owner cannot reschedule.
+                    // Future timer admission belongs to this live service, not the old
+                    // run's generation: a feature revoke must not strand other features.
+                    // The next tick obtains a fresh token and revalidates storage/settings.
+                    if (live()) {
+                        val store = WorkerStore(this@DposForegroundService)
+                        if (store.workerEnabled()) {
+                            if (storageVerified(store)) {
+                                val delay = nextDelay(store)
+                                handler.post {
+                                    if (live()) handler.postDelayed(this, delay)
+                                }
+                            } else pauseUnverifiedStorage(store)
                         }
                     }
                 }
-            }.start()
-
+            }, "dpos-foreground-tick").start()
         }
     }
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        NotificationHelper.ensureWorkerChannel(this)
         val initialStatus = workerStatusText("запущен; проверки идут локально на устройстве; для стабильной работы включите режим батареи без ограничений")
         startForeground(NOTIFICATION_ID, NotificationHelper.foreground(this, initialStatus))
-        WorkerStore(this).appendLog("foreground service created; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
+        NativeStorageQueue.execute {
+            WorkerStore(this@DposForegroundService).appendLog("foreground service created; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val store = WorkerStore(this)
-        when (intent?.action) {
-            ACTION_STOP -> {
-                WorkerCancellation.cancelAll()
-                // Verified bootstrap still persists Stop during physical recovery backoff;
-                // unverified bootstrap cannot flush poisoned legacy prefs, but must stop.
-                runCatching { store.setWorkerEnabled(false) }.onFailure {
+        if (intent?.action == ACTION_STOP) {
+            stopping.set(true)
+            val persisted = WorkerCancellation.beginRevocation()
+            handler.removeCallbacks(tick)
+            stopSelf()
+            NativeStorageQueue.execute {
+                val store = WorkerStore(this@DposForegroundService)
+                runCatching { store.setWorkerEnabled(false); persisted() }.onFailure {
                     store.appendLog("foreground stop persistence unavailable; cancellation applied", "warning")
                 }
                 WorkManager.getInstance(applicationContext).cancelUniqueWork(DposPeriodicWorker.UNIQUE_WORK)
                 store.appendLog("foreground service stop requested")
-                handler.removeCallbacks(tick)
-                stopSelf()
-                return START_NOT_STICKY
             }
-            ACTION_CHECK_NOW -> {
-                if (!storageVerified(store)) {
-                    pauseUnverifiedStorage(store)
-                    return START_NOT_STICKY
-                }
+            return START_NOT_STICKY
+        }
+        val admission = WorkerCancellation.token { live() }
+        val action = intent?.action
+        NativeStorageQueue.execute {
+            if (!admission.mayContinue()) return@execute
+            val store = WorkerStore(this@DposForegroundService)
+            if (!storageVerified(store)) {
+                pauseUnverifiedStorage(store)
+                return@execute
+            }
+            if (!admission.mayContinue()) return@execute
+            if (action == ACTION_CHECK_NOW) {
                 store.appendLog("foreground notification check-now requested")
-                WorkManager.getInstance(applicationContext).enqueue(OneTimeWorkRequestBuilder<DposPeriodicWorker>().build())
-            }
-            else -> {
-                if (!storageVerified(store)) {
-                    pauseUnverifiedStorage(store)
-                    return START_NOT_STICKY
-                }
+                if (admission.mayContinue()) WorkManager.getInstance(applicationContext)
+                    .enqueue(OneTimeWorkRequestBuilder<DposPeriodicWorker>().build())
+            } else {
                 store.setWorkerEnabled(true)
                 store.appendLog("foreground service started; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
-                handler.removeCallbacks(tick)
-                handler.post(tick)
+                handler.post {
+                    if (admission.mayContinue()) {
+                        handler.removeCallbacks(tick)
+                        handler.post(tick)
+                    }
+                }
             }
         }
         updateForegroundStatus("работает; следующий тик будет автоматически; для стабильной работы включите режим батареи без ограничений")
@@ -145,7 +170,7 @@ class DposForegroundService : Service() {
         destroyed.set(true)
         WorkerCancellation.cancelAll()
         handler.removeCallbacks(tick)
-        WorkerStore(this).appendLog("foreground service stopped")
+        NativeStorageQueue.execute { WorkerStore(this@DposForegroundService).appendLog("foreground service stopped") }
         isRunning = false
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()

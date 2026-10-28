@@ -67,7 +67,13 @@ class UpdateTransferTest {
         assertEquals(2, attempt(listOf(release, release.copy(id = "changed"))))
         assertEquals(1, attempt(listOf(release), "ALTERED APK".toByteArray()))
         file.writeBytes(apk)
-        assertEquals(1, attempt(listOf(release.copy(id = "revoked"))))
+        try {
+            UpdateTransfer.transfer(release, file, 100, { release.copy(id = "revoked") }, { true },
+                { blob to apk.size.toLong() }, { ByteArrayInputStream(apk) }, { true })
+            fail("An unknown pre-existing leaf must never be claimed or truncated")
+        } catch (_: IllegalArgumentException) { }
+        assertArrayEquals(apk, file.readBytes())
+        file.delete() // fixture owner, not updater, removes unknown data
         var reads = 0
         UpdateTransfer.transfer(release, file, 100, { reads++; release }, { true },
             { blob to apk.size.toLong() }, { ByteArrayInputStream(apk) }, { it.readBytes().contentEquals(apk) })

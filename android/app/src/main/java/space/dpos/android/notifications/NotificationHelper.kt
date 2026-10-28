@@ -23,8 +23,8 @@ object NotificationHelper {
     const val EXTRA_ROUTE = "space.dpos.android.ROUTE"
     const val EVENT_SUMMARY_NOTIFICATION_ID = 730_001
 
-    @Synchronized
-    fun ensureChannels(context: Context) {
+    // Foreground admission must not acquire the event-inbox/migration monitor.
+    fun ensureWorkerChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
         val workerChannel = NotificationChannel(CHANNEL_WORKER, "DPoS Space runtime", NotificationManager.IMPORTANCE_LOW).apply {
@@ -33,6 +33,13 @@ object NotificationHelper {
             enableVibration(false)
         }
         manager.createNotificationChannel(workerChannel)
+    }
+
+    @Synchronized
+    fun ensureChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        ensureWorkerChannel(context)
+        val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL_EVENTS, "DPoS Space events", NotificationManager.IMPORTANCE_DEFAULT))
         if (migrateLegacyEventCards(context, manager) && canPost(context)) {
             postSummary(context, NotificationInbox(context).snapshot())
@@ -109,7 +116,7 @@ object NotificationHelper {
     }
 
     fun updateForeground(context: Context, notificationId: Int, status: String) {
-        ensureChannels(context)
+        ensureWorkerChannel(context)
         context.getSystemService(NotificationManager::class.java)
             .notify(notificationId, foreground(context, status))
     }

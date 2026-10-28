@@ -12,8 +12,11 @@ import space.dpos.android.worker.DposForegroundService
 class DposApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        NotificationHelper.ensureChannels(this)
-        prepareVersionLog()
+        NotificationHelper.ensureWorkerChannel(this)
+        space.dpos.android.storage.NativeStorageQueue.execute {
+            NotificationHelper.ensureChannels(this)
+            prepareVersionLog()
+        }
     }
 
     private fun prepareVersionLog() {
@@ -33,8 +36,13 @@ class DposApplication : Application() {
     companion object {
         private val workerLifecycleStarter = WorkerLifecycleStarter()
 
-        internal fun resumeEnabledWorker(context: android.content.Context, source: String) {
-            workerLifecycleStarter.resume(context, source)
+        internal fun resumeEnabledWorker(context: android.content.Context, source: String,
+                                         isActive: () -> Boolean = { true }) {
+            val app = context.applicationContext
+            val permit = space.dpos.android.worker.WorkerCancellation.token(isActive)
+            space.dpos.android.storage.NativeStorageQueue.execute {
+                if (permit.mayContinue()) workerLifecycleStarter.resume(app, source, permit)
+            }
         }
     }
 }
@@ -49,7 +57,9 @@ internal class WorkerLifecycleStarter(
 ) {
     private var lastStartRequestAt = Long.MIN_VALUE
 
-    fun resume(context: android.content.Context, source: String): Boolean {
+    fun resume(context: android.content.Context, source: String,
+               admission: space.dpos.android.worker.WorkerCancellation.Token? = null): Boolean {
+        if (serviceRunning() || admission?.mayContinue() == false) return false
         val store = WorkerStore(context)
         if (store.checkpointStatus().optString("authority") != "verified") {
             android.util.Log.w("DposCheckpoint", "Worker lifecycle resume paused: transaction storage unverified")
@@ -68,6 +78,7 @@ internal class WorkerLifecycleStarter(
         val previouslyEnabled = store.workerEnabled()
         store.setWorkerEnabled(true)
         store.appendLog("$source worker resume requested; apk=${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})")
+        if (admission?.mayContinue() == false) return false
         return try {
             serviceStarter(
                 context,

@@ -33,21 +33,18 @@ internal object UpdateTransfer {
                  feed: () -> ReleasePolicy.Release, eligible: () -> Boolean,
                  blob: () -> Pair<String, Long>, download: () -> java.io.InputStream,
                  identity: (File) -> Boolean) {
-        require(!java.nio.file.Files.isSymbolicLink(file.parentFile!!.toPath()))
-        require(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
-        require(file.parentFile!!.canonicalFile == file.parentFile!!.absoluteFile)
-        file.delete()
+        UpdateStaging.claim(file)
         try {
             require(feed() == release && eligible())
             val (gitHash, length) = blob()
             require(length in 1..max)
-            download().use { input -> file.outputStream().use { output ->
+            download().use { input -> UpdateStaging.output(file).use { output ->
                 ReleasePolicy.copyVerified(input, output, length, max, release.sha256, gitHash)
             } }
             require(identity(file))
             require(feed() == release && eligible())
         } catch (error: Exception) {
-            file.delete()
+            UpdateStaging.remove(file)
             throw error
         }
     }
@@ -91,6 +88,7 @@ class NativeUpdater internal constructor(
     fun onResume() {
         if (closed) return
         resumed = true
+        UpdateStaging.schedule(activity)
         if (!busy) presentOrCheck() else resumePending = true
     }
 
@@ -292,7 +290,7 @@ class NativeUpdater internal constructor(
                 require(apkIdentity(file, release) && verifiedManifest() == release && eligibleNow(release))
                 guard()
                 // All filesystem/provider resolution runs on IO, not the completion callback.
-                UpdateTransfer.installIntent(activity, file, release)
+                UpdateTransfer.installIntent(activity, file, release).also { UpdateStaging.reserveInstaller(file) }
             }
             if (result.isFailure && !cancelled) removeCandidate(file)
             main.post {
@@ -418,7 +416,7 @@ class NativeUpdater internal constructor(
     }
 
     private fun ByteArray.hex() = joinToString("") { "%02x".format(it.toInt() and 255) }
-    private fun removeCandidate(file: File) { file.delete(); file.parentFile?.delete() }
+    private fun removeCandidate(file: File) { UpdateStaging.remove(file) }
 
     fun close() {
         if (closed) return

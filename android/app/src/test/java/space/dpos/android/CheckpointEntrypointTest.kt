@@ -33,10 +33,16 @@ import java.util.concurrent.TimeUnit
 @RunWith(RobolectricTestRunner::class)
 class CheckpointEntrypointTest {
     @Before fun initializeWorkManager() {
+        WorkerCancellation.resetForTest()
         val context = ApplicationProvider.getApplicationContext<Context>()
+        awaitNativeStorage()
         if (runCatching { WorkManager.getInstance(context) }.isFailure) {
             WorkManager.initialize(context, Configuration.Builder().build())
         }
+    }
+    @org.junit.After fun finishLifecycleTasks() {
+        awaitNativeStorage()
+        WorkerCancellation.resetForTest()
     }
     private class CountingPrefs(private val delegate: SharedPreferences) : SharedPreferences by delegate {
         var writes = 0
@@ -77,6 +83,7 @@ class CheckpointEntrypointTest {
             val done = CountDownLatch(1); var result: JSONObject? = null; var count = 0
             bridge.dispatch(BridgeRequest(method, method, JSONObject())) { result = it; count++; done.countDown() }
             if (method == "saveDiagnosticLog") {
+                awaitNativeStorage()
                 assertEquals(null, result)
                 saveCallback!!(JSONObject().put("ok", false).put("cancelled", true))
             }
@@ -130,16 +137,20 @@ class CheckpointEntrypointTest {
         })
         val service = controller.create().get()
         assertTrue(shadowOf(service).isLastForegroundNotificationAttached)
-        assertEquals(Service.START_NOT_STICKY, service.onStartCommand(null, 0, 1))
+        // Admission returns promptly; verified storage failure stops it asynchronously.
+        assertEquals(Service.START_STICKY, service.onStartCommand(null, 0, 1))
+        awaitNativeStorage()
         assertTrue(shadowOf(service).isStoppedBySelf)
         assertFalse(permit.mayContinue())
-        assertEquals(Service.START_NOT_STICKY, service.onStartCommand(Intent(base, DposForegroundService::class.java)
+        assertEquals(Service.START_STICKY, service.onStartCommand(Intent(base, DposForegroundService::class.java)
             .setAction(DposForegroundService.ACTION_CHECK_NOW), 0, 2))
         assertEquals(Service.START_NOT_STICKY, service.onStartCommand(Intent(base, DposForegroundService::class.java)
             .setAction(DposForegroundService.ACTION_STOP), 0, 3))
         shadowOf(android.os.Looper.getMainLooper()).idle()
+        awaitNativeStorage()
         assertEquals(null, WorkerStore(base).lastTick()) // No worker thread admitted, no transport.
         controller.destroy()
+        awaitNativeStorage()
         assertFalse(DposForegroundService.isRunning)
         assertTrue(shadowOf(service).isForegroundStopped)
         assertEquals(before, prefs.all)
