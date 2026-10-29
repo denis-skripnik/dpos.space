@@ -2972,7 +2972,7 @@
   function isManageWitnessActive(chain, witness) {
     const key = String((witness && (witness.signing_key || witness.signingKey)) || '');
     const nullKey = manageNullSigningKey(chain);
-    return Boolean(key && (!nullKey || key !== nullKey));
+    return Boolean(key && key !== nullKey && key !== manageDeactivateSigningKey(chain));
   }
 
   function witnessUrlLabel(chain, url) {
