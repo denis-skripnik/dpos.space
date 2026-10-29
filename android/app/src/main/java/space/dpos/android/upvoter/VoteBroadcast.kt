@@ -391,7 +391,10 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
         require(transactionId.matches(Regex("[0-9a-fA-F]{40}"))) { "invalid transaction id" }
         val transaction = postApi("operation_history", "get_transaction", JSONArray().put(transactionId)).optJSONObject("result") ?: return null
         // Bind inclusion proof and LIB to the same endpoint (fallback keeps this envelope intact).
-        return transaction.put("_vizHead", getDynamicGlobalProperties())
+        val block = transaction.optLong("block_num", -1)
+        return transaction.put("_vizEndpoint", recoveryEndpoint)
+            .put("_vizBlock", if (block > 0) getBlock(block) else JSONObject.NULL)
+            .put("_vizHead", getDynamicGlobalProperties())
     }
     override fun getDynamicGlobalProperties(): JSONObject {
         val result = postApi("database_api", "get_dynamic_global_properties", JSONArray())
@@ -450,11 +453,19 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
 
     private fun post(bodyJson: JSONObject, label: String = "rpc", throwOnRpcError: Boolean = true): JSONObject {
         val body = bodyJson.toString()
+        val remaining = PlanningReadBudget.remainingMs()
+        check(remaining == null || remaining > 0) { "planning read budget exhausted" }
+        val conn = (URL(endpoint).openConnection() as HttpURLConnection)
+        // Only read-only planning installs this transport deadline. No broadcast is retried.
+        val watchdog = remaining?.let { java.util.concurrent.Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "dpos-planning-read-deadline").apply { isDaemon = true }
+        } }
+        val expiry = watchdog?.schedule({ conn.disconnect() }, remaining!!, java.util.concurrent.TimeUnit.MILLISECONDS)
         try {
-            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            conn.apply {
                 requestMethod = "POST"
-                connectTimeout = 10_000
-                readTimeout = if (label.endsWith(".broadcast_transaction")) 8_000 else 20_000
+                connectTimeout = minOf(10_000L, remaining ?: 10_000L).coerceAtLeast(1).toInt()
+                readTimeout = minOf(if (label.endsWith(".broadcast_transaction")) 8_000L else 20_000L, remaining ?: 20_000L).coerceAtLeast(1).toInt()
                 doOutput = true
                 instanceFollowRedirects = spec.id != "golos" // Golos proof/signature pipelines never redirect
                 useCaches = false
@@ -466,7 +477,17 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
             val responseCode = conn.responseCode
             val text = (if (responseCode in 200..299) conn.inputStream else conn.errorStream)
                 .bufferedReader()
-                .use { it.readText() }
+                .use { reader ->
+                    val text = StringBuilder()
+                    val buffer = CharArray(4096)
+                    while (true) {
+                        check(PlanningReadBudget.remainingMs()?.let { it > 0 } != false) { "planning read budget exhausted" }
+                        val count = reader.read(buffer)
+                        if (count < 0) break
+                        text.append(buffer, 0, count)
+                    }
+                    text.toString()
+                }
             if (responseCode !in 200..299) throw IllegalStateException("Graphene RPC HTTP $responseCode at $endpoint via $label: ${PayloadSanitizer.text(text, 160)}")
             val json = JSONObject(text)
             if (throwOnRpcError && json.has("error")) throw IllegalStateException("Graphene RPC error at $endpoint via $label: ${PayloadSanitizer.text(json.get("error").toString(), 500)}")
@@ -475,6 +496,10 @@ class HttpGrapheneRpcClient(private val spec: GrapheneChainSpec, private val end
             throw IllegalStateException("timeout at $endpoint via $label", e)
         } catch (e: java.io.InterruptedIOException) {
             throw IllegalStateException("interrupted timeout at $endpoint via $label: ${PayloadSanitizer.text(e.message, 120)}", e)
+        } finally {
+            expiry?.cancel(false)
+            watchdog?.shutdownNow()
+            conn.disconnect()
         }
     }
 }
@@ -699,6 +724,16 @@ class VoteRuntime(
             if (created != updated || changes > 0) return "favorite_edited"
         }
         return null
+    }
+
+    /** Planning-only detached target view. Execution still reloads authority at every send. */
+    internal fun archivedTargets(chainId: String, account: String): Map<Pair<String, String>, ArchivedVote> {
+        val ledger = (pendingStore as? VoteArchiveStore)?.takeIf { chainId == "golos" } ?: return emptyMap()
+        ledger.archiveActiveVote(chainId, account)
+        return ledger.voteArchive(chainId, account).groupBy {
+            val fields = it.intent.fingerprint.split('|')
+            fields[0] to fields[1]
+        }.mapValues { it.value.first() }
     }
 
     /** Target identity ignores weight and event kind; unknown votes also block dependent donations. */

@@ -13,7 +13,7 @@ internal object NativeStorageQueue {
 
     fun execute(task: () -> Unit) {
         executor.execute {
-            try { task() } catch (error: Exception) {
+            try { TransactionCheckpointStore.readOperation { task() } } catch (error: Exception) {
                 // A lifecycle failure must not kill subsequent queued revocation writes.
                 android.util.Log.e("DposStorage", "Native storage task failed: ${error.javaClass.simpleName}")
             }

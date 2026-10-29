@@ -283,14 +283,20 @@ class GolosBacklogConnectedTest {
         }
     }
 
-    @Test fun acceleratedGolosRunnerDoesNotReadOrAwardVizOrCheckNotifications() {
+    @Test fun incrementalRunnerChecksEnabledVizButDoesNotCheckNotifications() {
         Fixture().use { f ->
             f.store.importDecision(WorkerCommandPolicy.validateImport(AccountImportRequest("viz", "fixture-viz", enableNotifications = false, enableAutoUpvoter = false, enableVizSelfAward = true, explicitConsent = true)))
             val summary = f.run()
-            assertEquals(1, summary.accountsChecked)
-            assertEquals(0, summary.vizSelfAwardChecks)
+            assertEquals(2, summary.accountsChecked)
+            assertEquals(1, summary.vizSelfAwardChecks)
             assertEquals(0, summary.notificationChecks)
+            assertEquals(0, summary.vizSelfAwardBroadcasted) // No VIZ key was provisioned.
             assertTrue(f.store.vizSelfAwardEnabled("viz", "fixture-viz"))
+            f.store.syncVizSelfAward("fixture-viz", false, false, 9500)
+            val disabled = f.run(f.restartStore())
+            assertEquals(1, disabled.accountsChecked)
+            assertEquals(0, disabled.vizSelfAwardChecks)
+            assertEquals(0, disabled.notificationChecks)
         }
     }
 

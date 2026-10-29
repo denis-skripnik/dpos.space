@@ -58,13 +58,15 @@ data class VizSelfAwardResult(
     val operation: VizSelfAwardOperation,
     val signedTransaction: JSONObject? = null,
     val rpcResponse: JSONObject? = null,
-    val diagnostics: JSONObject? = null
+    val diagnostics: JSONObject? = null,
+    val confirmedTransactionIds: List<String> = emptyList()
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("ok", ok)
         .put("status", status)
         .put("reason", PayloadSanitizer.text(reason, 300))
         .put("operation", operation.toJson())
+        .put("confirmedTransactionIds", JSONArray(confirmedTransactionIds.distinct()))
         .put("signedTransaction", if (signedTransaction == null) JSONObject.NULL else PayloadSanitizer.text(signedTransaction.toString(), 900))
         .put("rpcResponse", if (rpcResponse == null) JSONObject.NULL else PayloadSanitizer.text(rpcResponse.toString(), 900))
         .put("diagnostics", diagnostics ?: JSONObject.NULL)
@@ -146,8 +148,15 @@ class VizSelfAwardRuntime(
                 runCatching { confirmSelfAward(clean, previousSpend, pending.historyBaseline, pending.transactionId, requireDefaultBeneficiary = isFeeAward) }.getOrNull()
             } else null
             if (confirmed != null) {
-                pendingStore.completePending(pending, PendingCompletionReason.CONFIRMED)
-                return VizSelfAwardResult(true, "broadcast_confirmed", "previous VIZ self-award confirmed irreversible at block #${confirmed.index}", VizSelfAwardOperation(clean, previousSpend!!))
+                pendingStore.completePending(pending, PendingCompletionReason.CONFIRMED, confirmed.executionMillis ?: System.currentTimeMillis())
+                val ids = listOfNotNull(pending.transactionId)
+                // Re-enter ordinary preparation with fresh account/authority/energy reads. Only
+                // canonical execution time can release this cycle; legacy proof stays conservative.
+                if (confirmed.executionMillis != null) {
+                    val fresh = execute(clean, minEnergy, keyRef, privateWif)
+                    return fresh.copy(confirmedTransactionIds = (ids + fresh.confirmedTransactionIds).distinct())
+                }
+                return VizSelfAwardResult(true, "broadcast_confirmed", "previous VIZ self-award confirmed irreversible at block #${confirmed.index}", VizSelfAwardOperation(clean, previousSpend!!), confirmedTransactionIds = ids)
             }
             if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked", op)
             // First observation of a legacy ID-less record is durable. Do not use its absent
@@ -179,12 +188,15 @@ class VizSelfAwardRuntime(
         }
         pendingStore?.assertFreshIntentAllowed("self_award", "viz", clean)
         val lastConfirmedAt = pendingStore?.confirmedAt("self_award", "viz", clean)
-        if (lastConfirmedAt != null && System.currentTimeMillis() - lastConfirmedAt < 432_000L)
+        if (lastConfirmedAt != null && clockSeconds() * 1000 - lastConfirmedAt < VIZ_SELF_AWARD_TICK_MS)
             return VizSelfAwardResult(true, "recent_skip", "confirmed VIZ cooldown retained in transaction authority", op)
         val fingerprint = "v2|$spend|$VIZ_SELF_AWARD_MEMO|$VIZ_DEFAULT_BENEFICIARY_ACCOUNT|$VIZ_DEFAULT_BENEFICIARY_WEIGHT"
         val authorityCheck = verifyRegularAuthority(clean, keyRef, privateWif, accountJson, op)
         if (authorityCheck != null) return authorityCheck
         val (header, signingHead) = buildHeaderLikeGolosJs()
+        val freshChainTime = VizSelfAwardPolicy.chainHead(signingHead, clockSeconds())?.second
+        if (lastConfirmedAt != null && (freshChainTime == null || freshChainTime * 1000 - lastConfirmedAt < VIZ_SELF_AWARD_TICK_MS))
+            return VizSelfAwardResult(true, "recent_skip", "confirmed VIZ cadence not yet elapsed on fresh chain head", op)
         if (pendingStore != null && (VizSelfAwardPolicy.chainHead(signingHead, clockSeconds()) == null || clockSeconds() >= header.expirationEpochSeconds))
             return VizSelfAwardResult(false, "stale_chain_head", "VIZ chain time unavailable or inconsistent with device time; signing blocked", op)
         if (!canAct()) return VizSelfAwardResult(false, "cancelled", "worker permission was revoked before signing", op)
@@ -227,8 +239,8 @@ class VizSelfAwardRuntime(
             pendingStore?.savePending(pending.copy(state = PendingBroadcastState.UNKNOWN))
             val confirmation = confirmSelfAward(clean, spend, baseline, txId, requireDefaultBeneficiary = true)
             if (confirmation != null) {
-                pendingStore?.completePending(pending, PendingCompletionReason.CONFIRMED)
-                signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award irreversible: @${clean} spent ${spend} energy bp in block #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedBlockNumber", confirmation.index))
+                pendingStore?.completePending(pending, PendingCompletionReason.CONFIRMED, confirmation.executionMillis ?: System.currentTimeMillis())
+                signed.copy(status = "broadcast_confirmed", reason = "VIZ self-award irreversible: @${clean} spent ${spend} energy bp in block #${confirmation.index}", rpcResponse = response, diagnostics = (signed.diagnostics ?: JSONObject()).put("confirmedBlockNumber", confirmation.index), confirmedTransactionIds = listOf(txId))
             } else if (spec.asyncBroadcastOnly) {
                 signed.copy(ok = false, status = "broadcast_unconfirmed", reason = "VIZ async broadcast returned; exact transaction is not yet irreversible; next periodic check will retry read-only confirmation", rpcResponse = response)
             } else {
@@ -251,13 +263,15 @@ class VizSelfAwardRuntime(
         return if (expiredPriorPending) submission.copy(diagnostics = (submission.diagnostics ?: JSONObject()).put("priorPendingOutcome", "unknown_expired")) else submission
     }
 
+    private data class Confirmation(val index: Long, val executionMillis: Long?)
+
     private fun confirmSelfAward(
         account: String,
         energy: Int,
         baseline: Long,
         transactionId: String? = null,
         requireDefaultBeneficiary: Boolean = false
-    ): HistoryEvent? {
+    ): Confirmation? {
         // The vendored viz-js-lib send() only uses async broadcast. VIZ's read-only
         // operation_history lookup provides the exact transaction and its block number;
         // a block is final only once the live chain's LIB has passed it.
@@ -277,10 +291,14 @@ class VizSelfAwardRuntime(
                     if (pending.transactionId == transactionId && pending.includedBlockNumber != block)
                         pendingStore.savePending(pending.copy(includedBlockNumber = block))
                 }
+                val executionMillis = if (transaction.has("_vizBlock")) {
+                    (VizAwardProof.verify(transaction, transactionId, account, energy, clockSeconds(), requireDefaultBeneficiary)
+                        ?: return null).executionMillis
+                } else null
                 val head = transaction.optJSONObject("_vizHead") ?: runCatching { rpcClient.getDynamicGlobalProperties() }.getOrNull()
                 val fresh = head?.let { VizSelfAwardPolicy.chainHead(it, clockSeconds()) }
                 return if (fresh != null && head.optLong("last_irreversible_block_num", -1) >= block)
-                    HistoryEvent(block, "award", emptyMap()) else null
+                    Confirmation(block, executionMillis) else null
             }
         }
         return null
@@ -336,7 +354,12 @@ class VizAwardTransactionBuilder(private val spec: GrapheneChainSpec) {
         return tx
     }
 
-    fun signingBytes(operation: VizSelfAwardOperation, header: BlockHeaderRef): ByteArray {
+    fun signingBytes(operation: VizSelfAwardOperation, header: BlockHeaderRef): ByteArray = encode(operation, header, true)
+
+    // Read-only verification of retired, beneficiary-free pending records; never used to sign/send.
+    internal fun legacyProofBytes(operation: VizSelfAwardOperation, header: BlockHeaderRef): ByteArray = encode(operation, header, false)
+
+    private fun encode(operation: VizSelfAwardOperation, header: BlockHeaderRef, beneficiary: Boolean): ByteArray {
         val txBytes = ByteArrayOutputStream().apply {
             writeUInt16LE(header.refBlockNum)
             writeUInt32LE(header.refBlockPrefix)
@@ -348,9 +371,11 @@ class VizAwardTransactionBuilder(private val spec: GrapheneChainSpec) {
             writeUInt16LE(operation.energy.coerceIn(1, 10000))
             writeUInt64LE(0)
             writeGrapheneString(operation.memo)
-            writeVarUInt(1)
-            writeGrapheneString(VIZ_DEFAULT_BENEFICIARY_ACCOUNT)
-            writeUInt16LE(VIZ_DEFAULT_BENEFICIARY_WEIGHT)
+            writeVarUInt(if (beneficiary) 1 else 0)
+            if (beneficiary) {
+                writeGrapheneString(VIZ_DEFAULT_BENEFICIARY_ACCOUNT)
+                writeUInt16LE(VIZ_DEFAULT_BENEFICIARY_WEIGHT)
+            }
             writeVarUInt(0) // transaction extensions
         }.toByteArray()
         return vizHexToBytes(spec.networkChainIdHex) + txBytes

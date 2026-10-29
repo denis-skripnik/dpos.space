@@ -191,6 +191,16 @@ class GolosEventBacklog(
         return batch
     }
 
+    /** Adjust the selected window stride to work actually reached; all rows remain durable. */
+    fun planned(account: String, selected: Int, inspected: Int) {
+        if (!canAct() || Thread.currentThread().isInterrupted || inspected >= selected) return
+        val state = store.readVoteBacklog(account)
+        val size = state.optJSONArray("inbox")?.length() ?: 0
+        if (size == 0) return
+        state.put("processOffset", (state.optInt("processOffset") - selected + inspected.coerceAtLeast(1)).mod(size))
+        if (canAct() && !Thread.currentThread().isInterrupted) store.saveVoteBacklog(account, state)
+    }
+
     fun acknowledge(account: String, report: AutoVoteRuntimeReport?, plan: VotePlan) {
         val state = store.readVoteBacklog(account) ?: return
         val completeTargets = mutableSetOf<Pair<String, String>>()

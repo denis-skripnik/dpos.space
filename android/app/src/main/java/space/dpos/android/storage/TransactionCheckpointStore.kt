@@ -136,12 +136,21 @@ class TransactionCheckpointStore(
     fun currentUnsent(id: String): Boolean = synchronized(lock) { id in owner.unsentThisProcess }
     fun retirePreparation(id: String) = synchronized(lock) { owner.unsentThisProcess.remove(id) }
 
-    fun legacyIdentityIncomplete(): Boolean = synchronized(lock) { assertActivated(); load().getBoolean("legacyIdentityIncomplete") }
-    fun read(key: String): Any? = synchronized(lock) {
+    fun legacyIdentityIncomplete(): Boolean = synchronized(lock) { assertActivated(); checkedLoad().getBoolean("legacyIdentityIncomplete") }
+    fun read(key: String, fresh: Boolean = false): Any? = synchronized(lock) {
         assertActivated()
-        val state = checkedLoad()
+        val state = checkedLoad(fresh)
         check(!state.getJSONObject("invalid").has(key)) { "checkpoint invalid record in scoped transaction section" }
         state.getJSONObject("entries").optJSONObject(key)?.let { untyped(it) }
+    }
+    /** One operation-local, physically validated view; never retained as send authority. */
+    fun readKeys(keys: Set<String>): Map<String, Any?> = synchronized(lock) {
+        assertActivated()
+        val state = checkedLoad()
+        keys.associateWith { key ->
+            check(!state.getJSONObject("invalid").has(key)) { "checkpoint invalid record in scoped transaction section" }
+            state.getJSONObject("entries").optJSONObject(key)?.let { untyped(it) }
+        }
     }
     fun snapshot(): Map<String, Any?> = synchronized(lock) {
         assertActivated(); val state = checkedLoad()
@@ -149,13 +158,14 @@ class TransactionCheckpointStore(
     }
     fun mutate(change: (JSONObject) -> Unit) = synchronized(lock) {
         assertActivated()
-        val state = checkedLoad()
+        val state = checkedLoad(fresh = true)
         val retired = state.getJSONObject("entries").optJSONObject("golosProductionTransition")?.toString()
         change(state)
         check(retired == null || state.getJSONObject("entries").optJSONObject("golosProductionTransition")?.toString() == retired) {
             "retired Golos fence, provenance and epoch are immutable"
         }
         state.put("generation", Math.addExact(state.getLong("generation"), 1L))
+        readOperationViews.get()?.remove(dir.path)
         try { writeCheckpoint(state) } catch (failure: Exception) {
             owner.activated = false
             owner.fault = "checkpoint_write_unverified"
@@ -170,12 +180,32 @@ class TransactionCheckpointStore(
             if (value == null) values.remove(key) else values.put(key, typed(value))
         }
     }
-    private fun checkedLoad(): JSONObject = try { load() } catch (failure: Exception) {
+    private data class ReadView(val fingerprint: String, val state: JSONObject)
+    private fun readFingerprint(): String = listOf(authority, backup).joinToString(":") { file ->
+        // Hash the exact bytes too: mtime/size alone miss same-length or restored-mtime tampering.
+        check(!File(file.baseFile.path + ".new").exists() && !File(file.baseFile.path + ".bak").exists()) { "checkpoint update in progress" }
+        digest(file.baseFile.readBytes())
+    }
+    private fun checkedLoad(fresh: Boolean = false): JSONObject = try {
+        val views = readOperationViews.get()
+        if (fresh) views?.remove(dir.path)
+        val fingerprint = if (views != null && !fresh) readFingerprint() else null
+        val cached = if (fresh) null else views?.get(dir.path)
+        if (cached != null && cached.fingerprint == fingerprint) cached.state else {
+            val state = load()
+            if (fingerprint != null) {
+                check(fingerprint == readFingerprint()) { "checkpoint changed during snapshot validation" }
+                views!![dir.path] = ReadView(fingerprint, state)
+            }
+            state
+        }
+    } catch (failure: Exception) {
         owner.activated = false; owner.fault = "checkpoint_read_unverified"
         throw IllegalStateException("checkpoint authority unavailable; no legacy fallback", failure)
     }
     private fun load(): JSONObject {
         check(exists(authority)) { "authority_missing_backup_retained" }
+        boundary("checkpoint:load", authority.baseFile)
         val bytes = authority.openRead().use { it.readBytes() }
         val state = JSONObject(String(bytes, Charsets.UTF_8))
         validateCheckpoint(state)
@@ -268,6 +298,14 @@ class TransactionCheckpointStore(
         } }
     }
     companion object {
+        private val readOperationViews = ThreadLocal<MutableMap<String, ReadView>>()
+        /** Native storage task only; RPC/signing scopes never inherit this detached read view. */
+        internal fun <T> readOperation(block: () -> T): T {
+            if (readOperationViews.get() != null) return block()
+            readOperationViews.set(mutableMapOf())
+            return try { block() } finally { readOperationViews.remove() }
+        }
+
         private val owners = ConcurrentHashMap<String, Owner>()
         fun isTransactionKey(key: String): Boolean = key == "golosProductionTransition" || key.startsWith("golosRecoveryRejectedFence:") || key == "golosRecoveryFence" || key == "voteStorageUnsafe" || key.startsWith("pendingTransaction:") ||
             key.startsWith("voteArchive:") || key.startsWith("donateReceipt:") || key.startsWith("lastVizSelfAwardAt:") ||

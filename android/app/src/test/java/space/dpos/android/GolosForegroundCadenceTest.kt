@@ -31,7 +31,7 @@ class GolosForegroundCadenceTest {
         context.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE).edit().clear().commit()
         return WorkerStore(context)
     }
-    @Test fun onlyEnabledGolosSelectsFastCadenceAndRevocationRestoresOriginalCadence() {
+    @Test fun enabledVizOrGolosSelectsFastChecksAndRevocationRestoresOriginalCadence() {
         val store = store()
         val controller = Robolectric.buildService(DposForegroundService::class.java).create()
         try {
@@ -40,12 +40,14 @@ class GolosForegroundCadenceTest {
             assertEquals(VIZ_SELF_AWARD_TICK_MS, delay.invoke(service, store))
             store.importDecision(WorkerCommandPolicy.validateImport(AccountImportRequest("viz", "fixture-viz", enableNotifications = false,
                 enableAutoUpvoter = false, enableVizSelfAward = true, explicitConsent = true)))
-            assertEquals(VIZ_SELF_AWARD_TICK_MS, delay.invoke(service, store))
+            assertEquals(30_000L, delay.invoke(service, store))
             store.importDecision(WorkerCommandPolicy.validateImport(AccountImportRequest("golos", "fixture-voter", enableNotifications = false,
                 enableAutoUpvoter = true, explicitConsent = true)))
             assertEquals(30_000L, delay.invoke(service, store))
             store.importDecision(WorkerCommandPolicy.validateImport(AccountImportRequest("golos", "fixture-voter", enableNotifications = false,
                 enableAutoUpvoter = false, explicitConsent = true, updateAutoUpvoter = true)))
+            assertEquals(30_000L, delay.invoke(service, store))
+            store.syncVizSelfAward("fixture-viz", false, false, 9500)
             assertEquals(VIZ_SELF_AWARD_TICK_MS, delay.invoke(service, store))
         } finally { controller.destroy() }
     }

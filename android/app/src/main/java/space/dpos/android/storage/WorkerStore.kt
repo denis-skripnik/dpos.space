@@ -319,7 +319,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         check(editor.commit()) { "checkpoint write unverified; sends blocked" }
     }
     private fun archiveKey(chainId: String, account: String) = "voteArchive:${chainId.lowercase()}:${account.lowercase()}"
-    private fun validateArchived(intent: PendingBroadcastIntent, chainId: String, account: String) {
+    private fun validateArchived(intent: PendingBroadcastIntent, chainId: String, account: String, fence: (JSONObject) -> JSONObject? = ::golosFenceForGeneration) {
         val fields = intent.fingerprint.split('|')
         require(intent.kind == "vote" && intent.chainId == chainId && intent.account == account &&
             fields.size == 3 && fields[0].isNotBlank() && fields[1].isNotBlank() &&
@@ -329,17 +329,24 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         }
         intent.recoveryGeneration?.let { encoded ->
             val g = JSONObject(encoded)
-            val original = golosFenceForGeneration(g) ?: error("original generation fence unavailable; archive retained")
+            val original = fence(g) ?: error("original generation fence unavailable; archive retained")
             space.dpos.android.upvoter.GolosRecoveryFence.validateGeneration(g, original, intent.fingerprint)
         }
     }
     override fun voteArchive(chainId: String, account: String): List<space.dpos.android.upvoter.ArchivedVote> = synchronized(checkpoint.lock) {
         checkpoint.assertActivated()
-        val rows = JSONArray(prefs.getString(archiveKey(chainId, account), "[]"))
+        val key = archiveKey(chainId, account)
+        val snapshot = checkpoint.readKeys(setOf(key, "golosRecoveryFence", "golosProductionTransition"))
+        val active = (snapshot["golosRecoveryFence"] as? String)?.let { JSONObject(it) }
+        val old = (snapshot["golosProductionTransition"] as? String)?.let { JSONObject(it).getString("oldFence") }?.let { JSONObject(it) }
+        val rows = JSONArray(snapshot[key] as? String ?: "[]")
         (0 until rows.length()).map { i ->
             val row = rows.getJSONObject(i)
             val intent = parsePending(row.getJSONObject("intent").toString())
-            validateArchived(intent, chainId, account)
+            validateArchived(intent, chainId, account) { g ->
+                active?.takeIf { it.optString("headId") == g.optString("fenceId") }
+                    ?: old?.takeIf { it.optString("headId") == g.optString("fenceId") }
+            }
             require(row.opt("confirmed") is Boolean) { "invalid archive state; sends blocked" }
             space.dpos.android.upvoter.ArchivedVote(intent, row.getBoolean("confirmed"))
         }
@@ -448,7 +455,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         if (currentPreparation) checkpoint.registerCurrentPreparation(id)
     }
     override fun markTransportEntered(intent: PendingBroadcastIntent, canAct: () -> Boolean): Boolean = synchronized(checkpoint.lock) {
-        val current = readPending(intent.kind, intent.chainId, intent.account)
+        val current = (checkpoint.read(pendingKey(intent.kind, intent.chainId, intent.account), fresh = true) as? String)?.let(::parsePending)
         val id = TransactionCheckpointStore.identity(pendingJson(intent))
         check(current != null && TransactionCheckpointStore.identity(pendingJson(current)) == id) { "transport identity lost" }
         check(!isGolosForeignIntent(intent)) { "retired branch intent cannot enter transport" }
@@ -460,7 +467,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     }
     override fun assertTransactionAuthority(kind: String, chainId: String, account: String) {
         checkpoint.assertActivated()
-        checkpoint.read(pendingKey(kind, chainId, account)) // Validate this scope before signing.
+        checkpoint.read(pendingKey(kind, chainId, account), fresh = true) // Real authority reread before signing.
     }
     override fun assertFreshIntentAllowed(kind: String, chainId: String, account: String) = synchronized(checkpoint.lock) {
         assertTransactionAuthority(kind, chainId, account)
@@ -524,6 +531,10 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
                     val cadenceKey = "lastVizSelfAwardAt:viz:${intent.account}"
                     val oldAt = entries.optJSONObject(cadenceKey)?.let { TransactionCheckpointStore.untyped(it) as Long } ?: 0L
                     entries.put(cadenceKey, TransactionCheckpointStore.typed(maxOf(oldAt, atMs)))
+                    // Same atomic receipt transaction: retries/restarts never count this identity twice.
+                    val totalKey = "totalVizSelfAwardBroadcasted"
+                    val total = entries.optJSONObject(totalKey)?.let { TransactionCheckpointStore.untyped(it) as Int } ?: 0
+                    entries.put(totalKey, TransactionCheckpointStore.typed(total + 1))
                 }
             }
         }

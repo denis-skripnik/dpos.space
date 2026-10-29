@@ -51,7 +51,8 @@ class DposForegroundService : Service() {
         }
     }
     private fun nextDelay(store: WorkerStore): Long = if (store.activeAccounts().any {
-        it.chainId == "golos" && store.autoUpvoterEnabled("golos", it.account)
+        it.chainId == "golos" && store.autoUpvoterEnabled("golos", it.account) ||
+            it.chainId == "viz" && store.vizSelfAwardEnabled("viz", it.account)
     }) 30_000L else VIZ_SELF_AWARD_TICK_MS
     private fun workerStatusText(status: String): String = "DPoS Space: ${space.dpos.android.core.PayloadSanitizer.text(status, 520)}"
     private fun updateForegroundStatus(status: String) {

@@ -50,6 +50,12 @@ class TransactionCheckpointTest {
         assertTrue(runCatching { restarted.savePending(prior.copy(state = space.dpos.android.upvoter.PendingBroadcastState.UNKNOWN)) }.isFailure)
         restarted.completePending(prior, space.dpos.android.upvoter.PendingCompletionReason.CONFIRMED, 6000)
         assertEquals("idempotence must not postpone cooldown", 5000L, restarted.lastVizSelfAwardAt("alice"))
+        assertEquals(1, restarted.totalVizSelfAwardBroadcasted())
+        val fresh = prior.copy(transactionId = "b".repeat(40), createdAtMs = 6000)
+        restarted.savePending(fresh)
+        restarted.completePending(prior, space.dpos.android.upvoter.PendingCompletionReason.CONFIRMED, 7000)
+        assertEquals(fresh, restarted.readPending("self_award", "viz", "alice"))
+        assertEquals(1, restarted.totalVizSelfAwardBroadcasted())
     }
     @Test fun confirmedDonationCommitsReceiptWithRemoval() {
         val (ctx, prefs) = fixture(); val store = WorkerStore(ctx, prefs, prefs)
@@ -126,8 +132,13 @@ class TransactionCheckpointTest {
             fail = false
             assertTrue(journal.retryStorage())
             val pending = store.readPending("self_award", "viz", "alice")
-            if (pending == null) assertEquals(5000L, store.lastVizSelfAwardAt("alice"))
-            else assertNull(store.lastVizSelfAwardAt("alice"))
+            if (pending == null) {
+                assertEquals(5000L, store.lastVizSelfAwardAt("alice"))
+                assertEquals(1, store.totalVizSelfAwardBroadcasted())
+            } else {
+                assertNull(store.lastVizSelfAwardAt("alice"))
+                assertEquals(0, store.totalVizSelfAwardBroadcasted())
+            }
         }
     }
     @Test fun signedMetadataSurvivesJsonNumericWidthAndTransportCannotCancelAsUnsent() {

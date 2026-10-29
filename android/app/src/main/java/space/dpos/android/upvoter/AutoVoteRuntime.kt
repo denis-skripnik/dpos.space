@@ -23,19 +23,30 @@ class AutoVoteRuntime(
     private val chainId: String = "golos",
     private val pauseAfterSuccessfulBroadcastMs: Long = 0L,
     private val canAct: () -> Boolean = { true },
-    private val donateRuntime: GolosDonateRuntime? = null
+    private val donateRuntime: GolosDonateRuntime? = null,
+    private val planningBudgetMs: Long = 15_000L,
+    private val planningProgress: (Int, Int) -> Unit = { _, _ -> }
 ) {
     /** Validate individually eligible events before the cumulative energy budget is charged. */
-    fun plan(settings: List<AccountSettings>, events: List<VoteEvent>): VotePlan {
+    fun plan(settings: List<AccountSettings>, events: List<VoteEvent>): VotePlan =
+        PlanningReadBudget.within(planningBudgetMs) { planWindow(settings, events) }
+
+    private fun planWindow(settings: List<AccountSettings>, events: List<VoteEvent>): VotePlan {
         val planner = AutoUpvoterPlanner()
         if (chainId.trim().lowercase() != "golos") return planner.plan(settings, events)
         val skips = mutableListOf<String>()
         val verdicts = mutableMapOf<Triple<String, String, Boolean>, String?>()
-        val eligible = events.filter { event ->
+        val archives = mutableMapOf<String, Map<Pair<String, String>, ArchivedVote>>()
+        var inspected = 0
+        val eligible = events.asSequence().takeWhile { canAct() && PlanningReadBudget.remainingMs()!! > 0 }.filter { event ->
+            inspected++
+            if (inspected == 1 || inspected % 10 == 0) planningProgress(inspected, events.size)
             val individual = planner.plan(settings, listOf(event))
             if (individual.actions.isEmpty()) return@filter true
             val blocked = individual.actions.mapNotNull { action ->
-                voteRuntime.archivedTarget(chainId, action.account, action.author, action.permlink)?.let { action to it }
+                if (!canAct()) return@mapNotNull null
+                archives.getOrPut(action.account) { voteRuntime.archivedTargets(chainId, action.account) }
+                    .get(action.author to action.permlink)?.let { action to it }
             }
             if (blocked.isNotEmpty()) {
                 skips += blocked.map { (action, archived) -> "${if (archived.confirmed) "already_voted" else "pending_confirmation"}:${action.account}|${action.author}|${action.permlink}|${event.kind}" }
@@ -68,8 +79,9 @@ class AutoVoteRuntime(
                 } else true
             }
         }
-        val plan = planner.plan(settings, eligible)
-        return plan.copy(skips = skips + plan.skips)
+        val plan = planner.plan(settings, eligible.toList())
+        planningProgress(inspected, events.size)
+        return plan.copy(skips = skips + plan.skips + if (inspected < events.size) listOf("planning_deferred:${events.size - inspected}") else emptyList(), inspectedEvents = inspected)
     }
 
     fun preview(plan: VotePlan): AutoVoteRuntimeReport = run(plan, previewOnly = true)

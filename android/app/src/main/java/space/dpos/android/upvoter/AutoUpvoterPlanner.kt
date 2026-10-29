@@ -10,7 +10,7 @@ import kotlin.math.roundToInt
 data class AccountSettings(val account: String, val enabled: Boolean, val curators: List<String> = emptyList(), val favorites: List<String> = emptyList(), val minEnergy: Int = 2500, val curatorMode: String = "repeat", val curatorCoefficient: Int = 100, val favoritesPercent: Int = 100, val currentEnergy: Int? = null, val maxActionsPerTick: Int = 5, val chainId: String = "golos", val donatePool: GolosDonatePool? = null)
 data class VoteEvent(val kind: String, val voter: String = "", val author: String, val permlink: String, val weight: Int = 10000, val activeVotes: List<String> = emptyList(), val sourceIndex: Long = -1L)
 data class PlannedVote(val account: String, val author: String, val permlink: String, val weight: Int, val reason: String, val projectedEnergy: Int?, val maxBroadcastsPerTick: Int = Int.MAX_VALUE, val donatePool: GolosDonatePool? = null)
-data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>)
+data class VotePlan(val actions: List<PlannedVote>, val skips: List<String>, val inspectedEvents: Int? = null)
 
 object PreviewVoteLog {
     fun render(plan: VotePlan, context: String = ""): String {
