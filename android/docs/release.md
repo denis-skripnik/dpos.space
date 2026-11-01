@@ -1,5 +1,11 @@
 # Android release notes and packaging
 
+## 3.1.10 / code88
+
+- Adds the reviewed settings-sync native preference replacement and VIZ automatic self-award notification filter, preserving local grants, keys, worker state and pending operations. Includes all existing 3.1.9 safeguards.
+- Non-debuggable Release retains `space.dpos.android.debug`, the historic certificate and original updater public pin. Artifact: `downloads/dpos-space-3.1.10.apk`.
+- The signed update manifest controls in-app availability. Physical-device upgrade/data continuity and TalkBack acceptance remain separate; never uninstall or clear data to upgrade.
+
 ## Local main-thread storage/ANR repair (not published)
 
 - Device diagnostics show bridge requests and lifecycle work delayed while checkpoint recovery is active. No Android ANR trace was supplied, so the exact physical-device ANR cause remains unproven. Deterministic JVM tests reproduce main-thread blocking on the shared checkpoint authority and on an ordinary synchronous preference commit; neither test performs a real RPC or broadcast.
