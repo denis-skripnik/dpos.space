@@ -222,7 +222,7 @@ class DposWorkerRunner(
                     val cursor = store.readCursor(account.chainId, account.account)
                     val selectedOps = store.notificationOps(account.chainId, account.account)
                     val (nextCursor, notifications) = if (spec != null) {
-                        GolosNotificationScanner(historyClient(spec), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
+                        GolosNotificationScanner(historyClient(spec), spec.id).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps, showAutoAwards = store.showAutoAwards(account.chainId, account.account))
                     } else if (account.chainId in RestWalletNotificationSpecs.supportedChains) {
                         RestWalletNotificationScanner(account.chainId).fetchAndScan(account.account, cursor.lastIndex.takeIf { it >= 0 }, cursor.baselineDone, selectedOps = selectedOps)
                     } else {

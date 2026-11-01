@@ -182,8 +182,8 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
     fun importDecision(decision: ImportDecision) {
         if (!decision.accepted) return
         val existingNotifications = notificationEnabled(decision.chainId, decision.account)
-        val existingAutoUpvoter = autoUpvoterEnabled(decision.chainId, decision.account)
-        val existingVizSelfAward = vizSelfAwardEnabled(decision.chainId, decision.account)
+        val existingAutoUpvoter = prefs.getBoolean("upvoter:${decision.chainId}:${decision.account}", false)
+        val existingVizSelfAward = prefs.getBoolean("vizSelfAward:${decision.chainId}:${decision.account}", false)
         val existingAutoStart = autoStartEnabled(decision.chainId, decision.account)
         val finalNotifications = if (decision.updateNotifications) decision.enableNotifications else existingNotifications
         val finalAutoUpvoter = if (decision.updateAutoUpvoter) decision.enableAutoUpvoter else existingAutoUpvoter
@@ -200,6 +200,9 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
             .putBoolean("vizSelfAward:${decision.chainId}:${decision.account}", finalVizSelfAward)
             .putBoolean("autoStart:${decision.chainId}:${decision.account}", finalAutoStart)
             .putInt("intervalMinutes", decision.intervalMinutes)
+        if (decision.updateAutoUpvoter) edit.putBoolean("upvoterPreference:${decision.chainId}:${decision.account}", true)
+        if (decision.updateVizSelfAward) edit.putBoolean("vizSelfAwardPreference:${decision.chainId}:${decision.account}", true)
+        if (decision.updateNotifications) edit.putBoolean("showAutoAwards:${decision.chainId}:${decision.account}", decision.showAutoAwards)
         if (decision.chainId == "golos" && decision.updateAutoUpvoter && !finalAutoUpvoter)
             edit.putBoolean("autoDonate:golos:${decision.account}", false)
         if (shouldUpdateVoteSettings) {
@@ -211,7 +214,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
                 .putString("curatorMode:${decision.chainId}:${decision.account}", decision.curatorMode)
                 .putInt("curatorCoefficient:${decision.chainId}:${decision.account}", decision.curatorCoefficient)
                 .putInt("favoritesPercent:${decision.chainId}:${decision.account}", decision.favoritesPercent)
-            if (decision.chainId == "golos") edit.putBoolean("autoDonate:golos:${decision.account}", decision.autoDonate)
+            if (decision.chainId == "golos") edit.putBoolean("autoDonatePreference:golos:${decision.account}", true).putBoolean("autoDonate:golos:${decision.account}", decision.autoDonate)
                 .putString("autoDonatePool:golos:${decision.account}", if (decision.autoDonate) decision.autoDonatePool else "0 1")
         }
         check(edit.commit()) { "could not durably import worker settings" }
@@ -227,12 +230,48 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         accounts += AccountIdentity(chainId, clean, active)
         prefs.edit()
             .putString("accounts", JSONArray(accounts.map { JSONObject().put("chainId", it.chainId).put("account", it.account).put("enabled", it.enabled) }).toString())
+            .putBoolean("vizSelfAwardPreference:$chainId:$clean", true)
             .putBoolean("vizSelfAward:$chainId:$clean", enabled)
             .putBoolean("autoStart:$chainId:$clean", autoStart)
             .putInt("minEnergy:$chainId:$clean", minEnergy.coerceIn(0, 9999))
             .putInt("intervalMinutes", 8)
             .apply()
         appendLog("synced VIZ self-award settings for $chainId:$clean; vizSelfAward=$enabled; autoStart=$autoStart; minEnergy=${minEnergy.coerceIn(0, 9999)}")
+    }
+
+    /** One durable preferences-only transaction; existing identities and grants stay local. */
+    fun replaceSettingsPreferences(snapshot: JSONObject) {
+        space.dpos.android.runtime.SettingsPreferencesPolicy.validate(snapshot)
+        fun find(rows: JSONArray, account: String, chain: String? = null): JSONObject? =
+            (0 until rows.length()).map { rows.getJSONObject(it) }.find {
+                it.getString("account") == account && (chain == null || it.optString("chain") == chain)
+            }
+        fun names(value: String): String = JSONArray(value.split(Regex("[\\s,;]+")).filter { it.isNotBlank() }.map { it.removePrefix("@") }.distinct()).toString()
+        val edit = prefs.edit()
+        for (identity in readAccounts()) {
+            val chain = identity.chainId; val name = identity.account; val binding = "$chain:$name"
+            val notify = find(snapshot.getJSONArray("notifications"), name, chain)
+            edit.putString("notifyOps:$binding", (notify?.getJSONArray("ops") ?: JSONArray()).toString())
+                .putBoolean("showAutoAwards:$binding", notify?.getBoolean("showAutoAwards") ?: false)
+            if (chain in listOf("golos","hive","steem")) {
+                val row = find(snapshot.getJSONObject("autoUpvoter").getJSONArray(chain), name)
+                edit.putBoolean("upvoterPreference:$binding", row?.getBoolean("enabled") ?: false)
+                    .putString("curators:$binding", names(row?.getString("curators") ?: ""))
+                    .putString("favorites:$binding", names(row?.getString("favorites") ?: ""))
+                    .putInt("minEnergy:$binding", ((row?.getString("minEnergy")?.toDouble() ?: 25.0) * 100).toInt())
+                    .putString("curatorMode:$binding", row?.getString("curatorMode") ?: "repeat")
+                    .putInt("curatorCoefficient:$binding", row?.getString("curatorCoefficient")?.toDouble()?.toInt() ?: 100)
+                    .putInt("favoritesPercent:$binding", row?.getString("favoritesPercent")?.toDouble()?.toInt() ?: 100)
+                if (chain == "golos") edit.putBoolean("autoDonatePreference:$binding", row?.getBoolean("autoDonate") ?: false)
+                    .putString("autoDonatePool:$binding", if (row == null) "0 1" else "${row.getString("autoDonatePoolPercent")} ${row.getString("autoDonatePoolCoefficient")}")
+            }
+            if (chain == "viz") {
+                val row = find(snapshot.getJSONArray("vizSelfAward"), name)
+                edit.putBoolean("vizSelfAwardPreference:$binding", row?.getBoolean("enabled") ?: false)
+                    .putInt("minEnergy:$binding", row?.getString("minEnergy")?.toDouble()?.toInt() ?: 9500)
+            }
+        }
+        check(edit.commit()) { "could not durably replace settings preferences" }
     }
 
     fun readAccounts(): List<AccountIdentity> {
@@ -255,8 +294,9 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         if (prefs.contains(key)) return readStringList(key)
         return GrapheneChainSpecs.find(chainId)?.notificationOps ?: RestWalletNotificationSpecs.notificationOps[chainId].orEmpty()
     }
-    fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false)
-    fun vizSelfAwardEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("vizSelfAward:$chainId:$account", false)
+    fun showAutoAwards(chainId: String, account: String): Boolean = prefs.getBoolean("showAutoAwards:$chainId:$account", false)
+    fun autoUpvoterEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("upvoter:$chainId:$account", false) && prefs.getBoolean("upvoterPreference:$chainId:$account", true)
+    fun vizSelfAwardEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("vizSelfAward:$chainId:$account", false) && prefs.getBoolean("vizSelfAwardPreference:$chainId:$account", true)
     fun autoStartEnabled(chainId: String, account: String): Boolean = prefs.getBoolean("autoStart:$chainId:$account", false)
     fun hasAutoStartAccounts(): Boolean = activeAccounts().any { account ->
         autoStartEnabled(account.chainId, account.account) && (autoUpvoterEnabled(account.chainId, account.account) || vizSelfAwardEnabled(account.chainId, account.account) || notificationEnabled(account.chainId, account.account))
@@ -302,7 +342,7 @@ class WorkerStore(context: Context, private val securePrefsForTest: SharedPrefer
         "pendingTransaction:${kind.lowercase()}:${chainId.lowercase()}:${account.lowercase()}"
 
     fun autoDonatePool(chainId: String, account: String): String? =
-        if (chainId == "golos" && autoUpvoterEnabled(chainId, account) && prefs.getBoolean("autoDonate:golos:$account", false))
+        if (chainId == "golos" && autoUpvoterEnabled(chainId, account) && prefs.getBoolean("autoDonate:golos:$account", false) && prefs.getBoolean("autoDonatePreference:golos:$account", true))
             prefs.getString("autoDonatePool:golos:$account", null) else null
 
     override fun donated(account: String, fingerprint: String): Boolean =

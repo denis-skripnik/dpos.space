@@ -71,6 +71,7 @@ class DposAndroidBridge(
         .put("androidSdk", Build.VERSION.SDK_INT)
         .put("bridgeVersion", BridgeTransportPolicy.BRIDGE_VERSION)
         .put("diagnosticLogExport", true)
+        .put("settingsPreferencesSync", true)
         .put("notificationInbox", true)
         .toString()
 
@@ -301,6 +302,17 @@ class DposAndroidBridge(
             finish(AndroidBridgeProtocol.success(request.id, getAppInfo()))
             return
         }
+        val replacingPreferences = request.method == "replaceSettingsPreferences"
+        if (replacingPreferences) {
+            try { space.dpos.android.runtime.SettingsPreferencesPolicy.validate(request.payload) }
+            catch (error: Exception) {
+                finish(AndroidBridgeProtocol.failure(request.id, "invalid_request", error.message ?: "invalid settings"))
+                return
+            }
+        }
+        // Fence old parameters before queued IO; retain grants and scheduling.
+        // Capture the mutation permit AFTER invalidating old send tokens.
+        val preferenceFence = if (replacingPreferences) WorkerCancellation.beginRevocation() else null
         val revoking = request.method == "stopWorker" || hasRevocation(request)
         val durableRevocation = if (revoking) WorkerCancellation.beginRevocation() else null
         if (request.method == "startWorker") WorkerCancellation.cancelAll()
@@ -337,9 +349,10 @@ class DposAndroidBridge(
                     }
                     request.method in SETTINGS_ACTION_METHODS || request.method == "stopWorker" -> {
                         val result = synchronized(permissionLock) {
-                            if (!revoking && request.method != "migrateGolosDonateSettings") check(permit.mayContinue()) { "permission change was cancelled" }
+                            if (replacingPreferences) check(permit.mayApplySettings()) { "preference change was cancelled" }
+                            else if (!revoking && request.method != "migrateGolosDonateSettings") check(permit.mayContinue()) { "permission change was cancelled" }
                             val payload = if (revoking && !permit.mayApplySettings()) revocationPayload(request) else request.payload
-                            invoke(request.method, approvedPayload(payload), revocationAlreadyApplied = revoking)
+                            invoke(request.method, if (request.method == "replaceSettingsPreferences") payload else approvedPayload(payload), revocationAlreadyApplied = revoking)
                         }
                         // A structured sync_error is not proof that revocation was persisted.
                         if (!JSONObject(result).has("ok") || JSONObject(result).optBoolean("ok")) durableRevocation?.invoke()
@@ -363,6 +376,7 @@ class DposAndroidBridge(
                     else -> AndroidBridgeProtocol.success(request.id, invoke(request.method, request.payload))
                 }
             }.getOrElse { AndroidBridgeProtocol.failure(request.id, "native_error", it.message ?: "native bridge error") }
+            preferenceFence?.invoke()
             finish(response)
         }
     }
@@ -406,6 +420,10 @@ class DposAndroidBridge(
     private fun invoke(method: String, payload: JSONObject, revocationAlreadyApplied: Boolean = false): String = when (method) {
         "getAppInfo" -> getAppInfo()
         "getWorkerStatus" -> getWorkerStatus()
+        "replaceSettingsPreferences" -> {
+            store.replaceSettingsPreferences(payload)
+            JSONObject().put("ok", true).toString()
+        }
         "importWorkerSettings" -> importWorkerSettings(payload.toString(), cancelActive = !revocationAlreadyApplied)
         "migrateGolosDonateSettings" -> migrateGolosDonateSettings(payload.toString())
         "syncVizSelfAwardSettings" -> syncVizSelfAwardSettings(payload.toString(), cancelActive = !revocationAlreadyApplied)
@@ -543,6 +561,7 @@ class DposAndroidBridge(
         val SETTINGS_ACTION_METHODS = setOf(
             "importWorkerSettings",
             "migrateGolosDonateSettings",
+            "replaceSettingsPreferences",
             "syncAutoUpvoterSettings",
             "syncVizSelfAwardSettings",
             "importSecureKey"

@@ -115,25 +115,25 @@ object GolosHistoryRpc {
 }
 
 class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = null, private val chainId: String = "golos") {
-    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
+    fun fetchAndScan(account: String, cursor: Long?, baselineDone: Boolean, limit: Int = 50, selectedOps: List<String>? = null, showAutoAwards: Boolean = false): Pair<Long, List<DposEventNotification>> {
         // Graphene `from` is a backwards history endpoint, not our last-seen cursor.
         // Always ask for the newest page; scan() applies the local high-water mark.
         val rows = historyClient?.getAccountHistory(account, -1L, limit).orEmpty()
-        return scan(account, cursor, rows, baselineDone, selectedOps)
+        return scan(account, cursor, rows, baselineDone, selectedOps, showAutoAwards)
     }
 
-    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String>? = null): Pair<Long, List<DposEventNotification>> {
+    fun scan(account: String, cursor: Long?, rows: List<HistoryEvent>, baselineDone: Boolean, selectedOps: List<String>? = null, showAutoAwards: Boolean = false): Pair<Long, List<DposEventNotification>> {
         val target = account.trim().removePrefix("@").lowercase()
         val sorted = rows.sortedBy { it.index }
         val newest = sorted.maxOfOrNull { it.index } ?: cursor ?: -1L
         if (!baselineDone) return newest to emptyList()
         val minIndex = cursor ?: -1L
         val allowed = selectedOps?.map { it.trim().lowercase() }?.filter { it.isNotBlank() }?.toSet()
-        val notifications = sorted.filter { it.index > minIndex }.filter { allowed == null || it.type.lowercase() in allowed }.mapNotNull { toNotification(target, it) }
+        val notifications = sorted.filter { it.index > minIndex }.filter { allowed == null || it.type.lowercase() in allowed }.mapNotNull { toNotification(target, it, showAutoAwards) }
         return newest to notifications
     }
 
-    fun toNotification(account: String, event: HistoryEvent): DposEventNotification? {
+    fun toNotification(account: String, event: HistoryEvent, showAutoAwards: Boolean = false): DposEventNotification? {
         val target = account.lowercase()
         fun norm(v: String?) = v.orEmpty().trim().removePrefix("@").lowercase()
         return when (event.type) {
@@ -162,7 +162,10 @@ class GolosNotificationScanner(private val historyClient: GolosHistoryClient? = 
                 val receiver = norm(event.data["receiver"])
                 val benefactor = norm(event.data["benefactor"])
                 val amount = event.data["shares"] ?: event.data["reward_amount"]
-                if (receiver == target) DposEventNotification(
+                val recipient = if (event.type == "benefactor_award") benefactor else receiver
+                val automaticSelfAward = chainId == "viz" && event.data["memo"] == "dpos.space: VIZ self-award" &&
+                    norm(event.data["initiator"]) == receiver && recipient == receiver
+                if (recipient == target && (!automaticSelfAward || showAutoAwards)) DposEventNotification(
                     "$chainId:$target:${event.index}:${event.type}",
                     if (event.type == "benefactor_award") "Бенефициарская награда VIZ" else "Получена награда VIZ",
                     listOf(if (benefactor.isNotBlank()) "бенефициар @$benefactor" else "", amount.orEmpty()).filter { it.isNotBlank() }.joinToString(", "),

@@ -75,11 +75,15 @@ class VizCadenceTest {
         var freshConfirmed = false
         var onProof: (() -> Unit)? = null
         var onPrepare: (() -> Unit)? = null
+        var onHead: (() -> Unit)? = null
         val sent = mutableListOf<JSONObject>()
         override fun getAccount(account: String): JSONObject = JSONObject().put("energy", 10000).put("last_vote_time", iso(now))
             .put("regular_authority", JSONObject().put("weight_threshold",1).put("key_auths",JSONArray().put(JSONArray().put(GraphenePublicKey.fromWif(wif,"VIZ")).put(1))))
-        override fun getDynamicGlobalProperties() = JSONObject().put("time", iso(if (mode == "stale") now-1000 else now))
-            .put("head_block_number", 2000).put("last_irreversible_block_num", if (mode == "reversible") 899 else 1999)
+        override fun getDynamicGlobalProperties(): JSONObject {
+            onHead?.invoke()
+            return JSONObject().put("time", iso(if (mode == "stale") now-1000 else now))
+                .put("head_block_number", 2000).put("last_irreversible_block_num", if (mode == "reversible") 899 else 1999)
+        }
         override fun getBlock(blockNumber: Long) = JSONObject().put("previous", "0000007901020304000000000000000000000000000000000000000000000000")
         override fun getVizTransaction(transactionId: String): JSONObject? {
             onProof?.invoke()
@@ -114,6 +118,33 @@ class VizCadenceTest {
     private fun runtime(rpc: Rpc, store: WorkerStore) = VizSelfAwardRuntime(rpc, pendingStore=store, confirmationRetries=1, confirmationDelayMs=0,
         canAct={rpc.permit}, clockSeconds={now})
     private fun runner(rpc: Rpc, store: WorkerStore) = DposWorkerRunner(context,store=store,rpcOverride={rpc})
+
+    @Test fun syncedEnabledMinimumCancelsHeldPreparationWithoutStoppingAndNextTickUsesNewMinimum() {
+        val store=setup();val rpc=Rpc(oldTx(),500)
+        val entered=java.util.concurrent.CountDownLatch(1);val release=java.util.concurrent.CountDownLatch(1)
+        val once=java.util.concurrent.atomic.AtomicBoolean(false)
+        rpc.onHead={if(once.compareAndSet(false,true)){entered.countDown();check(release.await(15,java.util.concurrent.TimeUnit.SECONDS))}}
+        var signedChecks=0;rpc.onPrepare={signedChecks++}
+        val executor=java.util.concurrent.Executors.newSingleThreadExecutor()
+        val task=executor.submit<space.dpos.android.worker.WorkerRunSummary>{runner(rpc,store).runOnce("sync-held")}
+        val activity=org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java).setup().get()
+        val bridge=space.dpos.android.bridge.DposAndroidBridge(activity,store){JSONObject()}
+        try {
+            assertTrue(entered.await(15,java.util.concurrent.TimeUnit.SECONDS))
+            val data=JSONObject("""{"format":"dpos.space/settings","version":1,"notifications":[],"autoUpvoter":{"golos":[],"hive":[],"steem":[]},"vizSelfAward":[{"account":"alice","enabled":true,"minEnergy":"9999"}]}""")
+            var reply:JSONObject?=null
+            bridge.dispatch(space.dpos.android.bridge.BridgeRequest("viz-sync","replaceSettingsPreferences",data)){reply=it}
+            awaitNativeStorage();assertTrue(reply.toString(),reply!!.getBoolean("ok"))
+            assertTrue(store.workerEnabled());assertTrue(store.vizSelfAwardEnabled("viz","alice"))
+            release.countDown();task.get(20,java.util.concurrent.TimeUnit.SECONDS)
+            assertEquals(0,signedChecks);assertTrue(rpc.sent.isEmpty())
+            rpc.onHead=null
+            runner(rpc,store).runOnce("sync-new-min")
+            assertEquals(9999,store.minEnergy("viz","alice"))
+            assertEquals(1,rpc.sent.size)
+            assertEquals(1,rpc.sent.single().getJSONArray("operations").getJSONArray(0).getJSONObject(1).getInt("energy"))
+        } finally {release.countDown();executor.shutdownNow();bridge.close()}
+    }
 
     @Test fun lateConfirmationDoesNotConsumeDueSendCycleAndSurvivesRestart() {
         val store=setup(); val old=oldTx(); pending(store,old); val rpc=Rpc(old,500)

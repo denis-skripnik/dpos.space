@@ -6413,15 +6413,16 @@
     if (!global.localStorage) return { accounts: {} };
     try {
       const parsed = JSON.parse(global.localStorage.getItem(VIZ_SELF_AWARD_SETTINGS_KEY) || '{}');
-      return { accounts: parsed && typeof parsed.accounts === 'object' ? parsed.accounts : {}, autoStart: Boolean(parsed && parsed.autoStart) };
+      return { accounts: parsed && typeof parsed.accounts === 'object' ? parsed.accounts : {}, autoStart: Boolean(parsed && parsed.autoStart), settingsImported: Boolean(parsed && parsed.settingsImported), settingsRevision: parsed && parsed.settingsRevision };
     } catch (error) {
       return { accounts: {} };
     }
   }
 
-  function writeVizSelfAwardSettings(rows, autoStart) {
+  function writeVizSelfAwardSettings(rows, autoStart, clearImported = false) {
     if (!global.localStorage) return;
-    const accounts = {};
+    const prior = readVizSelfAwardSettings();
+    const accounts = Object.assign({}, prior.accounts);
     (Array.isArray(rows) ? rows : []).forEach((row) => {
       const account = String(row && row.account || '').trim().replace(/^@/, '');
       if (!account) return;
@@ -6430,13 +6431,13 @@
         minEnergy: String(normalizeVizSelfAwardMinEnergy(row.minEnergy))
       };
     });
-    global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify({ accounts, autoStart: Boolean(autoStart) }));
+    global.localStorage.setItem(VIZ_SELF_AWARD_SETTINGS_KEY, JSON.stringify(Object.assign({ accounts, autoStart: Boolean(autoStart), settingsRevision: prior.settingsRevision }, prior.settingsImported && !clearImported ? {settingsImported:true} : {})));
   }
 
   function storedVizSelfAwardRows(chain) {
     const stored = readVizSelfAwardSettings();
     const vizChain = chain || chains.viz;
-    if (!vizChain || !stored.autoStart) return [];
+    if (!vizChain || !stored.autoStart || stored.settingsImported) return [];
     return auth.getUsers(vizChain).map((user) => {
       const account = auth.getUserLogin(user);
       const saved = stored.accounts[account] || {};
@@ -6643,7 +6644,7 @@
       renderFeed();
     }
 
-    function collectSettings() {
+    function collectSettings(persist = true, clearImported = false) {
       if (!form) return [];
       const autoStart = Boolean(form.querySelector('[name="autoStart"]') && form.querySelector('[name="autoStart"]').checked);
       const rows = Array.from(form.querySelectorAll('[data-viz-self-award-account]')).map((card) => ({
@@ -6652,7 +6653,7 @@
         minEnergy: normalizeVizSelfAwardMinEnergy(card.querySelector('[name="minEnergy"]') && card.querySelector('[name="minEnergy"]').value),
         autoStart
       }));
-      writeVizSelfAwardSettings(rows, autoStart);
+      if (persist) writeVizSelfAwardSettings(rows, autoStart, clearImported);
       return rows;
     }
 
@@ -6725,8 +6726,10 @@
       if (runGeneration !== runtime.cancelGeneration || !runtime.running) return null;
       const savedRun = continuity.readRun(scope);
       if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'interval'); renderFeed(); return null; }
+      if (global.DposSettingsSync) runtime.settings = settings = global.DposSettingsSync.forGrantedRows(scope, savedRun.settings);
       const durableGuard = continuity.guard(scope);
-      const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return runGeneration !== runtime.cancelGeneration || !runtime.running; };
+      const settingsCurrent = global.DposSettingsSync ? global.DposSettingsSync.settingsGuard(scope) : () => true;
+      const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return !settingsCurrent() || runGeneration !== runtime.cancelGeneration || !runtime.running; };
       const initialRead = async task => {
         durableGuard();
         if (isCancelled()) return null;
@@ -6743,7 +6746,7 @@
       renderFeed();
       if (isCancelled()) return null;
       const selected = (Array.isArray(settings) ? settings : collectSettings()).filter((row) => row.enabled && row.account);
-      if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
+      if (!selected.length) return null; // An empty preference snapshot is not Stop.
       await loadScript(chain.libraryPath);
       if (isCancelled()) return null;
       await loadScript(chain.cryptoPath);
@@ -6871,7 +6874,7 @@
             if (!await global.DposVault.admitVizAutomation()) throw Object.assign(new Error('VIZ Start proof unavailable; нажмите Start заново.'), {vizAdmissionFailure:true});
             if (runGeneration !== runtime.cancelGeneration) return;
           }
-          const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
+          const settings = restoring ? (global.DposSettingsSync ? global.DposSettingsSync.forGrantedRows(scope, continuity.readRun(scope).settings) : continuity.readRun(scope).settings) : collectSettings(true, true);
           const selected = settings.filter((row) => row.enabled && row.account);
           if (!selected.length) throw new Error('Выберите хотя бы один VIZ-аккаунт.');
           if (!hasAndroidWorkerBridge && runtime.feedStorageError) throw new Error(runtime.feedStorageError);
@@ -6940,9 +6943,9 @@
       const assertStarting = captureAndroidStartGuard();
       const status = await awaitRouteTask(capturedRouteEpoch, async () => (callAndroidWorkerBridge('getWorkerStatus')));
       assertStarting();
-      const settings = collectSettings();
+      const settings = collectSettings(false);
       const selected = settings.filter((row) => row.enabled && row.account);
-      if (stored.autoStart && selected.length) {
+      if (stored.autoStart && !stored.settingsImported && selected.length) {
         try {
           await awaitRouteTask(capturedRouteEpoch, async () => (syncAndroidVizSelfAwardSettings(settings)));
           assertStarting();
@@ -7014,7 +7017,7 @@
         if (!settings || typeof settings !== 'object') return;
         accounts[account] = Object.assign({}, settings, { minEnergy: autoUpvoterEnergyPercent(settings.minEnergy, !percentSchema) });
       });
-      const result = { accounts, autoStart: Boolean(parsed.autoStart), schemaVersion: AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION, minEnergyUnit: 'percent' };
+      const result = { accounts, autoStart: Boolean(parsed.autoStart), schemaVersion: AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION, minEnergyUnit: 'percent', settingsImported: parsed.settingsImported === true, settingsRevision: parsed.settingsRevision };
       if (!percentSchema) global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify(Object.assign({}, parsed, result)));
       return result;
     } catch (error) {
@@ -7028,6 +7031,7 @@
     if (!chain) return [];
     // This is a saved opt-in only, never a form default or a full worker grant import.
     const saved = readGolosAutoUpvoterSettings(chain);
+    if (saved.settingsImported) return [];
     const accounts = saved.accounts && typeof saved.accounts === 'object' ? saved.accounts : {};
     const eligible = auth.getUsers(chain).map(user => auth.getUserLogin(user)).filter(account => {
       const row = accounts[account];
@@ -7060,7 +7064,8 @@
   function writeGolosAutoUpvoterSettings(chain, settings, autoStart) {
     if (!global.localStorage) return;
     const rows = Array.isArray(settings) ? settings : [];
-    const accounts = {};
+    const prior = readGolosAutoUpvoterSettings(chain);
+    const accounts = Object.assign({}, prior.accounts || {});
     rows.forEach((row) => {
       const account = String(row && row.account || '').trim().replace(/^@/, '');
       if (!account) return;
@@ -7082,6 +7087,8 @@
     global.localStorage.setItem(autoUpvoterSettingsKey(chain), JSON.stringify({
       schemaVersion: AUTO_UPVOTER_SETTINGS_SCHEMA_VERSION,
       minEnergyUnit: 'percent',
+      settingsImported: prior.settingsImported === true,
+      settingsRevision: prior.settingsRevision,
       accounts,
       autoStart: Boolean(autoStart)
     }));
@@ -7570,17 +7577,19 @@
     }
 
     async function runAutoUpvoterScan(settings, generation) {
+      const settingsCurrent = global.DposSettingsSync ? global.DposSettingsSync.settingsGuard(scope) : () => true;
       renderScannerFeed();
       const runGeneration = Number.isFinite(generation) ? generation : runtime.cancelGeneration;
       const savedRun = continuity.readRun(scope);
       if (!savedRun.running || savedRun.epoch !== runtime.consentEpoch) { cancelBrowserRuntime(runtime,'scannerInterval'); renderScannerFeed(); return null; }
+      if (global.DposSettingsSync) runtime.settings = settings = global.DposSettingsSync.forGrantedRows(scope, savedRun.settings);
       if (continuity.remaining(scope) > 0) { renderScannerFeed(); return null; }
       const durableGuard = continuity.guard(scope);
       return continuity.exclusive(scope, async () => {
       if (continuity.remaining(scope) > 0) return null;
       continuity.schedule(scope,60000);
       return runBrowserAutomationSingleFlight(runtime, 'scanPromise', runGeneration, createAutoUpvoterAdapter, async (adapter, localCancelled) => {
-        const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return localCancelled(); };
+        const isCancelled = () => { try { durableGuard(); } catch (_) { return true; } return !settingsCurrent() || localCancelled(); };
         const tick = await helper.runScannerTick(chain, settings, adapter, runtime.scannerState, {
           isCancelled,
           recoverPending: isGolos ? async () => {
@@ -8072,7 +8081,7 @@
         startButton.disabled = true;
         stopButton.disabled = false;
         try {
-          const settings = restoring ? continuity.readRun(scope).settings : collectSettings();
+          const settings = restoring ? (global.DposSettingsSync ? global.DposSettingsSync.forGrantedRows(scope, continuity.readRun(scope).settings) : continuity.readRun(scope).settings) : collectSettings();
           if (!hasAndroidWorkerBridge || !nativeAutoVoteSupported) {
             if (!settings.some(row=>row.enabled && row.account)) throw new Error('Select at least one account');
             runtime.consentEpoch = (restoring ? continuity.readRun(scope) : continuity.start(scope,settings)).epoch;
@@ -8108,7 +8117,7 @@
           else void firstScan.catch(error => { appendScannerFeed(formatDiagnosticError(error)); });
           if (!runtime.running || runGeneration !== runtime.cancelGeneration) return;
           runtime.scannerInterval = setInterval(() => {
-            runAutoUpvoterScan(settings, runGeneration).catch((error) => {
+            runAutoUpvoterScan(runtime.settings, runGeneration).catch((error) => {
               appendScannerFeed(`Ошибка scan: ${formatDiagnosticError(error)}`);
               setStatus(`Ошибка автоапвоутера: ${formatDiagnosticError(error)}`, 'error');
               if (pwa && typeof pwa.notify === 'function') {
@@ -17438,6 +17447,7 @@ Memo key: ${keys.memo}`);
           <legend>Какие события отслеживать</legend>
           ${opCheckboxes}
         </fieldset>
+        ${chain.id === 'viz' ? `<label class="checkbox-row"><input type="checkbox" name="showAutoAwards" ${settings.showAutoAwards ? 'checked' : ''}> Показывать автоматические награды себе</label>` : ''}
         <div class="field"><label for="notifications-interval">Интервал Android-проверки, минут</label><input id="notifications-interval" name="intervalMinutes" type="number" min="15" step="1" value="${escapeHtml(settings.intervalMinutes || 15)}"></div>
         <label class="checkbox-row"><input type="checkbox" name="androidNative" ${settings.androidNative === true ? 'checked' : ''}> В APK включать уведомления Android для этих фильтров</label>
         <button type="submit">Сохранить настройки уведомлений</button>
@@ -17472,7 +17482,7 @@ Memo key: ${keys.memo}`);
       event.preventDefault();
       const form = new FormData(settingsForm);
       const ops = form.getAll('ops').map(String).filter((op) => allOps.includes(op));
-      const saved = notifications.saveSettings(chain, cleanAccount, { ops, androidNative: form.get('androidNative') === 'on', intervalMinutes: Number(form.get('intervalMinutes')) || 15 });
+      const saved = notifications.saveSettings(chain, cleanAccount, { ops, showAutoAwards: form.get('showAutoAwards') === 'on', androidNative: form.get('androidNative') === 'on', intervalMinutes: Number(form.get('intervalMinutes')) || 15 });
       const result = settingsForm.querySelector('[data-notifications-settings-result]');
       if (result) result.textContent = `Настройки сохранены: ${saved.ops.length} типов событий.`;
       await syncAndroidNotifications(Object.assign({ configured: true }, saved), { checkNow: saved.androidNative === true });
@@ -17496,7 +17506,7 @@ Memo key: ${keys.memo}`);
   }
 
   function shouldSyncNativeNotificationsOnVisit(settings) {
-    return Boolean(settings && settings.configured && settings.androidNative === true);
+    return Boolean(settings && settings.configured && !settings.settingsImported && settings.androidNative === true);
   }
 
   async function syncNativeNotificationSettings(chain, account, currentSettings, options = {}) {
@@ -17510,7 +17520,8 @@ Memo key: ${keys.memo}`);
       enableNotifications: enabled,
       explicitConsent: true,
       intervalMinutes: currentSettings.intervalMinutes || 15,
-      notificationOps: currentSettings.ops
+      notificationOps: currentSettings.ops,
+      showAutoAwards: currentSettings.showAutoAwards === true
     });
     if (!imported || !imported.ok) throw new Error(imported && (imported.reason || imported.status) || 'import failed');
     if (!isCurrent() || !enabled) return { imported, enabled, stale: !isCurrent() };
@@ -17537,6 +17548,25 @@ Memo key: ${keys.memo}`);
       browserResumeTasks = null; setStatus(formatDiagnosticError(error),'error');
     });
     await browserResumeTasks;
+  }
+
+  function renderBlockchainSettingsSync(isCurrentRoute) {
+    global.DposSettingsSyncUI.render(appEl, {
+      isCurrent: isCurrentRoute,
+      currentLogin: id => auth.getCurrentLogin(chains[id]),
+      currentGuard: () => {
+        if (!global.DposVault || global.DposVault.status().state !== 'unlocked') return () => true;
+        const guard = global.DposVault.issueGuard();
+        return () => { try { global.DposVault.assertGuard(guard); return true; } catch (_) { return false; } };
+      },
+      formatError: formatDiagnosticError,
+      bindSave: (id, form, build) => bindOperationForm(chains[id], form, build),
+      prepare: (id, author, json) => id === 'viz'
+        ? broadcast.prepare(chains[id], 'regular', 'custom', [[], [author], global.DposSettingsSync.ID, json], {title:'Сохранение настроек',feature:'settings-sync'})
+        : broadcast.prepare(chains[id], 'posting', 'customJson', [[], [author], global.DposSettingsSync.ID, json], {title:'Сохранение настроек',feature:'settings-sync'}),
+      rpc: id => global.DposSettingsSync.createRpc(chains[id], {loadScript, connect:profiles.connect}),
+      refreshRuntime: global.DposSettingsSync.refreshRuntime
+    });
   }
 
   async function renderRoute() {
@@ -17571,7 +17601,7 @@ Memo key: ${keys.memo}`);
         console.warn('Golos donate upgrade migration failed', error);
       });
     }
-    if (nativeAndroidWorkerBridge() && !global.__dposVizSelfAwardGlobalAutoSynced) {
+    if (requestedState.app !== 'settings-sync' && nativeAndroidWorkerBridge() && !global.__dposVizSelfAwardGlobalAutoSynced) {
       global.__dposVizSelfAwardGlobalAutoSynced = true;
       try {
         const synced = await autoSyncStoredVizSelfAwardForAndroid();
@@ -17593,6 +17623,11 @@ Memo key: ${keys.memo}`);
       updateAccountField(app, chain);
       accountInput.value = '';
       renderHome();
+      return;
+    }
+
+    if (state.app === 'settings-sync' && !state.chain) {
+      renderBlockchainSettingsSync(isCurrentRoute);
       return;
     }
 

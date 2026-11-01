@@ -25,7 +25,7 @@ class GolosNotificationScannerTest {
         val rows = listOf(
             HistoryEvent(12, "award", mapOf("initiator" to "alice", "receiver" to "denis", "shares" to "1.000000 SHARES")),
             HistoryEvent(13, "fixed_award", mapOf("initiator" to "denis", "receiver" to "alice", "reward_amount" to "1.000 VIZ")),
-            HistoryEvent(14, "benefactor_award", mapOf("benefactor" to "bob", "receiver" to "denis", "shares" to "0.100000 SHARES"))
+            HistoryEvent(14, "benefactor_award", mapOf("benefactor" to "denis", "receiver" to "bob", "shares" to "0.100000 SHARES"))
         )
         val (_, notifications) = scanner.scan("denis", 11, rows, baselineDone = true)
         assertEquals(2, notifications.size)

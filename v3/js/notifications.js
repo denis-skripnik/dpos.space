@@ -80,13 +80,16 @@
     const store = readStore();
     const key = settingsKey(chain, account);
     const configured = Boolean(store.settings && Object.prototype.hasOwnProperty.call(store.settings, key));
-    const settings = configured ? store.settings[key] : {};
+    const settings = configured ? store.settings[key] : (store.settingsReplaced ? {ops:[]} : {});
+    const device = configured ? settings : (store.deviceSettings || {})[key] || {};
     const selected = Array.isArray(settings.ops) ? settings.ops.filter((op) => defaults.includes(op)) : defaults;
     return {
       ops: selected,
-      androidNative: configured && settings.androidNative === true,
+      androidNative: device.androidNative === true,
+      settingsImported: settings.settingsImported === true,
+      showAutoAwards: configured && settings.showAutoAwards === true,
       configured,
-      intervalMinutes: Number(settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
+      intervalMinutes: Number(device.intervalMinutes) >= 15 ? Number(device.intervalMinutes) : 15
     };
   }
 
@@ -97,6 +100,7 @@
     const key = settingsKey(chain, account);
     store.settings[key] = {
       ops: selected,
+      showAutoAwards: Boolean(settings && settings.showAutoAwards === true),
       androidNative: Boolean(settings && settings.androidNative === true),
       intervalMinutes: Number(settings && settings.intervalMinutes) >= 15 ? Number(settings.intervalMinutes) : 15
     };
@@ -316,7 +320,10 @@
     if (type === 'receive_award' || type === 'benefactor_award') {
       const receiver = normalizeAccount(data.receiver);
       const benefactor = normalizeAccount(data.benefactor);
-      if (receiver === target) {
+      const recipient = type === 'benefactor_award' ? benefactor : receiver;
+      const automaticSelfAward = chain.id === 'viz' && data.memo === 'dpos.space: VIZ self-award' && normalizeAccount(data.initiator) === receiver && recipient === receiver;
+      if (automaticSelfAward && !getSettings(chain, target).showAutoAwards) return null;
+      if (recipient === target) {
         return Object.assign(base, {
           id: notificationId(chain, target, item, type),
           type,

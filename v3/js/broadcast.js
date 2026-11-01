@@ -427,7 +427,8 @@
     if (prepared.operationName === 'transfer') return params[3];
     if (prepared.operationName === 'award') return params[4];
     if (prepared.operationName === 'fixedAward') return params[5];
-    if (prepared.operationName === 'custom') return params[2];
+    if (prepared.operationName === 'custom') return params.length === 4 ? params[3] : params[2];
+    if (prepared.operationName === 'customJson') return params[3];
     if (prepared.operationName === 'sendOperations') {
       return (params[0] || []).map((operation) => operation && operation[1] && {
         memo: operation[1].memo,
@@ -1005,6 +1006,25 @@
       prepared.meta.warnings = prepared.meta.warnings.concat(authorityCheck.warnings);
     }
     const key = prepared.getPrivateKey();
+
+    if (prepared.meta.feature === 'settings-sync') {
+      const viz = chain.id === 'viz';
+      if ((!viz && chain.id !== 'golos') || prepared.operationName !== (viz ? 'custom' : 'customJson') || prepared.params.length !== 4 || prepared.params[2] !== 'dpos.space.settings') throw new Error('Invalid settings snapshot operation');
+      const fields = viz ? ['required_active_auths','required_regular_auths','id','json'] : ['required_auths','required_posting_auths','id','json'];
+      const operation = [viz ? 'custom' : 'custom_json', Object.fromEntries(fields.map((name,index) => [name,prepared.params[index]]))];
+      const assertCurrent = () => { prepared.assertValid(); if (typeof prepared.beforeBroadcast === 'function') prepared.beforeBroadcast(); };
+      assertCurrent();
+      if (typeof client.broadcast._prepareTransaction !== 'function') throw new Error('Settings transaction preparation unavailable');
+      const tx = await client.broadcast._prepareTransaction({extensions:[],operations:[operation]});
+      assertCurrent();
+      const signed = client.auth.signTransaction(tx, {[prepared.authority]:prepared.getPrivateKey()});
+      assertCurrent();
+      const method = viz ? client.api.broadcastTransaction : client.api.broadcastTransactionSynchronous;
+      if (typeof method !== 'function') throw new Error('Settings broadcast API unavailable');
+      // A user-confirmed snapshot has one attempt, never an automatic retry after
+      // an uncertain network result. VIZ uses its actual asynchronous broadcast API.
+      return toCallbackPromise(method, client.api, [signed]);
+    }
 
     if (settings.continuityScope) {
       const continuity = global.DposAutomationContinuity;
