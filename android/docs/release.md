@@ -1,5 +1,12 @@
 # Android release notes and packaging
 
+## 3.1.13 / code91
+
+- Adds native voice capture and the encrypted Groq service key, shared with explicit title suggestions. Recording can be stopped, deleted or sent for recognition; text is transferred into the editor only on request. Title suggestions return three options, and only a selected option changes the existing publication title.
+- The web editor builds a local cover from that same title. Publication fields and blockchain operation format remain unchanged; title and cover actions never publish automatically.
+- Artifact: `downloads/dpos-space-3.1.13.apk`. Full Debug and Release host suites each pass 580 cases, retaining all 564 preceding identities plus 16 new cases, with no failures, errors or skips. Package, historic certificate and updater public pin are preserved; the APK is non-debuggable. Install over the existing application without uninstalling or clearing data.
+- Public in-app availability remains subject to the signed manifest's mandatory delay, device-local first-observation delay and rollback checks. Physical microphone/screen-off/TalkBack acceptance is not claimed by host tests.
+
 ## 3.1.11 / code89
 
 - Includes the trusted `filesDir` alias compatibility fix described below. Package, historical certificate and updater public-key pin remain unchanged for an in-place upgrade.

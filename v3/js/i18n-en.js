@@ -1,5 +1,6 @@
 // First-party interface translations. No runtime translation service.
 window.DposEnglish = Object.freeze({
+  "DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.13.": "DPoS Space. Web interface 3.1.13. Public APK 3.1.13.",
   "Предложить заголовки": "Suggest titles",
   "Текущий текст отправится в Groq только по этой кнопке. Выберите вариант, чтобы заменить заголовок поста.": "The current text is sent to Groq only with this button. Choose a suggestion to replace the post title.",
   "Настройки голосового ввода и Groq": "Voice input and Groq settings",

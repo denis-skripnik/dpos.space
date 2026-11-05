@@ -77,14 +77,19 @@ androidContext.DposPwa.notify('Android native', { body: 'Bridge body', tag: 'bri
 assert.deepStrictEqual(bridgeCall, { title: 'Android native', body: 'Bridge body', tag: 'bridge', route: '#chain=golos&app=wallet' }, 'PWA notify routes to Android bridge when present');
 
 const apkUrl = pwaSource.match(/ANDROID_APK_LATEST_URL = '([^']+)'/)[1];
-assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.11.apk', 'stable APK uses the 3.1.11 public naming convention');
-assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.11'"), 'stable download version matches');
-assert(pwaSource.includes('download="dpos-space-3.1.11.apk"'), 'suggested download name matches public URL');
+assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.13.apk', 'stable APK uses the 3.1.13 public naming convention');
+assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.13'"), 'stable download version matches');
+assert(pwaSource.includes('download="dpos-space-3.1.13.apk"'), 'suggested download name matches public URL');
 assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
-assert(indexSource.includes('DPoS Space 3.1.11'), 'site footer shows current stable version');
-const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-11';
+const footer = indexSource.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/)[1];
+const footerLabel = 'DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.13.';
+assert(footer.includes(footerLabel), 'footer distinguishes current web interface from unchanged public APK');
+const english = {};
+vm.runInNewContext(fs.readFileSync(path.join(root, 'v3/js/i18n-en.js'), 'utf8'), { window: english });
+assert.strictEqual(english.DposEnglish[footerLabel], 'DPoS Space. Web interface 3.1.13. Public APK 3.1.13.', 'English footer preserves both explicit release labels');
+const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-13';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-editor-titles'"), 'service worker cache bumped for canonical post title and optional suggestions');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-release-3-1-13'"), 'service worker cache bumped for canonical post title and optional suggestions');
 const coverMarker = 'v3/js/post-cover.js?v=20261105-editor-titles';
 assert(indexSource.includes(coverMarker) && swSource.includes('/' + coverMarker), 'cover module load and offline cache markers agree');
 assert(indexSource.indexOf(coverMarker) < indexSource.indexOf('v3/js/app.js'), 'cover module loads before app entry');
