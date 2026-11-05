@@ -34,6 +34,7 @@
   const MONETARY_INPUT_PATTERN = '[0-9]+(?:[.,][0-9]+)?';
   const FINANCIAL_PATTERN_INPUT_IDS = Object.freeze(['minter-swap-amount', 'minter-swap-min', 'decimal-convert-amount', 'decimal-convert-min']);
   let routeRenderGeneration = 0;
+  let disposePostCover = null;
 
   async function awaitRouteTask(epoch, task) {
     const assertCurrent = () => {
@@ -9665,6 +9666,7 @@
   }
 
   function renderEditor(chain, state) {
+    if (disposePostCover) { disposePostCover(); disposePostCover = null; }
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
     const isGolos = chain.id === 'golos';
@@ -9689,6 +9691,7 @@
             ${!isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             ${isGolos ? `<div class="field"><label for="editor-image">Изображение превью</label><input id="editor-image" name="image" type="url" placeholder="https://..."></div>` : ''}
             ${renderMarkdownEditorField(draft && draft.body ? draft.body : '')}
+            ${global.DposPostCover && ['golos', 'steem', 'hive'].includes(chain.id) ? global.DposPostCover.markup() : ''}
             ${!isGolos ? `<div class="field" data-editor-edit-hidden><label for="editor-payouts">Режим выплаты</label><select id="editor-payouts" name="payouts"><option value="10000" selected>50% в ${escapeHtml(chain.debtSymbol || 'HBD')} и ${escapeHtml(chain.liquidSymbol || 'HIVE')}, 50% в ${escapeHtml(chain.powerTitle || 'HP')}</option><option value="0">100% в ${escapeHtml(chain.powerTitle || 'HP')}</option></select></div>
               <fieldset data-editor-edit-hidden><legend>Бенефициарские</legend><p class="muted">Бенефициарские 1%: по legacy умолчанию сохраняется 1% для denis-skripnik; можно добавить ещё одного бенефициара.</p><div class="field"><label for="editor-beneficiary-account">Дополнительный бенефициар</label><input id="editor-beneficiary-account" name="beneficiary_account" type="text" autocomplete="off"></div><div class="field"><label for="editor-beneficiary-weight">Процент дополнительного бенефициара</label><input id="editor-beneficiary-weight" name="beneficiary_weight" type="number" min="0" max="99" step="0.01"></div></fieldset>` : ''}
             ${isGolos ? `
@@ -9720,6 +9723,7 @@
     updateGolosEditorPostQuota(chain);
     if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
     bindMarkdownEditor(appEl);
+    if (global.DposPostCover && ['golos', 'steem', 'hive'].includes(chain.id)) disposePostCover = global.DposPostCover.mount(appEl.querySelector('[data-post-cover]'), { upload: uploadEditorImageToImgur });
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
   }
@@ -17570,6 +17574,7 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderRoute() {
+    if (disposePostCover) { disposePostCover(); disposePostCover = null; }
     if (global.DposVault && global.DposVault.ready) await global.DposVault.ready;
     if (clearVizAgentSecrets) { clearVizAgentSecrets(); clearVizAgentSecrets = null; }
     const renderGeneration = ++routeRenderGeneration;

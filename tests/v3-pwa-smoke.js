@@ -84,7 +84,14 @@ assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the
 assert(indexSource.includes('DPoS Space 3.1.11'), 'site footer shows current stable version');
 const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-11';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-voice-input'"), 'service worker cache bumped for voice input assets');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-post-covers'"), 'service worker cache bumped for local post-cover assets');
+const coverMarker = 'v3/js/post-cover.js?v=20261105-post-covers';
+assert(indexSource.includes(coverMarker) && swSource.includes('/' + coverMarker), 'cover module load and offline cache markers agree');
+assert(indexSource.indexOf(coverMarker) < indexSource.indexOf('v3/js/app.js'), 'cover module loads before app entry');
+for (const asset of ['winged-head.webp', 'cover-title.ttf']) {
+  assert(swSource.includes('/v3/assets/covers/' + asset), 'cover asset is available offline: ' + asset);
+  assert(fs.existsSync(path.join(root, 'v3/assets/covers', asset)), 'bundled cover asset exists: ' + asset);
+}
 for (const name of ['voice-store', 'voice-input', 'voice-ui']) {
   const marker = `v3/js/${name}.js?v=20261105-voice-input`;
   assert(indexSource.includes(marker) && swSource.includes('/' + marker), `${name} load and offline cache markers agree`);
