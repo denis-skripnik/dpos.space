@@ -119,7 +119,7 @@ function extractSourceText(source, options = {}) {
   const candidates = [];
 
   function isSemanticDataName(name) {
-    return /(?:passwords?|tokenSymbols?|chainIds?|protocolIds?|identifiers?|assetSymbols?)$/i.test(name || '');
+    return /(?:passwords?|tokenSymbols?|chainIds?|protocolIds?|identifiers?|assetSymbols?|modelPrompts?)$/i.test(name || '');
   }
 
   function isSemanticDataArray(node) {

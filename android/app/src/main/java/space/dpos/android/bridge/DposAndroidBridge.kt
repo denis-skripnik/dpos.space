@@ -49,6 +49,8 @@ class DposAndroidBridge(
     private val statusProvider: () -> JSONObject
 ) {
     private val rpcExecutor = Executors.newSingleThreadExecutor()
+    private val voiceBridgeDelegate = lazy { space.dpos.android.voice.VoiceBridge(activity) }
+    private val voiceBridge by voiceBridgeDelegate
     private val store by lazy { store ?: WorkerStore(activity.applicationContext) }
 
     private fun logAsync(message: String) {
@@ -73,6 +75,7 @@ class DposAndroidBridge(
         .put("diagnosticLogExport", true)
         .put("settingsPreferencesSync", true)
         .put("notificationInbox", true)
+        .put("voiceInput", true)
         .toString()
 
     fun getWorkerStatus(): String = statusProvider().toString()
@@ -289,6 +292,11 @@ class DposAndroidBridge(
         .toString()
 
     fun dispatch(request: BridgeRequest, respond: (JSONObject) -> Unit) {
+        if (request.method in space.dpos.android.voice.VoiceBridge.METHODS) {
+            if (closed.get()) respond(AndroidBridgeProtocol.failure(request.id, "cancelled", "cancelled"))
+            else voiceBridge.dispatch(request, respond)
+            return
+        }
         val answered = java.util.concurrent.atomic.AtomicBoolean(false)
         val finish: (JSONObject) -> Unit = { response ->
             if (answered.compareAndSet(false, true)) {
@@ -406,6 +414,7 @@ class DposAndroidBridge(
 
     fun close() {
         closed.set(true)
+        if (voiceBridgeDelegate.isInitialized()) voiceBridge.close()
         activity.runOnUiThread {
             transferCancel?.invoke()
             transferCancel = null

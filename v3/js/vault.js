@@ -7,6 +7,7 @@
     staging: 'dpos_vault_v1_staging'
   });
   const VERSION = 1;
+  const SERVICE_KEYS_RECORD = 'dpos_service_keys';
   const PASSWORD_ITERATIONS = 600000;
   const encoder = new global.TextEncoder();
   const decoder = new global.TextDecoder();
@@ -469,6 +470,9 @@
 
   function transformRecords(records, transformSecret) {
     const output = emptyRecords();
+    if (Object.prototype.hasOwnProperty.call(records, SERVICE_KEYS_RECORD)) {
+      output[SERVICE_KEYS_RECORD] = normalizeServiceKeys(records[SERVICE_KEYS_RECORD]);
+    }
     CHAINS.forEach((chainId) => {
       const keys = accountKeys(chainId);
       const users = records[keys.users];
@@ -818,8 +822,56 @@
 
   function read(key) {
     requireUnlocked();
+    if (key === SERVICE_KEYS_RECORD) throw vaultError('Используйте отдельный доступ к ключу сервиса.');
     if (typeof key === 'string') return clone(memoryRecords[key]);
-    return clone(memoryRecords);
+    return accountRecords();
+  }
+
+  function accountRecords() {
+    const records = clone(memoryRecords);
+    delete records[SERVICE_KEYS_RECORD];
+    return records;
+  }
+
+  function requireService(provider) {
+    if (provider !== 'groq') throw vaultError('Неизвестный сервис.');
+  }
+
+  function validateServiceKey(value) {
+    if (typeof value !== 'string' || !/^gsk_[A-Za-z0-9_-]{16,252}$/.test(value)) {
+      throw vaultError('Неверный API-ключ Groq.');
+    }
+    return value;
+  }
+
+  function normalizeServiceKeys(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => key !== 'groq')) {
+      throw vaultError('Повреждена запись ключей сервисов.');
+    }
+    return Object.prototype.hasOwnProperty.call(value, 'groq') ? { groq: validateServiceKey(value.groq) } : {};
+  }
+
+  function getServiceKey(provider) {
+    requireService(provider);
+    requireUnlocked();
+    return memoryRecords[SERVICE_KEYS_RECORD]?.groq || '';
+  }
+
+  async function setServiceKey(provider, value) {
+    requireService(provider);
+    validateServiceKey(value);
+    return mutate(records => {
+      records[SERVICE_KEYS_RECORD] = { groq: value };
+      return { hasKey: true };
+    });
+  }
+
+  async function deleteServiceKey(provider) {
+    requireService(provider);
+    return mutate(records => {
+      delete records[SERVICE_KEYS_RECORD];
+      return { hasKey: false };
+    });
   }
 
   function mutate(mutator, persistResume = true) {
@@ -877,7 +929,8 @@
 
   function exportLegacy() {
     requireUnlocked();
-    return clone(memoryRecords);
+    // Legacy account exports have no encrypted representation for service keys.
+    return accountRecords();
   }
 
   function restoreOrdinaryStorage(entries) {
@@ -922,6 +975,10 @@
     if (parsed && parsed.storage && typeof parsed.storage === 'object') parsed = parsed.storage;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw vaultError('Legacy backup имеет неверный формат.');
     const imported = emptyRecords();
+    // An account-only restore must not silently replace unrelated device API keys.
+    if (memoryRecords && Object.prototype.hasOwnProperty.call(memoryRecords, SERVICE_KEYS_RECORD)) {
+      imported[SERVICE_KEYS_RECORD] = normalizeServiceKeys(memoryRecords[SERVICE_KEYS_RECORD]);
+    }
     CHAINS.forEach((chainId) => {
       const keys = accountKeys(chainId);
       if (Object.prototype.hasOwnProperty.call(parsed, keys.users)) {
@@ -1140,6 +1197,9 @@
     lock,
     status,
     read,
+    getServiceKey,
+    setServiceKey: withStorageLock(setServiceKey),
+    deleteServiceKey: withStorageLock(deleteServiceKey),
     mutate: withStorageLock(mutate),
     import: withStorageLock(importLegacy),
     importWithStorageTransaction: withStorageLock(importWithStorageTransaction),

@@ -36,7 +36,13 @@ import space.dpos.android.worker.DposForegroundService
 import space.dpos.android.update.NativeUpdater
 import java.nio.charset.StandardCharsets
 
-class MainActivity : Activity() {
+class MainActivity : Activity(), space.dpos.android.voice.VoicePermissionHost {
+    private val voicePermission = space.dpos.android.voice.VoicePermissionController(this) { started && !destroyed }
+    override fun requestVoicePermission(callback: (Boolean) -> Unit) = voicePermission.request(callback)
+    override fun isVoiceForeground(): Boolean = started && !destroyed
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (!voicePermission.result(requestCode, permissions, grantResults)) super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
     private lateinit var webView: WebView
     private lateinit var androidBridge: DposAndroidBridge
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
@@ -150,6 +156,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         started = false
+        voicePermission.cancel()
         super.onStop()
     }
 
@@ -202,6 +209,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        voicePermission.cancel()
         destroyed = true
         started = false
         nativeUpdater.close()

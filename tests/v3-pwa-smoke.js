@@ -84,7 +84,12 @@ assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the
 assert(indexSource.includes('DPoS Space 3.1.11'), 'site footer shows current stable version');
 const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-11';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-release-3-1-11'"), 'service worker cache bumped for settings sync assets');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-voice-input'"), 'service worker cache bumped for voice input assets');
+for (const name of ['voice-store', 'voice-input', 'voice-ui']) {
+  const marker = `v3/js/${name}.js?v=20261105-voice-input`;
+  assert(indexSource.includes(marker) && swSource.includes('/' + marker), `${name} load and offline cache markers agree`);
+  assert(indexSource.indexOf(marker) < indexSource.indexOf('v3/js/app.js'), `${name} loads before the app entry point`);
+}
 assert(swSource.includes("pathname.startsWith('/downloads/') && pathname.endsWith('.apk')") && swSource.includes('event.respondWith(networkOnly(request))'), 'APK bypasses SW cache');
 assert(pwaSource.includes('лучше использовать мобильное приложение DPoS Space, а не PWA'), 'Android foreground guidance is retained');
 

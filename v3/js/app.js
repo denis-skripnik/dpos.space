@@ -17626,6 +17626,11 @@ Memo key: ${keys.memo}`);
       return;
     }
 
+    if (state.app === 'voice-settings' && !state.chain && global.DposVoiceUI) {
+      global.DposVoiceUI.renderSettings(appEl);
+      return;
+    }
+
     if (state.app === 'settings-sync' && !state.chain) {
       renderBlockchainSettingsSync(isCurrentRoute);
       return;
@@ -17784,6 +17789,7 @@ Memo key: ${keys.memo}`);
         return;
       }
       upgradeOperationDetailsToModals(appEl);
+      if (effectiveAppId === 'editor' && global.DposVoiceUI) global.DposVoiceUI.mountEditor(appEl, { chain, openEditor: opener => openModalForForm('editor-form', opener) });
       if (appRequiresAccount(app) && !appUsesAuthorizedAccount(app)) rememberRecentAccount(chain, account);
     } catch (error) {
       if (!isCurrentRoute()) return;

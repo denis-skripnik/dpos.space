@@ -16,7 +16,9 @@ const source = [
   "const selector = '.кнопка-настройки';",
   "const protocol = 'VIZ';",
   "const tokenSymbols = ['РУБ', 'ДОЛЛАР'];",
-  "const commonPasswords = ['йцукен', 'пароль'];"
+  "const commonPasswords = ['йцукен', 'пароль'];",
+  "const formattingModelPrompt = 'Сохрани смысл расшифровки, не добавляй факты.';",
+  "const formattingError = 'Не удалось оформить текст.';"
 ].join('\n');
 
 assert.deepStrictEqual(extractSourceText(source, { filename: 'fixture.js' }), [
@@ -26,7 +28,8 @@ assert.deepStrictEqual(extractSourceText(source, { filename: 'fixture.js' }), [
   'Введите имя',
   'Открыть профиль',
   'Профиль',
-  'Готово'
+  'Готово',
+  'Не удалось оформить текст.'
 ]);
 
 assert.deepStrictEqual(extractHtmlText(`
