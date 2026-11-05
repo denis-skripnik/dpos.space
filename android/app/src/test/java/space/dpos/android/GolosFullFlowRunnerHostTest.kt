@@ -190,9 +190,19 @@ class GolosFullFlowRunnerHostTest {
                 val foreignDonation = PendingBroadcastIntent("donate", "golos", "fixture-voter", "${"a".repeat(64)}|target|old|1.000 GOLOS|0.001 GOLOS", -1, PendingBroadcastState.UNKNOWN, "b".repeat(40))
                 p.f.store.savePending(foreignDonation)
                 if (stage != "admission" && stage != "persistence") { p.ready(); p.run() }
+                val label = "$stage revoke=$revoke"
                 val entered = CountDownLatch(1); val release = CountDownLatch(1)
                 val once = java.util.concurrent.atomic.AtomicBoolean(false)
-                fun hold() { if (once.compareAndSet(false, true)) { entered.countDown(); check(release.await(10, TimeUnit.SECONDS)) } }
+                val holdTimedOut = java.util.concurrent.atomic.AtomicBoolean(false)
+                fun hold() {
+                    if (once.compareAndSet(false, true)) {
+                        entered.countDown()
+                        if (!release.await(10, TimeUnit.SECONDS)) {
+                            holdTimedOut.set(true)
+                            error("fixture hold timed out $label")
+                        }
+                    }
+                }
                 var reads = 0
                 p.f.onMethod = { method ->
                     if (stage == "admission" && method == "get_config") hold()
@@ -201,22 +211,66 @@ class GolosFullFlowRunnerHostTest {
                 }
                 var armed = false
                 val selected = if (stage == "persistence") p.f.restart(boundary = { at, _ -> if (armed && at == "checkpoint:write") hold() }) else p.f.restart()
+                // Constructors also validate under the checkpoint lock: create both before holding it.
+                val overlapReason = "overlap-$stage-$revoke-${java.util.UUID.randomUUID()}"
+                val overlapRunner = DposWorkerRunner(p.f.context, p.f.restart(), historyOverride = { p.f.history },
+                    rpcOverride = { p.rpc }, eventsOverride = { _, _ -> listOf(event("overlap")) }, productionPolicy = p.policy,
+                    recoveryWall = { p.f.recoveryWall }, recoveryMonotonic = { p.f.recoveryMono })
                 armed = true
-                val executor = Executors.newSingleThreadExecutor()
-                val task = executor.submit<space.dpos.android.worker.WorkerRunSummary> { p.run(selected, listOf(event())) }
+                val executor = Executors.newFixedThreadPool(3)
+                val tasks = mutableListOf<java.util.concurrent.Future<*>>()
+                val failures = mutableListOf<Throwable>()
+                var finishRevocation: (() -> Unit)? = null
                 try {
-                    assertTrue("boundary not reached $stage", entered.await(12, TimeUnit.SECONDS))
+                    val task = executor.submit<space.dpos.android.worker.WorkerRunSummary> { p.run(selected, listOf(event())) }
+                    tasks += task
+                    assertTrue("boundary not reached $label", entered.await(12, TimeUnit.SECONDS))
                     if (stage == "finalread") assertFalse(p.f.requests.any { it.getJSONArray("params").getString(1) == "verify_authority" })
                     if (stage == "pretransport") {
                         assertNotNull(p.f.restart().readPending("vote", "golos", "fixture-voter"))
                         assertTrue(p.f.requests.any { it.getJSONArray("params").getString(1) == "verify_authority" })
                     }
-                    if (revoke) p.f.store.disableAutoUpvoter("golos", "fixture-voter")
-                    else p.f.store.setWorkerEnabled(false)
+                    // Same immediate cancellation + pending-durable-IO fence as bridge Stop/revoke.
+                    // Persistence may hold the lock required by BOTH disable and the busy-branch log.
+                    val oldToken = space.dpos.android.worker.WorkerCancellation.token { true }
+                    val complete = space.dpos.android.worker.WorkerCancellation.beginRevocation()
+                    finishRevocation = complete
+                    assertFalse("old send token survived $label", oldToken.mayContinue())
+                    assertFalse("new admission survived pending revoke $label", space.dpos.android.worker.WorkerCancellation.token { true }.mayContinue())
+                    tasks += executor.submit {
+                        if (revoke) p.f.store.disableAutoUpvoter("golos", "fixture-voter")
+                        else p.f.store.setWorkerEnabled(false)
+                        complete()
+                    }
                     // An overlapping runner would also reconcile pending donations if it acquired ownership.
-                    assertEquals("skipped_overlap", p.run(events = listOf(event("overlap"))).status)
-                } finally { release.countDown() }
-                try { task.get(20, TimeUnit.SECONDS) } finally { executor.shutdownNow() }
+                    tasks += executor.submit {
+                        assertEquals(label, "skipped_overlap", overlapRunner.runOnce(overlapReason).status)
+                    }
+                    // This real diagnostic receipt precedes the checkpoint-dependent short-log write.
+                    // Await CAS rejection, NOT completion of a log write that needs our held lock.
+                    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                    val receipt = "worker run skipped; previous run still running; reason=$overlapReason"
+                    while (!p.f.store.exportDiagnosticJournal().contains(receipt) && System.nanoTime() < deadline) Thread.yield()
+                    assertTrue("overlap did not reject held owner $label", p.f.store.exportDiagnosticJournal().contains(receipt))
+                    assertFalse("owner exited before release $label", task.isDone)
+                } catch (error: Throwable) {
+                    failures += error
+                } finally {
+                    release.countDown()
+                    executor.shutdown()
+                    // Drain and inspect EVERY future even when an earlier assertion/future failed.
+                    tasks.forEach { future ->
+                        try { future.get(20, TimeUnit.SECONDS) } catch (error: Throwable) { failures += error }
+                    }
+                    if (!executor.awaitTermination(20, TimeUnit.SECONDS)) {
+                        executor.shutdownNow()
+                        failures += AssertionError("fixture executor did not drain $label")
+                        if (!executor.awaitTermination(20, TimeUnit.SECONDS)) failures += AssertionError("fixture executor still alive $label")
+                    }
+                    finishRevocation?.invoke()
+                    if (holdTimedOut.get()) failures += AssertionError("fixture hold timed out $label")
+                }
+                if (failures.isNotEmpty()) throw failures.first().apply { failures.drop(1).forEach { addSuppressed(it) } }
                 assertTrue("late send $stage revoke=$revoke", p.f.sends.isEmpty())
                 assertEquals(0, p.f.restart().totalAutoUpvoterBroadcasted())
                 assertEquals(foreignDonation.fingerprint, p.f.restart().readPending("donate", "golos", "fixture-voter")!!.fingerprint)
