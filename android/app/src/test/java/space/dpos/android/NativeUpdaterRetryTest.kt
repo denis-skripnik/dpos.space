@@ -78,6 +78,7 @@ class NativeUpdaterRetryTest {
     private val apkReleased = java.util.concurrent.CountDownLatch(1)
     private var provenanceValid = true
     private var successfulApk = false
+    private var beforeApk: (Activity) -> Unit = {}
     private var archivePackage = "space.dpos.android.debug"
     private var archiveCode = 140L
     private var archiveVersion = "4.2.0"
@@ -109,7 +110,7 @@ class NativeUpdaterRetryTest {
         val pm = shadowOf(owner.packageManager)
         setCertificate(pm.getInternalMutablePackageInfo(owner.packageName), badInstalledCertificate)
         File(owner.filesDir, "updates").walkTopDown().filter { it.isDirectory }.forEach { directory ->
-            pm.setPackageArchiveInfo(File(directory, release.filename).absolutePath,
+            pm.setPackageArchiveInfo(File(directory.canonicalFile, release.filename).absolutePath,
                 android.content.pm.PackageInfo().apply {
                     packageName = archivePackage
                     versionName = archiveVersion
@@ -157,6 +158,7 @@ class NativeUpdaterRetryTest {
                 }
                 if (bytes != null) return ByteArrayInputStream(bytes)
                 if (!successfulApk) throw IOException("Synthetic offline APK failure")
+                beforeApk(owner)
                 archiveBoundary(owner)
                 return object : ByteArrayInputStream(payload) {
                     override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
@@ -254,6 +256,181 @@ class NativeUpdaterRetryTest {
         assertFalse(attempt.parentFile!!.exists())
         assertEquals("keep", unknown.readText())
         assertTrue(old.parentFile!!.isDirectory)
+    }
+
+    class AliasedFilesActivity : Activity() {
+        private var alias: File? = null
+        val canonicalThreads = java.util.concurrent.CopyOnWriteArrayList<Thread>()
+        @Volatile var holdBase = false
+        val baseEntered = java.util.concurrent.CountDownLatch(1)
+        val baseReleased = java.util.concurrent.CountDownLatch(1)
+        override fun getApplicationContext(): android.content.Context = this
+        override fun getFilesDir(): File {
+            alias?.let { return it }
+            val real = super.getFilesDir().canonicalFile
+            val link = File(real.parentFile, "framework-files-alias")
+            java.nio.file.Files.createSymbolicLink(link.toPath(), real.toPath())
+            return object : File(link.absolutePath) {
+                override fun getCanonicalFile(): File {
+                    canonicalThreads += Thread.currentThread()
+                    if (holdBase && Thread.currentThread().name != "dpos-update-reclaim") {
+                        baseEntered.countDown()
+                        check(baseReleased.await(10, TimeUnit.SECONDS))
+                    }
+                    return super.getCanonicalFile()
+                }
+            }.also { alias = it }
+        }
+    }
+
+    @Test @Config(sdk = [26, 34]) fun trustedFilesAliasSignedDownloadAndInstallerHandoff() {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(AliasedFilesActivity::class.java).setup().get()
+        assertNotEquals(owner.filesDir.absoluteFile, owner.filesDir.canonicalFile)
+        owner.canonicalThreads.clear()
+        shadowOf(owner.packageManager).setCanRequestPackageInstalls(true)
+        val updater = updater(owner)
+        downloadReady(updater)
+        val file = candidates().single().canonicalFile
+        assertArrayEquals(payload, file.readBytes())
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        val intent = shadowOf(owner).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_VIEW, intent.action)
+        owner.contentResolver.openInputStream(intent.data!!)!!.use { assertArrayEquals(payload, it.readBytes()) }
+        assertTrue(owner.canonicalThreads.isNotEmpty())
+        assertTrue("Trusted-base resolution must run on IO", owner.canonicalThreads.all { it != Looper.getMainLooper().thread })
+        updater.close()
+        val worker = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+            .get(updater) as ExecutorService
+        assertTrue(worker.awaitTermination(10, TimeUnit.SECONDS))
+        assertArrayEquals(payload, file.readBytes())
+    }
+
+    @Test @Config(sdk = [26, 34]) fun aliasedTrustedBaseCleanerReclaimsVerifiedOldApk() {
+        val owner = Robolectric.buildActivity(AliasedFilesActivity::class.java).setup().get()
+        val pm = shadowOf(owner.packageManager)
+        pm.getInternalMutablePackageInfo(owner.packageName).also {
+            it.versionCode = BuildConfig.VERSION_CODE
+            setCertificate(it, false)
+        }
+        val old = File(owner.filesDir.canonicalFile, "updates/dpos-space-3.1.5.apk")
+        old.parentFile!!.mkdirs()
+        old.writeText("synthetic old APK")
+        assertTrue(old.setLastModified(now - 8 * ReleasePolicy.DAY))
+        pm.setPackageArchiveInfo(old.absolutePath, android.content.pm.PackageInfo().apply {
+            packageName = owner.packageName
+            versionName = "3.1.5"
+            versionCode = BuildConfig.VERSION_CODE - 1
+            setCertificate(this, false)
+        })
+        updater(owner)
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (old.exists() && System.nanoTime() < end) Thread.sleep(10)
+        assertFalse("Automatic cleaner must resolve only the trusted base alias", old.exists())
+    }
+
+    @Test fun aliasedTrustedBaseDoesNotAuthorizeLinkedUpdatesRoot() {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(AliasedFilesActivity::class.java).setup().get()
+        val base = owner.filesDir.canonicalFile
+        val outside = File(base, "outside").apply { mkdir() }
+        val sentinel = File(outside, "user-data").apply { writeText("keep") }
+        java.nio.file.Files.createSymbolicLink(File(base, "updates").toPath(), outside.toPath())
+        val updater = updater(owner)
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertEquals("Staging rejection must precede APK network IO", 0, apkRequests)
+        assertEquals("keep", sentinel.readText())
+        assertEquals(listOf(sentinel), outside.listFiles()!!.toList())
+        assertNull(shadowOf(owner).nextStartedActivity)
+    }
+
+    private fun rejectAliasChild(kind: String) {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(AliasedFilesActivity::class.java).setup().get()
+        val base = owner.filesDir.canonicalFile
+        val outside = File(base, "outside").apply { mkdir() }
+        val sentinel = File(outside, release.filename).apply { writeText("keep") }
+        beforeApk = {
+            val attempt = File(base, "updates").listFiles()!!.single()
+            val leaf = File(attempt, release.filename)
+            when (kind) {
+                "attempt" -> {
+                    java.nio.file.Files.move(attempt.toPath(), File(base, "retained-attempt").toPath())
+                    java.nio.file.Files.createSymbolicLink(attempt.toPath(), outside.toPath())
+                }
+                "leaf" -> java.nio.file.Files.createSymbolicLink(leaf.toPath(), sentinel.toPath())
+                "hardlink" -> java.nio.file.Files.createLink(leaf.toPath(), sentinel.toPath())
+                else -> error("Unknown fixture mutation")
+            }
+        }
+        val updater = updater(owner)
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        settle(updater)
+        assertEquals("Обновление недоступно", shadowOf(dialog()).title.toString())
+        assertEquals(1, apkRequests)
+        assertEquals("keep", sentinel.readText())
+        assertNull(shadowOf(owner).nextStartedActivity)
+    }
+
+    @Test fun aliasedTrustedBaseRejectsAttemptSymlink() = rejectAliasChild("attempt")
+    @Test fun aliasedTrustedBaseRejectsLeafSymlink() = rejectAliasChild("leaf")
+    @Test fun aliasedTrustedBaseRejectsLeafHardlink() = rejectAliasChild("hardlink")
+
+    @Test fun closeDuringTrustedBaseResolutionCannotLeakOrDeleteRecreatedCandidate() {
+        seedObservation()
+        successfulApk = true
+        val owner = Robolectric.buildActivity(AliasedFilesActivity::class.java).setup().get()
+        owner.filesDir // Create the real alias before holding background canonicalization.
+        val first = updater(owner)
+        check(first)
+        owner.holdBase = true
+        try {
+            dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(owner.baseEntered.await(10, TimeUnit.SECONDS))
+            first.close()
+            val second = updater()
+            downloadReady(second)
+            val newer = candidates().single()
+            owner.baseReleased.countDown()
+            val worker = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+                .get(first) as ExecutorService
+            assertTrue(worker.awaitTermination(10, TimeUnit.SECONDS))
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf(newer), candidates())
+            assertArrayEquals(payload, newer.readBytes())
+            assertEquals(1, apkRequests)
+            assertNull(shadowOf(owner).nextStartedActivity)
+        } finally { owner.baseReleased.countDown() }
+    }
+
+    @Test fun closeAfterSuccessfulIoBeforeReadyCallbackRemovesLateCandidate() {
+        seedObservation()
+        successfulApk = true
+        holdApk = true
+        val updater = updater()
+        check(updater)
+        dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(apkEntered.await(10, TimeUnit.SECONDS))
+        apkReleased.countDown()
+        val worker = NativeUpdater::class.java.getDeclaredField("worker").apply { isAccessible = true }
+            .get(updater) as ExecutorService
+        worker.submit {}.get(10, TimeUnit.SECONDS)
+        assertArrayEquals(payload, candidates().single().readBytes())
+        updater.close()
+        assertTrue(worker.awaitTermination(10, TimeUnit.SECONDS))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(candidates().isEmpty())
+        assertNull(shadowOf(activity).nextStartedActivity)
     }
 
     @Test @Config(sdk = [26, 34]) fun signedDownloadIdentityAndExplicitInstallerHandoff() {

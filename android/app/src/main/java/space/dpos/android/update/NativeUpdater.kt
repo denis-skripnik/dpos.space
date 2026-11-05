@@ -19,7 +19,7 @@ import java.util.concurrent.Executors
 /** Connected transfer boundary: signed-feed revocation is checked on both sides of IO. */
 internal object UpdateTransfer {
     fun installIntent(activity: Activity, file: File, release: ReleasePolicy.Release): Intent {
-        val root = File(activity.filesDir, "updates")
+        val root = File(activity.filesDir.canonicalFile, "updates")
         require(file.name == release.filename &&
             (file.parentFile == root || file.parentFile?.parentFile == root) &&
             file.canonicalFile == file.absoluteFile &&
@@ -77,8 +77,7 @@ class NativeUpdater internal constructor(
     private var resumePending = false
     // Deferral belongs to this activity only, not persistent preferences.
     private var notified: String? = null
-    private val ownedFiles = mutableListOf<File>() // Main-thread ownership; cleanup is queued on worker.
-    private val handedOff = mutableSetOf<File>() // Android installer may still read after Activity destruction.
+    private val ownedFiles = mutableListOf<File>() // Worker-confined, including close's ordered cleanup.
     private val origin = "https://${ReleasePolicy.HOST}"
     private val manifestUrl = origin + ReleasePolicy.MANIFEST_PATH
     private val maxApk = 80L * 1024 * 1024
@@ -185,14 +184,19 @@ class NativeUpdater internal constructor(
 
     private fun download(release: ReleasePolicy.Release) {
         if (!begin()) return
-        // Never reuse a release filename across attempts or Activity instances.
-        val file = File(activity.filesDir, "updates/${UUID.randomUUID()}/${release.filename}")
-        ownedFiles += file
         showProgress("Загрузка обновления", "Подготовка загрузки. Проверяем выпуск.")
         worker.execute {
+            var file: File? = null
             val result = runCatching {
+                guard()
+                // Only the framework-owned base may alias. Never canonicalize its children.
+                val base = activity.filesDir.canonicalFile
+                guard()
+                val candidate = File(base, "updates/${UUID.randomUUID()}/${release.filename}")
+                file = candidate
+                ownedFiles += candidate
                 var length = 0L
-                UpdateTransfer.transfer(release, file, maxApk, ::verifiedManifest,
+                UpdateTransfer.transfer(release, candidate, maxApk, ::verifiedManifest,
                     { guard(); eligibleNow(release) },
                     { githubBlob(release).also { length = it.second } },
                     {
@@ -221,8 +225,9 @@ class NativeUpdater internal constructor(
                         } catch (error: Exception) { conn.disconnect(); throw error }
                     }, { guard(); apkIdentity(it, release) })
                 guard()
+                Candidate(release, candidate)
             }
-            if (result.isFailure) removeCandidate(file)
+            if (result.isFailure) file?.let(::removeCandidate)
             main.post {
                 busy = false
                 progress?.dismiss()
@@ -230,9 +235,9 @@ class NativeUpdater internal constructor(
                 if (!closed) {
                     if (cancelled) {
                         notified = null
-                        if (result.isSuccess) worker.execute { removeCandidate(file) }
+                        result.getOrNull()?.let { candidate -> worker.execute { removeCandidate(candidate.file) } }
                     }
-                    else if (result.isSuccess) ready = Candidate(release, file)
+                    else if (result.isSuccess) ready = result.getOrThrow()
                     else errorPending = true
                     if (foreground() && !cancelled) presentOrCheck()
                 }
@@ -302,7 +307,7 @@ class NativeUpdater internal constructor(
                     if (!cancelled && result.isFailure) { ready = null; errorPending = true }
                     if (foreground()) {
                         if (!cancelled && result.isSuccess && activity.packageManager.canRequestPackageInstalls()) {
-                            runCatching { activity.startActivity(result.getOrThrow()); handedOff += file }
+                            runCatching { activity.startActivity(result.getOrThrow()) }
                                 .onFailure { errorPending = true; showError() }
                         } else presentOrCheck()
                     }
@@ -425,8 +430,9 @@ class NativeUpdater internal constructor(
         cancelled = true
         disconnectActive()
         // Ordered after the active task: cleanup cannot race a writer, including after recreation.
-        val files = ownedFiles.filterNot { it in handedOff }
-        worker.execute { files.forEach(::removeCandidate) }
+        // Read ownership here, not on main: an in-flight base resolution may register a file late.
+        // Installer-reserved leases already prevent removal, even before the UI handoff runs.
+        worker.execute { ownedFiles.forEach(::removeCandidate) }
         worker.shutdown()
         progress?.dismiss()
         dialog?.dismiss()

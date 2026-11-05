@@ -143,7 +143,7 @@ internal object UpdateStaging {
         val pm = context.packageManager
         val installed = metadata(pm.getPackageInfo(context.packageName, flags))
         if (installed.packageName != BuildConfig.APPLICATION_ID || installed.cert != BuildConfig.DPOS_HISTORIC_CERT || installed.code <= 0) return
-        sweep(File(context.filesDir, "updates"), installed) { file ->
+        sweep(File(context.filesDir.canonicalFile, "updates"), installed) { file ->
             pm.getPackageArchiveInfo(file.absolutePath, flags)?.let(::metadata)
         }
     }
