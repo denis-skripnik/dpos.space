@@ -1,5 +1,10 @@
 # Android release notes and packaging
 
+## 3.1.11 / code89 — local candidate, not published
+
+- Includes the trusted `filesDir` alias compatibility fix described below. Package, historical certificate and updater public-key pin remain unchanged for an in-place upgrade.
+- This candidate does not change the live website or signed update feed. The currently published APK remains 3.1.10. Full Debug and Release host suites each pass 544 executions across 77 classes with no failures, errors or skips; all previous 534 identities plus 10 new regressions are retained. The assembled non-debuggable APK preserves the historical package, certificate and updater pin. Physical-device installation and TalkBack acceptance are not claimed.
+
 ## 3.1.10 / code88
 
 - Adds the reviewed settings-sync native preference replacement and VIZ automatic self-award notification filter, preserving local grants, keys, worker state and pending operations. Includes all existing 3.1.9 safeguards.
