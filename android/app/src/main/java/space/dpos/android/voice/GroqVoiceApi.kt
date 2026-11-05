@@ -29,6 +29,7 @@ internal class VoiceOperation {
 internal interface VoiceRemote {
     fun check(key: String, operation: VoiceOperation)
     fun transcribe(key: String, audio: File, operation: VoiceOperation): String
+    fun suggestTitles(key: String, text: String, operation: VoiceOperation): List<String>
     fun format(key: String, transcript: String, operation: VoiceOperation): String
 }
 
@@ -80,7 +81,25 @@ internal class GroqVoiceApi private constructor(private val connect: (URL) -> Ht
             ?: throw VoiceFailure("invalid_response")
     }
 
-    private fun request(path: String, key: String, operation: VoiceOperation, method: String, type: String?, write: (java.io.OutputStream) -> Unit): JSONObject {
+    override fun suggestTitles(key: String, text: String, operation: VoiceOperation): List<String> {
+        TitleSuggestions.input(text)
+        val payload = JSONObject().put("model", "openai/gpt-oss-120b").put("temperature", 0)
+            .put("reasoning_effort", "low").put("max_completion_tokens", 2048)
+            .put("response_format", JSONObject().put("type", "json_object"))
+            .put("messages", JSONArray()
+                .put(JSONObject().put("role", "system").put("content", TitleSuggestions.titleModelPrompt))
+                .put(JSONObject().put("role", "user").put("content", JSONObject().put("text", text).toString())))
+            .toString().toByteArray(Charsets.UTF_8)
+        val response = request("chat/completions", key, operation, "POST", "application/json", 65_536) { it.write(payload) }
+        val choices = response.optJSONArray("choices") ?: throw VoiceFailure("invalid_response")
+        if (choices.length() != 1) throw VoiceFailure("invalid_response")
+        val choice = choices.optJSONObject(0) ?: throw VoiceFailure("invalid_response")
+        if (choice.opt("finish_reason") != "stop") throw VoiceFailure("titles_incomplete")
+        val content = choice.optJSONObject("message")?.opt("content") as? String ?: throw VoiceFailure("invalid_response")
+        return TitleSuggestions.parse(content)
+    }
+
+    private fun request(path: String, key: String, operation: VoiceOperation, method: String, type: String?, maxResponseBytes: Int = 1_048_576, write: (java.io.OutputStream) -> Unit): JSONObject {
         operation.checkActive()
         val connection = connect(URL("https://api.groq.com/openai/v1/$path"))
         operation.attach(connection)
@@ -114,12 +133,14 @@ internal class GroqVoiceApi private constructor(private val connect: (URL) -> Ht
                     operation.checkActive()
                     val count = input.read(buffer)
                     if (count < 0) break
-                    if (data.size() + count > 1_048_576) throw VoiceFailure("invalid_response")
+                    if (data.size() + count > maxResponseBytes) throw VoiceFailure("invalid_response")
                     data.write(buffer, 0, count)
                 }
             }
             operation.checkActive()
-            return try { JSONObject(data.toString("UTF-8")) } catch (_: Exception) { throw VoiceFailure("invalid_response") }
+            val json = data.toString("UTF-8")
+            if (maxResponseBytes == 65_536) TitleSuggestions.validateEnvelope(json)
+            return try { JSONObject(json) } catch (_: Exception) { throw VoiceFailure("invalid_response") }
         } catch (error: VoiceFailure) { throw error }
         catch (_: Exception) { operation.checkActive(); throw VoiceFailure("groq_network") }
         finally { deadline.cancel(false); operation.detach(); connection.disconnect() }

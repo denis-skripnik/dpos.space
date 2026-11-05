@@ -860,6 +860,7 @@
   async function setServiceKey(provider, value) {
     requireService(provider);
     validateServiceKey(value);
+    if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-service-key-change'));
     return mutate(records => {
       records[SERVICE_KEYS_RECORD] = { groq: value };
       return { hasKey: true };
@@ -868,6 +869,7 @@
 
   async function deleteServiceKey(provider) {
     requireService(provider);
+    if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('dpos-service-key-change'));
     return mutate(records => {
       delete records[SERVICE_KEYS_RECORD];
       return { hasKey: false };

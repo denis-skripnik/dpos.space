@@ -16,6 +16,7 @@ function load(chain) {
     localStorage:{getItem:()=>null,setItem(){},removeItem(){},key:()=>null,length:0},
     navigator:{mediaDevices:{getUserMedia:async()=>{mic++;return {getTracks:()=>[{stop(){tracks++;}}]};}}},MediaRecorder:Recorder,
     addEventListener:(name,fn)=>(events[name] ||= []).push(fn),removeEventListener:(name,fn)=>{events[name]=(events[name]||[]).filter(x=>x!==fn);},
+    dispatchEvent:event=>{for(const fn of events[event.type]||[])fn(event);},
     setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},requestAnimationFrame:fn=>fn(),confirm:()=>true,
     DposVoiceStore:{read:async()=>null,write:async()=>{}},
     DposVault:{status:()=>({state:'unlocked'}),getServiceKey:async()=>vaultKey,setServiceKey:async(_,key)=>{vaultKey=key;},deleteServiceKey:async()=>{vaultKey='';}},
@@ -44,7 +45,9 @@ function load(chain) {
     tabs.dispatchEvent({type:'keydown',key:'Home',preventDefault(){}});assert.equal(d.activeElement,first);second.click();
     const byText=text=>voice.querySelectorAll('button').find(n=>n.textContent===text);
     const key=voice.querySelector('input[type="password"]');key.value='gsk_fixture_fake_key_123456';
+    let keyChanges=0;w.addEventListener('dpos-service-key-change',()=>keyChanges++);
     byText('Сохранить настройки').click();await tick();assert.equal(key.value,'');
+    assert.equal(keyChanges,1,'inline web/native key save invalidates optional title requests without recording polling');
     assert.equal(d.getElementById('editor-form'),originalForm,'inline settings preserve original form and draft');
     byText('Начать запись').click();await tick();assert.equal(counts().mic,1);byText('Остановить запись').click();await tick();
     assert.equal(counts().requests,0,'stop does not charge');
@@ -60,6 +63,7 @@ function load(chain) {
     modal.querySelector('[data-app-modal-close]').click();
     assert.equal(d.activeElement,first,'closing the editor after voice transfer returns focus to the visible editor tab');
     assert.equal(first.disabled,false);
+    byText('Удалить ключ').click();await tick();assert.equal(keyChanges,2,'key removal invalidates optional title requests');
   }
   const globalSettings=load('hive'); await tick();
   globalSettings.w.location.hash='#app=voice-settings';await globalSettings.w.DposV3.renderRoute();await tick();

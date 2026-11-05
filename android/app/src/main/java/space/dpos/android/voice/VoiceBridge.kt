@@ -29,6 +29,14 @@ internal class VoiceBridge(private val activity: Activity) {
         session.execute {
             val response = try {
                 if (closed.get()) throw VoiceFailure("cancelled")
+                if (request.method == "voiceSuggestTitles") {
+                    suggestTitles(request.payload.opt("text"), owner) { titles, error ->
+                        respond(if (closed.get()) failure(request, "cancelled")
+                            else if (error != null) failure(request, error)
+                            else AndroidBridgeProtocol.success(request.id, JSONObject().put("titles", org.json.JSONArray(titles)).toString()))
+                    }
+                    return@execute
+                }
                 if (request.method == "voiceCheckConnection") {
                     checkConnection(owner) { result -> respond(AndroidBridgeProtocol.success(request.id, result.toString())) }
                     return@execute
@@ -60,6 +68,6 @@ internal class VoiceBridge(private val activity: Activity) {
     }
     private fun failure(request: BridgeRequest, code: String) = AndroidBridgeProtocol.failure(request.id, code, code)
     companion object {
-        val METHODS = setOf("voiceStatus", "voiceSaveSettings", "voiceDeleteKey", "voiceCheckConnection", "voiceStart", "voicePause", "voiceResume", "voiceStop", "voiceDelete", "voiceRecognize")
+        val METHODS = setOf("voiceStatus", "voiceSaveSettings", "voiceDeleteKey", "voiceCheckConnection", "voiceStart", "voicePause", "voiceResume", "voiceStop", "voiceDelete", "voiceRecognize", "voiceSuggestTitles")
     }
 }

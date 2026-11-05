@@ -42,8 +42,7 @@
     return `<details class="subpanel" data-post-cover>
       <summary>Обложка поста</summary>
       <p>Создайте обложку на устройстве. В Imgur она отправится только кнопкой загрузки.</p>
-      <div class="field"><label for="cover-title">Текст на обложке</label><input id="cover-title" type="text" data-cover-title aria-describedby="cover-title-help"></div>
-      <p id="cover-title-help" class="muted">До четырёх строк крупным шрифтом. Длинный текст сокращается только на обложке; заголовок поста не меняется.</p>
+      <p class="muted">Обложка использует заголовок поста. Длинный текст сокращается только на обложке; заголовок поста не меняется.</p>
       <label><input type="checkbox" data-cover-no-text> Без текста</label>
       <div class="button-row">
         <button type="button" data-cover-create>Создать обложку</button>
@@ -112,11 +111,11 @@
     const document = root.ownerDocument;
     const form = root.closest('form');
     const part = name => root.querySelector(`[data-cover-${name}]`);
-    const title = part('title'), noText = part('no-text'), create = part('create'), download = part('download'), uploadButton = part('upload');
+    const noText = part('no-text'), create = part('create'), download = part('download'), uploadButton = part('upload');
     const replace = part('replace'), status = part('status'), preview = part('preview'), description = part('description');
     const field = name => form.querySelector(`#editor-${name}`);
     const route = global.location.hash;
-    let disposed = false, revision = 0, busy = false, opened = false, result = null, objectUrl = '', uploaded = false;
+    let disposed = false, revision = 0, busy = false, result = null, objectUrl = '', uploaded = false;
     const listeners = [];
     const alive = () => !disposed && root.isConnected && global.location.hash === route;
     const listen = (element, event, fn) => { element.addEventListener(event, fn); listeners.push(() => element.removeEventListener(event, fn)); };
@@ -133,26 +132,22 @@
       buttons();
     }
     function changed() {
-      clear(); title.disabled = noText.checked;
+      clear();
       say('Настройки изменены. Создайте обложку заново.');
     }
-    listen(root, 'toggle', () => {
-      if (root.open && !opened) {
-        opened = true; title.value = field('title').value;
-        say('Текст взят из заголовка поста. Его можно изменить только для обложки.');
-      }
-    });
-    listen(title, 'input', changed);
+    listen(field('title'), 'input', changed);
+    listen(field('title'), 'change', changed);
     listen(noText, 'change', changed);
-    listen(form, 'reset', () => { clear(); opened = false; title.value = ''; noText.checked = false; title.disabled = false; replace.checked = false; say('Обложка очищена.'); });
+    listen(form, 'reset', () => { clear(); noText.checked = false; replace.checked = false; say('Обложка очищена.'); });
     listen(create, 'click', async () => {
       if (busy || !alive()) return;
       clear(); const token = revision;
-      const coverTitle = noText.checked ? '' : title.value;
+      const canonicalTitle = field('title').value, withoutText = noText.checked;
+      const coverTitle = withoutText ? '' : canonicalTitle;
       busy = true; buttons(); say('Создаю обложку на устройстве…');
       try {
         const generated = await createPng(document, coverTitle);
-        if (!alive() || token !== revision) return;
+        if (!alive() || token !== revision || canonicalTitle !== field('title').value || withoutText !== noText.checked) return;
         result = generated; objectUrl = global.URL.createObjectURL(result.blob);
         preview.src = objectUrl; preview.hidden = false;
         preview.alt = t(result.lines.length ? 'Обложка: крылатая говорящая голова справа, текст слева.' : 'Обложка: крылатая говорящая голова справа, без текста.');

@@ -44,9 +44,10 @@
       catch (_) { setText(status, 'Не удалось выполнить действие. Разблокируйте хранилище, проверьте ключ и соединение. Секреты не отображаются.'); }
       finally { key.value = ''; pending = false; update(api().status()); }
     }
-    const save = button('Сохранить настройки', () => action(async () => { const value = key.value.trim(); key.value = ''; await api().saveSettings(value, mode.value); }, 'Настройки сохранены.'));
+    const keyChanging = () => global.dispatchEvent(new global.Event('dpos-service-key-change'));
+    const save = button('Сохранить настройки', () => action(async () => { const value = key.value.trim(); key.value = ''; if (value) keyChanging(); await api().saveSettings(value, mode.value); }, 'Настройки сохранены.'));
     const check = button('Проверить соединение', () => action(() => api().checkConnection(), 'Соединение с Groq проверено.'));
-    const remove = button('Удалить ключ', () => action(() => api().deleteKey(), 'Ключ удалён.'));
+    const remove = button('Удалить ключ', () => action(() => { keyChanging(); return api().deleteKey(); }, 'Ключ удалён.'));
     section.append(save, check, remove, status); root.appendChild(section);
     let modeTouched = false; mode.addEventListener('change', () => { modeTouched = true; });
     function update(s) {

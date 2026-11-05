@@ -15,7 +15,7 @@ class Element {
 }
 function fixture(options = {}) {
   const fields = Object.fromEntries(['title','body','tags','image'].map(n => ['#editor-' + n, new Element(n + ' original')]));
-  const parts = Object.fromEntries(['title','no-text','create','download','upload','replace','status','preview','description','open'].map(n => ['[data-cover-' + n + ']', new Element()]));
+  const parts = Object.fromEntries(['no-text','create','download','upload','replace','status','preview','description','open'].map(n => ['[data-cover-' + n + ']', new Element()]));
   const root = new Element(); root.open = false;
   root.querySelector = s => parts[s];
   const form = new Element(); form.querySelector = s => fields[s]; root.closest = () => form;
@@ -36,15 +36,14 @@ function fixture(options = {}) {
 }
 (async () => {
   const font = deferred(); const f = fixture({ font }); await f.open();
-  assert.equal(f.part('title').value, 'title original');
-  f.part('title').value = '<script>cover only</script>';
+  f.fields['#editor-title'].value = '<b>canonical</b>';
   const creating = f.part('create').fire('click'); await Promise.resolve();
   assert.equal(f.draws.length, 0, 'must wait for local font'); assert.equal(f.part('create').disabled, true);
   await f.part('create').fire('click'); font.resolve(); await creating;
   assert.equal(f.canvas.width, 1200); assert.equal(f.canvas.height, 675);
   assert.equal(f.counts().creates, 1); assert.equal(f.counts().uploads, 0);
-  assert(f.part('description').textContent.includes('<script>cover only</script>'));
-  assert.equal(f.fields['#editor-title'].value, 'title original');
+  assert(f.part('description').textContent.includes('<b>canonical</b>'));
+  assert.equal(f.fields['#editor-title'].value, '<b>canonical</b>');
   await f.part('download').fire('click'); assert.equal(f.counts().downloads, 1); assert.equal(f.counts().uploads, 0);
   await f.part('upload').fire('click'); assert.equal(f.counts().uploads, 1);
   assert.equal(f.fields['#editor-image'].value, 'image original');
@@ -69,9 +68,22 @@ function fixture(options = {}) {
   const consent = fixture(); await consent.open(); await consent.part('create').fire('click'); consent.part('replace').checked = true;
   await consent.part('upload').fire('click'); assert.equal(consent.fields['#editor-image'].value, 'https://i.imgur.com/cover.png');
   const reset = fixture(); await reset.open(); await reset.part('create').fire('click'); await reset.form.fire('reset'); assert.deepEqual(reset.revokes, ['blob:1']);
-  const blank = fixture(); await blank.open(); blank.part('title').value = '   '; await blank.part('create').fire('click');
+  for (const event of ['input', 'change']) {
+    const canonical = fixture(); await canonical.part('create').fire('click');
+    canonical.fields['#editor-title'].value = 'Changed title'; await canonical.fields['#editor-title'].fire(event);
+    assert.equal(canonical.part('download').disabled, true); assert.equal(canonical.part('upload').disabled, true); assert.equal(canonical.part('preview').hidden, true);
+    assert.deepEqual(canonical.revokes, ['blob:1']); await canonical.part('upload').fire('click'); assert.equal(canonical.counts().uploads, 0);
+    await canonical.part('create').fire('click'); assert(canonical.part('description').textContent.includes('Changed title')); canonical.dispose();
+    const pendingTitle = deferred(), pendingCover = fixture({ encode: pendingTitle }); const task = pendingCover.part('create').fire('click');
+    await new Promise(setImmediate); pendingCover.fields['#editor-title'].value = 'New title'; await pendingCover.fields['#editor-title'].fire(event);
+    pendingTitle.resolve(new Blob(['png'])); await task; assert.equal(pendingCover.counts().creates, 0); pendingCover.dispose();
+    const pendingUpload = deferred(), uploadingCover = fixture({ upload: pendingUpload }); await uploadingCover.part('create').fire('click');
+    const uploadingTask = uploadingCover.part('upload').fire('click'); uploadingCover.fields['#editor-title'].value = 'Chosen suggestion'; await uploadingCover.fields['#editor-title'].fire(event);
+    pendingUpload.resolve('https://i.imgur.com/stale-title.png'); await uploadingTask; assert.equal(uploadingCover.fields['#editor-body'].value, 'body original'); assert.equal(uploadingCover.fields['#editor-image'].value, 'image original'); uploadingCover.dispose();
+  }
+  const blank = fixture(); await blank.open(); blank.fields['#editor-title'].value = '   '; await blank.part('create').fire('click');
   assert(blank.part('status').textContent.includes('без текста')); assert.deepEqual(blank.draws, ['base']); blank.dispose();
-  const long = fixture(); await long.open(); long.part('title').value = 'слово '.repeat(80); await long.part('create').fire('click');
+  const long = fixture(); await long.open(); long.fields['#editor-title'].value = 'слово '.repeat(80); await long.part('create').fire('click');
   assert(long.part('description').textContent.includes('…')); assert(long.part('description').textContent.includes('сокращён')); long.dispose();
   const android = fixture(); await android.open(); await android.part('create').fire('click'); android.env.DposNative = { available: () => true };
   await android.part('download').fire('click'); assert.equal(android.counts().downloads, 0); assert.equal(android.counts().uploads, 0); assert(android.part('status').textContent.includes('Android')); android.dispose();

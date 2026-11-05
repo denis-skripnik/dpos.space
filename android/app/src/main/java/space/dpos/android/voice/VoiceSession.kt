@@ -63,6 +63,8 @@ internal class VoiceSession private constructor(
     private var serviceOwner: Long? = null
     private var operation: VoiceOperation? = null
     private var operationOwner: Any? = null
+    private var titleReply: ((List<String>?, String?) -> Unit)? = null
+    private var titleDeadline: java.util.concurrent.ScheduledFuture<*>? = null
     private val root get() = File(context.filesDir, "voice-input").apply { mkdirs() }
     private val record get() = AtomicFile(File(root, "session.json"))
 
@@ -156,6 +158,40 @@ internal class VoiceSession private constructor(
             }
         }
         // The bridge reply waits off-main, never the state/recording command lane.
+    }
+
+    fun suggestTitles(value: Any?, owner: Any, reply: (List<String>?, String?) -> Unit) {
+        val text = TitleSuggestions.input(value)
+        if (operation != null) throw VoiceFailure("busy")
+        val key = secure.getString("groqApiKey", null) ?: throw VoiceFailure("key_required")
+        val token = VoiceOperation()
+        val current = ++generation
+        operation = token; operationOwner = owner; titleReply = reply
+        // Admission-to-reply budget includes time waiting behind a cancelled transport.
+        titleDeadline = deadlines.schedule({ execute {
+            if (generation == current && operation === token) {
+                token.cancel()
+                finishTitles(null, "groq_timeout")
+            }
+        } }, 90, java.util.concurrent.TimeUnit.SECONDS)
+        network.execute {
+            var titles: List<String>? = null
+            var error: String? = null
+            try {
+                token.checkActive()
+                titles = remote.suggestTitles(key, text, token)
+            } catch (failure: Exception) { error = safeError(failure) }
+            execute {
+                if (generation == current && operation === token) finishTitles(titles, error)
+            }
+        }
+    }
+    private fun finishTitles(titles: List<String>?, error: String?) {
+        val reply = titleReply
+        titleReply = null
+        titleDeadline?.cancel(false); titleDeadline = null
+        operation = null; operationOwner = null
+        reply?.invoke(titles, error)
     }
 
     fun requestStart(): JSONObject {
@@ -282,7 +318,9 @@ internal class VoiceSession private constructor(
     }
     private fun cancelRecognition() {
         ++generation
-        operation?.cancel(); operation = null; operationOwner = null
+        operation?.cancel()
+        if (titleReply != null) finishTitles(null, "cancelled")
+        operation = null; operationOwner = null
         if (state() == "recognizing") { metadata.put("state", "ready").put("error", "cancelled"); persist() }
     }
     fun closeOwner(owner: Any) { if (operationOwner === owner) cancelRecognition() }

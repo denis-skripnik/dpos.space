@@ -31,6 +31,7 @@ class VoiceInputEntryTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val bridge = DposAndroidBridge(activity, statusProvider = { JSONObject() })
         assertTrue(JSONObject(bridge.getAppInfo()).optBoolean("voiceInput"))
+        assertTrue(JSONObject(bridge.getAppInfo()).optBoolean("titleSuggestions"))
         bridge.close()
         activity.finish()
     }

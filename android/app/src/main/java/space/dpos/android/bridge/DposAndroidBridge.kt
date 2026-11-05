@@ -76,6 +76,7 @@ class DposAndroidBridge(
         .put("settingsPreferencesSync", true)
         .put("notificationInbox", true)
         .put("voiceInput", true)
+        .put("titleSuggestions", true)
         .toString()
 
     fun getWorkerStatus(): String = statusProvider().toString()

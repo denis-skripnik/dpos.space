@@ -1,6 +1,9 @@
 'use strict';
 const assert = require('node:assert/strict');
 const covers = require('../v3/js/post-cover.js');
+assert(!covers.markup().includes('data-cover-title'));
+assert(!covers.markup().includes('cover-title-help'));
+assert(!covers.markup().includes('name='), 'cover controls are not publication fields');
 const measure = text => [...new Intl.Segmenter('ru', { granularity: 'grapheme' }).segment(text)].length * 10;
 for (const title of ['Короткий заголовок', 'Один два три четыре пять шесть семь восемь девять десять '.repeat(8), 'Я'.repeat(200), '👨‍👩‍👧‍👦'.repeat(80), 'е\u0301'.repeat(100), '', '   ']) {
   const result = covers.wrapTitle(title, measure, 90, 4);

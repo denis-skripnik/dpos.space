@@ -64,6 +64,17 @@ class VoiceSessionBehaviorTest {
         var hold = false
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
+        var titleCalls = 0
+        var titleKey = ""
+        var titleText = ""
+        var titleFailure = false
+        override fun suggestTitles(key: String, text: String, operation: VoiceOperation): List<String> {
+            titleCalls++; titleKey = key; titleText = text
+            entered.countDown()
+            if (hold) assertTrue(release.await(10, TimeUnit.SECONDS))
+            if (titleFailure) throw VoiceFailure("groq_auth")
+            return listOf("Первый", "Второй", "Третий") // Intentionally ignores cancellation.
+        }
         override fun check(key: String, operation: VoiceOperation) { if (failStt) throw VoiceFailure("groq_auth") }
         override fun transcribe(key: String, audio: File, operation: VoiceOperation): String {
             sttCalls++; assertTrue(audio.isFile)
@@ -300,6 +311,118 @@ class VoiceSessionBehaviorTest {
         assertEquals(android.app.Service.START_NOT_STICKY, replacement.get().onStartCommand(null, 0, 3))
         command { assertEquals("ready", status().getString("state")) }
         replacement.destroy()
+    }
+    @Test fun explicitTitlesUseSameKeyAndLeaveRetainedVoiceStateUntouched() {
+        savedRecording()
+        call("voiceRecognize", JSONObject().put("mode", "raw")); awaitReady(); drainHttp()
+        val before = status().toString()
+        val files = File(activity.filesDir, "voice-input").listFiles()!!.associate { it.name to it.readBytes().toList() }
+        assertEquals(0, remote.titleCalls)
+        val result = call("voiceSuggestTitles", JSONObject().put("text", "Synthetic post"))
+        assertEquals(listOf("titles"), result.keys().asSequence().toList())
+        assertEquals(3, result.getJSONArray("titles").length())
+        assertEquals(key, remote.titleKey); assertEquals("Synthetic post", remote.titleText)
+        assertEquals(before, status().toString())
+        assertEquals(files, File(activity.filesDir, "voice-input").listFiles()!!.associate { it.name to it.readBytes().toList() })
+    }
+    private fun cancelledTitle(action: String) {
+        savedRecording(); remote.hold = true
+        val replies = java.util.concurrent.atomic.AtomicInteger()
+        val done = CountDownLatch(1)
+        var response: JSONObject? = null
+        bridge.dispatch(BridgeRequest("title-held", "voiceSuggestTitles", JSONObject().put("text", "Synthetic post"))) {
+            response = it; replies.incrementAndGet(); done.countDown()
+        }
+        assertTrue("HTTP entered", remote.entered.await(5, TimeUnit.SECONDS))
+        // Neither a held remote nor its waiting reply may occupy the state/main lane.
+        assertEquals("ready", status().getString("state"))
+        when (action) {
+            "close" -> bridge.close()
+            "key" -> call("voiceSaveSettings", JSONObject().put("apiKey", "replacement-fixture-key"))
+            else -> call(action)
+        }
+        command {} // Fence owner close and all queued cancellation work.
+        assertTrue("cancellation must reply before remote drains", done.await(2, TimeUnit.SECONDS))
+        val cancelled = response!!
+        assertFalse(cancelled.getBoolean("ok")); assertEquals("cancelled", cancelled.getString("errorCode"))
+        if (action == "voiceDelete") start()
+        val snapshot = if (action == "close") { var value = ""; command { value = status().toString() }; value } else status().toString()
+        remote.release.countDown(); drainHttp(); command {}
+        assertEquals(1, replies.get())
+        command { assertEquals(snapshot, status().toString()) }
+        if (action != "close") {
+            assertEquals(3, call("voiceSuggestTitles", JSONObject().put("text", "New generation")).getJSONArray("titles").length())
+        }
+    }
+    @Test fun titleStopCancelsBeforeLateHttpWithoutStateMutation() = cancelledTitle("voiceStop")
+    @Test fun titleDeleteCannotResurrectNewRecording() = cancelledTitle("voiceDelete")
+    @Test fun titleKeyReplacementCancelsOldCredentialRequest() = cancelledTitle("key")
+    @Test fun titleKeyDeletionCancelsOldCredentialRequest() {
+        savedRecording(); remote.hold = true
+        val done = CountDownLatch(1)
+        var response: JSONObject? = null
+        bridge.dispatch(BridgeRequest("delete-key-title", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; done.countDown() }
+        assertTrue(remote.entered.await(5, TimeUnit.SECONDS)); call("voiceDeleteKey")
+        assertTrue(done.await(2, TimeUnit.SECONDS)); assertEquals("cancelled", response!!.getString("errorCode"))
+        remote.release.countDown(); drainHttp(); assertFalse(status().getBoolean("hasKey"))
+    }
+    @Test fun titleActivityCloseCancelsOnlyItsOwnOperation() = cancelledTitle("close")
+    @Test fun closedActivityRejectsSuccessAlreadyQueuedBeforeOwnerClose() {
+        savedRecording(); remote.hold = true
+        val done = CountDownLatch(1); var response: JSONObject? = null
+        bridge.dispatch(BridgeRequest("queued-title", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; done.countDown() }
+        assertTrue(remote.entered.await(5, TimeUnit.SECONDS))
+        val held = CountDownLatch(1); val releaseState = CountDownLatch(1)
+        session.execute { held.countDown(); assertTrue(releaseState.await(10, TimeUnit.SECONDS)) }
+        try {
+            assertTrue(held.await(5, TimeUnit.SECONDS))
+            remote.release.countDown(); drainHttp() // Completion is now queued before closeOwner.
+            bridge.close()
+        } finally { releaseState.countDown() }
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertFalse(response!!.getBoolean("ok")); assertEquals("cancelled", response!!.getString("errorCode"))
+    }
+    @Test fun unrelatedOldOwnerCloseDoesNotCancelNewOwnerTitleRequest() {
+        savedRecording(); remote.hold = true
+        val replacement = DposAndroidBridge(activity, statusProvider = { JSONObject() })
+        val done = CountDownLatch(1); var response: JSONObject? = null
+        try {
+            replacement.dispatch(BridgeRequest("new-owner", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; done.countDown() }
+            assertTrue(remote.entered.await(5, TimeUnit.SECONDS)); bridge.close(); command {}
+            assertFalse(done.await(50, TimeUnit.MILLISECONDS))
+            remote.release.countDown(); assertTrue(done.await(5, TimeUnit.SECONDS))
+            assertTrue(response!!.getBoolean("ok")); assertEquals(3, response!!.getJSONObject("result").getJSONArray("titles").length())
+        } finally { replacement.close() }
+    }
+    @Test fun titleFailureAndMissingKeyDoNotAlterRetainedState() {
+        savedRecording(); remote.titleFailure = true
+        val before = status().toString()
+        val done = CountDownLatch(1); var response: JSONObject? = null
+        bridge.dispatch(BridgeRequest("failed-title", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; done.countDown() }
+        assertTrue(done.await(5, TimeUnit.SECONDS)); assertEquals("groq_auth", response!!.getString("errorCode"))
+        assertEquals(before, status().toString())
+        call("voiceDeleteKey")
+        val noKey = CountDownLatch(1)
+        bridge.dispatch(BridgeRequest("no-key-title", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; noKey.countDown() }
+        assertTrue(noKey.await(5, TimeUnit.SECONDS)); assertEquals("key_required", response!!.getString("errorCode"))
+        assertEquals(1, remote.titleCalls)
+    }
+    @Test fun titleRequestDoesNotReplaceActiveRecognition() {
+        savedRecording(); remote.hold = true
+        call("voiceRecognize", JSONObject().put("mode", "raw")); assertTrue(remote.entered.await(5, TimeUnit.SECONDS))
+        val done = CountDownLatch(1); var response: JSONObject? = null
+        bridge.dispatch(BridgeRequest("busy-title", "voiceSuggestTitles", JSONObject().put("text", "Synthetic"))) { response = it; done.countDown() }
+        assertTrue(done.await(5, TimeUnit.SECONDS)); assertEquals("busy", response!!.getString("errorCode")); assertEquals(0, remote.titleCalls)
+        remote.release.countDown(); drainHttp(); assertTrue(awaitReady().getString("transcript").isNotEmpty())
+    }
+    @Test fun titleBridgeRejectsNonStringEmptyAndOversizedTextBeforeHttp() {
+        call("voiceSaveSettings", JSONObject().put("apiKey", key))
+        for (value in listOf<Any>(42, JSONObject.NULL, "", " ", "x".repeat(20001))) {
+            val done = CountDownLatch(1); var response: JSONObject? = null
+            bridge.dispatch(BridgeRequest("invalid-title", "voiceSuggestTitles", JSONObject().put("text", value))) { response = it; done.countDown() }
+            assertTrue(done.await(5, TimeUnit.SECONDS)); assertEquals("invalid_text", response!!.getString("errorCode"))
+        }
+        assertEquals(0, remote.titleCalls)
     }
     @Test fun keySaveCheckDeleteNeverEchoesAndDoesNotTouchWorkerSettings() {
         val worker = activity.getSharedPreferences("dpos_worker", Context.MODE_PRIVATE).all

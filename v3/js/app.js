@@ -35,6 +35,7 @@
   const FINANCIAL_PATTERN_INPUT_IDS = Object.freeze(['minter-swap-amount', 'minter-swap-min', 'decimal-convert-amount', 'decimal-convert-min']);
   let routeRenderGeneration = 0;
   let disposePostCover = null;
+  let disposeTitleSuggestions = null;
 
   async function awaitRouteTask(epoch, task) {
     const assertCurrent = () => {
@@ -9667,6 +9668,7 @@
 
   function renderEditor(chain, state) {
     if (disposePostCover) { disposePostCover(); disposePostCover = null; }
+    if (disposeTitleSuggestions) { disposeTitleSuggestions(); disposeTitleSuggestions = null; }
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(`${chain.id}_v3_import_draft`) || 'null'); } catch (error) { draft = null; }
     const isGolos = chain.id === 'golos';
@@ -9680,7 +9682,7 @@
         <details id="editor-operation-details" class="operation-modal-source"><summary>Публикация поста — preview перед отправкой</summary><form id="editor-form" class="stacked-form" data-golos-edit-mode="false" data-golos-edit-author="">
           <fieldset>
             <legend>Публикация поста</legend>
-            <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}"></div>
+            <div class="field"><label for="editor-title">Заголовок</label><input id="editor-title" name="title" type="text" required value="${escapeHtml(draft && draft.title ? draft.title : '')}">${global.DposTitleSuggestions ? global.DposTitleSuggestions.markup() : ''}</div>
             ${isGolos ? `<div class="field"><label for="editor-category">Категория</label><select id="editor-category" name="category">${golosEditorCategoryOptions(draft && draft.category)}</select></div>` : ''}
             <div class="field"><label for="editor-permlink">Permlink</label><input id="editor-permlink" name="permlink" type="text" ${isGolos ? 'placeholder="пусто = сгенерировать из заголовка"' : 'placeholder="пусто = сгенерировать из заголовка"'}></div>
             ${chain.id === 'hive' ? `<div class="field"><label for="editor-category">Сообщество / parent_permlink</label><select id="editor-category" name="category"><option value="hive-142159">Black And White</option><option value="hive-194913">Photography Lovers</option><option value="hive-158694">Alien Art Hive</option><option value="hive-155530">Wednesday Walk</option><option value="hive-117778">CCH</option><option value="hive-119845">Photography</option><option value="hive-127788">Amazing Nature</option><option value="hive-106444">PhotoFeed</option><option value="hive-151327">FungiFriday</option><option value="hive-179017">Shadow Hunters</option><option value="hive-142821">Photographic Society</option><option value="hive-167922">LeoFinance</option><option value="hive-120078">Natural Medicine</option><option value="dpos-post" selected>dpos-post / без сообщества</option></select></div>` : ''}
@@ -9724,6 +9726,7 @@
     if ((isGolos || isHiveOrSteem(chain)) && initialEditUrl) editorAutoLoadEdit(document.getElementById('editor-edit-url'), document.getElementById('editor-load-edit'));
     bindMarkdownEditor(appEl);
     if (global.DposPostCover && ['golos', 'steem', 'hive'].includes(chain.id)) disposePostCover = global.DposPostCover.mount(appEl.querySelector('[data-post-cover]'), { upload: uploadEditorImageToImgur });
+    if (global.DposTitleSuggestions) disposeTitleSuggestions = global.DposTitleSuggestions.mount(appEl.querySelector('[data-title-suggestions]'));
     bindCopyButtons(appEl);
     setStatus(`${chain.title} редактор готов: проверка или отправка по подтверждению.`, 'ok');
   }
@@ -17575,6 +17578,7 @@ Memo key: ${keys.memo}`);
 
   async function renderRoute() {
     if (disposePostCover) { disposePostCover(); disposePostCover = null; }
+    if (disposeTitleSuggestions) { disposeTitleSuggestions(); disposeTitleSuggestions = null; }
     if (global.DposVault && global.DposVault.ready) await global.DposVault.ready;
     if (clearVizAgentSecrets) { clearVizAgentSecrets(); clearVizAgentSecrets = null; }
     const renderGeneration = ++routeRenderGeneration;
