@@ -1,7 +1,7 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20261101-release-3-1-10';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-release-3-1-11';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -32,7 +32,7 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/auto-upvoter.js?v=20261013-golos-web-review2',
   '/v3/js/settings-sync.js?v=20261101-settings-sync-r2',
   '/v3/js/settings-sync-ui.js?v=20261101-settings-sync',
-  '/v3/js/pwa.js?v=20261101-release-3-1-10',
+  '/v3/js/pwa.js?v=20261105-release-3-1-11',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'

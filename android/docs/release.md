@@ -1,9 +1,9 @@
 # Android release notes and packaging
 
-## 3.1.11 / code89 — local candidate, not published
+## 3.1.11 / code89
 
 - Includes the trusted `filesDir` alias compatibility fix described below. Package, historical certificate and updater public-key pin remain unchanged for an in-place upgrade.
-- This candidate does not change the live website or signed update feed. The currently published APK remains 3.1.10. Full Debug and Release host suites each pass 544 executions across 77 classes with no failures, errors or skips; all previous 534 identities plus 10 new regressions are retained. The assembled non-debuggable APK preserves the historical package, certificate and updater pin. Physical-device installation and TalkBack acceptance are not claimed.
+- Release artifact: `downloads/dpos-space-3.1.11.apk`. The APK preserves settings and keys through an in-place update with the historical package and certificate; do not uninstall or clear app data. Full Debug and Release host suites each pass 544 executions across 77 classes with no failures, errors or skips; all previous 534 identities plus 10 new regressions are retained. The assembled non-debuggable APK preserves the historical package, certificate and updater pin. Physical-device installation and TalkBack acceptance are not claimed.
 
 ## 3.1.10 / code88
 
