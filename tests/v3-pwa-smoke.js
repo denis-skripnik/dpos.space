@@ -94,12 +94,12 @@ vm.runInNewContext(fs.readFileSync(path.join(root, 'v3/js/i18n-en.js'), 'utf8'),
 assert.strictEqual(english.DposEnglish[footerLabel], 'DPoS Space. Web interface 3.1.13. Public APK 3.1.13.', 'English footer preserves both explicit release labels');
 const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-13';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261106-latest-apk-only'"), 'service worker cache bumped for the current-only APK upgrade link');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261106-global-navigation'"), 'service worker cache bumped for the current-only APK upgrade link');
 const coverMarker = 'v3/js/post-cover.js?v=20261105-editor-titles';
 assert(indexSource.includes(coverMarker) && swSource.includes('/' + coverMarker), 'cover module load and offline cache markers agree');
 assert(indexSource.indexOf(coverMarker) < indexSource.indexOf('v3/js/app.js'), 'cover module loads before app entry');
 for (const name of ['title-suggestions', 'vault', 'i18n-en', 'app', 'voice-ui']) {
-  const marker = `v3/js/${name}.js?v=${name === 'app' ? '20261106-latest-apk-only' : '20261105-editor-titles'}`;
+  const marker = `v3/js/${name}.js?v=${name === 'app' ? '20261106-global-navigation' : '20261105-editor-titles'}`;
   assert(indexSource.includes(marker) && swSource.includes('/' + marker), `${name}: coupled cache markers`);
 }
 assert(indexSource.indexOf('v3/js/title-suggestions.js?') < indexSource.indexOf('v3/js/app.js?'), 'focused title module loads before canonical app entry');
