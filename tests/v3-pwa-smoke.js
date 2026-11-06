@@ -81,6 +81,11 @@ assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.13.apk', 'stable APK uses 
 assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.13'"), 'stable download version matches');
 assert(pwaSource.includes('download="dpos-space-3.1.13.apk"'), 'suggested download name matches public URL');
 assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
+assert.deepStrictEqual(fs.readdirSync(path.join(root, 'downloads')).filter(name => name.endsWith('.apk')), ['dpos-space-3.1.13.apk'], 'public downloads retain only the current stable APK');
+const upgradeAssignment = appSource.match(/appEl\.innerHTML = '<section class="panel"><h2>Обновите приложение Android[\s\S]*?';/)[0];
+const upgradeView = { innerHTML: '' };
+vm.runInNewContext(upgradeAssignment, { appEl: upgradeView });
+assert(upgradeView.innerHTML.includes(`href="${apkUrl}"`), 'legacy Android upgrade screen links the retained stable APK, not a removed debug alias');
 const footer = indexSource.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/)[1];
 const footerLabel = 'DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.13.';
 assert(footer.includes(footerLabel), 'footer distinguishes current web interface from unchanged public APK');
@@ -89,12 +94,12 @@ vm.runInNewContext(fs.readFileSync(path.join(root, 'v3/js/i18n-en.js'), 'utf8'),
 assert.strictEqual(english.DposEnglish[footerLabel], 'DPoS Space. Web interface 3.1.13. Public APK 3.1.13.', 'English footer preserves both explicit release labels');
 const pwaMarker = 'v3/js/pwa.js?v=20261105-release-3-1-13';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261105-release-3-1-13'"), 'service worker cache bumped for canonical post title and optional suggestions');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261106-latest-apk-only'"), 'service worker cache bumped for the current-only APK upgrade link');
 const coverMarker = 'v3/js/post-cover.js?v=20261105-editor-titles';
 assert(indexSource.includes(coverMarker) && swSource.includes('/' + coverMarker), 'cover module load and offline cache markers agree');
 assert(indexSource.indexOf(coverMarker) < indexSource.indexOf('v3/js/app.js'), 'cover module loads before app entry');
 for (const name of ['title-suggestions', 'vault', 'i18n-en', 'app', 'voice-ui']) {
-  const marker = `v3/js/${name}.js?v=20261105-editor-titles`;
+  const marker = `v3/js/${name}.js?v=${name === 'app' ? '20261106-latest-apk-only' : '20261105-editor-titles'}`;
   assert(indexSource.includes(marker) && swSource.includes('/' + marker), `${name}: coupled cache markers`);
 }
 assert(indexSource.indexOf('v3/js/title-suggestions.js?') < indexSource.indexOf('v3/js/app.js?'), 'focused title module loads before canonical app entry');

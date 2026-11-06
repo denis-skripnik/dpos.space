@@ -17600,7 +17600,7 @@ Memo key: ${keys.memo}`);
       return;
     }
     if (global.DposNative && global.DposNative.needsUpdate()) {
-      appEl.innerHTML = '<section class="panel"><h2>Обновите приложение Android</h2><p>Для безопасной работы с сохранёнными аккаунтами требуется новая версия приложения. Аккаунты и настройки сохранены.</p><p><a href="/downloads/dpos-space-latest-debug.apk" download>Скачать обновление Android</a></p></section>';
+      appEl.innerHTML = '<section class="panel"><h2>Обновите приложение Android</h2><p>Для безопасной работы с сохранёнными аккаунтами требуется новая версия приложения. Аккаунты и настройки сохранены.</p><p><a href="/downloads/dpos-space-3.1.13.apk" download>Скачать обновление Android</a></p></section>';
       return;
     }
     if (global.DposVaultUI && !global.DposVaultUI.guard({ requireSetup: requestedState.app === 'accounts' || requestedState.app === 'backup' })) return;
