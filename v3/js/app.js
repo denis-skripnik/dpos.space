@@ -17439,7 +17439,7 @@ Memo key: ${keys.memo}`);
       .filter((item) => !item.chainId || item.chainId === chain.id)
       .filter((item) => !cleanAccount || !item.account || item.account === cleanAccount)
       .filter((item) => !item.opType || selectedOps.has(item.opType));
-    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a><br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
+    const rows = items.length ? `<ul class="notifications-list notifications-list-full">${items.map((item, index) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span data-i18n-skip>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: <span data-reward-text="${index}">${escapeHtml(notifications.rewardInitialText(item))}</span></span></a>${notifications.rewardDetailsHtml(item)}<br><span class="muted">${escapeHtml(history.formatDate(item.timestamp) || item.timestamp || `операция #${item.sourceIndex}`)}</span></li>`).join('')}</ul>` : '<p class="muted">Непрочитанных уведомлений по выбранным фильтрам нет. Откройте верхнюю панель и нажмите «Обновить», если нужно проверить сейчас.</p>';
     const nativeBridge = nativeAndroidWorkerBridge();
     const nativeSupported = nativeBridge && supportsNativeNotificationChain(chain.id);
     const opCheckboxes = allOps.map((op, index) => `<label class="checkbox-row"><input type="checkbox" name="ops" value="${escapeHtml(op)}" ${selectedOps.has(op) ? 'checked' : ''}> ${escapeHtml(notifications.operationLabel(op))} <code>${escapeHtml(op)}</code></label>`).join('');
@@ -17465,6 +17465,7 @@ Memo key: ${keys.memo}`);
       ${rows}
     </section>`;
     const routeIsCurrent = () => capturedRouteEpoch === routeRenderGeneration;
+    void notifications.hydrateRewardDisplay(appEl, items, routeIsCurrent);
     const syncAndroidNotifications = async (currentSettings, options = {}) => {
       const status = appEl.querySelector('#android-notifications-worker-status');
       if (!nativeSupported || !status || !cleanAccount || !routeIsCurrent()) return;

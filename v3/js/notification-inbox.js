@@ -46,11 +46,15 @@
         status.textContent = snapshot.unreadCount > snapshot.events.length
           ? 'Показаны последние сохранённые события. Счётчик включает все непрочитанные уведомления.'
           : markRead && snapshot.unreadCount === 0 ? 'Все уведомления отмечены прочитанными.' : '';
-        list.innerHTML = snapshot.events.length ? '<ul class="notifications-list notifications-list-full">' + snapshot.events.map(event => {
+        const notifications = global.DposNotifications;
+        list.innerHTML = snapshot.events.length ? '<ul class="notifications-list notifications-list-full">' + snapshot.events.map((event, index) => {
           const route = String(event.route || event.url || '');
           const href = route.startsWith('#') ? route : '#app=notifications';
-          return `<li><a href="${escape(href)}"><strong>${escape(event.title || 'Уведомление')}</strong><br><span data-i18n-skip>${escape(event.text || '')}</span></a></li>`;
+          const text = notifications && notifications.rewardInitialText ? notifications.rewardInitialText(event) : event.text || '';
+          const details = notifications && notifications.rewardDetailsHtml ? notifications.rewardDetailsHtml(event) : '';
+          return `<li><a href="${escape(href)}"><strong>${escape(event.title || 'Уведомление')}</strong><br><span data-i18n-skip data-reward-text="${index}">${escape(text)}</span></a>${details}</li>`;
         }).join('') + '</ul>' : '<p>Непрочитанных уведомлений нет.</p>';
+        if (notifications && notifications.hydrateRewardDisplay) void notifications.hydrateRewardDisplay(list, snapshot.events, current);
       } catch (error) {
         if (current()) status.textContent = markRead ? 'Не удалось отметить уведомления прочитанными. Повторите попытку.' : 'Не удалось получить уведомления. Повторите попытку.';
       } finally {

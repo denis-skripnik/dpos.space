@@ -575,10 +575,69 @@
       .replaceAll("'", '&#039;');
   }
 
+  const rewardRates = new Map();
+  function rewardInitialText(item) {
+    if (!global.DposRewardDisplay || !global.DposRewardDisplay.identify(item)) return String(item.text || '');
+    const text = 'Пересчитываю кураторскую награду…';
+    return global.DposI18n ? global.DposI18n.t(text) : text;
+  }
+  function rewardDetailsHtml(item) {
+    return global.DposRewardDisplay && global.DposRewardDisplay.identify(item)
+      ? `<details><summary>Технические подробности</summary><span data-i18n-skip>${escapeHtml(item.text)}</span></details>` : '';
+  }
+  async function loadRewardProperties(chain) {
+    const cached = rewardRates.get(chain.id);
+    if (cached && cached.expires > Date.now()) return cached.promise;
+    const entry = { expires: Infinity, promise: null };
+    const work = async () => {
+      let timer;
+      try {
+        await Promise.race([
+          ensureChainLibraryLoaded(chain),
+          new Promise((_, reject) => { timer = global.setTimeout(() => reject(new Error('Reward library timeout')), 8000); })
+        ]);
+      } finally { global.clearTimeout(timer); }
+      // Each RPC attempt already has the profile reader's 10-second deadline.
+      // Do not race the complete failover chain against a shorter UI deadline.
+      const connection = await global.DposProfiles.connect(chain);
+      const properties = await global.DposProfiles.apiCall(connection, 'getDynamicGlobalProperties', []);
+      if (!global.DposRewardDisplay.validRate(chain.id, properties)) throw new Error('Invalid reward rate');
+      return properties;
+    };
+    entry.promise = work().then(properties => {
+      entry.expires = Date.now() + 60000;
+      return properties;
+    }).catch(error => {
+      if (rewardRates.get(chain.id) === entry) rewardRates.delete(chain.id);
+      throw error;
+    });
+    rewardRates.set(chain.id, entry);
+    return entry.promise;
+  }
+  async function hydrateRewardDisplay(container, items, isCurrent = () => true) {
+    const display = global.DposRewardDisplay;
+    if (!display) return;
+    // Capture nodes before awaiting so a later refresh cannot receive stale amounts.
+    const targets = items.map((item, index) => ({ item, info: display.identify(item), node: container.querySelector(`[data-reward-text="${index}"]`) }))
+      .filter(target => target.info && target.node);
+    const properties = new Map();
+    await Promise.all(Array.from(new Set(targets.map(target => target.info.chainId))).map(async id => {
+      const chain = global.DposChains && global.DposChains[id];
+      try { properties.set(id, chain && global.DposProfiles ? await loadRewardProperties(chain) : null); }
+      catch (_) { properties.set(id, null); }
+    }));
+    if (!isCurrent()) return;
+    for (const { item, info, node } of targets) {
+      if (node.isConnected === false) continue;
+      const text = display.present(item, properties.get(info.chainId)).text;
+      node.textContent = global.DposI18n ? global.DposI18n.t(text) : text;
+    }
+  }
+
   function renderList(items) {
     const visible = items.slice(0, MAX_PANEL_ITEMS);
     if (!visible.length) return '<p class="muted">Непрочитанных уведомлений нет.</p>';
-    return `<ul class="notifications-list">${visible.map((item) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span data-i18n-skip>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: ${escapeHtml(item.text || '')}</span></a></li>`).join('')}</ul>`;
+    return `<ul class="notifications-list">${visible.map((item, index) => `<li><a href="${escapeHtml(item.url || '#')}"><strong>${escapeHtml(item.title)}</strong><br><span data-i18n-skip>${escapeHtml(item.chainTitle || item.chainId)} / @${escapeHtml(item.account)}: <span data-reward-text="${index}">${escapeHtml(rewardInitialText(item))}</span></span></a>${rewardDetailsHtml(item)}</li>`).join('')}</ul>`;
   }
 
   function renderPanel(container, chains, statusMessage) {
@@ -611,6 +670,7 @@
         <p><a href="#app=notifications" data-notifications-all>Показать все</a></p>
       </section>
     </details>`;
+    void hydrateRewardDisplay(container, unread.slice(0, MAX_PANEL_ITEMS));
   }
 
   function init(container, chains, hooks = {}) {
@@ -683,6 +743,9 @@
     scanAccount,
     scanAll,
     renderPanel,
+    rewardInitialText,
+    rewardDetailsHtml,
+    hydrateRewardDisplay,
     init
   });
 })(window);

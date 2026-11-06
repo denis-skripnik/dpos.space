@@ -1,5 +1,10 @@
 // First-party interface translations. No runtime translation service.
 window.DposEnglish = Object.freeze({
+  "Пересчёт кураторской награды в ⟦0⟧ недоступен.": "Curation reward conversion to ⟦0⟧ is unavailable.",
+  "<0.001 ⟦0⟧ (по текущему соотношению)": "<0.001 ⟦0⟧ (at the current ratio)",
+  "≈ +⟦0⟧ ⟦1⟧ (по текущему соотношению)": "≈ +⟦0⟧ ⟦1⟧ (at the current ratio)",
+  "Пересчитываю кураторскую награду…": "Converting curation reward…",
+  "Технические подробности": "Technical details",
   "DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.13.": "DPoS Space. Web interface 3.1.13. Public APK 3.1.13.",
   "Предложить заголовки": "Suggest titles",
   "Текущий текст отправится в Groq только по этой кнопке. Выберите вариант, чтобы заменить заголовок поста.": "The current text is sent to Groq only with this button. Choose a suggestion to replace the post title.",
