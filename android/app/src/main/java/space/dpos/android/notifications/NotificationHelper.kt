@@ -78,15 +78,15 @@ object NotificationHelper {
     }
 
     @Synchronized
-    fun showEvent(context: Context, title: String?, body: String?, tag: String?, route: String?) {
-        // Persist sanitized event state even when Android notification permission is denied.
+    fun showEvent(context: Context, title: String?, body: String?, tag: String?, route: String?, displayText: String? = null) {
+        // Persist sanitized ORIGINAL text for web details, even when notification permission is denied.
         ensureChannels(context)
         val snapshot = NotificationInbox(context).add(tag, title, body, route) ?: return
         if (!canPost(context)) return
-        postSummary(context, snapshot)
+        postSummary(context, snapshot, displayText)
     }
 
-    internal fun postSummary(context: Context, snapshot: NotificationInbox.Snapshot) {
+    internal fun postSummary(context: Context, snapshot: NotificationInbox.Snapshot, displayText: String? = null) {
         val latest = snapshot.events.lastOrNull { !it.read } ?: snapshot.events.lastOrNull() ?: return
         val count = snapshot.unreadCount
         if (count <= 0) {
@@ -94,7 +94,12 @@ object NotificationHelper {
             return
         }
         val summaryTitle = if (count == 1) "DPoS Space: 1 непрочитанное событие" else "DPoS Space: $count непрочитанных событий"
-        val latestText = listOf(latest.title, latest.text).filter { it.isNotBlank() }.joinToString(" — ")
+        // Restoration/migration has no worker rate: use a human fallback, never raw vesting units.
+        val fallback = CurationRewardDisplay.text(DposEventNotification(latest.id, latest.title, latest.text, latest.route, -1), null)
+        val shownBody = if (fallback != null) {
+            displayText?.takeIf { latest == snapshot.events.lastOrNull() }?.let { PayloadSanitizer.text(it, 600) } ?: fallback
+        } else latest.text
+        val latestText = listOf(latest.title, shownBody).filter { it.isNotBlank() }.joinToString(" — ")
         val notification = NotificationCompat.Builder(context, CHANNEL_EVENTS)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(summaryTitle)

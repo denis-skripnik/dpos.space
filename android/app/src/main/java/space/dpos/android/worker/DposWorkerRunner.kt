@@ -10,6 +10,7 @@ import space.dpos.android.notifications.GolosNotificationScanner
 import space.dpos.android.notifications.GolosHistoryClient
 import space.dpos.android.notifications.HttpGrapheneHistoryClient
 import space.dpos.android.notifications.NotificationHelper
+import space.dpos.android.notifications.CurationRewardDisplayPass
 import space.dpos.android.notifications.RestWalletNotificationScanner
 import space.dpos.android.notifications.RestWalletNotificationSpecs
 import space.dpos.android.storage.EncryptedKeyRef
@@ -106,7 +107,8 @@ class DposWorkerRunner(
     private val recoveryWall: () -> Long = { System.currentTimeMillis() },
     private val recoveryMonotonic: () -> Long = { android.os.SystemClock.elapsedRealtime() },
     private val productionPolicy: space.dpos.android.upvoter.GolosProductionPolicy = space.dpos.android.upvoter.GolosProductionPolicy(),
-    private val statusSink: ((String) -> Unit)? = null
+    private val statusSink: ((String) -> Unit)? = null,
+    private val curationPropertiesOverride: ((String, Long) -> JSONObject?)? = null
 ) {
 
     private fun pinRecoveryRpc(rpc: GolosRpcClient, permit: () -> Boolean): GolosRpcClient {
@@ -191,6 +193,7 @@ class DposWorkerRunner(
         var skipped = 0
         val errors = mutableListOf<String>()
         val messages = mutableListOf<String>()
+        val curationDisplay = CurationRewardDisplayPass(curationPropertiesOverride)
         val autoUpvoterFeed = mutableListOf<JSONObject>()
         val storedAccounts = store.readAccounts()
         val golosOnly = reason == "foreground-golos"
@@ -232,9 +235,18 @@ class DposWorkerRunner(
                         messages += msg
                         cursor.lastIndex to emptyList()
                     }
-                    store.saveCursor(NotificationCursor(account.chainId, account.account, nextCursor, true))
-                    notifications.forEach { event -> NotificationHelper.showEvent(context, event.title, event.text, event.id, event.route) }
-                    notificationsShown += notifications.size
+                    val mayNotify = { runToken.mayContinue() && store.notificationEnabled(account.chainId, account.account) }
+                    if (!mayNotify()) continue
+                    val displays = notifications.map { event -> curationDisplay.text(event, mayNotify) }
+                    if (!mayNotify()) continue
+                    notifications.forEachIndexed { index, event ->
+                        if (mayNotify()) {
+                            NotificationHelper.showEvent(context, event.title, event.text, event.id, event.route, displays[index])
+                            notificationsShown += 1
+                        }
+                    }
+                    // A stopped partial batch must be rescanned; inbox IDs deduplicate posted events.
+                    if (mayNotify()) store.saveCursor(NotificationCursor(account.chainId, account.account, nextCursor, true))
                     val msg = "${account.chainId}:${account.account}: история проверена, новых уведомлений ${notifications.size}, cursor=$nextCursor"
                     store.appendLog(msg)
                     messages += msg

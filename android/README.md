@@ -55,6 +55,15 @@ Current worker scope:
 
 Release signing secrets/keystores must not be committed. Use Android Studio, local untracked Gradle properties, or CI secrets later for signed release builds.
 
+## Native curation push — unreleased 3.1.14 private candidate
+
+- Only Golos/Steem/Hive `curation_reward` OS summaries convert GESTS/VESTS to СГ/SP/HP using exact integer arithmetic. Positive values show `≈ +… (по текущему соотношению)`; tiny values show `<0.001`, zero shows `0.000`. This is a current vesting fund/shares approximation, not a historical payout or market price.
+- The background worker lazily reads `get_dynamic_global_properties` once per affected chain/pass, reusing success or failure across accounts. No read is made for a baseline, filtered/no curation events, or malformed reward amounts. There are no keys, UI/helper network requests, new settings, services or persistent rate caches.
+- Additional synchronous reads use configured monotonic deadline budgets of 4.5 seconds per pass, at most 1.5 seconds per chain and 750 ms per endpoint attempt. Failed nodes may fall back only within the remaining budget. These are not universal wall-clock guarantees for DNS, TLS or platform I/O. Stop/revocation is checked before and after reads and before posting; the synchronous transport disconnects active HTTP I/O without leaving a detached request behind.
+- A missing/zero/malformed rate or exhausted budget still posts `Получена кураторская награда`, without raw vesting units. Reconstructed/migrated summaries use the same offline fallback. No later background update is scheduled.
+- Original sanitized event title/text/route are persisted **unchanged**, including raw GESTS/VESTS for web technical details (`v3/js/reward-display.js`). Display overrides are OS-only; inbox schema, hashed IDs, dedup/read/unread state, normal cursor advancement and unrelated event/network presentations are unchanged. Transactions, vote policy and signing are outside this slice.
+- Candidate source is not a published release. Robolectric/unit regression coverage does not replace a physical-device notification/accessibility check.
+
 ## Голосовой ввод и ИИ
 
 На вкладке редактора «Голос в текст» сначала нажмите «Записать»: только это действие запрашивает доступ к микрофону. Запись ведёт отдельная Android-служба с тихим постоянным уведомлением «Остановить запись», в том числе при выключенном экране. Пауза не завершает запись. После «Стоп» отдельно доступны «Удалить» и «Распознать»; автоматического распознавания, публикации или возобновления записи нет. Чтобы записать заново, сначала явно удалите предыдущую запись.
