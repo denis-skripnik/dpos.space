@@ -17586,6 +17586,15 @@ Memo key: ${keys.memo}`);
     const requestedState = parseHash();
     if (global.DposAutomationContinuity && global.DposVault && global.DposVault.status().state === 'unlocked') await resumeBrowserAutomations(requestedState.chain === 'viz' && requestedState.app === 'viz-self-award');
     if (!isCurrentRoute()) return;
+    // Global pages can return before chain routing initializes the header.
+    if (!chainSelect.innerHTML || !appSelect.innerHTML) {
+      const navigationChain = chains[chainSelect.value] || chains.golos || Object.values(chains)[0];
+      const navigationApp = navigationChain.apps.find((item) => item.id === 'accounts') || navigationChain.apps[0];
+      fillChainSelect(navigationChain.id);
+      fillNetworkSelect(navigationChain, selectedNetworkForState(requestedState, navigationChain));
+      fillAppSelect(navigationChain, navigationApp.id);
+      updateAccountField({ id: 'global-navigation', accountField: false }, navigationChain);
+    }
     if (global.DposDiagnostics) void global.DposDiagnostics.record('info', 'route.open', { chain: requestedState.chain || '', app: requestedState.app || 'home' });
     if (requestedState.app === 'notifications' && !requestedState.chain && !requestedState.account && global.DposNotificationInbox) {
       await global.DposNotificationInbox.render(appEl, { isCurrent: isCurrentRoute });
