@@ -81,7 +81,9 @@ assert.strictEqual(apkUrl, '/downloads/dpos-space-3.1.14.apk', 'stable APK uses 
 assert(pwaSource.includes("ANDROID_APK_VERSION = '3.1.14'"), 'stable download version matches');
 assert(pwaSource.includes('download="dpos-space-3.1.14.apk"'), 'suggested download name matches public URL');
 assert(fs.existsSync(path.join(root, apkUrl)), 'linked Android APK exists in the static site');
-assert.deepStrictEqual(fs.readdirSync(path.join(root, 'downloads')).filter(name => name.endsWith('.apk')), ['dpos-space-3.1.14.apk'], 'public downloads retain only the current stable APK');
+const activeFeed = JSON.parse(fs.readFileSync(path.join(root, 'downloads/dpos-space-latest.manifest.json'), 'utf8')).manifest;
+assert(fs.existsSync(path.join(root, activeFeed.apk)), 'the currently signed feed APK remains available throughout rollout');
+assert.deepStrictEqual(fs.readdirSync(path.join(root, 'downloads')).filter(name => name.endsWith('.apk')).sort(), ['dpos-space-3.1.13.apk', 'dpos-space-3.1.14.apk'], 'retain the superseded feed APK for clients that have already observed it');
 const upgradeAssignment = appSource.match(/appEl\.innerHTML = '<section class="panel"><h2>Обновите приложение Android[\s\S]*?';/)[0];
 const upgradeView = { innerHTML: '' };
 vm.runInNewContext(upgradeAssignment, { appEl: upgradeView });

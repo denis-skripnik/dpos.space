@@ -6,6 +6,7 @@
 - Original inbox events, identifiers, read/unread state and raw technical details are preserved. Rate reads are scoped to one worker pass with configured deadlines; stopped partial batches resume using inbox deduplication.
 - Exact retained APK SHA-256: `d2c9c1c9287da10bd86b29c4d2ee464e8636f60d59fb8ed4c1059b53f50b548a`. Full Debug and Release gates each pass 603 identical cases, including 23 curation cases. No physical-device/TalkBack acceptance is claimed.
 - Install over the existing app without uninstalling or clearing data. Package, historic signing certificate and updater public pin are unchanged. Signed-feed publication and device-first-observation delays remain enforced independently.
+- Retain the preceding 3.1.13 APK during and after this rollout: clients may have already observed its signed feed. Source/APK publication does not remove the active feed's artifact. Signed-feed activation changes only the versioned and latest manifests; old-artifact cleanup is a separate operation.
 
 ## 3.1.13 / code91
 
