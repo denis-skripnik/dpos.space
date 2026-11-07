@@ -5,7 +5,7 @@ window.DposEnglish = Object.freeze({
   "≈ +⟦0⟧ ⟦1⟧ (по текущему соотношению)": "≈ +⟦0⟧ ⟦1⟧ (at the current ratio)",
   "Пересчитываю кураторскую награду…": "Converting curation reward…",
   "Технические подробности": "Technical details",
-  "DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.13.": "DPoS Space. Web interface 3.1.13. Public APK 3.1.13.",
+  "DPoS Space. Веб-интерфейс 3.1.13. Публичный APK 3.1.14.": "DPoS Space. Web interface 3.1.13. Public APK 3.1.14.",
   "Предложить заголовки": "Suggest titles",
   "Текущий текст отправится в Groq только по этой кнопке. Выберите вариант, чтобы заменить заголовок поста.": "The current text is sent to Groq only with this button. Choose a suggestion to replace the post title.",
   "Настройки голосового ввода и Groq": "Voice input and Groq settings",

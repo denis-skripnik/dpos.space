@@ -11,11 +11,11 @@ import release_secure_consumer as consumer
 class Release314Test(unittest.TestCase):
     def test_version_and_monotonic_code(self):
         source = (ROOT / 'android/app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 91', source)
-        self.assertIn('versionName = "3.1.13"', source)
+        self.assertIn('versionCode = 92', source)
+        self.assertIn('versionName = "3.1.14"', source)
         for name in ('3.1.2', '3.1.3', '3.1.9', '3.1.10', '3.1.11'):
             manifest = json.loads((ROOT / ('downloads/dpos-space-' + name + '.manifest.json')).read_text())['manifest']
-            self.assertGreater(91, manifest['versionCode'])
+            self.assertGreater(92, manifest['versionCode'])
         self.assertIn('applicationIdSuffix = ".debug"', source)
         self.assertIn('https://dpos.blinddev.xyz/', source)
         self.assertIn('dposReleasePublicKey', source)

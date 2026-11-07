@@ -1,5 +1,12 @@
 # Android release notes and packaging
 
+## 3.1.14 / code92
+
+- Native curation push summaries use СГ, SP and HP for Golos, Steem and Hive. Values are approximate at the current vesting fund/shares ratio; unavailable rates use a human notification without raw vesting units.
+- Original inbox events, identifiers, read/unread state and raw technical details are preserved. Rate reads are scoped to one worker pass with configured deadlines; stopped partial batches resume using inbox deduplication.
+- Exact retained APK SHA-256: `d2c9c1c9287da10bd86b29c4d2ee464e8636f60d59fb8ed4c1059b53f50b548a`. Full Debug and Release gates each pass 603 identical cases, including 23 curation cases. No physical-device/TalkBack acceptance is claimed.
+- Install over the existing app without uninstalling or clearing data. Package, historic signing certificate and updater public pin are unchanged. Signed-feed publication and device-first-observation delays remain enforced independently.
+
 ## 3.1.13 / code91
 
 - Adds native voice capture and the encrypted Groq service key, shared with explicit title suggestions. Recording can be stopped, deleted or sent for recognition; text is transferred into the editor only on request. Title suggestions return three options, and only a selected option changes the existing publication title.

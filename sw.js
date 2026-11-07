@@ -1,12 +1,12 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20261106-curation-power';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20261107-release-3-1-14';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/v3/js/i18n-en.js?v=20261106-curation-power',
+  '/v3/js/i18n-en.js?v=20261107-release-3-1-14',
   '/v3/js/i18n.js?v=20260919-audit-integration',
   '/v3/js/voice-store.js?v=20261105-voice-input',
   '/v3/js/voice-input.js?v=20261105-voice-input',
@@ -15,7 +15,7 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/title-suggestions.js?v=20261105-editor-titles',
   '/v3/assets/covers/winged-head.webp',
   '/v3/assets/covers/cover-title.ttf',
-  '/v3/js/app.js?v=20261106-curation-power',
+  '/v3/js/app.js?v=20261107-release-3-1-14',
   '/v3/js/viz-agents.js?v=20261006-viz-agents-current-multilist',
   '/v3/vendor/viz/viz.min.js',
   '/v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0',
@@ -34,13 +34,13 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/diagnostics-ui.js?v=20260921-notification-summary',
   '/v3/js/profiles.js?v=20261016-viz-safe-diagnostics',
   '/v3/js/history.js?v=20260919-audit-integration',
-  '/v3/js/reward-display.js?v=20261106-curation-power',
-  '/v3/js/notifications.js?v=20261106-curation-power',
-  '/v3/js/notification-inbox.js?v=20261106-curation-power',
+  '/v3/js/reward-display.js?v=20261107-release-3-1-14',
+  '/v3/js/notifications.js?v=20261107-release-3-1-14',
+  '/v3/js/notification-inbox.js?v=20261107-release-3-1-14',
   '/v3/js/auto-upvoter.js?v=20261013-golos-web-review2',
   '/v3/js/settings-sync.js?v=20261101-settings-sync-r2',
   '/v3/js/settings-sync-ui.js?v=20261101-settings-sync',
-  '/v3/js/pwa.js?v=20261105-release-3-1-13',
+  '/v3/js/pwa.js?v=20261107-release-3-1-14',
   '/v3/js/app.wallet-notifications.js',
   '/v3/assets/icons/dpos-space-192.png',
   '/v3/assets/icons/dpos-space-512.png'
