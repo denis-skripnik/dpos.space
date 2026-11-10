@@ -16646,8 +16646,21 @@ Memo key: ${keys.memo}`);
   }
 
   async function renderMinterLong() {
+    const capturedRouteEpoch = routeRenderGeneration;
+    const capturedHash = global.location.hash;
     const state = parseHash();
     const page = normalizeLongPage(state.long_page || state.longPage || 'main');
+    appEl.innerHTML = '<section class="panel"><h2>Minter LONG</h2><p role="status" aria-live="polite">Проверяю статический архив LONG...</p></section>';
+    setStatus('LONG: проверяю архив...', 'loading');
+    if (!global.DposLongArchive) throw new Error('Не загружен модуль архива LONG. Обновите страницу; live API не используются.');
+    const archive = await global.DposLongArchive.tryRender({ page, date: state.date });
+    if (capturedRouteEpoch !== routeRenderGeneration || capturedHash !== global.location.hash) return;
+    if (archive.active) {
+      // The static reader escapes every source cell/report before returning markup.
+      appEl.innerHTML = archive.html;
+      setStatus(archive.status, archive.error ? 'error' : 'ok');
+      return;
+    }
     if (page === 'bids') return renderLongBids();
     if (page === 'deferred-txs') return renderLongDeferredTxs();
     if (page === 'loto') return renderLongLoto();

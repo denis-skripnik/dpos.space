@@ -96,7 +96,7 @@ vm.runInNewContext(fs.readFileSync(path.join(root, 'v3/js/i18n-en.js'), 'utf8'),
 assert.strictEqual(english.DposEnglish[footerLabel], 'DPoS Space. Web interface 3.1.13. Public APK 3.1.14.', 'English footer preserves both explicit release labels');
 const pwaMarker = 'v3/js/pwa.js?v=20261107-release-3-1-14';
 assert(indexSource.includes(pwaMarker) && swSource.includes('/' + pwaMarker), 'PWA helper cache markers agree');
-assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261107-release-3-1-14'"), 'service worker cache bumped for the curation reward display');
+assert(swSource.includes("DPOS_CACHE_VERSION = 'dpos-space-v3-20261107-release-3-1-14-long-final1'"), 'service worker cache bumped for the final LONG archive while preserving release assets');
 const coverMarker = 'v3/js/post-cover.js?v=20261105-editor-titles';
 assert(indexSource.includes(coverMarker) && swSource.includes('/' + coverMarker), 'cover module load and offline cache markers agree');
 assert(indexSource.indexOf(coverMarker) < indexSource.indexOf('v3/js/app.js'), 'cover module loads before app entry');

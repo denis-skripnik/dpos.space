@@ -1,7 +1,7 @@
 /* DPoS Space static PWA service worker.
  * Scope: installable shell + safe offline fallback, not a background scanner.
  */
-const DPOS_CACHE_VERSION = 'dpos-space-v3-20261107-release-3-1-14';
+const DPOS_CACHE_VERSION = 'dpos-space-v3-20261107-release-3-1-14-long-final1';
 const DPOS_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -15,7 +15,8 @@ const DPOS_SHELL_ASSETS = [
   '/v3/js/title-suggestions.js?v=20261105-editor-titles',
   '/v3/assets/covers/winged-head.webp',
   '/v3/assets/covers/cover-title.ttf',
-  '/v3/js/app.js?v=20261107-release-3-1-14',
+  '/v3/js/long-archive.js?v=20261110-long-final1',
+  '/v3/js/app.js?v=20261107-release-3-1-14-long-final1',
   '/v3/js/viz-agents.js?v=20261006-viz-agents-current-multilist',
   '/v3/vendor/viz/viz.min.js',
   '/v3/js/golos-wallet-swap.js?v=20260923-release-3-1-0',
@@ -87,6 +88,7 @@ function isFreshnessSensitiveRequest(request) {
   try {
     const pathname = new URL(request.url).pathname;
     return pathname.startsWith('/api/')
+      || pathname.startsWith('/v3/data/long/')
       || (pathname.startsWith('/downloads/') && pathname.endsWith('.apk'));
   } catch (_error) {
     return false;

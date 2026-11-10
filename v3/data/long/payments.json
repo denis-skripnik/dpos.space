@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "state": "final",
+  "compensation": [
+    {
+      "kind": "compensation",
+      "hash": "Mt2457219dfa45a82b461c5c49ac849c57f7e41fa0498f05c6549dfb6f926a38d1",
+      "height": "40588536",
+      "nonce": "2093",
+      "sender": "Mx01029d73e128e2f53ff1fcc2d52a423283ad9439",
+      "memo": "Компенсация за фарминг за сожженные LP",
+      "gas_coin_id": "2782",
+      "gas_price": "1",
+      "fee_coin_id": "2782",
+      "fee_amount_pip": "1783094078144974787059",
+      "outputs": [
+        {
+          "to": "Mx782c2ee10fb849820ca1816694bfec03047376cf",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "71317.64"
+        },
+        {
+          "to": "Mxa7ec91099b3b95964720230fe4195cc732427daf",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "26145.07"
+        },
+        {
+          "to": "Mx63c23d21ba9b6eb6719b25480f07fefded05767e",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "3225.6"
+        },
+        {
+          "to": "Mx80b99668f5c8e6b5b80c8a50650aa4be2a507108",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "2.32"
+        }
+      ]
+    }
+  ],
+  "final": [
+    {
+      "kind": "final",
+      "hash": "Mtd8b3b35e5a5a3be34fb2a64a64c30c7d122ac44605d40940dd6758bb2a7e412d",
+      "height": "40649915",
+      "nonce": "2094",
+      "sender": "Mx01029d73e128e2f53ff1fcc2d52a423283ad9439",
+      "memo": "LONG farm",
+      "gas_coin_id": "2782",
+      "gas_price": "1",
+      "fee_coin_id": "2782",
+      "fee_amount_pip": "697820485685653713381",
+      "outputs": [
+        {
+          "to": "Mx5aea138bd36a4e6019472ebbbe0a88ac2e4f9969",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "38613.58643163855"
+        }
+      ]
+    },
+    {
+      "kind": "final",
+      "hash": "Mt06e5a28a310aa87e6e167e76ed0fe74fd164267b738fd0bca8e4f43e4c8358c2",
+      "height": "40649916",
+      "nonce": "2095",
+      "sender": "Mx01029d73e128e2f53ff1fcc2d52a423283ad9439",
+      "memo": "LONG farm",
+      "gas_coin_id": "2782",
+      "gas_price": "1",
+      "fee_coin_id": "2782",
+      "fee_amount_pip": "697884458411217893785",
+      "outputs": [
+        {
+          "to": "Mxce6bdd5c7ae3d87ee38996f9a3eda5d43463e557",
+          "coin_id": "2782",
+          "coin_symbol": "LONG",
+          "amount": "24802.948248107008"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,554 @@
+{
+  "schema_version": 1,
+  "state": "final",
+  "retirement_id": "smartfarm-retirement-2026-11-10",
+  "captured_at": "2026-11-10T11:00:11.271Z",
+  "cutoff_at": "2026-11-10T11:00:00.000Z",
+  "counts": {
+    "providers": 261,
+    "lotteries": 132,
+    "payments": 3
+  },
+  "files": {
+    "loto/2025-01-18.txt": {
+      "sha256": "83c1cae1bd416f3190054399c73b0def3d4292b7b459bfcf32140faeb9a63f83",
+      "bytes": 4910
+    },
+    "loto/2025-01-22.txt": {
+      "sha256": "7e57360f0d68f6431a6c4ef152e1a95b7c75e57108c6709efd35aa03d1dde7e1",
+      "bytes": 4912
+    },
+    "loto/2025-01-23.txt": {
+      "sha256": "234a4645c2a24de77464db0467b0afab812a2ee5b82a87bba2257ce958fe5e8e",
+      "bytes": 4909
+    },
+    "loto/2025-02-20.txt": {
+      "sha256": "6abbbe26bd5bad81ef73081ab700db23f6089530c6390492f8e0db8b6c4ec577",
+      "bytes": 4909
+    },
+    "loto/2025-02-21.txt": {
+      "sha256": "9b8e01f9b50742edc429b43d967820d9a8be17215ac7257c70eb6a8d68e67077",
+      "bytes": 4905
+    },
+    "loto/2025-02-22.txt": {
+      "sha256": "962b0f16b9ded1a7b59c318211174c91adfd3a33dee387dad0b9ecfdaf9d2a49",
+      "bytes": 4908
+    },
+    "loto/2025-02-23.txt": {
+      "sha256": "83351b93cbdaeca760f985c07d9c12bcffebbc39b36a123440927a7749870bbb",
+      "bytes": 4906
+    },
+    "loto/2025-03-07.txt": {
+      "sha256": "bc7cbf5fd2c68fd8f9ebe83be66b0b1b28c22f2a44749c485120ab1728241b13",
+      "bytes": 4892
+    },
+    "loto/2025-03-08.txt": {
+      "sha256": "b6f972da778ab0aad9f7b97dc7db22ab44456321777c32aa24d984eab682ef49",
+      "bytes": 4894
+    },
+    "loto/2025-03-09.txt": {
+      "sha256": "09559cfea7b2d0fced315bb1e352a834a2509011620eff3a6cd76c06a8e22ebf",
+      "bytes": 4895
+    },
+    "loto/2025-03-10.txt": {
+      "sha256": "96cbc76ee2170483d7fa7a593068269d3fb4457b08c6bd3db9122d05ead4a271",
+      "bytes": 4889
+    },
+    "loto/2025-03-11.txt": {
+      "sha256": "973665bdb8e580a07fc5e36d383c86d3e29828b352b2f09a5c88ba7ef3a006ec",
+      "bytes": 4897
+    },
+    "loto/2025-03-12.txt": {
+      "sha256": "6b020225beee3650deb2a3c99fa96863648b42a6fcb87618266df0e278e82ad9",
+      "bytes": 4893
+    },
+    "loto/2025-03-13.txt": {
+      "sha256": "d11ed6b2f1ad3d0aad5a3200ed68ff39b65a7ff9d9c5ed07fec7bed8dbcf577c",
+      "bytes": 4896
+    },
+    "loto/2025-03-18.txt": {
+      "sha256": "d479462a912bcf9a891225bf6167c16bc5721d370b3e5af291baf75a97582bc1",
+      "bytes": 4897
+    },
+    "loto/2025-03-20.txt": {
+      "sha256": "03d9a2f65ffc314af9cef31118d7bd1a871e970a71df9b0454c7c980eb17d131",
+      "bytes": 5173
+    },
+    "loto/2025-03-21.txt": {
+      "sha256": "d34b8f758c859c1190c667b603c96facbed76af51fc822fd4eca0ed47e7d92c0",
+      "bytes": 5171
+    },
+    "loto/2025-03-23.txt": {
+      "sha256": "63c189f4317edb903d564ea9ed2100c10cce5e142eb089d79620d7b0efeae34b",
+      "bytes": 5172
+    },
+    "loto/2025-03-24.txt": {
+      "sha256": "cb8f4676bcc186f6e6a43badccd0496e011d96bf9edc3995381b9106bb305f56",
+      "bytes": 5172
+    },
+    "loto/2025-03-25.txt": {
+      "sha256": "d10ac6a105bd64e0227fbcc50072da340c71869eba2ba7c5157be16445a3688d",
+      "bytes": 5172
+    },
+    "loto/2025-03-26.txt": {
+      "sha256": "ea3577fbca687e5018f38da4e45c78e75a6895aef9296b1dff173ebc7c0149e8",
+      "bytes": 5170
+    },
+    "loto/2025-03-27.txt": {
+      "sha256": "bec0228be8de98cbbefe009b843de17f653f93953a31a756e7bd169feaf81ec5",
+      "bytes": 5175
+    },
+    "loto/2025-03-28.txt": {
+      "sha256": "c4719c510d6fa928f37fa61f753d82306d4b5facf71fd18427b9571426b8c5c1",
+      "bytes": 5168
+    },
+    "loto/2025-03-29.txt": {
+      "sha256": "02d852f0153de9f97fa1e839c083140a82c9c35de0f78c83a51e82b64555ba88",
+      "bytes": 5174
+    },
+    "loto/2025-03-31.txt": {
+      "sha256": "d38ca58e9ef4b192a50ecfd23b55dc5fb7f3166a08a5e2be5168382a778da259",
+      "bytes": 5173
+    },
+    "loto/2025-04-01.txt": {
+      "sha256": "0334fc301ceafe61e4ef1a9c34f788def068766f51e6f5cbb2890711dcd651f3",
+      "bytes": 5175
+    },
+    "loto/2025-04-02.txt": {
+      "sha256": "86d9d8fbfab239c657bebaae73b3ed26e0cefcc3af3ba912a9a50b3928a72c29",
+      "bytes": 5174
+    },
+    "loto/2025-04-03.txt": {
+      "sha256": "2ced3cda9cb3fa2f7515069ed96b0c506a5d8779fff33120708a48b35bd9f709",
+      "bytes": 5170
+    },
+    "loto/2025-04-04.txt": {
+      "sha256": "ac3b612c9f79f2289189770f9083484cb7d0c2f8f34f240a5436bc6bd31495bc",
+      "bytes": 5174
+    },
+    "loto/2025-04-05.txt": {
+      "sha256": "a834893c8a531d43d67c0d2cf0891031462607e8397718918a17658bfa9f063b",
+      "bytes": 5173
+    },
+    "loto/2025-04-06.txt": {
+      "sha256": "e424b7f921d42742ea92e182bbddc01dcee5d222edc6feabaebe54d7587e7b81",
+      "bytes": 5170
+    },
+    "loto/2025-04-07.txt": {
+      "sha256": "4e3bea29991724fe8bb59e08640a60e011c27e1e4a62524b1bf79420b9448e42",
+      "bytes": 5172
+    },
+    "loto/2025-04-08.txt": {
+      "sha256": "80e973010d8b6c7078cd9355c04dfab6de2eb638279518521af0f04e4a1d6b9a",
+      "bytes": 4911
+    },
+    "loto/2025-04-09.txt": {
+      "sha256": "62529a60bb246ae683b98746dd67e6a0ac1e21d1d6a7a8ce604b52c4b2813d2c",
+      "bytes": 4910
+    },
+    "loto/2025-05-19.txt": {
+      "sha256": "acdedefefda8922eeabb829442b2624a5952e8a7a797b11c067dc445b06fe3ee",
+      "bytes": 4894
+    },
+    "loto/2025-05-21.txt": {
+      "sha256": "b5a04a142728718339dbd5bc6b0c440cb12e5123d270e8da72c2ceee7ce95470",
+      "bytes": 4893
+    },
+    "loto/2025-05-22.txt": {
+      "sha256": "f44faeb175b86763f24611bca905ae88ba2b2b3d2ac3886f8a2935a708328fec",
+      "bytes": 4896
+    },
+    "loto/2025-05-23.txt": {
+      "sha256": "e1141a4197d55788846abdf5079187159e6a6be73dfdcbd5e4c3f1c7b249b346",
+      "bytes": 4891
+    },
+    "loto/2025-05-24.txt": {
+      "sha256": "8847e7e17b20f3eb7b0e44a28da790a1e2e0148d0888e73a2445913af3d9beca",
+      "bytes": 4894
+    },
+    "loto/2025-07-05.txt": {
+      "sha256": "f7ac5a761f221524feb0d35ec225e51c40909f4a3c58733b0aab26019328c183",
+      "bytes": 4912
+    },
+    "loto/2025-07-06.txt": {
+      "sha256": "b618a93450a9e9071f33c39afc219b86cf76a920ab74a73fdd476f49fe8be125",
+      "bytes": 4910
+    },
+    "loto/2025-07-07.txt": {
+      "sha256": "5a1da14a07c25a5d9c5d4821d0183ce2e27938bc209684f0bd593b7fa5310dcf",
+      "bytes": 4908
+    },
+    "loto/2025-07-08.txt": {
+      "sha256": "a2f9ad252872d7599b601719a8c24b764e97fdf01c9469fbdc223200eee7c5f1",
+      "bytes": 4907
+    },
+    "loto/2025-07-19.txt": {
+      "sha256": "501da080eedf1005a1c29ff8ead6a7cc444cfa9fab742195d9b52382f7dca4b1",
+      "bytes": 4907
+    },
+    "loto/2025-07-21.txt": {
+      "sha256": "dc0e7e98d0fb2d236cec73ca63c11e425082863ff37fcfcd6133df5a271cfe31",
+      "bytes": 4899
+    },
+    "loto/2025-07-22.txt": {
+      "sha256": "d4eb01eed60e62fb051692c4edba7300a64047f649af4acd8f4a2de3ee674a0a",
+      "bytes": 4907
+    },
+    "loto/2025-07-25.txt": {
+      "sha256": "a92e3effa171b0619cd468c8c335fc84c2a0698e7bc68b228ed6e5f563b952f3",
+      "bytes": 4904
+    },
+    "loto/2025-07-26.txt": {
+      "sha256": "fd468e5e95de911329334f706b92ee7bf025e50bf1b50e659f111ad159464f57",
+      "bytes": 4903
+    },
+    "loto/2025-07-28.txt": {
+      "sha256": "6913fd4a1086fe59245a308da83057432c4726dc04c84712f90f0538a6ce7419",
+      "bytes": 4901
+    },
+    "loto/2025-07-30.txt": {
+      "sha256": "c470af53b211a5b62b29c5713dee36f224cd65e50951ad554d7ab86edda4d0fb",
+      "bytes": 4905
+    },
+    "loto/2025-07-31.txt": {
+      "sha256": "229356690232980d257d8202b6745ed633f7771670b11ef43771da8d432fa381",
+      "bytes": 4907
+    },
+    "loto/2025-08-01.txt": {
+      "sha256": "810d81c28084b1dea8967033a1548fe6d274d20246a1d7bbd43d0810495a3b8f",
+      "bytes": 4906
+    },
+    "loto/2025-08-02.txt": {
+      "sha256": "b137ec802575792e48c645cebfb2f7c83109873137bbc9ff1d7b5b0a42fcf23e",
+      "bytes": 4896
+    },
+    "loto/2025-08-03.txt": {
+      "sha256": "9566aaeabc8b2d90a67f45f83a7a70d691a0a83710fd2795a2beb45011defa73",
+      "bytes": 4890
+    },
+    "loto/2025-08-05.txt": {
+      "sha256": "ef3f7beca2d18ae7f7daa937429eba9a6f4686e5ff2c9b1bd1dc241c034524e9",
+      "bytes": 4896
+    },
+    "loto/2025-08-06.txt": {
+      "sha256": "17f85c5e5cdbc550dc45f11b7de7c63ba2e1eddbc38e2ee3d49b94cdfb6f3d6d",
+      "bytes": 4896
+    },
+    "loto/2025-08-08.txt": {
+      "sha256": "8a12ea02d8c3d9fe8e19fd0442cbe693dc7baec23f34b493b78238ee1e5fd419",
+      "bytes": 4896
+    },
+    "loto/2025-08-10.txt": {
+      "sha256": "414a66613fe008420c67f691fb1843ae3134aef8c93bbc7e971a62a8f8e04252",
+      "bytes": 4891
+    },
+    "loto/2025-08-11.txt": {
+      "sha256": "71bb80cef93b36405f01e114a3801f20216b6587361123a1575fc55a9034b37d",
+      "bytes": 4890
+    },
+    "loto/2025-08-12.txt": {
+      "sha256": "46e6dc206f591479fa0f0874af0e34ba07ab28d0da1e75d79d5c9fa76e69d556",
+      "bytes": 4897
+    },
+    "loto/2025-08-13.txt": {
+      "sha256": "85837a3d4d95a0e39d3ad4a7f54fb88b95570996c3554db751275a6c6755be30",
+      "bytes": 4894
+    },
+    "loto/2025-08-15.txt": {
+      "sha256": "fff4d6bea7ca3ec4c5d924e35bdaac6194037b823fad6b1e2a7bd83bc0cbf3a2",
+      "bytes": 4896
+    },
+    "loto/2025-08-16.txt": {
+      "sha256": "3feb2b420abedc901ea806676401a9203439ff556505ee556f4becc5c74a72fc",
+      "bytes": 4897
+    },
+    "loto/2025-08-18.txt": {
+      "sha256": "690c07328b3f2e1225cca4202bbdc3a148177fe32a1f1fa36dfa950a85632cc0",
+      "bytes": 4894
+    },
+    "loto/2025-08-19.txt": {
+      "sha256": "9da3822c7e332aebb925882e2230cbd33d16b5701296266a867cfef3d8ebcc94",
+      "bytes": 4892
+    },
+    "loto/2025-08-20.txt": {
+      "sha256": "07460f0d6bccb0a19868e0691765794ca4ef4f6dcfbd5eb51fcf00238ed5701d",
+      "bytes": 4896
+    },
+    "loto/2025-08-21.txt": {
+      "sha256": "77878e867af4b2fdb8ace80fb27ef419af58a52fc1a65763fec42ab5897c3b57",
+      "bytes": 4891
+    },
+    "loto/2025-08-22.txt": {
+      "sha256": "8772ef0820edead1874c441a3cc255d38b8f60831a4d2e6d3c7fca329b4c6a21",
+      "bytes": 4893
+    },
+    "loto/2025-08-23.txt": {
+      "sha256": "308a7565deaffbdc5f0f0032b2e8a6aad129819f6b1ed8e8fe91dec455f80d94",
+      "bytes": 4891
+    },
+    "loto/2025-08-24.txt": {
+      "sha256": "675c8ccb2b5074b30334a418678c8aaf502ff06fae2fc4fc454dc62a6bc4b4b8",
+      "bytes": 4895
+    },
+    "loto/2025-08-25.txt": {
+      "sha256": "091a8df07957f78ddd772ae4093057ae3e75248e71ac689c343057cb05089ced",
+      "bytes": 4892
+    },
+    "loto/2025-08-26.txt": {
+      "sha256": "02049caa757df239caea9439787397e6633d5b206818214780942d6575c83cac",
+      "bytes": 4892
+    },
+    "loto/2025-09-28.txt": {
+      "sha256": "6966cbe93443aef42577f40426ce0b9341c0fa3164e008d6aa5ca9454f81ee68",
+      "bytes": 4896
+    },
+    "loto/2025-09-29.txt": {
+      "sha256": "aa3d5396a11afd0a8137f906a83b5f365d8e3e7e32816f1e3b77bb90659e0b71",
+      "bytes": 4896
+    },
+    "loto/2025-09-30.txt": {
+      "sha256": "f41cac5f58ccf9736d24da36de395d88be725fcecec602a57e8f40b905eb05bb",
+      "bytes": 4893
+    },
+    "loto/2025-10-01.txt": {
+      "sha256": "d30419bee1558f1ca2f8deaa630ba44de47466be794e4db605e2a472b5de02e1",
+      "bytes": 4893
+    },
+    "loto/2025-10-03.txt": {
+      "sha256": "baa217432ad90af22fb909fe083d43657fcd20adb0c30d73186e9aff04d9403e",
+      "bytes": 4889
+    },
+    "loto/2025-10-04.txt": {
+      "sha256": "096c9b42093ed140443c0eb75f122a739afbf47bcd286ddf26233c7016fdfb6a",
+      "bytes": 4893
+    },
+    "loto/2025-10-05.txt": {
+      "sha256": "8989db56c93b472b1884943fbb61c6106adb369eaab5a6506c0a7168c85c5348",
+      "bytes": 4895
+    },
+    "loto/2025-11-28.txt": {
+      "sha256": "f3394a47486ee6ea01267a9ad05e0f688a9b1136ae5988d09ea11f9e740a0d80",
+      "bytes": 4892
+    },
+    "loto/2025-11-29.txt": {
+      "sha256": "8d3d193261df6828112495b627cec072cc8c876a94da66dfad6fde6970f6eb64",
+      "bytes": 4894
+    },
+    "loto/2025-12-01.txt": {
+      "sha256": "807dd27292118e7de1eae214ba83b9c1f73e3f2211c9ecdf4b4f9376b4c20b6e",
+      "bytes": 4891
+    },
+    "loto/2025-12-02.txt": {
+      "sha256": "7b69c9bb30a2bca018690f10372cb739b410d7363a3573616f2e512b02360c13",
+      "bytes": 4891
+    },
+    "loto/2025-12-03.txt": {
+      "sha256": "ce6384a2c4788a25be8100e38d3f4b88c2d42339d04e67639b0b7bed4fb688e1",
+      "bytes": 4894
+    },
+    "loto/2025-12-04.txt": {
+      "sha256": "27cc00012b285201a4867d072b44d67b6bc088a0c13e56b0e627b2462ec3a7ae",
+      "bytes": 4891
+    },
+    "loto/2025-12-06.txt": {
+      "sha256": "a185973c73c776bea1fcc43fa388ce6ac9b25c64291b66d9e6bd29814074a3bf",
+      "bytes": 4892
+    },
+    "loto/2025-12-07.txt": {
+      "sha256": "6a7104a9b572253fbdb8b637d61b51fd21f62195b79ec2d80f64153449bd40b9",
+      "bytes": 4888
+    },
+    "loto/2026-02-23.txt": {
+      "sha256": "ae9c13085f879af50af234bec510f6cf344a0ccbd4b5dae0964895bea01983e1",
+      "bytes": 4961
+    },
+    "loto/2026-02-24.txt": {
+      "sha256": "8ee0ca2b13475f2ade6980cc281f52681609a4c68631a1c397bbea84d0729f16",
+      "bytes": 4963
+    },
+    "loto/2026-02-25.txt": {
+      "sha256": "557c807a2a54a0bb12d387e450c4fd5cfa6c2058a746584e4f55ada9a50a7be5",
+      "bytes": 4963
+    },
+    "loto/2026-02-26.txt": {
+      "sha256": "86c2356c74156f5534dbf8083f33d5d1b308603d32ec74938791f1d3046cf7d5",
+      "bytes": 4962
+    },
+    "loto/2026-02-27.txt": {
+      "sha256": "16d40536cb571ceb565d96d1a195d8bfb513ba52f606464a8fc9549a605f4736",
+      "bytes": 4955
+    },
+    "loto/2026-02-28.txt": {
+      "sha256": "fbc1b9ac5844a010f5913211cefe545737f437c4676928b2736399102de47137",
+      "bytes": 4954
+    },
+    "loto/2026-03-01.txt": {
+      "sha256": "cf3d277c76ff4a26c86e0cf3cd8a40188665f3651f0262046e99d26b44dc4eef",
+      "bytes": 4963
+    },
+    "loto/2026-03-02.txt": {
+      "sha256": "7d768d2a844206f9ff7c6467451eb4be5d37125e5b7991c121b7873a5c7303ce",
+      "bytes": 4959
+    },
+    "loto/2026-03-03.txt": {
+      "sha256": "f4bdf8925ab382e272db33fda15a01ec884fc369e92909a7644368dd2174d15f",
+      "bytes": 4964
+    },
+    "loto/2026-03-04.txt": {
+      "sha256": "13289d34bbb61d7a067b6a7a521e725a7e3d6608268ce88ac6c3eb3c251a141c",
+      "bytes": 4964
+    },
+    "loto/2026-03-05.txt": {
+      "sha256": "03f2059f1268a8e22f9b5bc6884f51fb13563b2c31d1056baf60120b9dc9085e",
+      "bytes": 4960
+    },
+    "loto/2026-03-06.txt": {
+      "sha256": "eb2e1d76abe04b865aff0911544716dc7e565dc55924c9e7a644cbfc8965ef0b",
+      "bytes": 4960
+    },
+    "loto/2026-03-08.txt": {
+      "sha256": "d8aeb8356b6298f0db6baa5edebc107ef05228609b0b8b12af9b4a41cacd4435",
+      "bytes": 4960
+    },
+    "loto/2026-03-09.txt": {
+      "sha256": "b34e867434267a97fdb9e65159dc2bab1ec5af2600246c2545f1cf6a68d278fc",
+      "bytes": 4966
+    },
+    "loto/2026-03-10.txt": {
+      "sha256": "1541c72d5e0ea40b01146399b726be036288057c42dfec51b6aa2677e011c5bf",
+      "bytes": 4961
+    },
+    "loto/2026-03-11.txt": {
+      "sha256": "56186dec85688f9c33adcef688152ee36c019673c3fb42d4fc074ceacc31a9e8",
+      "bytes": 4959
+    },
+    "loto/2026-03-12.txt": {
+      "sha256": "9daa8bde2a4d2ede91fe415ed111627b9a6a702be3b8ac3ffbeb54981e409590",
+      "bytes": 4959
+    },
+    "loto/2026-03-13.txt": {
+      "sha256": "918dddf3c93b8e4dd128f66d47d2397065f64d0cf1268cfb5832e62e41b359c2",
+      "bytes": 4963
+    },
+    "loto/2026-03-14.txt": {
+      "sha256": "112ebc999b0b4e9579f72aade32f31b5aa9a8eda18cb79ef670a200980733e4d",
+      "bytes": 4959
+    },
+    "loto/2026-03-15.txt": {
+      "sha256": "a2deaf0bfe56520e545f2b0238db05add2429204fa45135645b498ac3b48576e",
+      "bytes": 4963
+    },
+    "loto/2026-03-16.txt": {
+      "sha256": "083547c1fbd7575782a5dd4ee9b67a02efb9b91db11eb04773abad7ae046636e",
+      "bytes": 4959
+    },
+    "loto/2026-03-17.txt": {
+      "sha256": "2208aba889e0895de55b1467662d6a10665a5d640f443560b0c06f127573de6d",
+      "bytes": 4963
+    },
+    "loto/2026-03-18.txt": {
+      "sha256": "908849d0397ef0cb447e35b9fdaf06e72618e860f3055e775b8eb9addfac5c05",
+      "bytes": 4960
+    },
+    "loto/2026-03-19.txt": {
+      "sha256": "526c014f89444e751899e999e5ecb1938b07529f6a5264c9690364ede954ecbd",
+      "bytes": 4958
+    },
+    "loto/2026-03-20.txt": {
+      "sha256": "2c0dc244d5d0f4ba3c8fe6b72d25fe9f28897c4fc7d6172d728d999756769f03",
+      "bytes": 4966
+    },
+    "loto/2026-03-22.txt": {
+      "sha256": "ebc3edc753c8b54aebd0926bff395f04d6b48806dec46ff8fedad9ad0ab7a976",
+      "bytes": 4961
+    },
+    "loto/2026-03-23.txt": {
+      "sha256": "d275e20e576b3624ad76e2fdda69c151afad4e87c1503fb3953239ff16da2376",
+      "bytes": 4952
+    },
+    "loto/2026-03-24.txt": {
+      "sha256": "2a25368f4121ae4a7c86d0a245964780c08c635a215fea54cde932f81021cb3f",
+      "bytes": 4963
+    },
+    "loto/2026-03-25.txt": {
+      "sha256": "ba1970c51af6e44b71644d4f1f85a9a208e0e519ee50f3949373959e607ea7e7",
+      "bytes": 4963
+    },
+    "loto/2026-03-26.txt": {
+      "sha256": "9ada3fc542c6c620c620e35dfa82f0a61a9ca67e5b825f83a1174652b6ea83dc",
+      "bytes": 4963
+    },
+    "loto/2026-03-27.txt": {
+      "sha256": "f2a8f87e24628fe27222e973366b848dea8e848c6306b088e076b56cd87ecee3",
+      "bytes": 4961
+    },
+    "loto/2026-03-28.txt": {
+      "sha256": "95f71ce6054ef052dde3120c3d15e931f6916de6ec1741c4cbb4d1e5ccfd9df6",
+      "bytes": 4963
+    },
+    "loto/2026-03-29.txt": {
+      "sha256": "69d0b7144fe2e62938a27e2bf69473bd8173f17c6d7dfc9935fefa3b436b0634",
+      "bytes": 4961
+    },
+    "loto/2026-03-30.txt": {
+      "sha256": "7145e025a3ae3be7bf80440daa0ba8b0b614144187d64669fad4f6f6bc8b58d5",
+      "bytes": 4966
+    },
+    "loto/2026-03-31.txt": {
+      "sha256": "76170dea886bdd6dda6b7fcb8f9467523a838a2a9f68fc7b3c030101579f214f",
+      "bytes": 4963
+    },
+    "loto/2026-04-02.txt": {
+      "sha256": "f2bfea5f30f4ed5ee0e3ada488480d2775e6048ab10fde97f1d48c00a0b4cb1f",
+      "bytes": 4963
+    },
+    "loto/2026-04-03.txt": {
+      "sha256": "c2e8e7560c2a5dc67acbac5c83ee5ac45f0d4aea4b460a54b8181f35ae7e6736",
+      "bytes": 4963
+    },
+    "loto/2026-04-04.txt": {
+      "sha256": "afb12348534fb8cead29b987c2cb589cdd5cc393abf5e9464b39b0ddb71e3417",
+      "bytes": 4961
+    },
+    "loto/2026-04-05.txt": {
+      "sha256": "7e8ee33a3021dcce83dbb017f7df713e6f54dd858fec63893bda913934053c83",
+      "bytes": 4963
+    },
+    "loto/2026-04-07.txt": {
+      "sha256": "e537e19269b3f800fa947d1cfe22b239063e0e73ebab5adb85c95a9beff84092",
+      "bytes": 4963
+    },
+    "loto/2026-04-08.txt": {
+      "sha256": "d280e02ecb7b5ef37767efba9d984c89838ecb878351a44124a828b4aa500d58",
+      "bytes": 4962
+    },
+    "loto/2026-04-09.txt": {
+      "sha256": "320bfa13c6a2769cf6c5657d96e0a018cac62d2deda512d83d18d01174b209d2",
+      "bytes": 4963
+    },
+    "loto/2026-04-10.txt": {
+      "sha256": "3bd5674e5c9e33e54fb0a96c0c1f5e5176ae5c3a0d312a2ee8a8dc96353c5557",
+      "bytes": 4963
+    },
+    "loto/2026-04-11.txt": {
+      "sha256": "6a8ba28005b35d94b22b72051ead92e008f38fc3cbeb4599009fb13f158359d8",
+      "bytes": 4958
+    },
+    "loto/2026-05-21.txt": {
+      "sha256": "018fbb3919871ffce151985ccef5cdca1936766c1f670665bfcb1aa285c668de",
+      "bytes": 4963
+    },
+    "lotteries.json": {
+      "sha256": "7a91468fb2e5fd010027715d4a3c4b28c2c281a285b7df43e6426e6eeed11111",
+      "bytes": 10207
+    },
+    "payments.json": {
+      "sha256": "db71fbc345aee14c6e6cb7ef9b7c6af51f87bad482dd8b2e666ccb6efd83ee35",
+      "bytes": 2475
+    },
+    "snapshot.json": {
+      "sha256": "9031070fd7a23741c55584cea6af848a917b9dfd1bd67cd85989a7d78d24b572",
+      "bytes": 101075
+    }
+  }
+}

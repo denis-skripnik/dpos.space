@@ -48,6 +48,7 @@ const context = {
   console,
   URL,
   URLSearchParams,
+  AbortController,
   Intl,
   setTimeout,
   clearTimeout,
@@ -60,6 +61,7 @@ const context = {
   addEventListener() {},
   fetch: async (url) => {
     fetchCalls.push(String(url));
+    if (String(url) === '/v3/data/long/manifest.json') return { ok: false, status: 404 };
     if (String(url) === '/api/smartfarm') {
       return { ok: true, text: async () => JSON.stringify(smartfarm) };
     }
@@ -86,6 +88,7 @@ context.DposHistory = {
   operationTitle: (value) => String(value || '')
 };
 
+vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/long-archive.js'), 'utf8'), context, { filename: 'v3/js/long-archive.js' });
 vm.runInContext(fs.readFileSync(path.join(root, 'v3/js/app.js'), 'utf8'), context, { filename: 'v3/js/app.js' });
 
 (async () => {
